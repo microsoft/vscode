@@ -511,7 +511,7 @@ export async function createWebviewManager(host) {
 	 *         readonly allowMultipleAPIAcquire: boolean;
 	 *     }
 	 *     state: any;
-	 *     resourceEndpoint: string;
+	 *     cspSource: string;
 	 * }} ContentUpdateData
 	 */
 
@@ -553,10 +553,9 @@ export async function createWebviewManager(host) {
 		} else {
 			try {
 				// Attempt to rewrite CSPs that hardcode old-style resource endpoint
-				const endpointUrl = new URL(data.resourceEndpoint);
 				const cspContent = csp.getAttribute('content');
 				if (cspContent) {
-					const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, endpointUrl.origin);
+					const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, data.cspSource);
 					csp.setAttribute('content', newCsp);
 				}
 			} catch (e) {
@@ -791,6 +790,11 @@ export async function createWebviewManager(host) {
 				contentWindow.addEventListener('keydown', handleInnerKeydown);
 				contentWindow.addEventListener('keyup', handleInnerUp);
 				contentWindow.addEventListener('contextmenu', e => {
+					if (e.defaultPrevented) {
+						// Extension code has already handled this event
+						return;
+					}
+
 					e.preventDefault();
 					host.postMessage('did-context-menu', {
 						clientX: e.clientX,

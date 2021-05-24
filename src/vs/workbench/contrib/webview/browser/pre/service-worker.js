@@ -17,17 +17,11 @@ const rootPath = sw.location.pathname.replace(/\/service-worker.js$/, '');
 
 
 const searchParams = new URL(location.toString()).searchParams;
+
 /**
  * Origin used for resources
  */
-const resourceOrigin = searchParams.get('vscode-resource-origin') ?? sw.origin;
-
-/**
- * Root path for resources
- */
-const resourceRoot = rootPath + '/vscode-resource';
-
-const serviceWorkerFetchIgnoreSubdomain = searchParams.get('serviceWorkerFetchIgnoreSubdomain') ?? false;
+const resourceBaseAuthority = searchParams.get('vscode-resource-base-authority');
 
 const resolveTimeout = 30000;
 
@@ -175,17 +169,7 @@ sw.addEventListener('message', async (event) => {
 
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
-
-	if (serviceWorkerFetchIgnoreSubdomain && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// #121981
-		const ignoreFirstSubdomainRegex = /(.*):\/\/.*?\.(.*)/;
-		const match1 = resourceOrigin.match(ignoreFirstSubdomainRegex);
-		const match2 = requestUrl.origin.match(ignoreFirstSubdomainRegex);
-		if (match1 && match2 && match1[1] === match2[1] && match1[2] === match2[2]) {
-			return event.respondWith(processResourceRequest(event, requestUrl));
-		}
-	} else if (requestUrl.origin === resourceOrigin && requestUrl.pathname.startsWith(resourceRoot + '/')) {
-		// See if it's a resource request
+	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
 		return event.respondWith(processResourceRequest(event, requestUrl));
 	}
 
@@ -219,8 +203,6 @@ async function processResourceRequest(event, requestUrl) {
 		console.error('Could not resolve webview id');
 		return notFound();
 	}
-
-	const resourcePath = requestUrl.pathname.startsWith(resourceRoot + '/') ? requestUrl.pathname.slice(resourceRoot.length) : requestUrl.pathname;
 
 	/**
 	 * @param {ResourceResponse} entry
@@ -271,10 +253,17 @@ async function processResourceRequest(event, requestUrl) {
 	const cached = await cache.match(event.request);
 
 	const { requestId, promise } = resourceRequestStore.create();
+
+	const firstHostSegment = requestUrl.hostname.slice(0, requestUrl.hostname.length - (resourceBaseAuthority.length + 1));
+	const scheme = firstHostSegment.split('+', 1)[0];
+	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
+
 	parentClient.postMessage({
 		channel: 'load-resource',
 		id: requestId,
-		path: resourcePath,
+		path: decodeURIComponent(requestUrl.pathname),
+		scheme,
+		authority,
 		query: requestUrl.search.replace(/^\?/, ''),
 		ifNoneMatch: cached?.headers.get('ETag'),
 	});

@@ -13,7 +13,7 @@
 
 .monaco-workbench .notebookOverlay .notebook-toolbar-container {
 	width: 100%;
-	display: flex;
+	display: none;
 	margin-top: 2px;
 	margin-bottom: 2px;
 }
@@ -216,6 +216,7 @@
 .monaco-workbench .notebookOverlay .output {
 	position: absolute;
 	height: 0px;
+	font-size: var(--notebook-cell-output-font-size);
 	user-select: text;
 	-webkit-user-select: text;
 	-ms-user-select: text;
@@ -254,14 +255,14 @@
 	color: red; /*TODO@rebornix theme color*/
 }
 
-.monaco-workbench .notebookOverlay .cell-drag-image .output .multi-mimetype-output {
+.monaco-workbench .notebookOverlay .cell-drag-image .output .cell-output-toolbar {
 	display: none;
 }
 
-.monaco-workbench .notebookOverlay .output .multi-mimetype-output {
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar {
 	position: absolute;
 	top: 4px;
-	left: -30px;
+	left: -32px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
@@ -347,44 +348,13 @@
 	display: none;
 }
 
-/* top and bottom borders on cells */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:before,
-.monaco-workbench .notebookOverlay .monaco-list .markdown-cell-row .cell-inner-container:after {
-	content: "";
-	position: absolute;
-	width: 100%;
-	height: 1px;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover .codicon {
+	opacity: 0;
+	transition: opacity 0.5s;
 }
 
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	content: "";
-	position: absolute;
-	width: 1px;
-	height: 100%;
-	z-index: 10;
-}
-
-/* top border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {
-	border-top: 1px solid transparent;
-}
-
-/* left border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-	border-left: 1px solid transparent;
-}
-
-/* bottom border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-bottom:before {
-	border-bottom: 1px solid transparent;
-}
-
-/* right border */
-.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
-	border-right: 1px solid transparent;
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover:hover .codicon {
+	opacity: 1;
 }
 
 .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-top:before {

@@ -151,14 +151,14 @@ export class PreferencesEditor extends EditorPane {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	override setInput(newInput: EditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: PreferencesEditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {//
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
 			this.focusSearch(options.query);
 		}
 
-		return super.setInput(newInput, options, context, token).then(() => this.updateInput(newInput as PreferencesEditorInput, options, context, token));
+		return super.setInput(input, options, context, token).then(() => this.updateInput(input, options, context, token));
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -205,7 +205,7 @@ export class PreferencesEditor extends EditorPane {
 	}
 
 	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, <EditorInput>newInput.primary, options, context, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, newInput.primary, options, context, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
 				return;
 			}

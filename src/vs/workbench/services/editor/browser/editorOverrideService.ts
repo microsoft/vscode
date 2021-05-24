@@ -244,6 +244,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return contributions.sort((a, b) => priorityToRank(b.editorInfo.priority) - priorityToRank(a.editorInfo.priority));
 	}
 
+	public getEditorIds(resource: URI): string[] {
+		const contributionPoints = this.findMatchingContributions(resource);
+		return contributionPoints.map(contribution => contribution.editorInfo.id);
+	}
+
 	/**
 	 * Given a resource and an override selects the best possible contribution point
 	 * @returns The contribution point and whether there was another default which conflicted with it
@@ -385,7 +390,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource]?.find(editorID => editorID === currentEditor.viewType)) {
+		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.viewType)) {
 			return;
 		}
 

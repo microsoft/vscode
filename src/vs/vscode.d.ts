@@ -2061,7 +2061,7 @@ declare module 'vscode' {
 	 *
 	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
 	 *
-	 * Code action kinds are used by VS Code for UI elements such as the refactoring context menu. Users
+	 * Code action kinds are used by the editor for UI elements such as the refactoring context menu. Users
 	 * can also trigger code actions with a specific kind with the `editor.action.codeAction` command.
 	 */
 	export class CodeActionKind {
@@ -2247,7 +2247,7 @@ declare module 'vscode' {
 		/**
 		 * A {@link Command} this code action executes.
 		 *
-		 * If this command throws an exception, VS Code displays the exception message to users in the editor at the
+		 * If this command throws an exception, the editor displays the exception message to users in the editor at the
 		 * current cursor position.
 		 */
 		command?: Command;
@@ -2278,7 +2278,7 @@ declare module 'vscode' {
 		 * of code action, such as refactorings.
 		 *
 		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
-		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user an
+		 * that auto applies a code action and only a disabled code actions are returned, the editor will show the user an
 		 * error message with `reason` in the editor.
 		 */
 		disabled?: {
@@ -2355,17 +2355,17 @@ declare module 'vscode' {
 		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
-		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+		readonly providedCodeActionKinds?: readonly CodeActionKind[];
 
 		/**
 		 * Static documentation for a class of code actions.
 		 *
 		 * Documentation from the provider is shown in the code actions menu if either:
 		 *
-		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 * - Code actions of `kind` are requested by the editor. In this case, the editor will show the documentation that
 		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
 		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   VS Code will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 *   the editor will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
 		 *
 		 * - Any code actions of `kind` are returned by the provider.
 		 *
@@ -2384,7 +2384,7 @@ declare module 'vscode' {
 			/**
 			 * Command that displays the documentation to the user.
 			 *
-			 * This can display the documentation directly in VS Code or open a website using {@link env.openExternal `env.openExternal`};
+			 * This can display the documentation directly in the editor or open a website using {@link env.openExternal `env.openExternal`};
 			 *
 			 * The title of this documentation code action is taken from {@link Command.title `Command.title`}
 			 */
@@ -2696,13 +2696,13 @@ declare module 'vscode' {
 	/**
 	 * The evaluatable expression provider interface defines the contract between extensions and
 	 * the debug hover. In this contract the provider returns an evaluatable expression for a given position
-	 * in a document and VS Code evaluates this expression in the active debug session and shows the result in a debug hover.
+	 * in a document and the editor evaluates this expression in the active debug session and shows the result in a debug hover.
 	 */
 	export interface EvaluatableExpressionProvider {
 
 		/**
 		 * Provide an evaluatable expression for the given document and position.
-		 * VS Code will evaluate this expression in the active debug session and will show the result in the debug hover.
+		 * The editor will evaluate this expression in the active debug session and will show the result in the debug hover.
 		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
 		 *
 		 * @param document The document for which the debug hover is about to appear.
@@ -7782,7 +7782,7 @@ declare module 'vscode' {
 	/**
 	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an {@link CustomDocument `CustomDocument`}.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
@@ -7821,7 +7821,7 @@ declare module 'vscode' {
 	 * Event triggered by extensions to signal to VS Code that the content of a {@link CustomDocument `CustomDocument`}
 	 * has changed.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
@@ -8936,7 +8936,7 @@ declare module 'vscode' {
 				 *
 				 * Normally the webview's html context is created when the view becomes visible
 				 * and destroyed when it is hidden. Extensions that have complex state
-				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+				 * or UI can set the `retainContextWhenHidden` to make the editor keep the webview
 				 * context around, even when the webview moves to a background tab. When a webview using
 				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
 				 * When the view becomes visible again, the context is automatically restored
@@ -8953,7 +8953,7 @@ declare module 'vscode' {
 		/**
 		 * Register a provider for custom editors for the `viewType` contributed by the `customEditors` extension point.
 		 *
-		 * When a custom editor is opened, VS Code fires an `onCustomEditor:viewType` activation event. Your extension
+		 * When a custom editor is opened, an `onCustomEditor:viewType` activation event is fired. Your extension
 		 * must register a {@link CustomTextEditorProvider `CustomTextEditorProvider`}, {@link CustomReadonlyEditorProvider `CustomReadonlyEditorProvider`},
 		 * {@link CustomEditorProvider `CustomEditorProvider`}for `viewType` as part of activation.
 		 *
@@ -8976,7 +8976,7 @@ declare module 'vscode' {
 			 * Indicates that the provider allows multiple editor instances to be open at the same time for
 			 * the same resource.
 			 *
-			 * By default, VS Code only allows one editor instance to be open at a time for each resource. If the
+			 * By default, the editor only allows one editor instance to be open at a time for each resource. If the
 			 * user tries to open a second editor instance for the resource, the first one is instead moved to where
 			 * the second one was to be opened.
 			 *
@@ -10342,7 +10342,7 @@ declare module 'vscode' {
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * List of workspace folders that are open in VS Code. `undefined` when no workspace
 		 * has been opened.
 		 *
 		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
@@ -11606,6 +11606,12 @@ declare module 'vscode' {
 		 * The debug session's type from the {@link DebugConfiguration debug configuration}.
 		 */
 		readonly type: string;
+
+		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
 
 		/**
 		 * The debug session's name is initially taken from the {@link DebugConfiguration debug configuration}.

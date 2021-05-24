@@ -169,6 +169,13 @@ export class StatefulMarkdownCell extends Disposable {
 
 		this.foldingState = viewCell.foldingState;
 		this.setFoldingIndicator();
+		this.updateFoldingIconShowClass();
+
+		this._register(this.notebookEditor.notebookOptions.onDidChangeOptions(e => {
+			if (e.showFoldingControls) {
+				this.updateFoldingIconShowClass();
+			}
+		}));
 
 		this._register(viewCell.onDidChangeState((e) => {
 			if (!e.foldingStateChanged) {
@@ -239,6 +246,11 @@ export class StatefulMarkdownCell extends Disposable {
 	override dispose() {
 		this.viewCell.detachTextEditor();
 		super.dispose();
+	}
+
+	private updateFoldingIconShowClass() {
+		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
+		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
 
 	private viewUpdate(): void {

@@ -49,6 +49,7 @@ export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCe
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
+export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
@@ -89,6 +90,7 @@ export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
 	initHeight?: number;
+	disposable?: IDisposable;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -116,6 +118,7 @@ export interface ICellOutputViewModel {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
+	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
 

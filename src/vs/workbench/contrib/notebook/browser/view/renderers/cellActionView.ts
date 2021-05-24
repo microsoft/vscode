@@ -48,7 +48,7 @@ export class ActionViewWithLabel extends MenuEntryActionViewItem {
 		if (this._actionLabel) {
 			this._actionLabel.classList.add('notebook-label');
 			this._actionLabel.innerText = this._action.label;
-			this._actionLabel.title = this._action.tooltip;
+			this._actionLabel.title = this._action.tooltip.length ? this._action.tooltip : this._action.label;
 		}
 	}
 }

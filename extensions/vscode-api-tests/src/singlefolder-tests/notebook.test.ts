@@ -104,8 +104,8 @@ suite('Notebook API tests', function () {
 
 	suiteSetup(function () {
 		suiteDisposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-			openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
-				if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
+			openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
+				if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
 					return {
 						metadata: new vscode.NotebookDocumentMetadata(),
 						cells: []

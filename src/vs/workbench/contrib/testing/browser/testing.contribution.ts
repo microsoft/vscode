@@ -35,7 +35,7 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl';
 import { IWorkspaceTestCollectionService, WorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import * as Action from './testExplorerActions';
+import { allTestActions } from './testExplorerActions';
 
 registerSingleton(ITestService, TestService);
 registerSingleton(ITestResultStorage, TestResultStorage);
@@ -89,35 +89,7 @@ viewsRegistry.registerViews([{
 	when: ContextKeyExpr.greater(TestingContextKeys.providerCount.key, 0),
 }], viewContainer);
 
-registerAction2(Action.AutoRunOffAction);
-registerAction2(Action.AutoRunOnAction);
-registerAction2(Action.CancelTestRunAction);
-registerAction2(Action.ClearTestResultsAction);
-registerAction2(Action.CollapseAllAction);
-registerAction2(Action.DebugAction);
-registerAction2(Action.DebugAllAction);
-registerAction2(Action.DebugAtCursor);
-registerAction2(Action.DebugCurrentFile);
-registerAction2(Action.DebugFailedTests);
-registerAction2(Action.DebugLastRun);
-registerAction2(Action.DebugSelectedAction);
-registerAction2(Action.GoToTest);
-registerAction2(Action.HideTestAction);
-registerAction2(Action.RefreshTestsAction);
-registerAction2(Action.ReRunFailedTests);
-registerAction2(Action.ReRunLastRun);
-registerAction2(Action.RunAction);
-registerAction2(Action.RunAllAction);
-registerAction2(Action.RunAtCursor);
-registerAction2(Action.RunCurrentFile);
-registerAction2(Action.RunSelectedAction);
-registerAction2(Action.SearchForTestExtension);
-registerAction2(Action.ShowMostRecentOutputAction);
-registerAction2(Action.TestingSortByLocationAction);
-registerAction2(Action.TestingSortByNameAction);
-registerAction2(Action.TestingViewAsListAction);
-registerAction2(Action.TestingViewAsTreeAction);
-registerAction2(Action.UnhideTestAction);
+allTestActions.forEach(registerAction2);
 registerAction2(CloseTestPeek);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(TestingContentProvider, LifecyclePhase.Restored);

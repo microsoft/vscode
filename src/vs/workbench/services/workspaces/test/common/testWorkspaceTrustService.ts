@@ -24,6 +24,14 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		this.trusted = trusted;
 	}
 
+	get acceptsOutOfWorkspaceFiles(): boolean {
+		throw new Error('Method not implemented.');
+	}
+
+	set acceptsOutOfWorkspaceFiles(value: boolean) {
+		throw new Error('Method not implemented.');
+	}
+
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable {
 		throw new Error('Method not implemented.');
 	}
@@ -32,7 +40,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	setParentFolderTrust(trusted: boolean): void {
+	setParentFolderTrust(trusted: boolean): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -79,8 +87,12 @@ export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestS
 
 	constructor(private readonly _trusted: boolean) { }
 
-	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
-		throw new Error('Method not implemented.');
+	requestOpenUrisHandler = async (uris: URI[]) => {
+		return WorkspaceTrustUriResponse.Open;
+	};
+
+	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+		return this.requestOpenUrisHandler(uris);
 	}
 
 	cancelRequest(): void {

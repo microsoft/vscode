@@ -9,20 +9,18 @@ import { ICommonNotebookEditor, IOutputTransformContribution } from 'vs/workbenc
 export type IOutputTransformCtor = IConstructorSignature1<ICommonNotebookEditor, IOutputTransformContribution>;
 
 export interface IOutputTransformDescription {
-	id: string;
 	ctor: IOutputTransformCtor;
 }
 
+export const OutputRendererRegistry = new class NotebookRegistryImpl {
 
-export const NotebookRegistry = new class NotebookRegistryImpl {
+	readonly #outputTransforms: IOutputTransformDescription[] = [];
 
-	readonly outputTransforms: IOutputTransformDescription[] = [];
-
-	registerOutputTransform<Services extends BrandedService[]>(id: string, ctor: { new(editor: ICommonNotebookEditor, ...services: Services): IOutputTransformContribution }): void {
-		this.outputTransforms.push({ id: id, ctor: ctor as IOutputTransformCtor });
+	registerOutputTransform<Services extends BrandedService[]>(ctor: { new(editor: ICommonNotebookEditor, ...services: Services): IOutputTransformContribution }): void {
+		this.#outputTransforms.push({ ctor: ctor as IOutputTransformCtor });
 	}
 
 	getOutputTransformContributions(): IOutputTransformDescription[] {
-		return this.outputTransforms.slice(0);
+		return this.#outputTransforms.slice(0);
 	}
 };

@@ -24,7 +24,7 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@ILocalTerminalService localTerminalService: ILocalTerminalService,
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(
 			{

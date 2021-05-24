@@ -344,6 +344,7 @@ export class LiveTestResult implements ITestResult {
 		const index = this.mustGetTaskIndex(taskId);
 		if (duration !== undefined) {
 			entry.tasks[index].duration = duration;
+			entry.ownDuration = Math.max(entry.ownDuration || 0, duration);
 		}
 
 		this.fireUpdateAndRefresh(entry, index, state);
@@ -463,7 +464,7 @@ export class LiveTestResult implements ITestResult {
 		entry.ownComputedState = newOwnComputed;
 		this.counts[previousOwnComputed]--;
 		this.counts[newOwnComputed]++;
-		refreshComputedState(this.computedStateAccessor, entry, t =>
+		refreshComputedState(this.computedStateAccessor, entry).forEach(t =>
 			this.changeEmitter.fire(
 				t === entry
 					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous: previousOwnComputed }

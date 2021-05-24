@@ -56,7 +56,6 @@ import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/to
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { Schemas } from 'vs/base/common/network';
@@ -132,7 +131,6 @@ export class GettingStartedPage extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorGroupsService private readonly groupsService: IEditorGroupsService,
 		@IContextKeyService contextService: IContextKeyService,
 		@IQuickInputService private quickInputService: IQuickInputService,
@@ -236,7 +234,8 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	async makeCategoryVisibleWhenAvailable(categoryID: string) {
-		await this.extensionService.whenInstalledExtensionsRegistered();
+		await this.gettingStartedService.installedExtensionsRegistered;
+
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		const ourCategory = this.gettingStartedCategories.find(c => c.id === categoryID);
 		if (!ourCategory) {
@@ -291,10 +290,7 @@ export class GettingStartedPage extends EditorPane {
 								break;
 							}
 							case 'hideCategory': {
-								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-								this.setHiddenCategories([...this.getHiddenCategories().add(argument)]);
-								this.gettingStartedList?.rerender();
+								this.hideCategory(argument);
 								break;
 							}
 							// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
@@ -304,6 +300,19 @@ export class GettingStartedPage extends EditorPane {
 							}
 							case 'toggleStepCompletion': {
 								this.toggleStepCompletion(argument);
+								break;
+							}
+							case 'allDone': {
+								this.markAllStepsComplete();
+								break;
+							}
+							case 'nextSection': {
+								const next = this.currentCategory?.next;
+								if (next) {
+									this.scrollToCategory(next);
+								} else {
+									console.error('Error scrolling to next section of', this.currentCategory);
+								}
 								break;
 							}
 							default: {
@@ -316,6 +325,27 @@ export class GettingStartedPage extends EditorPane {
 				}));
 			}
 		});
+	}
+
+	private hideCategory(categoryId: string) {
+		const selectedCategory = this.gettingStartedCategories.find(category => category.id === categoryId);
+		if (!selectedCategory) { throw Error('Could not find category with ID ' + categoryId); }
+		this.setHiddenCategories([...this.getHiddenCategories().add(categoryId)]);
+		this.gettingStartedList?.rerender();
+	}
+
+	private markAllStepsComplete() {
+		if (!this.currentCategory || this.currentCategory.content.type !== 'steps') {
+			throw Error('cannot run step action for category of non steps type' + this.currentCategory?.id);
+		}
+
+		this.currentCategory.content.steps.forEach(step => {
+			if (!step.done) {
+				this.gettingStartedService.progressStep(step.id);
+			}
+		});
+		this.hideCategory(this.currentCategory.id);
+		this.scrollPrev();
 	}
 
 	private toggleStepCompletion(argument: string) {
@@ -446,6 +476,11 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
+	async selectStepLoose(id: string) {
+		const toSelect = this.editorInput.selectedCategory + '#' + id;
+		this.selectStep(toSelect);
+	}
+
 	private async selectStep(id: string | undefined, delayFocus = true, forceRebuild = false) {
 		if (id && this.editorInput.selectedStep === id && !forceRebuild) { return; }
 
@@ -494,12 +529,7 @@ export class GettingStartedPage extends EditorPane {
 			if (src.startsWith('https://')) { return `src="${src}"`; }
 
 			const path = joinPath(base, src);
-			const transformed = asWebviewUri({
-				isExtensionDevelopmentDebug: this.environmentService.isExtensionDevelopment,
-				webviewResourceRoot: this.environmentService.webviewResourceRoot,
-				webviewCspSource: this.environmentService.webviewCspSource,
-				remote: { authority: undefined },
-			}, this.webviewID, path).toString();
+			const transformed = asWebviewUri(path).toString();
 			return `src="${transformed}"`;
 		});
 
@@ -825,14 +855,17 @@ export class GettingStartedPage extends EditorPane {
 			bar.setAttribute('aria-valuemin', '0');
 			bar.setAttribute('aria-valuenow', '' + numDone);
 			bar.setAttribute('aria-valuemax', '' + numTotal);
-			const progress = Math.max((numDone / numTotal) * 100, 3);
+			const progress = (numDone / numTotal) * 100;
 			bar.style.width = `${progress}%`;
 
+
+			(element.parentElement as HTMLElement).classList[numDone === 0 ? 'add' : 'remove']('no-progress');
+
 			if (numTotal === numDone) {
-				bar.title = `All steps complete!`;
+				bar.title = localize('gettingStarted.allStepsComplete', "All {0} steps complete!", numTotal);
 			}
 			else {
-				bar.title = `${numDone} of ${numTotal} steps complete`;
+				bar.title = localize('gettingStarted.someStepsComplete', "{0} of {1} steps complete", numDone, numTotal);
 			}
 		});
 	}
@@ -987,7 +1020,19 @@ export class GettingStartedPage extends EditorPane {
 					stepDescription);
 			});
 
-		const stepsContainer = $('.getting-started-detail-container', { 'role': 'list' }, ...categoryElements);
+		const showNextCategory =
+			this.gettingStartedCategories.find(_category => _category.id === category.next && _category.content.type === 'steps' && !_category.content.done);
+
+		const stepsContainer = $(
+			'.getting-started-detail-container', { 'role': 'list' },
+			...categoryElements,
+			$('.done-next-container', {},
+				$('button.button-link.all-done', { 'x-dispatch': 'allDone' }, $('span.codicon.codicon-check-all'), localize('allDone', "Mark Done")),
+				...(showNextCategory
+					? [$('button.button-link.next', { 'x-dispatch': 'nextSection' }, localize('nextOne', "Next Section"), $('span.codicon.codicon-arrow-small-right'))]
+					: []),
+			)
+		);
 		this.detailsScrollbar = this._register(new DomScrollableElement(stepsContainer, { className: 'steps-container' }));
 		const stepListComponent = this.detailsScrollbar.getDomNode();
 
@@ -1247,7 +1292,7 @@ registerThemingParticipant((theme, collector) => {
 	if (link) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close) { color: ${link}; }`);
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link { color: ${link}; }`);
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .scroll-button { color: ${link}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon { color: ${link}; }`);
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {

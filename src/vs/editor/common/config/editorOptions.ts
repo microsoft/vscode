@@ -3175,6 +3175,10 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Enable or disable the rendering of the suggestion inline.
+	 */
+	showSuggestionPreview?: boolean;
+	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3190,6 +3194,10 @@ export interface ISuggestOptions {
 	 * Show constructor-suggestions.
 	 */
 	showConstructors?: boolean;
+	/**
+	 * Show deprecated-suggestions.
+	 */
+	showDeprecated?: boolean;
 	/**
 	 * Show field-suggestions.
 	 */
@@ -3301,10 +3309,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			showSuggestionPreview: false,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
+			showDeprecated: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -3373,6 +3383,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
+				'editor.suggest.showSuggestionPreview': {
+					type: 'boolean',
+					default: defaults.showSuggestionPreview,
+					description: nls.localize('suggest.showSuggestionPreview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
 
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3401,6 +3416,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showConstructors', "When enabled IntelliSense shows `constructor`-suggestions.")
+				},
+				'editor.suggest.showDeprecated': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -3544,10 +3564,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showSuggestionPreview: boolean(input.showSuggestionPreview, this.defaultValue.showSuggestionPreview),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),

@@ -30,6 +30,7 @@ export type BuiltinGettingStartedCategory = {
 	id: string
 	title: string,
 	description: string,
+	next?: string,
 	icon: ThemeIcon,
 	when?: string,
 	content:
@@ -172,6 +173,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		title: localize('gettingStarted.setup.title', "Customize your Setup"),
 		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to make it yours."),
 		icon: setupIcon,
+		next: 'Beginner',
 		when: 'remoteName != codespaces',
 		content: {
 			type: 'steps',
@@ -267,6 +269,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		id: 'Beginner',
 		title: localize('gettingStarted.beginner.title', "Learn the Fundamentals"),
 		icon: beginnerIcon,
+		next: 'Intermediate',
 		description: localize('gettingStarted.beginner.description', "Jump right into VS Code and get an overview of the must-have features."),
 		content: {
 			type: 'steps',

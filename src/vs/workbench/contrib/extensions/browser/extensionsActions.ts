@@ -18,7 +18,7 @@ import { IGalleryExtension, IExtensionGalleryService, INSTALL_ERROR_MALICIOUS, I
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionRecommendationReason, IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, ExtensionIdentifier, IExtensionDescription, IExtensionManifest, isLanguagePackExtension, getWorkpaceSupportTypeMessage } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IFileService, IFileContent } from 'vs/platform/files/common/files';
@@ -62,6 +62,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 
 function getRelativeDateLabel(date: Date): string {
 	const delta = new Date().getTime() - date.getTime();
@@ -2092,6 +2093,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2117,10 +2119,17 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		) {
 			return;
 		}
-		if (this.extension.enablementState === EnablementState.DisabledByVirtualWorkspace) {
-			this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
-			this.tooltip = localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces.");
-			return;
+
+		if (isVirtualWorkspace(this.contextService.getWorkspace())) {
+			const virtualSupportType = this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(this.extension.local.manifest);
+			if (virtualSupportType !== true) {
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				const details = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.virtualWorkspaces);
+				this.tooltip = details || (virtualSupportType === 'limited' ?
+					localize('extension limited because of virtual workspace', "This extension has limited features because the current workspace is virtual.") :
+					localize('disabled because of virtual workspace', "This extension has been disabled because it does not support virtual workspaces."));
+				return;
+			}
 		}
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
@@ -2166,8 +2175,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 
 		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
 		if (isWorkspaceTrustEnabled(this.configurationService) && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
-			const untrustedWorkspaceSupport = this.extension.local.manifest.capabilities?.untrustedWorkspaces;
-			const untrustedDetails = untrustedWorkspaceSupport?.supported !== true ? untrustedWorkspaceSupport?.description : undefined;
+			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
 			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?

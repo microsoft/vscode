@@ -22,6 +22,7 @@ import { PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from
 import { getRemoteName, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { isNative } from 'vs/base/common/platform';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export const WorkbenchStateContext = new RawContextKey<string>('workbenchState', undefined, { type: 'string', description: localize('workbenchState', "The kind of workspace opened in the window, either 'empty' (no workspace), 'folder' (single folder) or 'workspace' (multi-root workspace)") });
 export const WorkspaceFolderCountContext = new RawContextKey<number>('workspaceFolderCount', 0, localize('workspaceFolderCount', "The number of root folders in the workspace"));
@@ -77,6 +78,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IViewletService private readonly viewletService: IViewletService,
@@ -242,8 +244,8 @@ export class WorkbenchContextKeysHandler extends Disposable {
 			this.activeEditorIsReadonly.set(activeEditorPane.input.isReadonly());
 
 			const activeEditorResource = activeEditorPane.input.resource;
-			const editors = activeEditorResource ? this.editorService.getEditorOverrides(activeEditorResource, undefined, activeGroup) : [];
-			this.activeEditorAvailableEditorIds.set(editors.map(([_, entry]) => entry.id).join(','));
+			const editors = activeEditorResource ? this.editorOverrideService.getEditorIds(activeEditorResource) : [];
+			this.activeEditorAvailableEditorIds.set(editors.join(','));
 		} else {
 			this.activeEditorContext.reset();
 			this.activeEditorIsReadonly.reset();

@@ -41,10 +41,12 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	onDidChangeTrustedFolders: Event<void>;
 
+	get acceptsOutOfWorkspaceFiles(): boolean;
+	set acceptsOutOfWorkspaceFiles(value: boolean);
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
-	setParentFolderTrust(trusted: boolean): void;
+	setParentFolderTrust(trusted: boolean): Promise<void>;
 	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;

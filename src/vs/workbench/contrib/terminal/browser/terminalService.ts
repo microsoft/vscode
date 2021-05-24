@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -48,6 +48,7 @@ export class TerminalService implements ITerminalService {
 	private _isShuttingDown: boolean;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
+	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _terminalGroups: ITerminalGroup[] = [];
@@ -115,6 +116,8 @@ export class TerminalService implements ITerminalService {
 	public get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
 	private readonly _onGroupDisposed = new Emitter<ITerminalGroup>();
 	public get onGroupDisposed(): Event<ITerminalGroup> { return this._onGroupDisposed.event; }
+	private readonly _onGroupsChanged = new Emitter<void>();
+	get onGroupsChanged(): Event<void> { return this._onGroupsChanged.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
 	get onDidRegisterProcessSupport(): Event<void> { return this._onDidRegisterProcessSupport.event; }
 	private readonly _onDidChangeConnectionState = new Emitter<void>();
@@ -150,6 +153,7 @@ export class TerminalService implements ITerminalService {
 		this._findState = new FindReplaceState();
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = KEYBINDING_CONTEXT_TERMINAL_COUNT.bindTo(this._contextKeyService);
+		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
@@ -160,6 +164,7 @@ export class TerminalService implements ITerminalService {
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
 		this.onGroupDisposed(group => this._removeGroup(group));
 		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
+		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
 		this._handleInstanceContextKeys();
@@ -294,12 +299,8 @@ export class TerminalService implements ITerminalService {
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onInstanceProcessIdReady(() => this._saveState());
-		this.onInstanceTitleChanged(instance => {
-			this._updateTitle(instance);
-		});
-		this.onInstanceIconChanged(instance => {
-			this._updateIcon(instance);
-		});
+		this.onInstanceTitleChanged(instance => this._updateTitle(instance));
+		this.onInstanceIconChanged(instance => this._updateIcon(instance));
 	}
 
 	private _handleInstanceContextKeys(): void {
@@ -410,7 +411,7 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._offProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title);
+		this._offProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
 	}
 
 	@debounce(500)
@@ -418,13 +419,14 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon.id, instance.color);
+		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
 		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
 
 		this._onInstancesChanged.fire();
+		this._onGroupsChanged.fire();
 		if (wasActiveGroup) {
 			this._onActiveGroupChanged.fire();
 		}
@@ -438,6 +440,7 @@ export class TerminalService implements ITerminalService {
 		const wasActiveGroup = group === activeGroup;
 		if (index !== -1) {
 			this._terminalGroups.splice(index, 1);
+			this._onGroupsChanged.fire();
 		}
 
 		// Adjust focus if the group was active
@@ -636,6 +639,7 @@ export class TerminalService implements ITerminalService {
 		newGroup.addDisposable(newGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
 		newGroup.addDisposable(newGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._onInstancesChanged.fire();
+		this._onGroupsChanged.fire();
 	}
 
 	joinInstances(instances: ITerminalInstance[]): void {
@@ -658,6 +662,7 @@ export class TerminalService implements ITerminalService {
 			this._terminalGroups.push(candidateGroup);
 			candidateGroup.addDisposable(candidateGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
 			candidateGroup.addDisposable(candidateGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+			this._onGroupsChanged.fire();
 		}
 
 		const wasActiveGroup = this.getActiveGroup() === candidateGroup;
@@ -687,6 +692,38 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!sourceGroup || !targetGroup) {
+			return;
+		}
+		const sourceGroupIndex = this._terminalGroups.indexOf(sourceGroup);
+		const targetGroupIndex = this._terminalGroups.indexOf(targetGroup);
+		this._terminalGroups.splice(sourceGroupIndex, 1);
+		this._terminalGroups.splice(targetGroupIndex, 0, sourceGroup);
+		this._onInstancesChanged.fire();
+	}
+
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		const targetGroup = this.getGroupForInstance(target);
+		if (!sourceGroup || !targetGroup) {
+			return;
+		}
+
+		// Move from the source group to the target group
+		if (sourceGroup !== targetGroup) {
+			// Move groups
+			sourceGroup.removeInstance(source);
+			targetGroup.addInstance(source);
+		}
+
+		// Rearrange within the target group
+		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'right' ? 1 : 0);
+		targetGroup.moveInstance(source, index);
+	}
+
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
@@ -703,6 +740,12 @@ export class TerminalService implements ITerminalService {
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
+		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
+			const sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			if (sourceInstance) {
+				this.moveInstance(sourceInstance, instance, e.side);
+			}
+		}));
 	}
 
 	registerProcessSupport(isSupported: boolean): void {
@@ -926,7 +969,7 @@ export class TerminalService implements ITerminalService {
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
-		const icon = profile.icon ? (iconRegistry.get(profile.icon) || Codicon.terminal) : Codicon.terminal;
+		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
 		const label = `$(${icon.id}) ${profile.profileName}`;
 		if (profile.args) {
 			if (typeof profile.args === 'string') {
@@ -1002,7 +1045,7 @@ export class TerminalService implements ITerminalService {
 
 		// Add welcome message and title annotation for local terminals launched within remote or
 		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd === 'string' || shellLaunchConfig.cwd?.scheme === Schemas.file) {
+		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
 			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
 				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a \x1b[3mlocal\x1b[23m folder, NOT to the virtual folder"), true);
 				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
@@ -1022,6 +1065,7 @@ export class TerminalService implements ITerminalService {
 		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		this._initInstanceListeners(instance);
 		this._onInstancesChanged.fire();
+		this._onGroupsChanged.fire();
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire
 			// after onInstancesChanged so consumers can react to the instance being added first
@@ -1043,6 +1087,7 @@ export class TerminalService implements ITerminalService {
 			this.setActiveInstanceByIndex(0);
 		}
 		this._onInstancesChanged.fire();
+		this._onGroupsChanged.fire();
 	}
 
 	async focusFindWidget(): Promise<void> {

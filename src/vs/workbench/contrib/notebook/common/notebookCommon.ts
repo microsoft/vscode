@@ -53,6 +53,8 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
+export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+
 export enum NotebookRunState {
 	Running = 1,
 	Idle = 2
@@ -129,13 +131,17 @@ export const enum NotebookRendererMatch {
 	Never = 3,
 }
 
+export type RendererMessagingSpec = true | false | 'optional';
+
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
+	extends?: string;
 	entrypoint: URI;
 	preloads: ReadonlyArray<URI>;
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
+	messaging: RendererMessagingSpec;
 
 	readonly mimeTypes: readonly string[];
 
@@ -162,6 +168,7 @@ export interface IOrderedMimeType {
 export interface IOutputItemDto {
 	readonly mime: string;
 	readonly value: unknown;
+	readonly valueBytes?: number[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -571,20 +578,25 @@ type MimeTypeInfo = {
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/javascript', { supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
+	['image/git', { alwaysSecure: true, supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
 	['text/plain', { alwaysSecure: true, supportedByCore: true }],
-	['application/javascript', { supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
-	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	// old, todo@jrieken remove these...
 	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
+	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -894,7 +906,13 @@ export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalCompactView = 'notebook.experimental.compactView';
+export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndicator';
+export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
+export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
 export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
+export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
+export const ExperimentalShowFoldingControls = 'notebook.experimental.showFoldingControls';
+export const ExperimentalDragAndDropEnabled = 'notebook.experimental.dragAndDropEnabled';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
@@ -912,7 +930,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 	private static _prefix = 'notebook/';
 
 	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
 	}
 
 	static parse(candidate: string): string | undefined {

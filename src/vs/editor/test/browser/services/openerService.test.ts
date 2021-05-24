@@ -245,4 +245,25 @@ suite('OpenerService', function () {
 		assert.ok(!matchesScheme(URI.parse('htt://microsoft.com'), 'http'));
 		assert.ok(!matchesScheme(URI.parse('z://microsoft.com'), 'http'));
 	});
+
+	test('resolveExternalUri', async function () {
+		const openerService = new OpenerService(editorService, NullCommandService);
+
+		try {
+			await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
+			assert.fail('Should not reach here');
+		} catch {
+			// OK
+		}
+
+		const disposable = openerService.registerExternalUriResolver({
+			async resolveExternalUri(uri) {
+				return { resolved: uri, dispose() { } };
+			}
+		});
+
+		const result = await openerService.resolveExternalUri(URI.parse('file:///Users/user/folder'));
+		assert.deepStrictEqual(result.resolved.toString(), 'file:///Users/user/folder');
+		disposable.dispose();
+	});
 });

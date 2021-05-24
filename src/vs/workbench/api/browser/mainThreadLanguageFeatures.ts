@@ -499,6 +499,15 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider: modes.InlineCompletionsProvider = {
+			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> => {
+				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+			}
+		};
+		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
+	}
+
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void {

@@ -10,8 +10,9 @@ import { matchesFuzzy } from 'vs/base/common/filters';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -20,6 +21,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
@@ -32,8 +34,17 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
 				const terminal = terminalGroup.terminalInstances[terminalIndex];
-				const label = `$(${terminal.icon?.id}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
-
+				const iconId = getIconId(terminal);
+				const label = `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}`;
+				const iconClasses: string[] = [];
+				const colorClass = getColorClass(terminal);
+				if (colorClass) {
+					iconClasses.push(colorClass);
+				}
+				const uriClasses = getUriClasses(terminal, this._themeService.getColorTheme().type);
+				if (uriClasses) {
+					iconClasses.push(...uriClasses);
+				}
 				const highlights = matchesFuzzy(filter, label, true);
 				if (highlights) {
 					terminalPicks.push({
@@ -49,6 +60,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 								tooltip: localize('killTerminal', "Kill Terminal Instance")
 							}
 						],
+						iconClasses,
 						trigger: buttonIndex => {
 							switch (buttonIndex) {
 								case 0:

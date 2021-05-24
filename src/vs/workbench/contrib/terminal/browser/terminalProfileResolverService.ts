@@ -13,12 +13,14 @@ import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/t
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IProcessEnvironment, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IShellLaunchConfig, ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalProfile, TerminalIcon, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import * as path from 'vs/base/common/path';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { debounce } from 'vs/base/common/decorators';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { URI, UriComponents } from 'vs/base/common/uri';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -43,7 +45,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		private readonly _logService: ILogService,
 		private readonly _terminalService: ITerminalService,
 		private readonly _workspaceContextService: IWorkspaceContextService,
-		private readonly _remoteAgentService: IRemoteAgentService,
+		private readonly _remoteAgentService: IRemoteAgentService
 	) {
 		if (this._remoteAgentService.getConnection()) {
 			this._remoteAgentService.getEnvironment().then(env => this._primaryBackendOs = env?.os || OS);
@@ -71,10 +73,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	resolveIcon(shellLaunchConfig: IShellLaunchConfig, os: OperatingSystem): void {
-		if (shellLaunchConfig.executable) {
+		if (shellLaunchConfig.icon) {
+			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
 			return;
 		}
 
+		if (shellLaunchConfig.executable) {
+			return;
+		}
 		const defaultProfile = this._getUnresolvedRealDefaultProfile(os);
 		if (defaultProfile) {
 			shellLaunchConfig.icon = defaultProfile.icon;
@@ -106,8 +112,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
-		shellLaunchConfig.icon = this._verifyIcon(shellLaunchConfig.icon) || this._verifyIcon(resolvedProfile.icon) || Codicon.terminal.id;
-
+		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;
@@ -119,12 +124,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	private _verifyIcon(iconId?: string): string | undefined {
-		if (!iconId || !iconRegistry.get(iconId)) {
-			return undefined;
-		}
-		return iconId;
-	}
 
 	async getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string> {
 		return (await this.getDefaultProfile(options)).path;
@@ -140,6 +139,36 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment> {
 		return this._context.getEnvironment(remoteAuthority);
+	}
+
+	private _getCustomIcon(icon?: unknown): TerminalIcon | undefined {
+		if (!icon) {
+			return undefined;
+		}
+		if (typeof icon === 'string') {
+			return iconRegistry.get(icon);
+		}
+		if (ThemeIcon.isThemeIcon(icon)) {
+			return icon;
+		}
+		if (URI.isUri(icon) || this._isUriComponents(icon)) {
+			return URI.revive(icon);
+		}
+		if (typeof icon === 'object' && icon && 'light' in icon && 'dark' in icon) {
+			const castedIcon = (icon as { light: unknown, dark: unknown });
+			if ((URI.isUri(castedIcon.light) || this._isUriComponents(castedIcon.light)) && (URI.isUri(castedIcon.dark) || this._isUriComponents(castedIcon.dark))) {
+				return { light: URI.revive(castedIcon.light), dark: URI.revive(castedIcon.dark) };
+			}
+		}
+		return undefined;
+	}
+
+	private _isUriComponents(thing: unknown): thing is UriComponents {
+		if (!thing) {
+			return false;
+		}
+		return typeof (<any>thing).path === 'string' &&
+			typeof (<any>thing).scheme === 'string';
 	}
 
 	private async _getUnresolvedDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile> {
@@ -315,18 +344,18 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 	}
 
-	private _guessProfileIcon(shell: string): string | undefined {
+	private _guessProfileIcon(shell: string): ThemeIcon | undefined {
 		const file = path.parse(shell).name;
 		switch (file) {
 			case 'bash':
-				return Codicon.terminalBash.id;
+				return Codicon.terminalBash;
 			case 'pwsh':
 			case 'powershell':
-				return Codicon.terminalPowershell.id;
+				return Codicon.terminalPowershell;
 			case 'tmux':
-				return Codicon.terminalTmux.id;
+				return Codicon.terminalTmux;
 			case 'cmd':
-				return Codicon.terminalCmd.id;
+				return Codicon.terminalCmd;
 			default:
 				return undefined;
 		}
@@ -389,7 +418,7 @@ export class BrowserTerminalProfileResolverService extends BaseTerminalProfileRe
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
 		@ITerminalService terminalService: ITerminalService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(
 			{

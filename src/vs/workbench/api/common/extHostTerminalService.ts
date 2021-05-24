@@ -20,6 +20,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -116,7 +117,7 @@ export class ExtHostTerminal {
 		shellArgs?: string[] | string,
 		cwd?: string | URI,
 		env?: ITerminalEnvironment,
-		icon?: string,
+		icon?: URI | { light: URI; dark: URI } | ThemeIcon,
 		initialText?: string,
 		waitOnExit?: boolean,
 		strictEnv?: boolean,
@@ -130,11 +131,11 @@ export class ExtHostTerminal {
 		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
 	}
 
-	public async createExtensionTerminal(): Promise<number> {
+	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true });
+		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true, icon: iconPath });
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');
@@ -348,7 +349,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal().then(id => {
+		terminal.createExtensionTerminal(options.iconPath).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});

@@ -226,25 +226,15 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get disableExtensions() { return this.payload?.get('disableExtensions') === 'true'; }
 
-	private get webviewEndpoint(): string {
-		// TODO@matt: get fallback from product service
-		return this.options.webviewEndpoint || 'https://{{uuid}}.vscode-webview-test.com/{{commit}}';
-	}
-
 	@memoize
 	get webviewExternalEndpoint(): string {
-		return (this.webviewEndpoint).replace('{{commit}}', this.productService.commit || '23a2409675bc1bde94f3532bc7c5826a6e99e4b6');
-	}
+		const endpoint = this.options.webviewEndpoint
+			|| this.productService.webviewContentExternalBaseUrlTemplate
+			|| 'https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/';
 
-	@memoize
-	get webviewResourceRoot(): string {
-		return `${this.webviewExternalEndpoint}/vscode-resource/{{resource}}`;
-	}
-
-	@memoize
-	get webviewCspSource(): string {
-		const uri = URI.parse(this.webviewEndpoint.replace('{{uuid}}', '*'));
-		return `${uri.scheme}://${uri.authority}`;
+		return endpoint
+			.replace('{{commit}}', this.productService.commit || '97740a7d253650f9f186c211de5247e2577ce9f7')
+			.replace('{{quality}}', this.productService.quality || 'insider');
 	}
 
 	@memoize
