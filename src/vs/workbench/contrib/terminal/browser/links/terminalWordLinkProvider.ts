@@ -60,15 +60,21 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
+
 		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
 		if (text.length > MAX_LENGTH) {
 			return [];
 		}
+
 		const words: string[] = [];
+		const separators: string[] = wordSeparators.split('');
 		let startIndex = 0;
-		const textArray = text.split('');
+		const charArray = text.split('');
+
+		// loop through the characters, creating words
+		// when a separator is encountered
 		for (let i = 0; i < text.length; i++) {
-			if (wordSeparators.split('').includes(textArray[i])) {
+			if (separators.includes(charArray[i])) {
 				words.push(text.substring(startIndex, i));
 				startIndex = i + 1;
 			}
