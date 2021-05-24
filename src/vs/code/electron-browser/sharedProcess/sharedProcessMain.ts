@@ -275,11 +275,13 @@ class SharedProcessMain extends Disposable {
 		services.set(
 			ILocalPtyService,
 			this._register(
-				new PtyHostService(configurationService, logService, telemetryService,
-					{
-						GraceTime: LocalReconnectConstants.GraceTime,
-						ShortGraceTime: LocalReconnectConstants.ShortGraceTime
-					}
+				new PtyHostService({
+					GraceTime: LocalReconnectConstants.GraceTime,
+					ShortGraceTime: LocalReconnectConstants.ShortGraceTime
+				},
+					configurationService,
+					logService,
+					telemetryService
 				)
 			)
 		);
