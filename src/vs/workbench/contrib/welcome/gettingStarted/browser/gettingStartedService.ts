@@ -9,7 +9,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { Memento } from 'vs/workbench/common/memento';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionDescription, IStartEntry } from 'vs/platform/extensions/common/extensions';
@@ -30,6 +30,11 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IViewsService } from 'vs/workbench/common/views';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
+import { isLinux, isMacintosh, isWindows, OperatingSystem as OS, platform } from 'vs/base/common/platform';
+import { localize } from 'vs/nls';
+
+export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -181,6 +186,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
@@ -226,6 +232,28 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
+
+		this.remoteAgentService.getEnvironment().then(env => {
+			const remoteOS = env?.os;
+
+			const remotePlatform =
+				remoteOS === OS.Macintosh ? 'mac'
+					: remoteOS === OS.Windows ? 'windows'
+						: remoteOS === OS.Linux ? 'linux'
+							: undefined;
+
+			if (remotePlatform) {
+				WorkspacePlatform.bindTo(this.contextService).set(remotePlatform);
+			} else if (isMacintosh) {
+				WorkspacePlatform.bindTo(this.contextService).set('mac');
+			} else if (isLinux) {
+				WorkspacePlatform.bindTo(this.contextService).set('linux');
+			} else if (isWindows) {
+				WorkspacePlatform.bindTo(this.contextService).set('windows');
+			} else {
+				WorkspacePlatform.bindTo(this.contextService).set(undefined);
+			}
+		});
 
 		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
 		this._register(userDataAutoSyncEnablementService.onDidChangeEnablement(() => {
