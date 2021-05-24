@@ -62,7 +62,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 
 		const text = getXtermLineContent(this._xterm.buffer.active, startLine, endLine, this._xterm.cols);
-		if (text.length > MAX_LENGTH) {
+		if (text === '' || text.length > MAX_LENGTH) {
 			return [];
 		}
 
@@ -79,39 +79,25 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 				startIndex = i + 1;
 			}
 		}
+
 		if (startIndex < text.length) {
 			words.push(text.substring(startIndex));
 		}
 
 		let stringIndex = -1;
-		if (text === '') {
-			return links;
-		}
-
-		if (words.length === 0) {
-			// no separators, use the whole word
+		for (const word of words) {
+			if (!word) {
+				continue;
+			}
+			stringIndex = text.indexOf(word, stringIndex + 1);
 			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 				startColumn: stringIndex + 1,
 				startLineNumber: 1,
-				endColumn: stringIndex + text.length + 1,
+				endColumn: stringIndex + word.length + 1,
 				endLineNumber: 1
 			}, startLine);
-			links.push(this._createTerminalLink(text, activateCallback, bufferRange));
-			return links;
-		} else {
-			for (const word of words) {
-				if (!word) {
-					continue;
-				}
-				stringIndex = text.indexOf(word, stringIndex + 1);
-				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-					startColumn: stringIndex + 1,
-					startLineNumber: 1,
-					endColumn: stringIndex + word.length + 1,
-					endLineNumber: 1
-				}, startLine);
-				links.push(this._createTerminalLink(word, activateCallback, bufferRange));
-			}
+			links.push(this._createTerminalLink(word, activateCallback, bufferRange));
+			// }
 		}
 		return links;
 	}
