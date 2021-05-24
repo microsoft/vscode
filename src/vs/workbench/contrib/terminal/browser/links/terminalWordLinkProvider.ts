@@ -66,33 +66,31 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			return [];
 		}
 
-		const words: string[] = this._getWords(text, wordSeparators.split(''));
+		const words: Word[] = this._getWords(text, wordSeparators.split(''));
 
-		let stringIndex = -1;
 		for (const word of words) {
-			if (!word) {
+			if (!word.text) {
 				continue;
 			}
-			stringIndex = text.indexOf(word, stringIndex + 1);
 			const bufferRange = convertLinkRangeToBuffer
 				(
 					lines,
 					this._xterm.cols,
 					{
-						startColumn: stringIndex + 1,
+						startColumn: word.startIndex + 1,
 						startLineNumber: 1,
-						endColumn: stringIndex + word.length + 1,
+						endColumn: word.endIndex + 1,
 						endLineNumber: 1
 					},
 					startLine
 				);
-			links.push(this._createTerminalLink(word, activateCallback, bufferRange));
+			links.push(this._createTerminalLink(word.text, activateCallback, bufferRange));
 		}
 		return links;
 	}
 
-	private _getWords(text: string, separators: string[]): string[] {
-		const words: string[] = [];
+	private _getWords(text: string, separators: string[]): Word[] {
+		const words: Word[] = [];
 		let startIndex = 0;
 		const charArray = text.split('');
 
@@ -100,12 +98,12 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		// when a separator is encountered
 		for (let i = 0; i < text.length; i++) {
 			if (separators.includes(charArray[i])) {
-				words.push(text.substring(startIndex, i));
+				words.push({ startIndex, endIndex: i, text: text.substring(startIndex, i) });
 				startIndex = i + 1;
 			}
 		}
 		if (startIndex < text.length) {
-			words.push(text.substring(startIndex));
+			words.push({ startIndex, endIndex: text.length, text: text.substring(startIndex) });
 		}
 		return words;
 	}
@@ -149,4 +147,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		// Fallback to searching quick access
 		this._quickInputService.quickAccess.show(link);
 	}
+}
+
+interface Word {
+	startIndex: number;
+	endIndex: number;
+	text: string;
 }
