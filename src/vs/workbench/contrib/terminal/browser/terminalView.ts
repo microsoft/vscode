@@ -519,6 +519,7 @@ class TerminalThemeIconStyle extends Themable {
 
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onGroupsChanged(() => this.updateStyles()));
 	}
@@ -527,23 +528,42 @@ class TerminalThemeIconStyle extends Themable {
 		super.updateStyles();
 		let css = '';
 		// TODO add a rule collector to avoid duplication
+		const colorTheme = this._themeService.getColorTheme();
+
+		// Add icons
 		for (const instance of this._terminalService.terminalInstances) {
 			const icon = instance.icon;
 			if (!icon) {
-				return;
+				continue;
 			}
 			let uri = undefined;
 			if (icon instanceof URI) {
 				uri = icon;
 			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
 			}
-			const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += `.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};}`;
 			}
 		}
+
+		// Add colors
+		for (const instance of this._terminalService.terminalInstances) {
+			const colorClass = getColorClass(instance);
+			if (!colorClass || !instance.color) {
+				continue;
+			}
+			const color = colorTheme.getColor(instance.color);
+			if (color) {
+				// TODO: Show all colors in change color picker
+				// TODO: Use .terminal-color-...
+				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				css += `.monaco-workbench .${colorClass} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+			}
+		}
+
 		this._styleElement.textContent = css;
 	}
 }
