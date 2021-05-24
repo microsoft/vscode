@@ -20,12 +20,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, Extensions, IColorRegistry, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -52,13 +52,15 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1819,21 +1821,90 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!icon) {
 			return;
 		}
-		const items: IQuickPickItem[] = [];
-		for (const color of colors) {
-			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${color.replace('terminal.ansi', '')}`, id: color, description: color, iconClasses: [`terminal-icon-${color.replace(/\./g, '_')}`]
-			});
+
+		const standardColors: string[] = [];
+		const colorTheme = this._themeService.getColorTheme();
+		for (const colorKey in ansiColorMap) {
+			const color = colorTheme.getColor(colorKey);
+			if (color && !colorKey.toLowerCase().includes('bright')) {
+				standardColors.push(colorKey);
+			}
 		}
 
-		const result = await this._quickInputService.pick(items, {
-			title: nls.localize('changeTerminalColor', "Change Color"),
-			matchOnDescription: true
-		});
-		if (result) {
-			this.shellLaunchConfig.color = result.id;
-			this._onIconChanged.fire(this);
+		const styleElement = document.createElement('style');
+		let css = '';
+		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		for (const colorKey of standardColors) {
+			const colorClass = getColorClass(colorKey);
+			items.push({
+				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
+			});
+			const color = colorTheme.getColor(colorKey);
+			if (color) {
+				css += `.monaco-workbench .${colorClass} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+			}
 		}
+		items.push({ type: 'separator' });
+		const showAllColorsItem = { label: 'Show all colors' };
+		items.push(showAllColorsItem);
+		styleElement.textContent = css;
+		document.body.appendChild(styleElement);
+
+		const quickPick = this._quickInputService.createQuickPick();
+		quickPick.items = items;
+		quickPick.matchOnDescription = true;
+		quickPick.title = nls.localize('changeTerminalColor', "Change Color");
+		quickPick.show();
+		let disposables: IDisposable[] = [];
+		const result = await new Promise<IQuickPickItem | undefined>(r => {
+			disposables.push(quickPick.onDidHide(() => r(undefined)));
+			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
+		});
+		dispose(disposables);
+
+		if (result) {
+			if (result === showAllColorsItem) {
+				let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
+				const colorItems: IQuickPickItem[] = [];
+				for (const colorContribution of colorRegistry.getColors()) {
+					if (standardColors.includes(colorContribution.id)) {
+						continue;
+					}
+					const colorClass = getColorClass(colorContribution.id);
+					colorItems.push({
+						label: `$(${Codicon.circleFilled.id}) ${colorContribution.id}`,
+						id: colorContribution.id,
+						iconClasses: [colorClass]
+					});
+					const color = colorTheme.getColor(colorContribution.id);
+					if (color) {
+						css += `.monaco-workbench .${colorClass} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+					}
+				}
+				colorItems.sort((a, b) => a.label.localeCompare(b.label));
+				styleElement.textContent = css;
+				quickPick.items = quickPick.items.slice(0, quickPick.items.length - 1).concat(colorItems);
+				disposables = [];
+				const result = await new Promise<IQuickPickItem | undefined>(r => {
+					disposables.push(quickPick.onDidHide(() => r(undefined)));
+					disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
+				});
+				dispose(disposables);
+				quickPick.hide();
+				if (result) {
+					this.shellLaunchConfig.color = result?.id;
+					this._onIconChanged.fire(this);
+				}
+			} else {
+				quickPick.hide();
+				this.shellLaunchConfig.color = result.id;
+				this._onIconChanged.fire(this);
+			}
+		} else {
+			quickPick.hide();
+		}
+
+		document.body.removeChild(styleElement);
 	}
 }
 
@@ -1947,7 +2018,6 @@ class TerminalInstanceDropAndDropController extends Disposable implements IDragA
 	}
 }
 
-let colors: string[] = [];
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	// Border
 	const border = theme.getColor(activeContrastBorder);
