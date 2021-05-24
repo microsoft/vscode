@@ -58,7 +58,7 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 	}
 }
 
-export class TerminalLinkAdapter implements ILinkComputerTarget {
+class TerminalLinkAdapter implements ILinkComputerTarget {
 	constructor(
 		private _xterm: Terminal,
 		private _lineStart: number,

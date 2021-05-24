@@ -106,4 +106,8 @@ suite('Workbench - TerminalWordLinkProvider', () => {
 			{ range: [[66, 1], [43, 3]], text: 'sdklfjsdklfjsldkfjsdlkfjsdlkfjsdlkfjsldkfjslkdfjsdlkfjsldkfjsdlkfjskdfjsldkfjsdlkfjslkdfjsdlkfjsldkfjsldkfjsldkfjslkdfjsdlkfjslkdfjsdklfsd' }
 		]);
 	});
+	test('does not return any links for empty text', async () => {
+		await configurationService.setUserConfiguration('terminal', { integrated: { wordSeparators: ' ' } });
+		await assertLink('', []);
+	});
 });

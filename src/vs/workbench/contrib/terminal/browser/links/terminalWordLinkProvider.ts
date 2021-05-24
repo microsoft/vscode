@@ -40,8 +40,8 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 
 	protected _provideLinks(y: number): TerminalLink[] {
 		// Dispose of all old links if new links are provides, links are only cached for the current line
-		const result: TerminalLink[] = [];
-		let wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
+		const links: TerminalLink[] = [];
+		const wordSeparators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
 		const activateCallback = this._wrapLinkHandler((_, link) => this._activate(link));
 
 		let startLine = y - 1;
@@ -84,34 +84,36 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		}
 
 		let stringIndex = -1;
-		if (text !== '') {
-			if (words.length === 0) {
-				// no separators, use the whole word
+		if (text === '') {
+			return links;
+		}
+
+		if (words.length === 0) {
+			// no separators, use the whole word
+			const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
+				startColumn: stringIndex + 1,
+				startLineNumber: 1,
+				endColumn: stringIndex + text.length + 1,
+				endLineNumber: 1
+			}, startLine);
+			links.push(this._createTerminalLink(text, activateCallback, bufferRange));
+			return links;
+		} else {
+			for (const word of words) {
+				if (!word) {
+					continue;
+				}
+				stringIndex = text.indexOf(word, stringIndex + 1);
 				const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
 					startColumn: stringIndex + 1,
 					startLineNumber: 1,
-					endColumn: stringIndex + text.length + 1,
+					endColumn: stringIndex + word.length + 1,
 					endLineNumber: 1
 				}, startLine);
-				result.push(this._createTerminalLink(text, activateCallback, bufferRange));
-				return result;
-			} else {
-				for (const word of words) {
-					if (!word) {
-						continue;
-					}
-					stringIndex = text.indexOf(word, stringIndex + 1);
-					const bufferRange = convertLinkRangeToBuffer(lines, this._xterm.cols, {
-						startColumn: stringIndex + 1,
-						startLineNumber: 1,
-						endColumn: stringIndex + word.length + 1,
-						endLineNumber: 1
-					}, startLine);
-					result.push(this._createTerminalLink(word, activateCallback, bufferRange));
-				}
+				links.push(this._createTerminalLink(word, activateCallback, bufferRange));
 			}
 		}
-		return result;
+		return links;
 	}
 
 	private _createTerminalLink(text: string, activateCallback: XtermLinkMatcherHandler, bufferRange: IBufferRange): TerminalLink {
