@@ -97,9 +97,9 @@ export class NotebookOptions {
 
 	constructor(private readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		const globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar);
-		const consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton);
-		const dragAndDropEnabled = this.configurationService.getValue<boolean>(DragAndDropEnabled);
+		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
+		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
+		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean>(CompactView);
@@ -220,11 +220,11 @@ export class NotebookOptions {
 		}
 
 		if (globalToolbar) {
-			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar);
+			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? false;
 		}
 
 		if (consolidatedOutputButton) {
-			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton);
+			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton) ?? true;
 		}
 
 		if (showFoldingControls) {
@@ -232,7 +232,7 @@ export class NotebookOptions {
 		}
 
 		if (dragAndDropEnabled) {
-			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean>(DragAndDropEnabled);
+			configuration.dragAndDropEnabled = this.configurationService.getValue<boolean>(DragAndDropEnabled) ?? true;
 		}
 
 		if (fontSize) {
@@ -259,7 +259,7 @@ export class NotebookOptions {
 	}
 
 	private _computeInsertToolbarPositionOption() {
-		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(InsertToolbarPosition);
+		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(InsertToolbarPosition) ?? 'both';
 	}
 
 	private _computeInsertToolbarAlignmentOption() {
@@ -267,11 +267,11 @@ export class NotebookOptions {
 	}
 
 	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls);
+		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'always';
 	}
 
 	private _computeFocusIndicatorOption() {
-		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator);
+		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'border';
 	}
 
 	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
