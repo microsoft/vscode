@@ -336,6 +336,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private _getColor(): string | undefined {
+		console.log('_getColor', this.shellLaunchConfig.color);
 		if (this.shellLaunchConfig.color) {
 			return this.shellLaunchConfig.color;
 		}
@@ -1821,7 +1822,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const items: IQuickPickItem[] = [];
 		for (const color of colors) {
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${color.replace('terminal.ansi', '')}`, id: `${color.replace(/\./g, '_')}`, description: `${color}`, iconClasses: [`terminal-icon-${color.replace(/\./g, '_')}`]
+				label: `$(${Codicon.circleFilled.id}) ${color.replace('terminal.ansi', '')}`, id: color, description: color, iconClasses: [`terminal-icon-${color.replace(/\./g, '_')}`]
 			});
 		}
 
