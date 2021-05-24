@@ -66,10 +66,10 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 			return [];
 		}
 
-		const words: Word[] = this._getWords(text, wordSeparators.split(''));
+		const words: Word[] = this._parseWords(text, wordSeparators);
 
 		for (const word of words) {
-			if (!word.text) {
+			if (word.text === '') {
 				continue;
 			}
 			const bufferRange = convertLinkRangeToBuffer
@@ -89,15 +89,15 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		return links;
 	}
 
-	private _getWords(text: string, separators: string[]): Word[] {
+	private _parseWords(text: string, separators: string): Word[] {
 		const words: Word[] = [];
-		let startIndex = 0;
-		const charArray = text.split('');
 
-		// loop through the characters, creating words
-		// when a separator is encountered
+		const wordSeparators: string[] = separators.split('');
+		const characters = text.split('');
+
+		let startIndex = 0;
 		for (let i = 0; i < text.length; i++) {
-			if (separators.includes(charArray[i])) {
+			if (wordSeparators.includes(characters[i])) {
 				words.push({ startIndex, endIndex: i, text: text.substring(startIndex, i) });
 				startIndex = i + 1;
 			}
@@ -105,6 +105,7 @@ export class TerminalWordLinkProvider extends TerminalBaseLinkProvider {
 		if (startIndex < text.length) {
 			words.push({ startIndex, endIndex: text.length, text: text.substring(startIndex) });
 		}
+
 		return words;
 	}
 
