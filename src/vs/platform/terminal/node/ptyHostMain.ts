@@ -23,7 +23,9 @@ server.registerChannel(TerminalIpcChannels.Log, logChannel);
 const heartbeatService = new HeartbeatService();
 server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService));
 
-const ptyService = new PtyService(lastPtyId, logService);
+const reconnectConstants = process.env.VSCODE_RECONNECT_CONSTANTS ? JSON.parse(process.env.VSCODE_RECONNECT_CONSTANTS) : undefined;
+delete process.env.VSCODE_RECONNECT_CONSTANTS;
+const ptyService = new PtyService(lastPtyId, logService, reconnectConstants);
 server.registerChannel(TerminalIpcChannels.PtyHost, ProxyChannel.fromService(ptyService));
 
 process.once('exit', () => {
