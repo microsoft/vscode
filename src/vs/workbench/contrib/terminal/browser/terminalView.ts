@@ -528,7 +528,7 @@ class TerminalThemeIconStyle extends Themable {
 		super.updateStyles();
 		const colorTheme = this._themeService.getColorTheme();
 
-		// TODO add a rule collector to avoid duplication
+		// TODO: add a rule collector to avoid duplication
 		let css = '';
 
 		// Add icons
@@ -559,7 +559,7 @@ class TerminalThemeIconStyle extends Themable {
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
 				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
-				css += `.monaco-workbench .${colorClass} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
 			}
 		}
 
