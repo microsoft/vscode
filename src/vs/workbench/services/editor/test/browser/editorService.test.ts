@@ -1074,34 +1074,6 @@ suite('EditorService', () => {
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
 	});
 
-	test('overrideOpenEditor', async function () {
-		const [, service] = await createEditorService();
-
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		let overrideCalled = false;
-
-		const handler = service.overrideOpenEditor({
-			open: editor => {
-				if (editor === input1) {
-					overrideCalled = true;
-
-					return { override: service.openEditor(input2, { pinned: true }) };
-				}
-
-				return undefined;
-			}
-		});
-
-		await service.openEditor(input1, { pinned: true });
-
-		assert.ok(overrideCalled);
-		assert.strictEqual(service.activeEditor, input2);
-
-		handler.dispose();
-	});
-
 	test('editorOverrideService - openEditor', async function () {
 		const [, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
