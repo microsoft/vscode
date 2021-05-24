@@ -90,6 +90,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			keybindingService,
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
+		this._terminalService.onGroupsChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());

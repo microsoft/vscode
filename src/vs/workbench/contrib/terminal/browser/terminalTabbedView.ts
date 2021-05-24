@@ -129,6 +129,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 		});
 		this._register(this._terminalService.onInstancesChanged(() => this._refreshShowTabs()));
+		this._register(this._terminalService.onGroupsChanged(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 
@@ -146,9 +147,25 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _shouldShowTabs(): boolean {
-		const enable = this._terminalService.configHelper.config.tabs.enabled;
-		const hideForSingle = this._terminalService.configHelper.config.tabs.hideCondition === 'singleTerminal';
-		return enable && this._terminalService.terminalInstances.length > 0 && (!hideForSingle || (hideForSingle && this._terminalService.terminalInstances.length > 1));
+		const enabled = this._terminalService.configHelper.config.tabs.enabled;
+		const hide = this._terminalService.configHelper.config.tabs.hideCondition;
+		if (!enabled) {
+			return false;
+		}
+
+		if (hide === 'never') {
+			return true;
+		}
+
+		if (hide === 'singleTerminal' && this._terminalService.terminalInstances.length > 1) {
+			return true;
+		}
+
+		if (hide === 'singleGroup' && this._terminalService.terminalGroups.length > 1) {
+			return true;
+		}
+
+		return false;
 	}
 
 	private _refreshShowTabs() {
