@@ -679,7 +679,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
 				{
@@ -689,7 +689,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
 			]
@@ -750,7 +750,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
 				{
@@ -760,7 +760,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
 			]
@@ -1059,8 +1059,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	group: 'navigation/add',
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
 	)
 });
 
@@ -1150,8 +1150,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	group: 'navigation/add',
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarPosition', 'hidden')
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
 	)
 });
 
@@ -1582,14 +1582,14 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation',
 					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
-					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
 					group: 'navigation/execute',
 					order: 0
 				}
