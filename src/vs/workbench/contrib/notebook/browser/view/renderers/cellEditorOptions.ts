@@ -135,9 +135,16 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			precondition: NOTEBOOK_EDITOR_FOCUSED,
 			menu: [{
 				id: MenuId.EditorTitle,
-				group: 'LineNumber',
+				group: 'notebookLayout',
 				order: 0,
-				when: NOTEBOOK_IS_ACTIVE_EDITOR
+				when: ContextKeyExpr.and(
+					NOTEBOOK_IS_ACTIVE_EDITOR,
+					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+				)
+			}, {
+				id: MenuId.NotebookToolbar,
+				group: 'notebookLayout',
+				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 			}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			f1: true,

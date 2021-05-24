@@ -905,14 +905,15 @@ export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
-export const ExperimentalCompactView = 'notebook.experimental.compactView';
-export const ExperimentalFocusIndicator = 'notebook.experimental.cellFocusIndicator';
-export const ExperimentalInsertToolbarPosition = 'notebook.experimental.insertToolbarPosition';
-export const ExperimentalGlobalToolbar = 'notebook.experimental.globalToolbar';
-export const ExperimentalUndoRedoPerCell = 'notebook.experimental.undoRedoPerCell';
-export const ExperimentalConsolidatedOutputButton = 'notebook.experimental.consolidatedOutputButton';
-export const ExperimentalShowFoldingControls = 'notebook.experimental.showFoldingControls';
-export const ExperimentalDragAndDropEnabled = 'notebook.experimental.dragAndDropEnabled';
+export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
+export const CompactView = 'notebook.compactView';
+export const FocusIndicator = 'notebook.cellFocusIndicator';
+export const InsertToolbarPosition = 'notebook.insertToolbarPosition';
+export const GlobalToolbar = 'notebook.globalToolbar';
+export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
+export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
+export const ShowFoldingControls = 'notebook.showFoldingControls';
+export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
