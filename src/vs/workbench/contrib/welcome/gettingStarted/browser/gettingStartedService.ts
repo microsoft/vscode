@@ -29,6 +29,7 @@ import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/getting
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
+import { IViewsService } from 'vs/workbench/common/views';
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -164,7 +165,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private tasExperimentService?: ITASExperimentService;
 	private sessionInstalledExtensions = new Set<string>();
 
-	private trackedContextKeys = new Set<string>();
+	private categoryVisibilityContextKeys = new Set<string>();
+	private stepCompletionContextKeys = new Set<string>();
 
 	private triggerInstalledExtensionsRegistered!: () => void;
 	installedExtensionsRegistered: Promise<void>;
@@ -178,6 +180,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@IViewsService private readonly viewsService: IViewsService,
 		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
@@ -206,7 +209,22 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}));
 
 		this._register(this.contextService.onDidChangeContext(event => {
-			if (event.affectsSome(this.trackedContextKeys)) { this._onDidAddCategory.fire(); }
+			if (event.affectsSome(this.categoryVisibilityContextKeys)) { this._onDidAddCategory.fire(); }
+			if (event.affectsSome(this.stepCompletionContextKeys)) {
+				this.stepCompletionContextKeys.forEach(key => {
+					if (event.affectsSome(new Set([key])) && this.contextService.getContextKeyValue(key)) {
+						this.progressByEvent(`onContextKeyDefined:` + key);
+					}
+				});
+			}
+		}));
+
+		this._register(this.viewsService.onDidChangeViewVisibility(e => {
+			if (e.visible) { this.progressByEvent('onView:' + e.id); }
+		}));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
 
 		if (userDataAutoSyncEnablementService.isEnabled()) { this.progressByEvent('onEvent:sync-enabled'); }
@@ -493,7 +511,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 
 			switch (eventType) {
-				case 'onLink': case 'onEvent': break;
+				case 'onLink': case 'onEvent': case 'onView': case 'onContextKeyDefined': case 'onSettingChanged':
+					break;
 				case 'stepSelected':
 					event = eventType + ':' + step.id;
 					break;
@@ -590,6 +609,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	progressByEvent(event: string): void {
+		if (this.sessionEvents.has(event)) { return; }
+
 		this.sessionEvents.add(event);
 		this.completionListeners.get(event)?.forEach(id => this.progressStep(id));
 	}
@@ -620,7 +641,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			if (this.steps.has(step.id)) { throw Error('Attempting to register step with id ' + step.id + ' twice. Second is dropped.'); }
 			this.steps.set(step.id, step);
 			this.registerDoneListeners(step);
-			this.trackedContextKeys.add(step.when.serialize());
+			step.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
 		});
 
 		if (this.contextService.contextMatchesRules(category.when)) {
@@ -631,7 +652,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			if (override) {
 				const old = category.when;
 				const gnu = ContextKeyExpr.deserialize(override) ?? old;
-				this.trackedContextKeys.add(override);
+				this.categoryVisibilityContextKeys.add(override);
 				category.when = gnu;
 
 				if (this.contextService.contextMatchesRules(old) && !this.contextService.contextMatchesRules(gnu)) {
@@ -641,8 +662,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				}
 			}
 		});
-
-		this.trackedContextKeys.add(category.when.serialize());
+		category.when.keys().forEach(key => this.categoryVisibilityContextKeys.add(key));
 	}
 
 	private getStep(id: string): IGettingStartedStep {
