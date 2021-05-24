@@ -119,7 +119,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			shellLaunchConfig.name = resolvedProfile.profileName;
 		}
 
-		// TODO: Verify
+		// Apply the color
 		shellLaunchConfig.color = resolvedProfile.color;
 
 		// Resolve useShellEnvironment based on the setting if it's not set
