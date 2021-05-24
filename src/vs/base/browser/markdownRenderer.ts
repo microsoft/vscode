@@ -394,6 +394,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 
 	const unescapeInfo = new Map<string, string>([
 		['&quot;', '"'],
+		['&nbsp;', ' '],
 		['&amp;', '&'],
 		['&#39;', '\''],
 		['&lt;', '<'],
