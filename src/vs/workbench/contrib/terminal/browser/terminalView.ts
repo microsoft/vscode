@@ -317,6 +317,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onGroupsChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
@@ -523,6 +524,7 @@ class TerminalThemeIconStyle extends Themable {
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onGroupsChanged(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
