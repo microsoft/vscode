@@ -122,6 +122,18 @@
 	border-bottom-width: 2px;
 }
 
+.monaco-editor .zone-widget.test-output-peek .preview-text {
+	padding: 8px 12px 8px 20px;
+	height: calc(100% - 16px);
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
+	margin-bottom: 0;
+}
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
