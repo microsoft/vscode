@@ -60,13 +60,13 @@ class Kernel {
 		task.executionOrder = 1;
 		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
 			await task.replaceOutput([new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
+				vscode.NotebookCellOutputItem.text('test', 'text/custom', undefined)
 			])]);
 			return;
 		}
 
 		await task.replaceOutput([new vscode.NotebookCellOutput([
-			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			vscode.NotebookCellOutputItem.text('my output', 'text/plain', undefined)
 		])]);
 		task.end({ success: true });
 	}
@@ -129,7 +129,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [
 								new vscode.NotebookCellOutput([
-									new vscode.NotebookCellOutputItem('text/plain', 'Hello World', { testOutputItemMetadata: true })
+									vscode.NotebookCellOutputItem.text('Hello World', 'text/plain', { testOutputItemMetadata: true })
 								],
 									{ testOutputMetadata: true })
 							],
@@ -182,7 +182,7 @@ suite('Notebook API tests', function () {
 				const task = this.controller.createNotebookCellExecutionTask(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+					vscode.NotebookCellOutputItem.text('my second output', 'text/plain', undefined)
 				])]);
 				task.end({ success: true });
 			}
@@ -779,7 +779,7 @@ suite('Notebook API tests', function () {
 					task.start();
 					task.token.onCancellationRequested(async () => {
 						await task.replaceOutput([new vscode.NotebookCellOutput([
-							new vscode.NotebookCellOutputItem('text/plain', ['Canceled'], undefined)
+							vscode.NotebookCellOutputItem.text('Canceled', 'text/plain', undefined)
 						])]);
 						task.end({});
 					});
@@ -801,9 +801,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'Canceled'
-			]);
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, 'Canceled');
 		});
 
 		cancelableKernel.controller.dispose();
@@ -826,7 +824,7 @@ suite('Notebook API tests', function () {
 
 			async interrupt() {
 				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
+					vscode.NotebookCellOutputItem.text('Interrupted', 'text/plain', undefined)
 				])]);
 				this._task!.end({});
 			}
@@ -1188,7 +1186,7 @@ suite('Notebook API tests', function () {
 				const task = this.controller.createNotebookCellExecutionTask(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['Some output'], undefined)
+					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
 				assert.deepStrictEqual(cell.notebook.cellAt(0).outputs[0].outputs[0].value, ['Some output']);
