@@ -1843,7 +1843,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		items.push({ type: 'separator' });
-		const showAllColorsItem = { label: 'Show all colors' };
+		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 		styleElement.textContent = css;
 		document.body.appendChild(styleElement);
