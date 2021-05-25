@@ -135,7 +135,7 @@ export class MenuBar extends Disposable {
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
 			} else if (!this.isOpen && !event.ctrlKey && this.options.enableMnemonics && this.mnemonicsInUse && this.mnemonics.has(key)) {
-				const menuIndex = this.mnemonics.get(key)!;
+				const menuIndex = this.getMnemonicIndex(key)!;
 				this.onMenuTriggered(menuIndex, false);
 			} else {
 				eventHandled = false;
@@ -196,120 +196,138 @@ export class MenuBar extends Disposable {
 			this.mnemonicsInUse = true;
 			this.updateMnemonicVisibility(true);
 
-			const menuIndex = this.mnemonics.get(key)!;
+			const menuIndex = this.getMnemonicIndex(key)!;
 			this.onMenuTriggered(menuIndex, false);
 		}));
 
 		this.setUnfocusedState();
 	}
 
+	private renderMenu(menuBarMenu: MenuBarMenu): void {
+
+		const cleanMenuLabel = cleanMnemonic(menuBarMenu.label);
+
+		const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
+		const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
+
+		// gets the rendered index at the time of calling
+		const getMenuIndex = () => {
+			return this.menuCache.findIndex(menu => menu.buttonElement === buttonElement);
+		};
+
+		// find the item in the menu data to figure out where it should be inserted into the menu cache
+		const indexToInsert = this.menuData.filter(menu => menu.actions.length).findIndex(menu => menu.label === menuBarMenu.label);
+
+		buttonElement.appendChild(titleElement);
+		this.container.insertBefore(buttonElement, indexToInsert < this.menuCache.length ? this.menuCache[indexToInsert].buttonElement : this.overflowMenu.buttonElement);
+
+		let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
+
+		// Register mnemonics
+		if (mnemonicMatches) {
+			let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
+
+			this.registerMnemonic(this.menuData.findIndex(m => m.label === menuBarMenu.label), mnemonic);
+		}
+
+		this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
+
+		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let eventHandled = true;
+
+			if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
+				this.focusedMenu = { index: getMenuIndex() };
+				this.openedViaKeyboard = true;
+				this.focusState = MenubarState.OPEN;
+			} else {
+				eventHandled = false;
+			}
+
+			if (eventHandled) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
+
+		this._register(Gesture.addTarget(buttonElement));
+		this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
+			// Ignore this touch if the menu is touched
+			if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
+				return;
+			}
+
+			this.ignoreNextMouseUp = false;
+			this.onMenuTriggered(getMenuIndex(), true);
+
+			e.preventDefault();
+			e.stopPropagation();
+		}));
+
+		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
+			// Ignore non-left-click
+			const mouseEvent = new StandardMouseEvent(e);
+			if (!mouseEvent.leftButton) {
+				e.preventDefault();
+				return;
+			}
+
+			if (!this.isOpen) {
+				// Open the menu with mouse down and ignore the following mouse up event
+				this.ignoreNextMouseUp = true;
+				this.onMenuTriggered(getMenuIndex(), true);
+			} else {
+				this.ignoreNextMouseUp = false;
+			}
+
+			e.preventDefault();
+			e.stopPropagation();
+		}));
+
+		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
+			if (e.defaultPrevented) {
+				return;
+			}
+
+			if (!this.ignoreNextMouseUp) {
+				if (this.isFocused) {
+					this.onMenuTriggered(getMenuIndex(), true);
+				}
+			} else {
+				this.ignoreNextMouseUp = false;
+			}
+		}));
+
+		this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_ENTER, () => {
+			const menuIndex = getMenuIndex();
+			if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
+				this.menuCache[menuIndex].buttonElement.focus();
+				this.cleanupCustomMenu();
+				this.showCustomMenu(getMenuIndex(), false);
+			} else if (this.isFocused && !this.isOpen) {
+				this.focusedMenu = { index: menuIndex };
+				buttonElement.focus();
+			}
+		}));
+
+		this.menuCache.splice(indexToInsert, 0, ...[{
+			label: menuBarMenu.label,
+			actions: menuBarMenu.actions,
+			buttonElement: buttonElement,
+			titleElement: titleElement
+		}]);
+	}
+
+	private menuData: MenuBarMenu[] = [];
 	push(arg: MenuBarMenu | MenuBarMenu[]): void {
 		const menus: MenuBarMenu[] = asArray(arg);
 
+		this.menuData.push(...menus);
+
 		menus.forEach((menuBarMenu) => {
-			const menuIndex = this.menuCache.length;
-			const cleanMenuLabel = cleanMnemonic(menuBarMenu.label);
-
-			const buttonElement = $('div.menubar-menu-button', { 'role': 'menuitem', 'tabindex': -1, 'aria-label': cleanMenuLabel, 'aria-haspopup': true });
-			const titleElement = $('div.menubar-menu-title', { 'role': 'none', 'aria-hidden': true });
-
-			buttonElement.appendChild(titleElement);
-			this.container.insertBefore(buttonElement, this.overflowMenu.buttonElement);
-
-			let mnemonicMatches = MENU_MNEMONIC_REGEX.exec(menuBarMenu.label);
-
-			// Register mnemonics
-			if (mnemonicMatches) {
-				let mnemonic = !!mnemonicMatches[1] ? mnemonicMatches[1] : mnemonicMatches[3];
-
-				this.registerMnemonic(this.menuCache.length, mnemonic);
+			if (menuBarMenu.actions.length) {
+				this.renderMenu(menuBarMenu);
 			}
-
-			this.updateLabels(titleElement, buttonElement, menuBarMenu.label);
-
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.KEY_UP, (e) => {
-				let event = new StandardKeyboardEvent(e as KeyboardEvent);
-				let eventHandled = true;
-
-				if ((event.equals(KeyCode.DownArrow) || event.equals(KeyCode.Enter)) && !this.isOpen) {
-					this.focusedMenu = { index: menuIndex };
-					this.openedViaKeyboard = true;
-					this.focusState = MenubarState.OPEN;
-				} else {
-					eventHandled = false;
-				}
-
-				if (eventHandled) {
-					event.preventDefault();
-					event.stopPropagation();
-				}
-			}));
-
-			this._register(Gesture.addTarget(buttonElement));
-			this._register(DOM.addDisposableListener(buttonElement, EventType.Tap, (e: GestureEvent) => {
-				// Ignore this touch if the menu is touched
-				if (this.isOpen && this.focusedMenu && this.focusedMenu.holder && DOM.isAncestor(e.initialTarget as HTMLElement, this.focusedMenu.holder)) {
-					return;
-				}
-
-				this.ignoreNextMouseUp = false;
-				this.onMenuTriggered(menuIndex, true);
-
-				e.preventDefault();
-				e.stopPropagation();
-			}));
-
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_DOWN, (e: MouseEvent) => {
-				// Ignore non-left-click
-				const mouseEvent = new StandardMouseEvent(e);
-				if (!mouseEvent.leftButton) {
-					e.preventDefault();
-					return;
-				}
-
-				if (!this.isOpen) {
-					// Open the menu with mouse down and ignore the following mouse up event
-					this.ignoreNextMouseUp = true;
-					this.onMenuTriggered(menuIndex, true);
-				} else {
-					this.ignoreNextMouseUp = false;
-				}
-
-				e.preventDefault();
-				e.stopPropagation();
-			}));
-
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_UP, (e) => {
-				if (e.defaultPrevented) {
-					return;
-				}
-
-				if (!this.ignoreNextMouseUp) {
-					if (this.isFocused) {
-						this.onMenuTriggered(menuIndex, true);
-					}
-				} else {
-					this.ignoreNextMouseUp = false;
-				}
-			}));
-
-			this._register(DOM.addDisposableListener(buttonElement, DOM.EventType.MOUSE_ENTER, () => {
-				if (this.isOpen && !this.isCurrentMenu(menuIndex)) {
-					this.menuCache[menuIndex].buttonElement.focus();
-					this.cleanupCustomMenu();
-					this.showCustomMenu(menuIndex, false);
-				} else if (this.isFocused && !this.isOpen) {
-					this.focusedMenu = { index: menuIndex };
-					buttonElement.focus();
-				}
-			}));
-
-			this.menuCache.push({
-				label: menuBarMenu.label,
-				actions: menuBarMenu.actions,
-				buttonElement: buttonElement,
-				titleElement: titleElement
-			});
 		});
 	}
 
@@ -416,9 +434,15 @@ export class MenuBar extends Disposable {
 	}
 
 	updateMenu(menu: MenuBarMenu): void {
-		const menuToUpdate = this.menuCache.filter(menuBarMenu => menuBarMenu.label === menu.label);
-		if (menuToUpdate && menuToUpdate.length) {
-			menuToUpdate[0].actions = menu.actions;
+		const menuToUpdate = this.menuCache.find(menuBarMenu => menuBarMenu.label === menu.label);
+		if (menuToUpdate) {
+			menuToUpdate.actions = menu.actions;
+		} else {
+			const menuToRender = this.menuData.find(menuData => menuData.label === menu.label);
+			if (menuToRender && menu.actions.length) {
+				menuToRender.actions = menu.actions;
+				this.renderMenu(menu);
+			}
 		}
 	}
 
@@ -605,6 +629,17 @@ export class MenuBar extends Disposable {
 
 	private registerMnemonic(menuIndex: number, mnemonic: string): void {
 		this.mnemonics.set(mnemonic.toLocaleLowerCase(), menuIndex);
+	}
+
+	private getMnemonicIndex(key: string): number | undefined {
+		const dataIndex = this.mnemonics.get(key);
+		if (dataIndex !== undefined) {
+			const dataMenu = this.menuData[dataIndex];
+			const renderedMenuIndex = this.menuCache.findIndex(m => m.label === dataMenu.label);
+			return renderedMenuIndex;
+		}
+
+		return dataIndex;
 	}
 
 	private hideMenubar(): void {
