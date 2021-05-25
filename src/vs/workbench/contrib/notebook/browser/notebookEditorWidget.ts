@@ -2482,10 +2482,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cell = this.getCellById(cellId);
 		const layoutConfiguration = this._notebookOptions.getLayoutConfiguration();
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			if (height + layoutConfiguration.bottomToolbarGap !== cell.layoutInfo.totalHeight) {
-				this._debug('updateMarkdownCellHeight', cell.handle, height + layoutConfiguration.bottomToolbarGap, isInit);
-				cell.renderedMarkdownHeight = height;
-			}
+			this._debug('updateMarkdownCellHeight', cell.handle, height + layoutConfiguration.bottomToolbarGap, isInit);
+			cell.renderedMarkdownHeight = height;
 		}
 	}
 
