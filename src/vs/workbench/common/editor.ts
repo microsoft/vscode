@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { withNullAsUndefined, assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
+import { assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -915,25 +915,6 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 		}
 
 		return this;
-	}
-
-	/**
-	 * Returns if this options object has objects defined for the editor.
-	 */
-	hasOptionsDefined(): boolean {
-		return !!this.editorViewState || !!this.selectionRevealType || !!this.selection;
-	}
-
-	/**
-	 * Create a TextEditorOptions inline to be used when the editor is opening.
-	 */
-	static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
-		const options = TextEditorOptions.create(settings);
-
-		// View state
-		options.editorViewState = withNullAsUndefined(editor.saveViewState());
-
-		return options;
 	}
 }
 
