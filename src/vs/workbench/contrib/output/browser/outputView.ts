@@ -221,7 +221,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
-	override async setInput(input: TextResourceEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {//
+	override async setInput(input: TextResourceEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return;

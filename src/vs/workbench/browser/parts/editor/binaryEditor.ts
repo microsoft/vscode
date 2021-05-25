@@ -6,7 +6,8 @@
 import 'vs/css!./media/binaryeditor';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';

@@ -18,7 +18,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorOptions, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, EditorOptions, IEditorInput, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -75,7 +75,7 @@ export class NotebookEditor extends EditorPane {
 
 	private onDidFileSystemProviderChange(scheme: string): void {
 		if (this.input?.resource?.scheme === scheme && this._widget.value) {
-			this._widget.value.setOptions(new NotebookEditorOptions({ isReadOnly: this.input.isReadonly() }));
+			this._widget.value.setOptions(new NotebookEditorOptions({ isReadOnly: this.input.hasCapability(EditorInputCapabilities.Readonly) }));
 		}
 	}
 
@@ -205,8 +205,8 @@ export class NotebookEditor extends EditorPane {
 
 		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
-		const isReadonly = input.isReadonly();
-		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options.with({ isReadOnly: isReadonly }) : new NotebookEditorOptions({ isReadOnly: isReadonly }));
+		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
+		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options.with({ isReadOnly }) : new NotebookEditorOptions({ isReadOnly }));
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {

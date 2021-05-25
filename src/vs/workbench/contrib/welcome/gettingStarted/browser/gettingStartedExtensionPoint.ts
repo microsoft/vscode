@@ -139,6 +139,21 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onLink:${2:linkId}'
 										},
 										{
+											label: 'onView',
+											description: localize('walkthroughs.steps.completionEvents.onView', 'Check off step when a given view is opened'),
+											body: 'onView:${2:viewId}'
+										},
+										{
+											label: 'onSettingChanged',
+											description: localize('walkthroughs.steps.completionEvents.onSettingChanged', 'Check off step when a given setting is changed'),
+											body: 'onSettingChanged:${2:settingName}'
+										},
+										{
+											label: 'onContextKeyDefined',
+											description: localize('walkthroughs.steps.completionEvents.onContextKeyDefined', 'Check off step when a context key is defined to a truthy value. Note: this only accepts single context keys, not full context key expressions'),
+											body: 'onContextKeyDefined:${2:key}'
+										},
+										{
 											label: 'extensionInstalled',
 											description: localize('walkthroughs.steps.completionEvents.extensionInstalled', 'Check off step when an extension with the given id is installed. If the extension is already installed, the step will start off checked.'),
 											body: 'extensionInstalled:${3:extensionId}'

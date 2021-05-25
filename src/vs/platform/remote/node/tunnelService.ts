@@ -76,12 +76,12 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 		// if that fails, the method above returns 0, which works out fine below...
 		let address: string | net.AddressInfo | null = null;
-		address = (<net.AddressInfo>this._server.listen(localPort).address());
+		address = (<net.AddressInfo>this._server.listen(localPort, '127.0.0.1').address());
 
 		// It is possible for findFreePortFaster to return a port that there is already a server listening on. This causes the previous listen call to error out.
 		if (!address) {
 			localPort = 0;
-			address = (<net.AddressInfo>this._server.listen(localPort).address());
+			address = (<net.AddressInfo>this._server.listen(localPort, '127.0.0.1').address());
 		}
 
 		this.tunnelLocalPort = address.port;

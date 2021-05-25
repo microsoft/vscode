@@ -7,7 +7,7 @@ import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -27,7 +27,7 @@ export interface GhostTextWidgetModel {
 	readonly onDidChange: Event<void>;
 	readonly ghostText: GhostText | undefined;
 
-	expand(): void;
+	setExpanded(expanded: boolean): void;
 	readonly expanded: boolean;
 
 	readonly minReservedLineCount: number;
@@ -41,7 +41,7 @@ export interface GhostText {
 export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
 	public abstract readonly ghostText: GhostText | undefined;
 
-	private _expanded = false;
+	private _expanded: boolean | undefined = undefined;
 
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -49,10 +49,23 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 	public abstract readonly minReservedLineCount: number;
 
 	public get expanded() {
+		if (this._expanded === undefined) {
+			return this.editor.getOption(EditorOption.suggest).suggestionPreviewExpanded;
+		}
 		return this._expanded;
 	}
 
-	public expand(): void {
+	constructor(protected readonly editor: IActiveCodeEditor) {
+		super();
+
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.suggest) && this._expanded === undefined) {
+				this.onDidChangeEmitter.fire();
+			}
+		}));
+	}
+
+	public setExpanded(expanded: boolean): void {
 		this._expanded = true;
 		this.onDidChangeEmitter.fire();
 	}
@@ -215,7 +228,7 @@ export class GhostTextWidget extends Disposable {
 		button.append(`+${remainingLinesLength} lines…`);
 
 		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
-			this.model?.expand();
+			this.model?.setExpanded(true);
 			e.preventDefault();
 			this.editor.focus();
 		}));

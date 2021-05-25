@@ -29,6 +29,11 @@
   "devDependencies": {
     "@types/node": "14.x"
   },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "resourceLabelFormatters": [
       {

@@ -6,7 +6,7 @@
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { BaseExtHostTerminalService, ExtHostTerminal } from 'vs/workbench/api/common/extHostTerminalService';
+import { BaseExtHostTerminalService, ExtHostTerminal, ITerminalInternalOptions } from 'vs/workbench/api/common/extHostTerminalService';
 import type * as vscode from 'vscode';
 
 export class ExtHostTerminalService extends BaseExtHostTerminalService {
@@ -24,7 +24,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		return terminal.value;
 	}
 
-	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
+	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
 		terminal.create(
@@ -37,8 +37,9 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			/*options.waitOnExit*/ undefined,
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
-			withNullAsUndefined(isFeatureTerminal),
-			true
+			withNullAsUndefined(internalOptions?.isFeatureTerminal),
+			true,
+			withNullAsUndefined(internalOptions?.useShellEnvironment)
 		);
 		return terminal.value;
 	}

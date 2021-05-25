@@ -26,7 +26,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -52,6 +52,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellEditorOptions';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 
 const $ = DOM.$;
 
@@ -108,12 +109,15 @@ abstract class AbstractCellRenderer {
 		this.dndController = undefined;
 	}
 
-	protected createBetweenCellToolbar(container: HTMLElement, disposables: DisposableStore, contextKeyService: IContextKeyService): ToolBar {
+	protected createBetweenCellToolbar(container: HTMLElement, disposables: DisposableStore, contextKeyService: IContextKeyService, notebookOptions: NotebookOptions): ToolBar {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			actionViewItemProvider: action => {
 				if (action instanceof MenuItemAction) {
-					const item = new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
-					return item;
+					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
+						return new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
+					} else {
+						return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService);
+					}
 				}
 
 				return undefined;
@@ -129,6 +133,11 @@ abstract class AbstractCellRenderer {
 		};
 
 		disposables.add(menu.onDidChange(() => updateActions()));
+		disposables.add(notebookOptions.onDidChangeOptions((e) => {
+			if (e.insertToolbarAlignment) {
+				updateActions();
+			}
+		}));
 		updateActions();
 
 		return toolbar;
@@ -342,7 +351,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
 
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
-		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService));
+		const betweenCellToolbar = disposables.add(this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService, this.notebookEditor.notebookOptions));
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
@@ -727,7 +736,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		focusSinkElement.setAttribute('tabindex', '0');
 		const bottomCellContainer = DOM.append(container, $('.cell-bottom-toolbar-container'));
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
-		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService);
+		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService, this.notebookEditor.notebookOptions);
 
 		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
 

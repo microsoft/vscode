@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/workspacetrusteditor';
 import { localize } from 'vs/nls';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
