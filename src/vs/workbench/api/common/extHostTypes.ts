@@ -3024,6 +3024,7 @@ export class NotebookCellMetadata {
 
 		return new NotebookCellMetadata(
 			{
+				...this,
 				inputCollapsed,
 				outputCollapsed,
 				...remaining
@@ -3042,7 +3043,7 @@ export class NotebookDocumentMetadata {
 	with(change: {
 		[key: string]: any
 	}): NotebookDocumentMetadata {
-		return new NotebookDocumentMetadata(change);
+		return new NotebookDocumentMetadata({ ...this, ...change });
 	}
 }
 

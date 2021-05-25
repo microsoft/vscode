@@ -653,6 +653,8 @@ suite('ExtHostTypes', function () {
 		const newObj = obj.with({ mycustom: { display: 'hello' } });
 		assert.ok(obj !== newObj);
 		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
+		const newObjWithMoreChanges = obj.with({ foo: { display: 'bar' } });
+		assert.deepStrictEqual(newObjWithMoreChanges, { mycustom: { display: 'hello' }, foo: { display: 'bar' } });
 	});
 
 	test('NotebookCellMetadata - with', function () {
@@ -679,7 +681,7 @@ suite('ExtHostTypes', function () {
 
 		const newCustom = newObj.with({ anotherCustom: { display: 'hello2' } });
 		assert.strictEqual(newCustom.inputCollapsed, false);
-		assert.deepStrictEqual(newCustom.mycustom, undefined);
+		assert.deepStrictEqual(newObj.custom, { display: 'hello' });
 		assert.deepStrictEqual(newCustom.anotherCustom, { display: 'hello2' });
 	});
 
