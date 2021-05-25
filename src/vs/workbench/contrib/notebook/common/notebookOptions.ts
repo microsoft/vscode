@@ -31,6 +31,7 @@ export interface NotebookLayoutConfiguration {
 	cellBottomMargin: number;
 	cellOutputPadding: number;
 	codeCellLeftMargin: number;
+	markdownCellLeftMargin: number;
 	markdownCellGutter: number;
 	markdownCellTopMargin: number;
 	markdownCellBottomMargin: number;
@@ -56,6 +57,7 @@ export interface NotebookLayoutConfiguration {
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
+	focusIndicatorLeftMargin: number;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -80,15 +82,19 @@ const defaultConfigConstants = {
 	cellRunGutter: 32,
 	markdownCellTopMargin: 8,
 	markdownCellBottomMargin: 8,
+	markdownCellLeftMargin: 0,
 	markdownCellGutter: 32,
+	focusIndicatorLeftMargin: 4
 };
 
 const compactConfigConstants = {
-	codeCellLeftMargin: 0,
+	codeCellLeftMargin: 8,
 	cellRunGutter: 32,
 	markdownCellTopMargin: 6,
 	markdownCellBottomMargin: 6,
+	markdownCellLeftMargin: 8,
 	markdownCellGutter: 32,
+	focusIndicatorLeftMargin: 4
 };
 
 export class NotebookOptions {
@@ -391,7 +397,7 @@ export class NotebookOptions {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
 			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
-			markdownLeftMargin: this._layoutConfiguration.markdownCellGutter,
+			markdownLeftMargin: this._layoutConfiguration.markdownCellGutter + this._layoutConfiguration.markdownCellLeftMargin,
 			leftMargin: this._layoutConfiguration.codeCellLeftMargin,
 			rightMargin: this._layoutConfiguration.cellRightMargin,
 			runGutter: this._layoutConfiguration.cellRunGutter,
