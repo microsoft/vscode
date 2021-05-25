@@ -60,7 +60,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	async canSetWorkspaceTrust(): Promise<boolean> {
+	canSetWorkspaceTrust(): boolean {
 		throw new Error('Method not implemented.');
 	}
 
