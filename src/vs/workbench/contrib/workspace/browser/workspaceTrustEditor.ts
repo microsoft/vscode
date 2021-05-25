@@ -779,7 +779,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.affectedFeaturesContainer = append(parent, $('.workspace-trust-features'));
 	}
 
-	private async renderAffectedFeatures(numSettings: number, numExtensions: number): Promise<void> {
+	private renderAffectedFeatures(numSettings: number, numExtensions: number): void {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
 		const [trustedTitle, trustedSubTitle] = this.getFeaturesHeaderText(true);
@@ -803,13 +803,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
 				this.addTrustedTextToElement(untrustedContainer);
 			}
 		} else {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(trustedContainer);
 			}
 		}
