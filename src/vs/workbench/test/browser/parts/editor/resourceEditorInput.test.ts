@@ -34,7 +34,7 @@ suite('Resource editors', () => {
 	});
 
 	test('basics', async () => {
-		const resource = URI.from({ scheme: 'testResource', path: 'thePath' });
+		const resource = URI.from({ scheme: 'testResource', path: 'thePath/of/the/resource.txt' });
 
 		const input = instantiationService.createInstance(TestResourceEditorInput, resource);
 
