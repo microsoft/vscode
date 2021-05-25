@@ -228,7 +228,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			args = shellArgsSetting;
 		}
 		if (args === undefined) {
-			if (options.os === OperatingSystem.Macintosh && args === undefined && path.parse(executable).name.match(/(zsh|bash)/)) {
+			if (options.os === OperatingSystem.Macintosh && args === undefined && path.parse(executable).name.match(/(zsh|bash|fish)/)) {
 				// macOS should launch a login shell by default
 				args = ['--login'];
 			} else {
