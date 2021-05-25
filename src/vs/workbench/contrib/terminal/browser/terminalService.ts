@@ -45,7 +45,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminal.integrated.profile.migration';
+const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminal.integrated.profile.migrations';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -834,13 +834,6 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	async shouldMigrateToProfile(): Promise<boolean> {
-		const platform = await this._getPlatformKey();
-		return (!!this._configurationService.getValue(TerminalSettingId.Shell + platform) ||
-			!!this._configurationService.getValue(TerminalSettingId.ShellArgs + platform)) &&
-			!!this._configurationService.getValue(TerminalSettingId.DefaultProfile + platform);
-	}
-
 	async focusTabs(): Promise<void> {
 		if (this._terminalInstances.length === 0) {
 			return;
@@ -1038,21 +1031,25 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	showProfileMigrationNotification(): void {
-		if (this.shouldMigrateToProfile() && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.GLOBAL, true)) {
+	async showProfileMigrationNotification(): Promise<void> {
+		await this._getPlatformKey();
+		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingId.Shell + this._platform) ||
+			!!this._configurationService.getValue(TerminalSettingId.ShellArgs + this._platform)) &&
+			!!this._configurationService.getValue(TerminalSettingId.DefaultProfile + this._platform);
+		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
 			this._notificationService.prompt(
 				Severity.Info,
-				nls.localize('terminalProfileMigration', "You are using the deprecated settings `shell` and `shellArgs`, but have a `defaultProfile` set. Would you like to use that instead?"),
+				nls.localize('terminalProfileMigration', "You are using deprecated `shell` and `shellArgs` settings, but have a `defaultProfile` set. Would you like to use that instead?"),
 				[
 					{
-						label: nls.localize('configureProfile', "Configure Profile"),
+						label: nls.localize('configureProfile', "Configure Shell and Profile Settings"),
 						run: () => {
 							this._preferencesService.openSettings(false, `@id:${TerminalSettingId.Shell + this._platform},${TerminalSettingId.ShellArgs + this._platform},${TerminalSettingId.DefaultProfile + this._platform}`);
 						}
 					} as IPromptChoice
 				]
 			);
-			this._storageService.store(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, false, StorageScope.GLOBAL, StorageTarget.USER);
+			this._storageService.store(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, false, StorageScope.WORKSPACE, StorageTarget.USER);
 		}
 	}
 
