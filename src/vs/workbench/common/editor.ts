@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
-import { withNullAsUndefined, assertIsDefined } from 'vs/base/common/types';
+import { withNullAsUndefined, assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -552,6 +552,15 @@ export interface IEditorInput extends IDisposable {
 	copy(): IEditorInput;
 
 	/**
+	 * Returns a representation of this typed editor input as untyped
+	 * resource editor input that e.g. can be used to serialize the
+	 * editor input into a form that it can be restored.
+	 *
+	 * May return `undefined` if a untyped representatin is not supported.
+	 */
+	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined;
+
+	/**
 	 * Returns if the other object matches this input.
 	 */
 	matches(other: unknown): boolean;
@@ -668,6 +677,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	 */
 	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
 		return firstOrDefault(editors);
+	}
+
+	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
+		return undefined;
 	}
 
 	isDisposed(): boolean {
@@ -1257,6 +1270,15 @@ export interface IEditorOpenContext {
 export interface IEditorIdentifier {
 	groupId: GroupIdentifier;
 	editor: IEditorInput;
+}
+
+export function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
+	const identifier = thing as IEditorIdentifier | undefined;
+	if (!identifier) {
+		return false;
+	}
+
+	return typeof identifier.groupId === 'number' && !isUndefinedOrNull(identifier.editor);
 }
 
 /**

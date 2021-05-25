@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -206,6 +206,15 @@ suite('Workbench editor', () => {
 
 		assert.strictEqual(EditorResourceAccessor.getCanonicalUri(fileWithPreferredResource)?.toString(), resource.toString());
 		assert.strictEqual(EditorResourceAccessor.getOriginalUri(fileWithPreferredResource)?.toString(), preferredResource.toString());
+	});
+
+	test('isEditorIdentifier', () => {
+		assert.strictEqual(isEditorIdentifier(undefined), false);
+		assert.strictEqual(isEditorIdentifier('undefined'), false);
+
+		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		assert.strictEqual(isEditorIdentifier(testInput1), false);
+		assert.strictEqual(isEditorIdentifier({ editor: testInput1, groupId: 3 }), true);
 	});
 
 	test('whenEditorClosed (single editor)', async function () {

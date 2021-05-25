@@ -18,6 +18,7 @@ import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -197,6 +198,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return this._editorModelReference.object;
+	}
+
+	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+		return {
+			resource: this.preferredResource,
+			options: {
+				override: this.viewType
+			}
+		};
 	}
 
 	override matches(otherInput: unknown): boolean {

@@ -13,6 +13,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
@@ -300,5 +301,14 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	get untitledDocumentData(): VSBuffer | undefined {
 		return this._untitledDocumentData;
+	}
+
+	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+		return {
+			resource: this.resource,
+			options: {
+				override: this.viewType
+			}
+		};
 	}
 }
