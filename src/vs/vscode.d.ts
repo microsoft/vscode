@@ -1163,7 +1163,7 @@ declare module 'vscode' {
 		 * @param decorationType A decoration type.
 		 * @param rangesOrOptions Either {@link Range ranges} or more detailed {@link DecorationOptions options}.
 		 */
-		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: Range[] | DecorationOptions[]): void;
+		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: readonly Range[] | readonly DecorationOptions[]): void;
 
 		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
@@ -6015,7 +6015,7 @@ declare module 'vscode' {
 			 *
 			 * @param keys The set of keys whose values are synced.
 			 */
-			setKeysForSync(keys: string[]): void;
+			setKeysForSync(keys: readonly string[]): void;
 		};
 
 		/**
@@ -8631,7 +8631,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -8641,7 +8641,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 
 		/**
 		 * Shows a selection list allowing multiple selections.
@@ -8651,7 +8651,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -8661,7 +8661,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**
 		 * Shows a selection list of {@link workspace.workspaceFolders workspace folders} to pick from.
@@ -12167,13 +12167,13 @@ declare module 'vscode' {
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
 		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): void;
+		export function addBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
 		 * Remove breakpoints.
 		 * @param breakpoints The breakpoints to remove.
 		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
+		export function removeBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
 		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
@@ -12512,7 +12512,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(uri: Uri, range: Range, comments: readonly Comment[]): CommentThread;
 
 		/**
 		 * Optional reaction handler for creating and deleting reactions on a {@link Comment}.
@@ -12687,7 +12687,7 @@ declare module 'vscode' {
 		 * these permissions, otherwise all sessions should be returned.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(scopes?: readonly string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
 
 		/**
 		 * Prompts a user to login.
@@ -12702,7 +12702,7 @@ declare module 'vscode' {
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -12733,7 +12733,7 @@ declare module 'vscode' {
 		 * @param options The {@link GetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -12748,7 +12748,7 @@ declare module 'vscode' {
 		 * @param options The {@link GetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
