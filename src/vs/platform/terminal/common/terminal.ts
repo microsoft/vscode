@@ -11,6 +11,7 @@ import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 export const enum TerminalSettingId {
+	Shell = 'terminal.integrated.shell.',
 	ShellLinux = 'terminal.integrated.shell.linux',
 	ShellMacOs = 'terminal.integrated.shell.osx',
 	ShellWindows = 'terminal.integrated.shell.windows',
@@ -18,12 +19,14 @@ export const enum TerminalSettingId {
 	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
 	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
 	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
+	ShellArgs = 'terminal.integrated.automationShell.',
 	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
 	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
 	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
+	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
 	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',
