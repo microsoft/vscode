@@ -9,7 +9,7 @@ import { assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, EditorOverride } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -847,53 +847,6 @@ export class EditorOptions implements IEditorOptions {
 
 		if (typeof options.context === 'number') {
 			this.context = options.context;
-		}
-
-		return this;
-	}
-}
-
-/**
- * Base Text Editor Options.
- */
-export class TextEditorOptions extends EditorOptions implements ITextEditorOptions {
-
-	/**
-	 * Text editor selection.
-	 */
-	selection: ITextEditorSelection | undefined;
-
-	/**
-	 * Text editor view state.
-	 */
-	editorViewState: IEditorViewState | undefined;
-
-	/**
-	 * Option to control the text editor selection reveal type.
-	 */
-	selectionRevealType: TextEditorSelectionRevealType | undefined;
-
-	/**
-	 * Overwrites option values from the provided bag.
-	 */
-	override overwrite(options: ITextEditorOptions): TextEditorOptions {
-		super.overwrite(options);
-
-		if (options.selection) {
-			this.selection = {
-				startLineNumber: options.selection.startLineNumber,
-				startColumn: options.selection.startColumn,
-				endLineNumber: options.selection.endLineNumber ?? options.selection.startLineNumber,
-				endColumn: options.selection.endColumn ?? options.selection.startColumn
-			};
-		}
-
-		if (options.viewState) {
-			this.editorViewState = options.viewState as IEditorViewState;
-		}
-
-		if (typeof options.selectionRevealType !== 'undefined') {
-			this.selectionRevealType = options.selectionRevealType;
 		}
 
 		return this;
