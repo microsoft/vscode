@@ -25,7 +25,7 @@ import { INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contri
 import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { NotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorOptions, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { clearMarks, getAndClearMarks, mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -75,7 +75,7 @@ export class NotebookEditor extends EditorPane {
 
 	private onDidFileSystemProviderChange(scheme: string): void {
 		if (this.input?.resource?.scheme === scheme && this._widget.value) {
-			this._widget.value.setOptions(new NotebookEditorOptions({ isReadOnly: this.input.hasCapability(EditorInputCapabilities.Readonly) }));
+			this._widget.value.setOptions({ isReadOnly: this.input.hasCapability(EditorInputCapabilities.Readonly) });
 		}
 	}
 
@@ -206,7 +206,7 @@ export class NotebookEditor extends EditorPane {
 		this._widget.value?.setParentContextKeyService(this._contextKeyService);
 		await this._widget.value!.setModel(model.notebook, viewState);
 		const isReadOnly = input.hasCapability(EditorInputCapabilities.Readonly);
-		await this._widget.value!.setOptions(options instanceof NotebookEditorOptions ? options.with({ isReadOnly }) : new NotebookEditorOptions({ isReadOnly }));
+		await this._widget.value!.setOptions({ ...options, isReadOnly });
 		this._widgetDisposableStore.add(this._widget.value!.onDidFocus(() => this._onDidFocusWidget.fire()));
 
 		this._widgetDisposableStore.add(this._editorDropService.createEditorDropTarget(this._widget.value!.getDomNode(), {
@@ -277,10 +277,8 @@ export class NotebookEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	override setOptions(options: EditorOptions | undefined): void {
-		if (options instanceof NotebookEditorOptions) {
-			this._widget.value?.setOptions(options);
-		}
+	override setOptions(options: INotebookEditorOptions | undefined): void {
+		this._widget.value?.setOptions(options);
 		super.setOptions(options);
 	}
 

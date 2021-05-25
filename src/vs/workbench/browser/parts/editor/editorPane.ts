@@ -21,6 +21,7 @@ import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -103,9 +104,9 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
-		this._options = options;
+		this._options = options as EditorOptions;
 	}
 
 	/**
@@ -130,8 +131,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions | undefined): void {
-		this._options = options;
+	setOptions(options: IEditorOptions | undefined): void {
+		this._options = options as EditorOptions;
 	}
 
 	override setVisible(visible: boolean, group?: IEditorGroup): void {

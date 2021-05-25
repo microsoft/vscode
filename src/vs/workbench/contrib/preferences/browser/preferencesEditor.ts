@@ -49,7 +49,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_JSON_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsGroup, SettingsEditorOptions } from 'vs/workbench/services/preferences/common/preferences';
+import { IFilterResult, IPreferencesService, ISetting, ISettingsEditorModel, ISettingsEditorOptions, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -152,7 +152,7 @@ export class PreferencesEditor extends EditorPane {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	override setInput(input: PreferencesEditorInput, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: PreferencesEditorInput, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.defaultSettingsEditorContextKey.set(true);
 		this.defaultSettingsJSONEditorContextKey.set(true);
 		if (options && options.query) {
@@ -205,7 +205,7 @@ export class PreferencesEditor extends EditorPane {
 		super.setEditorVisible(visible, group);
 	}
 
-	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private updateInput(newInput: PreferencesEditorInput, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.secondary, newInput.primary, options, context, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			if (token.isCancellationRequested) {
 				return;
@@ -834,7 +834,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
+	setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<{ defaultPreferencesRenderer?: IPreferencesRenderer<ISetting>, editablePreferencesRenderer?: IPreferencesRenderer<ISetting>; }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.resource!);
 		return Promise.all([
@@ -917,7 +917,7 @@ class SideBySidePreferencesWidget extends Widget {
 		return editor;
 	}
 
-	private async updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
+	private async updateInput(editor: EditorPane, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<IPreferencesRenderer<ISetting> | undefined> {
 		await editor.setInput(input, options, context, token);
 
 		if (token.isCancellationRequested) {
