@@ -245,21 +245,23 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			profileName,
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
-			isDefault: profileName === defaultProfileName
+			isDefault: profileName === defaultProfileName,
+			icon: getWslIcon(distroName)
 		};
-		if (distroName.includes('Ubuntu')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
-		}
-		else if (distroName.includes('Debian')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
-		} else {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
-		}
-
 		// Add the profile
 		profiles.push(profile);
 	}
 	return profiles;
+}
+
+function getWslIcon(distroName: string): ThemeIcon {
+	if (distroName.includes('Ubuntu')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+	} else if (distroName.includes('Debian')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+	} else {
+		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+	}
 }
 
 async function detectAvailableUnixProfiles(
