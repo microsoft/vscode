@@ -19,7 +19,7 @@ import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
 import { TsServerProcessFactory } from './tsServer/server';
 import { ITypeScriptVersionProvider } from './tsServer/versionProvider';
 import VersionStatus from './tsServer/versionStatus';
-import TypeScriptServiceClient, { LogLevelMonitor } from './typescriptServiceClient';
+import TypeScriptServiceClient from './typescriptServiceClient';
 import { coalesce, flatten } from './utils/arrays';
 import { CommandManager } from './commands/commandManager';
 import { Disposable } from './utils/dispose';
@@ -30,6 +30,7 @@ import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { LogLevelMonitor } from './utils/logLevelMonitor';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -147,8 +148,6 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
-
-		// TODO: not sure if this is the right place to register this.
 		this._register(new LogLevelMonitor(context));
 	}
 
