@@ -116,9 +116,14 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model;
 	}
 
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
+	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
 		return {
-			resource: this.model.resource
+			resource: this.model.resource,
+			encoding: this.getEncoding(),
+			mode: this.getMode(),
+			options: {
+				viewState: this.getViewStateFor(group)
+			}
 		};
 	}
 

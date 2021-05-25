@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -19,7 +19,6 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 
 const enum ForceOpenAs {
@@ -211,6 +210,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
+	getMode(): string | undefined {
+		if (this.model) {
+			return this.model.getMode();
+		}
+
+		return this.preferredMode;
+	}
+
 	getPreferredMode(): string | undefined {
 		return this.preferredMode;
 	}
@@ -353,21 +360,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
-		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && this.matches(editorPane.input)) {
-				if (isTextEditorPane(editorPane)) {
-					return editorPane.getViewState();
-				}
-			}
-		}
-
-		return undefined;
-	}
-
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
+	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
 		return {
-			resource: this.preferredResource
+			resource: this.preferredResource,
+			encoding: this.getEncoding(),
+			mode: this.getMode(),
+			options: {
+				viewState: this.getViewStateFor(group)
+			}
 		};
 	}
 

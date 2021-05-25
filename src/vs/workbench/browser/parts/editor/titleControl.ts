@@ -25,7 +25,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDragTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
@@ -289,7 +289,7 @@ export abstract class TitleControl extends Themable {
 
 	protected doFillResourceDataTransfers(editors: readonly IEditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+			this.instantiationService.invokeFunction(fillResourceDragTransfers, editors.map(editor => ({ editor, groupId: this.group.id })), e);
 
 			return true;
 		}

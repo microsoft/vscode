@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -25,7 +25,7 @@ import { IEditorIdentifier, GroupIdentifier, IEditorInputFactoryRegistry, Editor
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -33,15 +33,7 @@ import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/com
 import { Emitter } from 'vs/base/common/event';
 import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { coalesce } from 'vs/base/common/arrays';
-
-export interface IDraggedResource {
-	resource: URI;
-	isExternal: boolean;
-}
-
-interface ISerializedDraggedResource {
-	resource: string;
-}
+import { parse, stringify } from 'vs/base/common/marshalling';
 
 export class DraggedEditorIdentifier {
 
@@ -53,23 +45,22 @@ export class DraggedEditorGroupIdentifier {
 	constructor(readonly identifier: GroupIdentifier) { }
 }
 
-interface IDraggedEditorProps {
-	dirtyContent?: string;
-	encoding?: string;
-	mode?: string;
-	options?: ITextEditorOptions;
-}
-
-export interface IDraggedEditor extends IDraggedResource, IDraggedEditorProps { }
-
-export interface ISerializedDraggedEditor extends ISerializedDraggedResource, IDraggedEditorProps { }
-
 export const CodeDataTransfers = {
 	EDITORS: 'CodeEditors',
 	FILES: 'CodeFiles'
 };
 
-export function extractResources(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
+interface IDraggedResource {
+	resource: URI;
+	isExternal?: boolean;
+}
+
+interface IDraggedEditor extends IResourceEditorInput {
+	contents?: string;
+	isExternal?: boolean;
+}
+
+export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
 	const resources: Array<IDraggedResource | IDraggedEditor> = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
@@ -80,17 +71,7 @@ export function extractResources(e: DragEvent, externalOnly?: boolean): Array<ID
 			const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
 			if (rawEditorsData) {
 				try {
-					const draggedEditors: ISerializedDraggedEditor[] = JSON.parse(rawEditorsData);
-					draggedEditors.forEach(draggedEditor => {
-						resources.push({
-							resource: URI.parse(draggedEditor.resource),
-							dirtyContent: draggedEditor.dirtyContent,
-							options: draggedEditor.options,
-							encoding: draggedEditor.encoding,
-							mode: draggedEditor.mode,
-							isExternal: false
-						});
-					});
+					resources.push(...parse(rawEditorsData));
 				} catch (error) {
 					// Invalid transfer
 				}
@@ -171,7 +152,7 @@ export class ResourcesDropHandler {
 	}
 
 	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const untitledOrFileResources = extractResources(event).filter(resource => this.fileService.canHandleResource(resource.resource) || resource.resource.scheme === Schemas.untitled);
+		const untitledOrFileResources = extractResourceDropTransfers(event).filter(resource => this.fileService.canHandleResource(resource.resource) || resource.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;
 		}
@@ -213,7 +194,7 @@ export class ResourcesDropHandler {
 	private async doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
 
 		// Check for dirty editors being dropped
-		const dirtyEditors: IDraggedEditor[] = untitledOrFileResources.filter(untitledOrFileResource => !untitledOrFileResource.isExternal && typeof (untitledOrFileResource as IDraggedEditor).dirtyContent === 'string');
+		const dirtyEditors: IDraggedEditor[] = untitledOrFileResources.filter(untitledOrFileResource => !untitledOrFileResource.isExternal && typeof (untitledOrFileResource as IDraggedEditor).contents === 'string');
 		if (dirtyEditors.length > 0) {
 			await Promise.all(dirtyEditors.map(dirtyEditor => this.handleDirtyEditorDrop(dirtyEditor)));
 			return false;
@@ -237,7 +218,10 @@ export class ResourcesDropHandler {
 		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
 			const untitledTextEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
 			if (untitledTextEditorResource) {
-				droppedDirtyEditor.resource = untitledTextEditorResource;
+				droppedDirtyEditor = {
+					...droppedDirtyEditor,
+					resource: untitledTextEditorResource
+				};
 			}
 		}
 
@@ -248,9 +232,9 @@ export class ResourcesDropHandler {
 
 		// If the dropped editor is dirty with content we simply take that
 		// content and turn it into a backup so that it loads the contents
-		if (typeof droppedDirtyEditor.dirtyContent === 'string') {
+		if (typeof droppedDirtyEditor.contents === 'string') {
 			try {
-				await this.workingCopyBackupService.backup({ resource: droppedDirtyEditor.resource, typeId: NO_TYPE_ID }, bufferToReadable(VSBuffer.fromString(droppedDirtyEditor.dirtyContent)));
+				await this.workingCopyBackupService.backup({ resource: droppedDirtyEditor.resource, typeId: NO_TYPE_ID }, bufferToReadable(VSBuffer.fromString(droppedDirtyEditor.contents)));
 			} catch (e) {
 				// Ignore error
 			}
@@ -311,10 +295,10 @@ interface IResourceStat {
 	isDirectory?: boolean;
 }
 
-export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDataTransfers(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDataTransfers(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDataTransfers(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
+export function fillResourceDragTransfers(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
+export function fillResourceDragTransfers(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
+export function fillResourceDragTransfers(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
+export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
 	if (resourcesOrEditors.length === 0 || !event.dataTransfer) {
 		return;
 	}
@@ -356,80 +340,74 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resourcesO
 	// into the editor area while presering UI state
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
 
-	const draggedEditors: ISerializedDraggedEditor[] = [];
+	const draggedEditors: IDraggedEditor[] = [];
 
 	for (const resourceOrEditor of resourcesOrEditors) {
 
 		// Extract resource editor from provided object or URI
-		let editor: IResourceEditorInput;
+		let editor: IResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
-			const editorCandidate = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
-			if (!editorCandidate) {
-				return; // not transferable editor (not serializable)
-			}
-
-			editor = editorCandidate;
-
-			if (!editor.options?.viewState) {
-				const group = editorGroupService.getGroup(resourceOrEditor.groupId);
-				if (group?.activeEditor === resourceOrEditor.editor) {
-					const activeControl = group.activeEditorPane?.getControl();
-					if (isCodeEditor(activeControl)) {
-						editor.options = {
-							...editor.options,
-							viewState: withNullAsUndefined(activeControl.saveViewState())
-						};
-					}
-				}
-			}
+			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
 		} else {
-			const editorCandidate = URI.isUri(resourceOrEditor) ? { resource: resourceOrEditor } : !resourceOrEditor.isDirectory ? { resource: resourceOrEditor.resource } : undefined;
-			if (!editorCandidate) {
-				return; // not transferable editor (directory)
+			let resource: URI | undefined = undefined;
+			if (URI.isUri(resourceOrEditor)) {
+				resource = resourceOrEditor;
+			} else if (!resourceOrEditor.isDirectory) {
+				resource = resourceOrEditor.resource;
 			}
 
-			editor = editorCandidate;
+			if (!resource) {
+				continue;
+			}
 
-			for (const textEditorControl of editorService.visibleTextEditorControls) {
-				if (isCodeEditor(textEditorControl)) {
-					const model = textEditorControl.getModel();
-					if (isEqual(model?.uri, editor.resource)) {
-						editor.options = {
-							...editor.options,
-							viewState: withNullAsUndefined(textEditorControl.saveViewState())
-						};
+			// If we only got a resource to work with, try to resolve as many
+			// editor properties as possible. This currently only works with
+			// text editors and not custom editors.
+			const model = resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource);
 
-						break;
-					}
+			editor = {
+				resource,
+				encoding: model?.getEncoding(),
+				mode: model?.getMode(),
+				options: {
+					viewState: (() => {
+						for (const textEditorControl of editorService.visibleTextEditorControls) {
+							if (isCodeEditor(textEditorControl)) {
+								const model = textEditorControl.getModel();
+								if (isEqual(model?.uri, resource)) {
+									return withNullAsUndefined(textEditorControl.saveViewState());
+								}
+							}
+						}
+
+						return undefined;
+					})()
 				}
-			}
+			};
 		}
 
-		// Try to find encoding and mode from text model if any
-		let encoding: string | undefined = undefined;
-		let mode: string | undefined = undefined;
-
-		const model = editor.resource.scheme === Schemas.untitled ? textFileService.untitled.get(editor.resource) : textFileService.files.get(editor.resource);
-		if (model) {
-			encoding = model.getEncoding();
-			mode = model.getMode();
-		}
-
-		// If the resource is dirty or untitled, send over its content
-		// to restore dirty state. Get that from the text model directly
-		let dirtyContent: string | undefined = undefined;
-		if (model?.isDirty()) {
-			dirtyContent = model.textEditorModel.getValue();
+		if (!editor) {
+			continue; // skip over editors that cannot be transferred via dnd
 		}
 
 		// Add as dragged editor
-		draggedEditors.push({ resource: editor.resource.toString(), dirtyContent, options: editor.options, encoding, mode });
+		draggedEditors.push({
+			...editor,
+			contents: (() => {
+				// TODO@bpasero this should not happen from here but from the asResourceEditorInput() method
+				const model = editor.resource.scheme === Schemas.untitled ? textFileService.untitled.get(editor.resource) : textFileService.files.get(editor.resource);
+				if (model?.isDirty()) {
+					return model.textEditorModel.getValue();
+				}
+
+				return undefined;
+			})()
+		});
 	}
 
 	if (draggedEditors.length) {
-		event.dataTransfer.setData(CodeDataTransfers.EDITORS, JSON.stringify(draggedEditors));
+		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
 	}
 }
 
