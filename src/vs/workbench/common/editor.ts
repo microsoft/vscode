@@ -68,6 +68,31 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
 
+export interface IEditorDescriptor<T extends IEditorPane> {
+
+	/**
+	 * The unique type identifier of the editor. All instances
+	 * of the same `IEditorPane` should have the same type
+	 * identifier.
+	 */
+	readonly typeId: string;
+
+	/**
+	 * The display name of the editor.
+	 */
+	readonly name: string;
+
+	/**
+	 * Instantiates the editor pane using the provided services.
+	 */
+	instantiate(instantiationService: IInstantiationService): T;
+
+	/**
+	 * Whether the descriptor is for the provided editor pane.
+	 */
+	describes(editorPane: T): boolean;
+}
+
 /**
  * The editor pane is the container for workbench editors.
  */
@@ -414,7 +439,7 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
-	 * Unique type identifier for this inpput. Every editor input of the
+	 * Unique type identifier for this input. Every editor input of the
 	 * same class should share the same type identifier. The type identifier
 	 * is used for example for serialising/deserialising editor inputs
 	 * via the serialisers of the `IEditorInputFactoryRegistry`.
@@ -587,14 +612,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	/**
-	 * Returns the preferred editor for this input. A list of candidate editors is passed in that whee registered
-	 * for the input. This allows subclasses to decide late which editor to use for the input on a case by case basis.
-	 */
-	getPreferredEditorId(candidates: string[]): string | undefined {
-		return firstOrDefault(candidates);
-	}
-
-	/**
 	* Returns a descriptor suitable for telemetry events.
 	*
 	* Subclasses should extend if they can contribute.
@@ -640,6 +657,17 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
+	}
+
+	/**
+	 * If a input was registered onto multiple editors, this method
+	 * will be asked to return the preferred one to use.
+	 *
+	 * @param editors a list of editor descriptors that are candidates
+	 * for the editor input to open in.
+	 */
+	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+		return firstOrDefault(editors);
 	}
 
 	isDisposed(): boolean {
@@ -828,6 +856,12 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.description;
 	}
 
+	override getTelemetryDescriptor(): { [key: string]: unknown } {
+		const descriptor = this.primary.getTelemetryDescriptor();
+
+		return Object.assign(descriptor, super.getTelemetryDescriptor());
+	}
+
 	override isDirty(): boolean {
 		return this.primary.isDirty();
 	}
@@ -846,12 +880,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		return this.primary.revert(group, options);
-	}
-
-	override getTelemetryDescriptor(): { [key: string]: unknown } {
-		const descriptor = this.primary.getTelemetryDescriptor();
-
-		return Object.assign(descriptor, super.getTelemetryDescriptor());
 	}
 
 	override matches(otherInput: unknown): boolean {

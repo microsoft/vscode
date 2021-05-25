@@ -106,7 +106,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
-	override async setInput(input: DiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {//
+	override async setInput(input: DiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
