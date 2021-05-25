@@ -29,7 +29,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, ExperimentalUndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -192,7 +192,7 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 	) {
 		super();
 
-		const undoRedoPerCell = configurationService.getValue<boolean>(ExperimentalUndoRedoPerCell);
+		const undoRedoPerCell = configurationService.getValue<boolean>(UndoRedoPerCell);
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
@@ -572,12 +572,14 @@ configurationRegistry.registerConfiguration({
 			},
 			default: {
 				'default': 'right'
-			}
+			},
+			tags: ['notebookLayout']
 		},
 		[ShowCellStatusBarKey]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
 			type: 'boolean',
-			default: true
+			default: true,
+			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {
 			description: nls.localize('notebook.diff.enablePreview.description', "Whether to use the enhanced text diff editor for notebook."),
@@ -593,7 +595,58 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.cellToolbarVisibility.description', "Whether the cell toolbar should appear on hover or click."),
 			type: 'string',
 			enum: ['hover', 'click'],
-			default: 'click'
+			default: 'click',
+			tags: ['notebookLayout']
 		},
+		[UndoRedoPerCell]: {
+			description: nls.localize('notebook.undoRedoPerCell.description', "Whether to use separate undo/redo stack for each cell."),
+			type: 'boolean',
+			default: false
+		},
+		[CompactView]: {
+			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookLayout']
+		},
+		[FocusIndicator]: {
+			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
+			type: 'string',
+			enum: ['border', 'gutter'],
+			default: 'border',
+			tags: ['notebookLayout']
+		},
+		[InsertToolbarPosition]: {
+			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
+			type: 'string',
+			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+			default: 'both',
+			tags: ['notebookLayout']
+		},
+		[GlobalToolbar]: {
+			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
+			type: 'boolean',
+			default: false,
+			tags: ['notebookLayout']
+		},
+		[ConsolidatedOutputButton]: {
+			description: nls.localize('notebook.consolidatedOutputButton.description', "Control whether outputs action should be rendered in the output toolbar."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[ShowFoldingControls]: {
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
+			type: 'string',
+			enum: ['always', 'mouseover'],
+			default: 'always',
+			tags: ['notebookLayout']
+		},
+		[DragAndDropEnabled]: {
+			description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		}
 	}
 });

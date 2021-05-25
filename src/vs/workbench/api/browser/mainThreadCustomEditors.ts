@@ -545,7 +545,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
-	public async revert(_options?: IRevertOptions) {
+	public async revert(options?: IRevertOptions) {
 		if (!this._editable) {
 			return;
 		}
@@ -554,7 +554,10 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return;
 		}
 
-		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		if (!options?.soft) {
+			this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		}
+
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._fromBackup = false;

@@ -11,15 +11,19 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 
-export function getColorClass(terminal: ITerminalInstance): string | undefined {
+export function getColorClass(colorKey: string): string;
+export function getColorClass(terminal: ITerminalInstance): string | undefined;
+export function getColorClass(terminalOrColorKey: ITerminalInstance | string): string | undefined {
 	let color = undefined;
-	if (terminal.color) {
-		color = terminal.color;
-	} else if (ThemeIcon.isThemeIcon(terminal.icon) && terminal.icon.color) {
-		color = terminal.icon.color.id.replace('.', '_');
+	if (typeof terminalOrColorKey === 'string') {
+		color = terminalOrColorKey;
+	} else if (terminalOrColorKey.color) {
+		color = terminalOrColorKey.color.replace(/\./g, '_');
+	} else if (ThemeIcon.isThemeIcon(terminalOrColorKey.icon) && terminalOrColorKey.icon.color) {
+		color = terminalOrColorKey.icon.color.id.replace(/\./g, '_');
 	}
 	if (color) {
-		return `terminal-icon-${color}`;
+		return `terminal-icon-${color.replace(/\./g, '_')}`;
 	}
 	return undefined;
 }
