@@ -701,7 +701,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		const isRemote = !!this.environmentService.remoteAuthority;
 
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && (this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && (this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : false));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
