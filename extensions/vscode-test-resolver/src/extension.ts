@@ -3,67 +3,67 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as cp from 'child_process';
-import * as path from 'path';
-import * as fs from 'fs';
-import * as os from 'os';
-import * as net from 'net';
-import * as http from 'http';
-import { downloadAndUnzipVSCodeServer } from './download';
-import { terminateProcess } from './util/processes';
+ * vscod 'vscode';
+ * cp 'child_process';
+ * path 'path';
+ * fs 'fs';
+ * o 'os';
+ * net 'net';
+ * http 'http';
+ { downloadAndUnzipVSCodeServer } './download';
+ { terminateProcess } './util/processes';
 
-let extHostProcess: cp.ChildProcess | undefined;
-const enum CharCode {
+ extHostProcess: cp.ChildProcess | undefined;
+ enum CharCode {
 	Backspace = 8,
 	LineFeed = 10
 }
 
-let outputChannel: vscode.OutputChannel;
+outputChannel: vscode.OutputChannel;
 
-export function activate(context: vscode.ExtensionContext) {
+ activate(context: vscode.ExtensionContext) {
 
-	function doResolve(_authority: string, progress: vscode.Progress<{ message?: string; increment?: number }>): Promise<vscode.ResolvedAuthority> {
-		const serverPromise = new Promise<vscode.ResolvedAuthority>(async (res, rej) => {
+	 doResolve(_authority: string, progress: vscode.Progress{ message?: string; increment?: number }): Promisevscode.ResolvedAuthority {
+         serverPromise = Promisevscode.ResolvedAuthority(async (res, rej) => {
 			progress.report({ message: 'Starting Test Resolver' });
 			outputChannel = vscode.window.createOutputChannel('TestResolver');
 
-			let isResolved = false;
-			async function processError(message: string) {
+			 isResolved = false;
+			 processError(message: string) {
 				outputChannel.appendLine(message);
-				if (!isResolved) {
+				 (!isResolved) {
 					isResolved = true;
 					outputChannel.show();
 
-					const result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
-					if (result) {
-						await result.execute();
+					 result = await vscode.window.showErrorMessage(message, { modal: true }, ...getActions());
+			                      (result) {
+					 result.execute();
 					}
 					rej(vscode.RemoteAuthorityResolverError.NotAvailable(message, true));
 				}
 			}
 
-			let lastProgressLine = '';
-			function processOutput(output: string) {
+		         lastProgressLine = '';
+			 processOutput(output: string) {
 				outputChannel.append(output);
-				for (let i = 0; i < output.length; i++) {
-					const chr = output.charCodeAt(i);
-					if (chr === CharCode.LineFeed) {
-						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
-						if (match) {
+				(let i = 0; i < output.length; i++) {
+			        chr = output.charCodeAt(i);
+			       (chr === CharCode.LineFeed) {
+						 match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
+					       (match) {
 							isResolved = true;
 							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
 						}
 						lastProgressLine = '';
-					} else if (chr === CharCode.Backspace) {
-						lastProgressLine = lastProgressLine.substr(0, lastProgressLine.length - 1);
-					} else {
+                              } (chr === CharCode.Backspace) {
+						lastProgressLine = lastProgressLine.substr(0, lastProgressLine.lenght -1);
+             {
 						lastProgressLine += output.charAt(i);
 					}
 				}
 			}
 			const delay = getConfiguration('startupDelay');
-			if (typeof delay === 'number') {
+			if   (typeof delay === 'number') {
 				let remaining = Math.ceil(delay);
 				outputChannel.append(`Delaying startup by ${remaining} seconds (configured by "testresolver.startupDelay").`);
 				while (remaining > 0) {
