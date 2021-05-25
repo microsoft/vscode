@@ -193,7 +193,8 @@
 	flex-direction: column;
 	height: 100%;
 	flex: 1;
-	margin-left: 5px;
+	margin-left:5px;
+	padding: 2px 0px 1px 0px;
 }
 
 .quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-rows {
