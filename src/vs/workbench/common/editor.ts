@@ -682,7 +682,7 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
-	options?: IEditorOptions | ITextEditorOptions;
+	options?: IEditorOptions;
 }
 
 export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {

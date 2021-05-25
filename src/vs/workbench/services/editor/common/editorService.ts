@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, ITextEditorOptions, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, GroupIdentifier, IEditorInputWithOptions, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, ITextEditorPane, ITextDiffEditorPane, IEditorIdentifier, ISaveOptions, IRevertOptions, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
@@ -157,7 +157,7 @@ export interface IEditorService {
 	 * @returns the editor that opened or `undefined` if the operation failed or the editor was not
 	 * opened to be active.
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
 

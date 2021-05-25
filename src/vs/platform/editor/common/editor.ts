@@ -269,14 +269,17 @@ export const enum TextEditorSelectionRevealType {
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
 	 */
 	Center = 0,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	CenterIfOutsideViewport = 1,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 */
 	NearTop = 2,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 * Only if it lies outside the viewport
