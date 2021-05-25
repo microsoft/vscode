@@ -96,13 +96,13 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService,
 		);
-		this._terminalService.onInstancesChanged(() => this.render());
-		this._terminalService.onGroupsChanged(() => this.render());
-		this._terminalService.onInstanceTitleChanged(() => this.render());
-		this._terminalService.onInstanceIconChanged(() => this.render());
-		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
-		this._terminalService.onDidChangeConnectionState(() => this.render());
-		this._themeService.onDidColorThemeChange(() => this.render());
+		this._terminalService.onInstancesChanged(() => this.refresh());
+		this._terminalService.onGroupsChanged(() => this.refresh());
+		this._terminalService.onInstanceTitleChanged(() => this.refresh());
+		this._terminalService.onInstanceIconChanged(() => this.refresh());
+		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());
+		this._terminalService.onDidChangeConnectionState(() => this.refresh());
+		this._themeService.onDidColorThemeChange(() => this.refresh());
 		this._terminalService.onActiveInstanceChanged(e => {
 			if (e) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
@@ -164,10 +164,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
 			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
-		this.render();
+		this.refresh();
 	}
 
-	render(): void {
+	refresh(): void {
 		this.splice(0, this.length, this._terminalService.terminalInstances);
 	}
 
@@ -362,7 +362,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					};
 				}
 			},
-			ariaLabel: localize('fileInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
+			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
 		});
 		const styler = attachInputBoxStyler(inputBox, this._themeService);
 
