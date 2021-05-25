@@ -5,11 +5,12 @@
 
 import { localize } from 'vs/nls';
 import { deepClone } from 'vs/base/common/objects';
-import { isFunction, isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
+import { isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -136,10 +137,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			const resolvedDiffEditorModel = resolvedModel as TextDiffEditorModel;
 			diffEditor.setModel(withUndefinedAsNull(resolvedDiffEditorModel.textDiffEditorModel));
 
-			// Apply Options from TextOptions
+			/// Apply options to editor if any
 			let optionsGotApplied = false;
-			if (options && isFunction((<TextEditorOptions>options).apply)) {
-				optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
+			if (options) {
+				optionsGotApplied = applyTextEditorOptions(options, diffEditor, ScrollType.Immediate);
 			}
 
 			// Otherwise restore View State unless disabled via settings

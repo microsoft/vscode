@@ -7,10 +7,11 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { distinct, deepClone } from 'vs/base/common/objects';
 import { Event } from 'vs/base/common/event';
-import { isObject, assertIsDefined, withNullAsUndefined, isFunction } from 'vs/base/common/types';
+import { isObject, assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { Dimension } from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOptions, IEditorMemento, ITextEditorPane, TextEditorOptions, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorMemento, ITextEditorPane, IEditorCloseEvent, IEditorInput, IEditorOpenContext, EditorResourceAccessor, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
@@ -167,10 +168,8 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 	}
 
 	override setOptions(options: EditorOptions | undefined): void {
-		const textOptions = options as TextEditorOptions;
-		if (textOptions && isFunction(textOptions.apply)) {
-			const textEditor = assertIsDefined(this.getControl());
-			textOptions.apply(textEditor, ScrollType.Smooth);
+		if (options) {
+			applyTextEditorOptions(options, assertIsDefined(this.getControl()), ScrollType.Smooth);
 		}
 	}
 

@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { assertIsDefined, isFunction, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { TextEditorOptions, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
@@ -78,11 +79,10 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		const textEditorModel = resolvedModel.textEditorModel;
 		textEditor.setModel(textEditorModel);
 
-		// Apply Options from TextOptions
+		// Apply options to editor if any
 		let optionsGotApplied = false;
-		const textOptions = <TextEditorOptions>options;
-		if (textOptions && isFunction(textOptions.apply)) {
-			optionsGotApplied = textOptions.apply(textEditor, ScrollType.Immediate);
+		if (options) {
+			optionsGotApplied = applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 		}
 
 		// Otherwise restore View State unless disabled via settings

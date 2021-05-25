@@ -5,14 +5,15 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -140,9 +141,9 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 			}
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			if (options && isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
+			// Apply options to editor if any
+			if (options) {
+				applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 			}
 
 			// Since the resolved model provides information about being readonly
