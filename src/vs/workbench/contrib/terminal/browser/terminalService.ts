@@ -1034,24 +1034,24 @@ export class TerminalService implements ITerminalService {
 	async showProfileMigrationNotification(): Promise<void> {
 		await this._getPlatformKey();
 		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingId.Shell + this._platform) ||
-			!!this._configurationService.getValue(TerminalSettingId.AutomationShell + this._platform)) &&
+			!!this._configurationService.getValue(TerminalSettingId.ShellArgs + this._platform)) &&
 			!!this._configurationService.getValue(TerminalSettingId.DefaultProfile + this._platform);
 		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
 			this._notificationService.prompt(
 				Severity.Info,
-				nls.localize('terminalProfileMigration', "You are using deprecated shell settings, but have a defaultProfile set. Would you like to use that instead?"),
+				nls.localize('terminalProfileMigration', "You are using deprecated shell/shellArgs settings, but have a defaultProfile set. Would you like to use that instead?"),
 				[
 					{
 						label: nls.localize('switchToProfile', "Yes"),
 						run: () => {
 							this._configurationService.updateValue(`${TerminalSettingId.Shell + this._platform}`, null);
-							this._configurationService.updateValue(`${TerminalSettingId.AutomationShell + this._platform}`, null);
+							this._configurationService.updateValue(`${TerminalSettingId.ShellArgs + this._platform}`, null);
 						}
 					} as IPromptChoice,
 					{
-						label: nls.localize('configureSettings', "Configure Settings"),
+						label: nls.localize('configureSettings', "Configure Default Profile"),
 						run: () => {
-							this._preferencesService.openSettings(false, `@id:${TerminalSettingId.Shell + this._platform},${TerminalSettingId.AutomationShell + this._platform},${TerminalSettingId.DefaultProfile + this._platform}`);
+							this._preferencesService.openSettings(false, `@id:${TerminalSettingId.DefaultProfile + this._platform}`);
 						}
 					} as IPromptChoice
 				],
