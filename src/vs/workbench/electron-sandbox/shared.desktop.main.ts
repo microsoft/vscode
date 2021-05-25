@@ -265,7 +265,7 @@ export abstract class SharedDesktopMain extends Disposable {
 
 		// Workspace Trust Service
 		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService);
-		await workspaceTrustManagementService.initialize();
+		await workspaceTrustManagementService.initializeWorkspaceTrust();
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

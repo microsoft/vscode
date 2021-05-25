@@ -171,7 +171,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		// Don't show modal prompt if workspace trust cannot be changed
-		if (!(await this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
+		if (!this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 			return;
 		}
 

@@ -18,7 +18,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
@@ -60,6 +60,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private _trustStateInfo!: IWorkspaceTrustInfo;
 
+	private _remoteAuthority!: ResolverResult;
 	private readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
@@ -75,6 +76,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this._trustState = new WorkspaceTrustState(this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
+
+		// Remote - resolve remote authority
+		if (this.environmentService.remoteAuthority) {
+			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
+				.then(result => {
+					this._remoteAuthority = result;
+				});
+		}
 
 		this.registerListeners();
 	}
@@ -133,13 +142,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Automated test runs with vscode-test
 		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
+			return true;
 		}
 
 		// Remote
-		const remoteAuthorityTrust = await this.getRemoteAuthorityTrust();
-		if (remoteAuthorityTrust !== undefined) {
-			return remoteAuthorityTrust;
+		if (this.environmentService.remoteAuthority) {
+			return this._remoteAuthority?.options?.isTrusted ?? false;
 		}
 
 		// Empty workspace
@@ -157,16 +165,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async getCanonicalUri(uri: URI): Promise<URI> {
-		return this.environmentService.remoteAuthority ? await this.remoteAuthorityResolverService.getCanonicalURI(uri) : uri;
-	}
-
-	private async getRemoteAuthorityTrust(): Promise<boolean | undefined> {
-		if (!this.environmentService.remoteAuthority) {
-			return undefined;
-		}
-
-		const authority = await this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority);
-		return authority.options?.isTrusted;
+		return (this.environmentService.remoteAuthority && this._remoteAuthority) ?
+			await this.remoteAuthorityResolverService.getCanonicalURI(uri) : uri;
 	}
 
 	private getUrisTrust(uris: URI[]): boolean {
@@ -273,9 +273,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 	}
 
-	async canSetWorkspaceTrust(): Promise<boolean> {
-		// Remote
-		if (await this.getRemoteAuthorityTrust() !== undefined) {
+	canSetWorkspaceTrust(): boolean {
+		// Remote - remote authority not yet resolved, or remote authority explicitly sets workspace trust
+		if (this.environmentService.remoteAuthority && (!this._remoteAuthority || this._remoteAuthority.options?.isTrusted !== undefined)) {
 			return false;
 		}
 
@@ -319,7 +319,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file;
 	}
 
-	async initialize(): Promise<void> {
+	async initializeWorkspaceTrust(): Promise<void> {
 		this._trustStateInfo = this.loadTrustInfo();
 		this._trustState.isTrusted = await this.calculateWorkspaceTrust();
 	}

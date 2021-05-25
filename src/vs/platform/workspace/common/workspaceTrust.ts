@@ -44,11 +44,11 @@ export interface IWorkspaceTrustManagementService {
 	get acceptsOutOfWorkspaceFiles(): boolean;
 	set acceptsOutOfWorkspaceFiles(value: boolean);
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
-	initialize(): Promise<void>;
+	initializeWorkspaceTrust(): Promise<void>;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): Promise<void>;
-	canSetWorkspaceTrust(): Promise<boolean>;
+	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
 	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
