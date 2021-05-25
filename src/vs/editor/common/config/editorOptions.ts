@@ -3179,6 +3179,11 @@ export interface ISuggestOptions {
 	 */
 	showSuggestionPreview?: boolean;
 	/**
+	 * Enable or disable the default expansion of the suggestion preview.
+	 * Defaults to false.
+	 */
+	suggestionPreviewExpanded?: boolean;
+	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3310,6 +3315,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			showSuggestionPreview: false,
+			suggestionPreviewExpanded: false,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
@@ -3387,6 +3393,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.showSuggestionPreview,
 					description: nls.localize('suggest.showSuggestionPreview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
+				'editor.suggest.suggestionPreviewExpanded': {
+					type: 'boolean',
+					default: defaults.suggestionPreviewExpanded,
+					description: nls.localize('suggest.suggestionPreviewExpanded', "Controls whether the suggestiion preview is expanded by default.")
 				},
 
 				'editor.suggest.showInlineDetails': {
@@ -3565,6 +3576,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			showSuggestionPreview: boolean(input.showSuggestionPreview, this.defaultValue.showSuggestionPreview),
+			suggestionPreviewExpanded: boolean(input.suggestionPreviewExpanded, this.defaultValue.suggestionPreviewExpanded),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
