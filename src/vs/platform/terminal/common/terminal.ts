@@ -19,7 +19,7 @@ export const enum TerminalSettingId {
 	AutomationShellLinux = 'terminal.integrated.automationShell.linux',
 	AutomationShellMacOs = 'terminal.integrated.automationShell.osx',
 	AutomationShellWindows = 'terminal.integrated.automationShell.windows',
-	ShellArgs = 'terminal.integrated.automationShell.',
+	AutomationShell = 'terminal.integrated.automationShell.',
 	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
 	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
 	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
