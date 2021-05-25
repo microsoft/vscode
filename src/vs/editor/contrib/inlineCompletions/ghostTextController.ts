@@ -162,7 +162,6 @@ export class ActiveGhostTextController extends Disposable {
 }
 
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
-const GhostTextAction = EditorAction.bindToContribution(GhostTextController.get);
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'commitInlineCompletion',
