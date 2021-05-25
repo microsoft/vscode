@@ -150,12 +150,6 @@ export abstract class BaseCellViewModel extends Disposable {
 			}
 		}));
 
-		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition) {
-				this.layoutChange({});
-			}
-		}));
-
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('notebook.lineNumbers')) {
 				this.lineNumbers = 'inherit';

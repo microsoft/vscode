@@ -126,6 +126,12 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
+		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition) {
+				this.layoutChange({});
+			}
+		}));
+
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
