@@ -1853,7 +1853,7 @@ function focusNext(accessor: ServicesAccessor): void {
 }
 
 export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
-	if (!name || name.length === 0 || /^\s+$/.test(name)) {
+	if (!name || name.trim().length === 0) {
 		return {
 			content: localize('emptyTerminalNameError', "A name must be provided."),
 			severity: Severity.Error
