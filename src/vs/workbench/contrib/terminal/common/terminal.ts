@@ -574,12 +574,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 ];
 
 export interface ITerminalContributions {
+	/** @deprecated */
 	types?: ITerminalTypeContribution[];
+	profiles?: ITerminalProfileContribution[];
 }
 
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
 	icon?: string;
 }
 
@@ -607,6 +615,28 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						icon: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
+							type: 'string',
+						},
+					},
+				},
+			},
+			profiles: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),
+				items: {
+					type: 'object',
+					required: ['id', 'title'],
+					properties: {
+						command: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),
+							type: 'string',
+						},
+						title: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.title', "Title for this terminal profile."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.icon', "A codicon to associate with this terminal profile."),
 							type: 'string',
 						},
 					},

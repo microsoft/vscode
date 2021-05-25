@@ -909,6 +909,7 @@ export class TerminalService implements ITerminalService {
 					profile: contributed
 				});
 			}
+			console.log('profiles', this._terminalContributionService.terminalProfiles);
 		}
 		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
