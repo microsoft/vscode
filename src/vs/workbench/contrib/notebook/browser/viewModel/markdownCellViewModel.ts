@@ -53,7 +53,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			+ layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
 			+ layoutConfiguration.markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
 			+ layoutConfiguration.bottomToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this.viewContext.notebookOptions.computeStatusBarHeight();
+			+ this.getEditorStatusbarHeight();
 	}
 
 	get editorHeight() {

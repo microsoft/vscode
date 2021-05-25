@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, FocusIndicator, GlobalToolbar, ExperimentalInsertToolbarAlignment, InsertToolbarPosition, ShowFoldingControls, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -43,6 +43,7 @@ export interface NotebookLayoutConfiguration {
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
 	showCellStatusBar: boolean;
+	showCellStatusBarAfterExecute: boolean;
 	cellStatusBarHeight: number;
 	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;
@@ -59,6 +60,7 @@ export interface NotebookLayoutConfiguration {
 
 interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
+	cellStatusBarAfterExecuteVisibility?: boolean;
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
@@ -97,6 +99,7 @@ export class NotebookOptions {
 
 	constructor(private readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		const showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
 		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
@@ -127,6 +130,7 @@ export class NotebookOptions {
 			editorBottomPaddingWithoutStatusBar: 12,
 			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
+			showCellStatusBarAfterExecute,
 			globalToolbar,
 			consolidatedOutputButton,
 			dragAndDropEnabled,
@@ -154,6 +158,7 @@ export class NotebookOptions {
 
 	private _updateConfiguration(e: IConfigurationChangeEvent) {
 		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
+		const cellStatusBarAfterExecuteVisibility = e.affectsConfiguration(ShowCellStatusBarAfterExecuteKey);
 		const cellToolbarLocation = e.affectsConfiguration(CellToolbarLocKey);
 		const cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
 		const compactView = e.affectsConfiguration(CompactView);
@@ -168,6 +173,7 @@ export class NotebookOptions {
 
 		if (
 			!cellStatusBarVisibility
+			&& !cellStatusBarAfterExecuteVisibility
 			&& !cellToolbarLocation
 			&& !cellToolbarInteraction
 			&& !compactView
@@ -186,6 +192,10 @@ export class NotebookOptions {
 
 		if (cellStatusBarVisibility) {
 			configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
+		}
+
+		if (cellStatusBarAfterExecuteVisibility) {
+			configuration.showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
 		}
 
 		if (cellToolbarLocation) {
@@ -244,6 +254,7 @@ export class NotebookOptions {
 		// trigger event
 		this._onDidChangeOptions.fire({
 			cellStatusBarVisibility,
+			cellStatusBarAfterExecuteVisibility,
 			cellToolbarLocation,
 			cellToolbarInteraction,
 			compactView,
@@ -329,11 +340,7 @@ export class NotebookOptions {
 	}
 
 	computeStatusBarHeight(): number {
-		if (this._layoutConfiguration.showCellStatusBar) {
-			return this._layoutConfiguration.cellStatusBarHeight;
-		} else {
-			return 0;
-		}
+		return this._layoutConfiguration.cellStatusBarHeight;
 	}
 
 	computeCellToolbarLocation(viewType?: string): 'right' | 'left' | 'hidden' {

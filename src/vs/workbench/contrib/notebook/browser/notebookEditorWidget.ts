@@ -512,9 +512,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cellToolbarLocation = this._notebookOptions.computeCellToolbarLocation(this.viewModel?.viewType);
 		this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
 
-		const showCellStatusBar = this._notebookOptions.getLayoutConfiguration().showCellStatusBar;
-		this._overlayContainer.classList.toggle('cell-statusbar-hidden', !showCellStatusBar);
-
 		const cellToolbarInteraction = this._notebookOptions.getLayoutConfiguration().cellToolbarInteraction;
 		let cellToolbarInteractionState = 'hover';
 		this._overlayContainer.classList.remove('cell-toolbar-hover');

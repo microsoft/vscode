@@ -152,6 +152,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
 		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
+		const originalLayout = this.layoutInfo;
 		if (!this.metadata.inputCollapsed) {
 			let newState: CodeCellLayoutState;
 			let editorHeight: number;
@@ -235,10 +236,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		}
 
-		if (state.editorHeight || state.outputHeight) {
-			state.totalHeight = true;
-		}
-
+		state.totalHeight = this.layoutInfo.totalHeight !== originalLayout.totalHeight;
 		state.source = source;
 
 		this._fireOnDidChangeLayout(state);
