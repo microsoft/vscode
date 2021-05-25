@@ -20,6 +20,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
+import { RGBA, Color } from 'vs/base/common/color';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -149,8 +150,15 @@ export class GhostTextWidget extends Disposable {
 		if (renderData) {
 			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
 			let opacity = '0.467';
+			let color = 'white';
 			if (suggestPreviewForeground) {
+				function opaque(color: Color): Color {
+					const { r, b, g } = color.rgba;
+					return new Color(new RGBA(r, g, b, 255));
+				}
+
 				opacity = String(suggestPreviewForeground.rgba.a);
+				color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
@@ -159,6 +167,7 @@ export class GhostTextWidget extends Disposable {
 					// TODO: escape?
 					contentText: renderData.lines[0],
 					opacity,
+					color
 				}
 			});
 		}
