@@ -16,7 +16,6 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
@@ -24,7 +23,7 @@ import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -995,19 +994,6 @@ export function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
 export interface IEditorCommandsContext {
 	groupId: GroupIdentifier;
 	editorIndex?: number;
-}
-
-export class EditorCommandsContextActionRunner extends ActionRunner {
-
-	constructor(
-		private context: IEditorCommandsContext
-	) {
-		super();
-	}
-
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
-	}
 }
 
 export interface IEditorCloseEvent extends IEditorIdentifier {
