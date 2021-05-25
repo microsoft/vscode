@@ -23,7 +23,7 @@ import { TaskSequentializer } from 'vs/base/common/async';
 import { bufferToStream, streamToBuffer, VSBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { assertType } from 'vs/base/common/types';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
+import { StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelContentChangedEvent, IStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { canceled } from 'vs/base/common/errors';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
@@ -518,8 +518,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return this._instantiationService.createInstance(NotebookEditorInput, newWorkingCopy.resource, this.viewType, {});
 	}
 
-	private static _isStoredFileWorkingCopy(candidate?: unknown): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
-		return candidate instanceof StoredFileWorkingCopy;
+	private static _isStoredFileWorkingCopy(candidate?: IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> | IUntitledFileWorkingCopy<NotebookFileWorkingCopyModel>): candidate is IStoredFileWorkingCopy<NotebookFileWorkingCopyModel> {
+		const isUntitled = candidate && candidate.capabilities & WorkingCopyCapabilities.Untitled;
+
+		return !isUntitled;
 	}
 }
 

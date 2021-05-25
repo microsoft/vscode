@@ -76,7 +76,7 @@ export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWor
 
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
