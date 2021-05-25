@@ -152,9 +152,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		// Remote
-		if (this.environmentService.remoteAuthority) {
-			return this._remoteAuthority?.options?.isTrusted ?? false;
+		// Remote - remote authority not yet resolved
+		if (this.environmentService.remoteAuthority && !this._remoteAuthority) {
+			return false;
+		}
+
+		// Remote - remote authority explicitly sets workspace trust
+		if (this.environmentService.remoteAuthority && this._remoteAuthority.options?.isTrusted !== undefined) {
+			return this._remoteAuthority.options.isTrusted;
 		}
 
 		// Empty workspace
