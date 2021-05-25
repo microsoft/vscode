@@ -250,7 +250,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 			const hasText = !this.shouldHideText();
 			template.element.classList.toggle('has-text', hasText);
-			template.label.element.style.display = 'block';
+
+			if (template.label.element.style.display = 'none') {
+				// was hidden bc rename was happening just prior
+				template.label.element.style.display = '';
+			}
+
 			let prefix: string = '';
 			if (group.terminalInstances.length > 1) {
 				const terminalIndex = group.terminalInstances.indexOf(instance);
@@ -335,8 +340,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			});
 		} else {
 			template.label.element.style.display = 'none';
-			console.log(template.label.element);
-			console.log(template.label.element.parentElement!);
 			this._renderInputBox(template.label.element.parentElement!, instance, editableData);
 		}
 	}
@@ -374,10 +377,10 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		inputBox.select({ start: 0, end: value.length });
 
 		const done = once((success: boolean, finishEditing: boolean) => {
-			label.element.style.display = 'none';
+			inputBox.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
-			label.element.remove();
+			inputBox.element.remove();
 			if (finishEditing) {
 				editableData.onFinish(value, success);
 			}
