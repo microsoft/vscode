@@ -20,6 +20,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
+import { RGBA, Color } from 'vs/base/common/color';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -79,6 +81,7 @@ export class GhostTextWidget extends Disposable {
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
+	private viewMoreContentWidget2: ViewMoreLinesContentWidget | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -149,8 +152,15 @@ export class GhostTextWidget extends Disposable {
 		if (renderData) {
 			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
 			let opacity = '0.467';
+			let color = 'white';
 			if (suggestPreviewForeground) {
+				function opaque(color: Color): Color {
+					const { r, b, g } = color.rgba;
+					return new Color(new RGBA(r, g, b, 255));
+				}
+
 				opacity = String(suggestPreviewForeground.rgba.a);
+				color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
@@ -159,7 +169,8 @@ export class GhostTextWidget extends Disposable {
 					// TODO: escape?
 					contentText: renderData.lines[0],
 					opacity,
-				}
+					color,
+				},
 			});
 		}
 
@@ -167,7 +178,10 @@ export class GhostTextWidget extends Disposable {
 		if (renderData && this.codeEditorDecorationTypeKey) {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
-				options: this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true)
+				options: {
+					hoverMessage: new MarkdownString('⬅️ Previous | Next ➡️'),
+					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
+				}
 			});
 		}
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
@@ -175,6 +189,11 @@ export class GhostTextWidget extends Disposable {
 		if (this.viewMoreContentWidget) {
 			this.viewMoreContentWidget.dispose();
 			this.viewMoreContentWidget = null;
+		}
+
+		if (this.viewMoreContentWidget2) {
+			this.viewMoreContentWidget2.dispose();
+			this.viewMoreContentWidget2 = null;
 		}
 
 		this.editor.changeViewZones((changeAccessor) => {
