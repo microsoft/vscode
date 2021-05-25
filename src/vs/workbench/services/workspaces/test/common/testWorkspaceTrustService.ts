@@ -36,6 +36,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
+	initialize(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	getTrustedFolders(): URI[] {
 		throw new Error('Method not implemented.');
 	}

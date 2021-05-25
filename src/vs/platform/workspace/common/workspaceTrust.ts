@@ -44,6 +44,7 @@ export interface IWorkspaceTrustManagementService {
 	get acceptsOutOfWorkspaceFiles(): boolean;
 	set acceptsOutOfWorkspaceFiles(value: boolean);
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
+	initialize(): Promise<void>;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): Promise<void>;

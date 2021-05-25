@@ -210,7 +210,8 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, environmentService, remoteAuthorityResolverService, storageService, uriIdentityService, configurationService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, remoteAuthorityResolverService, storageService, uriIdentityService, environmentService, configurationService);
+		await workspaceTrustManagementService.initialize();
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

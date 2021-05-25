@@ -58,7 +58,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _trustStateInfo: IWorkspaceTrustInfo;
+	private _trustStateInfo!: IWorkspaceTrustInfo;
 
 	private readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
@@ -75,9 +75,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this._trustState = new WorkspaceTrustState(this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
-
-		this._trustStateInfo = this.loadTrustInfo();
-		this._trustState.isTrusted = this.calculateWorkspaceTrust();
 
 		this.registerListeners();
 	}
@@ -129,25 +126,47 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		await this.updateWorkspaceTrust();
 	}
 
-	private calculateWorkspaceTrust(): boolean {
+	private async calculateWorkspaceTrust(): Promise<boolean> {
 		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return true;
 		}
 
+		// Automated test runs with vscode-test
 		if (this.environmentService.extensionTestsLocationURI) {
 			return true; // trust running tests with vscode-test
 		}
 
+		// Remote
+		const remoteAuthorityTrust = await this.getRemoteAuthorityTrust();
+		if (remoteAuthorityTrust !== undefined) {
+			return remoteAuthorityTrust;
+		}
+
+		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise default to restricted mode
 			// Workspace may transition to trusted based on the opened editors
 			return this._trustState.isTrusted ?? false;
 		}
 
-		const workspaceUris = this.getWorkspaceUris();
+		// Workspace
+		const workspaceUris = await this.getWorkspaceUris();
 		const trusted = this.getUrisTrust(workspaceUris);
 
 		return trusted;
+	}
+
+	private async getCanonicalUri(uri: URI): Promise<URI> {
+		return this.environmentService.remoteAuthority ? await this.remoteAuthorityResolverService.getCanonicalURI(uri) : uri;
+	}
+
+	private async getRemoteAuthorityTrust(): Promise<boolean | undefined> {
+		if (!this.environmentService.remoteAuthority) {
+			return undefined;
+		}
+
+		const authority = await this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority);
+		return authority.options?.isTrusted;
 	}
 
 	private getUrisTrust(uris: URI[]): boolean {
@@ -164,11 +183,18 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return state;
 	}
 
-	private getWorkspaceUris(): URI[] {
-		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
+	private async getWorkspaceUris(): Promise<URI[]> {
+		const workspaceUris: URI[] = [];
+
+		// Workspace folders
+		for (const { uri } of this.workspaceService.getWorkspace().folders) {
+			workspaceUris.push(await this.getCanonicalUri(uri));
+		}
+
+		// Workspace file
 		const workspaceConfiguration = this.workspaceService.getWorkspace().configuration;
 		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
-			workspaceUris.push(workspaceConfiguration);
+			workspaceUris.push(await this.getCanonicalUri(workspaceConfiguration));
 		}
 
 		return workspaceUris;
@@ -176,7 +202,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
 		if (trusted === undefined) {
-			trusted = this.calculateWorkspaceTrust();
+			trusted = await this.calculateWorkspaceTrust();
 		}
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
@@ -249,11 +275,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	async canSetWorkspaceTrust(): Promise<boolean> {
 		// Remote
-		if (this.environmentService.remoteAuthority) {
-			const result = await this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority);
-			if (result.options?.isTrusted !== undefined) {
-				return false;
-			}
+		if (await this.getRemoteAuthorityTrust() !== undefined) {
+			return false;
 		}
 
 		// Empty workspace
@@ -296,6 +319,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file;
 	}
 
+	async initialize(): Promise<void> {
+		this._trustStateInfo = this.loadTrustInfo();
+		this._trustState.isTrusted = await this.calculateWorkspaceTrust();
+	}
+
 	isWorkpaceTrusted(): boolean {
 		return this._trustState.isTrusted ?? false;
 	}
@@ -316,7 +344,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return;
 		}
 
-		const workspaceFolders = this.getWorkspaceUris();
+		const workspaceFolders = await this.getWorkspaceUris();
 		await this.setUrisTrust(workspaceFolders, trusted);
 	}
 
