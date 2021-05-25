@@ -1041,9 +1041,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				outputId: undefined,
 				text() { return content; },
 				json() { return undefined; },
-				bytes() { return new Uint8Array(); },
-				data() { return new Uint8Array(); },
-				blob() { return new Blob(); },
+				bytes() { return this.data(); },
+				data() { return new TextEncoder().encode(content); },
+				blob() { return new Blob([this.data()], { type: this.mime }); },
 			});
 		}
 	}();
