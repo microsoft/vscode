@@ -92,7 +92,25 @@ export class SettingsEditor2 extends EditorPane {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`, `@${ID_SETTING_TAG}`, `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
+		`@${MODIFIED_SETTING_TAG}`,
+		'@tag:usesOnlineServices',
+		'@tag:sync',
+		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
+		`@${ID_SETTING_TAG}`,
+		`@${EXTENSION_SETTING_TAG}`,
+		`@${FEATURE_SETTING_TAG}scm`,
+		`@${FEATURE_SETTING_TAG}explorer`,
+		`@${FEATURE_SETTING_TAG}search`,
+		`@${FEATURE_SETTING_TAG}debug`,
+		`@${FEATURE_SETTING_TAG}extensions`,
+		`@${FEATURE_SETTING_TAG}terminal`,
+		`@${FEATURE_SETTING_TAG}task`,
+		`@${FEATURE_SETTING_TAG}problems`,
+		`@${FEATURE_SETTING_TAG}output`,
+		`@${FEATURE_SETTING_TAG}comments`,
+		`@${FEATURE_SETTING_TAG}remote`,
+		`@${FEATURE_SETTING_TAG}timeline`,
+		`@${FEATURE_SETTING_TAG}notebook`,
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
