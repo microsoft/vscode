@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -62,6 +62,59 @@ suite('Workbench editor', () => {
 		accessor.untitledTextEditorService.dispose();
 
 		disposables.clear();
+	});
+
+	test('EditorInputCapabilities', () => {
+		const testInput1 = new TestFileEditorInput(URI.file('resource1'), 'testTypeId');
+		const testInput2 = new TestFileEditorInput(URI.file('resource2'), 'testTypeId');
+
+		testInput1.capabilities = EditorInputCapabilities.None;
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), true);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Singleton), false);
+
+		testInput1.capabilities |= EditorInputCapabilities.Readonly;
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.None), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Untitled), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.RequiresTrust), false);
+		assert.strictEqual(testInput1.hasCapability(EditorInputCapabilities.Singleton), false);
+
+		testInput1.capabilities = EditorInputCapabilities.None;
+		testInput2.capabilities = EditorInputCapabilities.None;
+
+		const sideBySideInput = new SideBySideEditorInput('name', undefined, testInput1, testInput2);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.None), true);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), false);
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), false);
+
+		testInput1.capabilities |= EditorInputCapabilities.Readonly;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), false);
+
+		testInput2.capabilities |= EditorInputCapabilities.Readonly;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Readonly), true);
+
+		testInput1.capabilities |= EditorInputCapabilities.Untitled;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), false);
+
+		testInput2.capabilities |= EditorInputCapabilities.Untitled;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Untitled), true);
+
+		testInput1.capabilities |= EditorInputCapabilities.RequiresTrust;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), true);
+
+		testInput2.capabilities |= EditorInputCapabilities.RequiresTrust;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.RequiresTrust), true);
+
+		testInput1.capabilities |= EditorInputCapabilities.Singleton;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), true);
+
+		testInput2.capabilities |= EditorInputCapabilities.Singleton;
+		assert.strictEqual(sideBySideInput.hasCapability(EditorInputCapabilities.Singleton), true);
 	});
 
 	test('EditorResourceAccessor', () => {

@@ -367,6 +367,35 @@ export interface IMoveResult {
 	options?: IEditorOptions;
 }
 
+export const enum EditorInputCapabilities {
+
+	/**
+	 * Signals no specific capability for the input.
+	 */
+	None = 0,
+
+	/**
+	 * Signals that the input is readonly.
+	 */
+	Readonly = 1 << 1,
+
+	/**
+	 * Signals that the input is untitled.
+	 */
+	Untitled = 1 << 2,
+
+	/**
+	 * Signals that the input can only be shown in one group
+	 * and not be split into multiple groups.
+	 */
+	Singleton = 1 << 3,
+
+	/**
+	 * Signals that the input requires workspace trust.
+	 */
+	RequiresTrust = 1 << 4,
+}
+
 export interface IEditorInput extends IDisposable {
 
 	/**
@@ -406,6 +435,16 @@ export interface IEditorInput extends IDisposable {
 	readonly resource: URI | undefined;
 
 	/**
+	 * The capabilities of the input.
+	 */
+	readonly capabilities: EditorInputCapabilities;
+
+	/**
+	 * Figure out if the input has the provided capability.
+	 */
+	hasCapability(capability: EditorInputCapabilities): boolean;
+
+	/**
 	 * Returns the display name of this input.
 	 */
 	getName(): string;
@@ -431,21 +470,6 @@ export interface IEditorInput extends IDisposable {
 	 * `null` if the editor does not require a model.
 	 */
 	resolve(): Promise<IEditorModel | null>;
-
-	/**
-	 * Returns if the input requires workspace trust or not.
-	 */
-	requiresWorkspaceTrust(): boolean
-
-	/**
-	 * Returns if this input is readonly or not.
-	 */
-	isReadonly(): boolean;
-
-	/**
-	 * Returns if the input is an untitled editor or not.
-	 */
-	isUntitled(): boolean;
 
 	/**
 	 * Returns if this input is dirty or not.
@@ -498,9 +522,9 @@ export interface IEditorInput extends IDisposable {
 	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined;
 
 	/**
-	 * Subclasses can set this to false if it does not make sense to split the editor input.
+	 * Returns a copy of the current editor input. Used when we can't just reuse the input
 	 */
-	canSplit(): boolean;
+	copy(): IEditorInput;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -511,11 +535,6 @@ export interface IEditorInput extends IDisposable {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean;
-
-	/**
-	 * Returns a copy of the current editor input. Used when we can't just reuse the input
-	 */
-	copy(): IEditorInput;
 }
 
 /**
@@ -538,6 +557,18 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly;
+	}
+
+	hasCapability(capability: EditorInputCapabilities): boolean {
+		if (capability === EditorInputCapabilities.None) {
+			return this.capabilities === EditorInputCapabilities.None;
+		}
+
+		return (this.capabilities & capability) !== 0;
+	}
 
 	getName(): string {
 		return `Editor ${this.typeId}`;
@@ -577,18 +608,6 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return { typeId: this.typeId };
 	}
 
-	requiresWorkspaceTrust(): boolean {
-		return false;
-	}
-
-	isReadonly(): boolean {
-		return true;
-	}
-
-	isUntitled(): boolean {
-		return false;
-	}
-
 	isDirty(): boolean {
 		return false;
 	}
@@ -615,16 +634,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return undefined;
 	}
 
-	canSplit(): boolean {
-		return true;
+	copy(): IEditorInput {
+		return this;
 	}
 
 	matches(otherInput: unknown): boolean {
 		return this === otherInput;
-	}
-
-	copy(): IEditorInput {
-		return this;
 	}
 
 	isDisposed(): boolean {
@@ -738,6 +753,36 @@ export class SideBySideEditorInput extends EditorInput {
 		return SideBySideEditorInput.ID;
 	}
 
+	override get capabilities(): EditorInputCapabilities {
+
+		// Use primary capabilities as main capabilities
+		let capabilities = this._primary.capabilities;
+
+		// Trust: should be considered for both sides
+		if (this._secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {
+			capabilities |= EditorInputCapabilities.RequiresTrust;
+		}
+
+		// Singleton: should be considered for both sides
+		if (this._secondary.hasCapability(EditorInputCapabilities.Singleton)) {
+			capabilities |= EditorInputCapabilities.Singleton;
+		}
+
+		return capabilities;
+	}
+
+	get resource(): URI | undefined {
+		return undefined; // use `EditorResourceAccessor` to obtain one side's resource
+	}
+
+	get primary(): EditorInput {
+		return this._primary;
+	}
+
+	get secondary(): EditorInput {
+		return this._secondary;
+	}
+
 	constructor(
 		protected readonly name: string | undefined,
 		protected readonly description: string | undefined,
@@ -771,22 +816,6 @@ export class SideBySideEditorInput extends EditorInput {
 		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}
 
-	/**
-	 * Use `EditorResourceAccessor` utility method to access the resources
-	 * of both sides of the diff editor.
-	 */
-	get resource(): URI | undefined {
-		return undefined;
-	}
-
-	get primary(): EditorInput {
-		return this._primary;
-	}
-
-	get secondary(): EditorInput {
-		return this._secondary;
-	}
-
 	override getName(): string {
 		if (!this.name) {
 			return localize('sideBySideLabels', "{0} - {1}", this._secondary.getName(), this._primary.getName());
@@ -797,18 +826,6 @@ export class SideBySideEditorInput extends EditorInput {
 
 	override getDescription(): string | undefined {
 		return this.description;
-	}
-
-	override requiresWorkspaceTrust(): boolean {
-		return this.primary.requiresWorkspaceTrust() || this.secondary.requiresWorkspaceTrust();
-	}
-
-	override isReadonly(): boolean {
-		return this.primary.isReadonly();
-	}
-
-	override isUntitled(): boolean {
-		return this.primary.isUntitled();
 	}
 
 	override isDirty(): boolean {

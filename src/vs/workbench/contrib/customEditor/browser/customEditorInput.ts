@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -91,8 +91,22 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return CustomEditorInput.typeId;
 	}
 
-	public override canSplit() {
-		return !!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument;
+	public override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (!this.customEditorService.getCustomEditorCapabilities(this.viewType)?.supportsMultipleEditorsPerDocument) {
+			capabilities |= EditorInputCapabilities.Singleton;
+		}
+
+		if (this._modelRef && !this._modelRef.object.isEditable()) {
+			capabilities |= EditorInputCapabilities.Readonly;
+		}
+
+		if (this.resource.scheme === Schemas.untitled) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
 	}
 
 	override getName(): string {
@@ -148,14 +162,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			orphaned,
 			readonly
 		});
-	}
-
-	public override isReadonly(): boolean {
-		return this._modelRef ? !this._modelRef.object.isEditable() : false;
-	}
-
-	public override isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
 	}
 
 	public override isDirty(): boolean {

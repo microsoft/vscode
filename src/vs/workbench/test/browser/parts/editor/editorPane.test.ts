@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
-import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -419,15 +419,14 @@ suite('Workbench EditorPane', () => {
 				return 'trustRequiredTestInput';
 			}
 
-			override requiresWorkspaceTrust(): boolean {
-				return true;
+			override get capabilities(): EditorInputCapabilities {
+				return EditorInputCapabilities.RequiresTrust;
 			}
 
 			override resolve(): any {
 				return null;
 			}
 		}
-
 
 		const disposables = new DisposableStore();
 

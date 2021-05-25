@@ -9,7 +9,7 @@ import { isFunction, isObject, isArray, assertIsDefined, withUndefinedAsNull } f
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
@@ -79,8 +79,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		if (control && input instanceof DiffEditorInput) {
 			if (input.originalInput.resource?.scheme === scheme || input.modifiedInput.resource?.scheme === scheme) {
 				control.updateOptions({
-					readOnly: input.modifiedInput.isReadonly(),
-					originalEditable: !input.originalInput.isReadonly()
+					readOnly: input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly),
+					originalEditable: !input.originalInput.hasCapability(EditorInputCapabilities.Readonly)
 				});
 			}
 		}
@@ -249,8 +249,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options: IDiffEditorOptions = super.getConfigurationOverrides();
 
-		options.readOnly = this.input instanceof DiffEditorInput && this.input.modifiedInput.isReadonly();
-		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.originalInput.isReadonly();
+		options.readOnly = this.input instanceof DiffEditorInput && this.input.modifiedInput.hasCapability(EditorInputCapabilities.Readonly);
+		options.originalEditable = this.input instanceof DiffEditorInput && !this.input.originalInput.hasCapability(EditorInputCapabilities.Readonly);
 		options.lineDecorationsWidth = '2ch';
 
 		return options;
