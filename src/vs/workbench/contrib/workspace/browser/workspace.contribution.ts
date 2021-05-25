@@ -158,7 +158,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async showModalOnStart(): Promise<void> {
+	private showModalOnStart(): void {
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
 			return;
@@ -370,6 +370,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private registerListeners(): void {
+		this._register(this.workspaceTrustManagementService.onDidInitiateWorkspaceTrustRequestOnStartup(() => {
+			this.showModalOnStart();
+		}));
+
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			// Message
 			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");

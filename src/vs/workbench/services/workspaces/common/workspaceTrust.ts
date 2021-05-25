@@ -58,6 +58,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
+	private readonly _onDidInitiateWorkspaceTrustRequestOnStartup = this._register(new Emitter<void>());
+	readonly onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+
 	private _trustStateInfo!: IWorkspaceTrustInfo;
 
 	private _remoteAuthority!: ResolverResult;
@@ -80,8 +83,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		// Remote - resolve remote authority
 		if (this.environmentService.remoteAuthority) {
 			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
-				.then(result => {
+				.then(async result => {
 					this._remoteAuthority = result;
+					await this.updateWorkspaceTrust();
+
+					// Show workspace trust modal dialog
+					this._onDidInitiateWorkspaceTrustRequestOnStartup.fire();
 				});
 		}
 
