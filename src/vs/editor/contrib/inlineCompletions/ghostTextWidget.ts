@@ -21,6 +21,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -80,6 +81,7 @@ export class GhostTextWidget extends Disposable {
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
+	private viewMoreContentWidget2: ViewMoreLinesContentWidget | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -167,8 +169,8 @@ export class GhostTextWidget extends Disposable {
 					// TODO: escape?
 					contentText: renderData.lines[0],
 					opacity,
-					color
-				}
+					color,
+				},
 			});
 		}
 
@@ -176,7 +178,10 @@ export class GhostTextWidget extends Disposable {
 		if (renderData && this.codeEditorDecorationTypeKey) {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
-				options: this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true)
+				options: {
+					hoverMessage: new MarkdownString('⬅️ Previous | Next ➡️'),
+					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
+				}
 			});
 		}
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
@@ -184,6 +189,11 @@ export class GhostTextWidget extends Disposable {
 		if (this.viewMoreContentWidget) {
 			this.viewMoreContentWidget.dispose();
 			this.viewMoreContentWidget = null;
+		}
+
+		if (this.viewMoreContentWidget2) {
+			this.viewMoreContentWidget2.dispose();
+			this.viewMoreContentWidget2 = null;
 		}
 
 		this.editor.changeViewZones((changeAccessor) => {
