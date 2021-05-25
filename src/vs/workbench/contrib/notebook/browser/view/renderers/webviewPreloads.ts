@@ -494,7 +494,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
-	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value,
 		createScript: value => value,
 	});
