@@ -1012,7 +1012,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
 			if (editorSerializer) {
 				const input = editorSerializer.deserialize(this.instantiationService, editorInputJSON.deserialized);
-				if (input) {
+				if (input instanceof EditorInput) {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
 

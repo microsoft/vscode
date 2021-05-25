@@ -17,7 +17,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
 import { timeout } from 'vs/base/common/async';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 suite('EditorsObserver', function () {
 

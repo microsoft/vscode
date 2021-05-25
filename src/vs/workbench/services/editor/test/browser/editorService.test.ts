@@ -33,7 +33,7 @@ import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/commo
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('EditorService', () => {

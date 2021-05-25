@@ -16,15 +16,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IEncodingSupport, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
 import { GroupsOrder, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -276,7 +273,7 @@ export interface IEditorInputSerializer {
 	 * Returns an editor input from the provided serialized form of the editor input. This form matches
 	 * the value returned from the serialize() method.
 	 */
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined;
+	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): IEditorInput | undefined;
 }
 
 export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInput {
@@ -390,7 +387,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: EditorInput | IResourceEditorInputType;
+	editor: IEditorInput | IResourceEditorInputType;
 	options?: IEditorOptions;
 }
 
@@ -596,9 +593,34 @@ export interface IEditorInputWithPreferredResource {
 }
 
 export function isEditorInputWithPreferredResource(obj: unknown): obj is IEditorInputWithPreferredResource {
-	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource;
+	const editorInputWithPreferredResource = obj as IEditorInputWithPreferredResource | undefined;
+	if (!editorInputWithPreferredResource) {
+		return false;
+	}
 
-	return editorInputWithPreferredResource && !!editorInputWithPreferredResource.preferredResource;
+	return URI.isUri(editorInputWithPreferredResource.preferredResource);
+}
+
+export interface ISideBySideEditorInput extends IEditorInput {
+
+	/**
+	 * The primary editor input is shown on the right hand side.
+	 */
+	primary: IEditorInput;
+
+	/**
+	 * The secondary editor input is shown on the left hand side.
+	 */
+	secondary: IEditorInput;
+}
+
+function isSideBySideEditorInput(obj: unknown): obj is ISideBySideEditorInput {
+	const sideBySideEditorInput = obj as ISideBySideEditorInput | undefined;
+	if (!sideBySideEditorInput) {
+		return false;
+	}
+
+	return !!sideBySideEditorInput.primary && !!sideBySideEditorInput.secondary;
 }
 
 /**
@@ -997,19 +1019,6 @@ export interface IEditorCommandsContext {
 	editorIndex?: number;
 }
 
-export class EditorCommandsContextActionRunner extends ActionRunner {
-
-	constructor(
-		private context: IEditorCommandsContext
-	) {
-		super();
-	}
-
-	override run(action: IAction): Promise<void> {
-		return super.run(action, this.context);
-	}
-}
-
 export interface IEditorCloseEvent extends IEditorIdentifier {
 	replaced: boolean;
 	index: number;
@@ -1124,7 +1133,7 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		if (options?.supportSideBySide && isSideBySideEditorInput(editor)) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
 					primary: this.getOriginalUri(editor.primary, { filterByScheme: options.filterByScheme }),
@@ -1166,7 +1175,7 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		if (options?.supportSideBySide && editor instanceof SideBySideEditorInput) {
+		if (options?.supportSideBySide && isSideBySideEditorInput(editor)) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
 					primary: this.getCanonicalUri(editor.primary, { filterByScheme: options.filterByScheme }),

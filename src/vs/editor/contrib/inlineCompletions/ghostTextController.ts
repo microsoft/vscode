@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -60,21 +60,23 @@ class GhostTextController extends Disposable {
 	}
 
 	public trigger(): void {
-		if (this.activeController.value) {
-			this.activeController.value.trigger();
-		}
+		this.activeController.value?.trigger();
 	}
 
 	public commit(): void {
-		if (this.activeController.value) {
-			this.activeController.value.commit();
-		}
+		this.activeController.value?.commit();
 	}
 
 	public hide(): void {
-		if (this.activeController.value) {
-			this.activeController.value.hide();
-		}
+		this.activeController.value?.hide();
+	}
+
+	public showNextInlineCompletion(): void {
+		this.activeController.value?.showNextInlineCompletion();
+	}
+
+	public showPreviousInlineCompletion(): void {
+		this.activeController.value?.showPreviousInlineCompletion();
 	}
 }
 
@@ -141,13 +143,25 @@ export class ActiveGhostTextController extends Disposable {
 		}
 	}
 
+	public showNextInlineCompletion(): void {
+		if (this.widget.model === this.inlineCompletionsModel) {
+			this.inlineCompletionsModel.showNextInlineCompletion();
+		}
+	}
+
+	public showPreviousInlineCompletion(): void {
+		if (this.widget.model === this.inlineCompletionsModel) {
+			this.inlineCompletionsModel.showPreviousInlineCompletion();
+		}
+	}
+
 	private updateModel() {
 		this.widget.setModel(this.suggestWidgetAdapterModel.isActive ? this.suggestWidgetAdapterModel : this.inlineCompletionsModel);
 		this.inlineCompletionsModel.setActive(this.widget.model === this.inlineCompletionsModel);
 	}
 }
 
-const GhostTextCommand = EditorCommand.bindToContribution<GhostTextController>(GhostTextController.get);
+const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'commitInlineCompletion',
@@ -173,6 +187,50 @@ registerEditorCommand(new GhostTextCommand({
 	}
 }));
 
+export class ShowNextInlineCompletionAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.showNextInlineCompletion',
+			label: nls.localize('showNextInlineCompletion', "Show Next Inline Completion"),
+			alias: 'Show Next Inline Completion',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: 100,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.showNextInlineCompletion();
+		}
+	}
+}
+
+export class ShowPreviousInlineCompletionAction extends EditorAction {
+	constructor() {
+		super({
+			id: 'editor.action.showPreviousInlineCompletion',
+			label: nls.localize('showPreviousInlineCompletion', "Show Previous Inline Completion"),
+			alias: 'Show Previous Inline Completion',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				weight: 100,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
+		const controller = GhostTextController.get(editor);
+		if (controller) {
+			controller.showNextInlineCompletion();
+		}
+	}
+}
+
 export class TriggerInlineCompletionsAction extends EditorAction {
 	constructor() {
 		super({
@@ -193,3 +251,5 @@ export class TriggerInlineCompletionsAction extends EditorAction {
 
 registerEditorContribution(GhostTextController.ID, GhostTextController);
 registerEditorAction(TriggerInlineCompletionsAction);
+registerEditorAction(ShowNextInlineCompletionAction);
+registerEditorAction(ShowPreviousInlineCompletionAction);

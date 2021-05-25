@@ -227,13 +227,16 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
+					args: ['-l'],
 					icon: 'terminal-bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					path: 'zsh',
+					args: ['-l']
 				},
 				'fish': {
-					path: 'fish'
+					path: 'fish',
+					args: ['-l']
 				},
 				'tmux': {
 					path: 'tmux',
