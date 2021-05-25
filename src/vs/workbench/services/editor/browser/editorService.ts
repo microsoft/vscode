@@ -308,7 +308,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						replacement: {
 							...moveResult.editor,
 							options: {
-								...moveResult.editor.options,
+								...(moveResult.editor as IResourceEditorInputType).options,
 								...optionOverrides
 							}
 						}

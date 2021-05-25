@@ -812,8 +812,9 @@ export class EditorGroupModel extends Disposable {
 
 			const editorSerializer = registry.getEditorInputSerializer(e.id);
 			if (editorSerializer) {
-				editor = editorSerializer.deserialize(this.instantiationService, e.value);
-				if (editor) {
+				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
+				if (deserializedEditor instanceof EditorInput) {
+					editor = deserializedEditor;
 					this.registerEditorListeners(editor);
 				}
 			}

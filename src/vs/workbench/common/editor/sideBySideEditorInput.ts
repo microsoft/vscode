@@ -8,14 +8,14 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, ISideBySideEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 /**
  * Side by side editor inputs that have a primary and secondary side.
  */
-export class SideBySideEditorInput extends EditorInput {
+export class SideBySideEditorInput extends EditorInput implements ISideBySideEditorInput {
 
 	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
 
@@ -204,7 +204,7 @@ export abstract class AbstractSideBySideEditorInputSerializer implements IEditor
 			const primaryInput = primaryInputSerializer.deserialize(instantiationService, deserialized.primarySerialized);
 			const secondaryInput = secondaryInputSerializer.deserialize(instantiationService, deserialized.secondarySerialized);
 
-			if (primaryInput && secondaryInput) {
+			if (primaryInput instanceof EditorInput && secondaryInput instanceof EditorInput) {
 				return this.createEditorInput(instantiationService, deserialized.name, deserialized.description, secondaryInput, primaryInput);
 			}
 		}
