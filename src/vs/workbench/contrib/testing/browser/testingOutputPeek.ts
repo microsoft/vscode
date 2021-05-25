@@ -4,16 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Codicon } from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Lazy } from 'vs/base/common/lazy';
+import { Disposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import { count } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction2 } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -29,7 +32,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -249,7 +252,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 			this.peek.value!.create();
 		}
 
-		alert(toPlainText(message.message));
+		alert(renderStringAsPlaintext(message.message));
 		this.peek.value!.setModel(dto);
 		this.currentPeekUri = uri;
 	}
@@ -416,7 +419,7 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 		this.show(message.location.range, hintDiffPeekHeight(message));
-		this.setTitle(firstLine(toPlainText(message.message)), test.label);
+		this.setTitle(firstLine(renderStringAsPlaintext(message.message)), test.label);
 
 		const [original, modified] = await Promise.all([
 			this.modelService.createModelReference(expectedUri),
@@ -456,16 +459,47 @@ class TestingDiffOutputPeek extends TestingOutputPeek {
 	}
 }
 
+class ScrollableMarkdownMessage extends Disposable {
+	private scrollable: DomScrollableElement;
+
+	constructor(container: HTMLElement, markdown: MarkdownRenderer, message: IMarkdownString) {
+		super();
+
+		const rendered = this._register(markdown.render(message, {}));
+		rendered.element.style.height = '100%';
+		container.appendChild(rendered.element);
+
+		this.scrollable = this._register(new DomScrollableElement(rendered.element, {
+			className: 'preview-text',
+		}));
+		container.appendChild(this.scrollable.getDomNode());
+
+		this._register(toDisposable(() => {
+			container.removeChild(this.scrollable.getDomNode());
+		}));
+
+		this.scrollable.scanDomNode();
+	}
+
+	public layout(height: number, width: number) {
+		this.scrollable.setScrollDimensions({ width, height });
+	}
+}
+
 class TestingMessageOutputPeek extends TestingOutputPeek {
-	private readonly preview = this._disposables.add(new MutableDisposable<EmbeddedCodeEditorWidget>());
+	private readonly editorPreview = this._disposables.add(new MutableDisposable<EmbeddedCodeEditorWidget>());
+	private readonly textPreview = this._disposables.add(new MutableDisposable<ScrollableMarkdownMessage>());
 	private test: ITestItem | undefined;
+	private readonly markdown = new Lazy(
+		() => this._disposables.add(this.instantiationService.createInstance(MarkdownRenderer, {})),
+	);
 
 	/**
 	 * @override
 	 */
 	protected _fillBody(containerElement: HTMLElement): void {
-		const diffContainer = dom.append(containerElement, dom.$('div.preview.inline'));
-		const preview = this.preview.value = this.instantiationService.createInstance(
+		const diffContainer = dom.append(containerElement, dom.$('div.preview.editor'));
+		const preview = this.editorPreview.value = this.instantiationService.createInstance(
 			EmbeddedCodeEditorWidget,
 			diffContainer,
 			commonEditorOptions,
@@ -488,16 +522,30 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 
 		this.test = test;
 
-		const messageStr = toPlainText(message.message);
-		this.show(message.location.range, hintPeekStrHeight(messageStr));
+		const messageStr = renderStringAsPlaintext(message.message);
+		const isMarkdown = typeof message.message !== 'string';
+		const hintedHeight = hintPeekStrHeight(messageStr);
+		// We can't estimate markdown message sizes as well, make sure it's
+		// reasonably big for them.
+		this.show(message.location.range, isMarkdown ? Math.max(hintedHeight, 7) : hintedHeight);
 		this.setTitle(firstLine(messageStr), test.label);
 
-		const modelRef = this.model.value = await this.modelService.createModelReference(messageUri);
-		if (this.preview.value) {
-			this.preview.value.setModel(modelRef.object.textEditorModel);
-			this.preview.value.updateOptions(this.getOptions(isMultiline(messageStr)));
+		if (isMarkdown) {
+			this.model.clear();
+			this.textPreview.value = new ScrollableMarkdownMessage(
+				this._bodyElement!,
+				this.markdown.getValue(),
+				message.message as IMarkdownString,
+			);
 		} else {
-			this.model.value = undefined;
+			this.textPreview.clear();
+			const modelRef = this.model.value = await this.modelService.createModelReference(messageUri);
+			if (this.editorPreview.value) {
+				this.editorPreview.value.setModel(modelRef.object.textEditorModel);
+				this.editorPreview.value.updateOptions(this.getOptions(isMultiline(messageStr)));
+			} else {
+				this.model.value = undefined;
+			}
 		}
 	}
 
@@ -513,7 +561,8 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 	 */
 	protected override _doLayoutBody(height: number, width: number) {
 		super._doLayoutBody(height, width);
-		this.preview.value?.layout(this.dimension);
+		this.editorPreview.value?.layout(this.dimension);
+		this.textPreview.value?.layout(height, width);
 	}
 
 	protected getOptions(isMultiline: boolean): IEditorOptions {
@@ -525,10 +574,6 @@ class TestingMessageOutputPeek extends TestingOutputPeek {
 
 const hintDiffPeekHeight = (message: ITestMessage) =>
 	Math.max(hintPeekStrHeight(message.actualOutput), hintPeekStrHeight(message.expectedOutput));
-
-const toPlainText = (message: IMarkdownString | string) => typeof message === 'string'
-	? message
-	: renderMarkdownAsPlaintext(message);
 
 const firstLine = (str: string) => {
 	const index = str.indexOf('\n');

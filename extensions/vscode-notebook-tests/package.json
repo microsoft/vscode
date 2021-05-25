@@ -46,7 +46,7 @@
         ]
       }
     ],
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",

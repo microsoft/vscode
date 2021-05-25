@@ -6,6 +6,12 @@ import type * as markdownIt from 'markdown-it';
 
 const emoji = require('markdown-it-emoji');
 
-export function extendMarkdownIt(md: markdownIt.MarkdownIt) {
-	return md.use(emoji);
+export function activate(ctx: {
+	getRenderer: (id: string) => any
+}) {
+	const markdownItRenderer = ctx.getRenderer('markdownItRenderer');
+
+	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
+		return md.use(emoji);
+	});
 }

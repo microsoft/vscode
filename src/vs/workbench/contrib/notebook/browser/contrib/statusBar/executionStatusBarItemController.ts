@@ -243,7 +243,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 		super();
 
 		// Create a fake ContextKeyService, and look up the keybindings within this context.
-		this._contextKeyService = _contextKeyService.createScoped(document.createElement('div'));
+		this._contextKeyService = this._register(_contextKeyService.createScoped(document.createElement('div')));
 		InputFocusedContext.bindTo(this._contextKeyService).set(true);
 		EditorContextKeys.editorTextFocus.bindTo(this._contextKeyService).set(true);
 		EditorContextKeys.focus.bindTo(this._contextKeyService).set(true);

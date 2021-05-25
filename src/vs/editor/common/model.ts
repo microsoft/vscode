@@ -1261,6 +1261,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**

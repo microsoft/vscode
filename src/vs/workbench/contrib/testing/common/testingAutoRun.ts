@@ -12,8 +12,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestDiffOpType, TestIdWithMaybeSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
-import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
+import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
@@ -66,7 +67,6 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 	 * Runs them on a debounce.
 	 */
 	private makeRunner() {
-		let isRunning = false;
 		const rerunIds = new Map<string, TestIdWithMaybeSrc>();
 		const store = new DisposableStore();
 		const cts = new CancellationTokenSource();
@@ -79,12 +79,13 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		}));
 
 		const scheduler = store.add(new RunOnceScheduler(async () => {
-			const tests = [...rerunIds.values()];
+			if (rerunIds.size === 0) {
+				return;
+			}
 
-			isRunning = true;
+			const tests = [...rerunIds.values()];
 			rerunIds.clear();
 			await this.testService.runTests({ debug: false, tests, isAutoRun: true });
-			isRunning = false;
 
 			if (rerunIds.size > 0) {
 				scheduler.schedule(delay);
@@ -92,15 +93,37 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		}, delay));
 
 		const addToRerun = (test: TestIdWithMaybeSrc) => {
-			rerunIds.set(`${test.testId}/${test.src?.controller}`, test);
-			if (!isRunning) {
+			rerunIds.set(identifyTest(test), test);
+			if (!isRunningTests(this.results)) {
 				scheduler.schedule(delay);
+			}
+		};
+
+		const removeFromRerun = (test: TestIdWithMaybeSrc) => {
+			const id = identifyTest(test);
+			if (test.src) {
+				rerunIds.delete(id);
+				return;
+			}
+
+			for (const test of rerunIds.keys()) {
+				if (test.startsWith(id)) {
+					rerunIds.delete(test);
+				}
 			}
 		};
 
 		store.add(this.results.onTestChanged(evt => {
 			if (evt.reason === TestResultItemChangeReason.Retired) {
 				addToRerun({ testId: evt.item.item.extId });
+			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange) && isStateWithResult(evt.item.computedState)) {
+				removeFromRerun({ testId: evt.item.item.extId });
+			}
+		}));
+
+		store.add(this.results.onResultsChanged(evt => {
+			if ('completed' in evt && !isRunningTests(this.results) && rerunIds.size) {
+				scheduler.schedule(0);
 			}
 		}));
 
@@ -119,10 +142,11 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 				}
 			});
 
-			store.add(listener.onDiff(([, diff]) => {
+			store.add(listener.onDiff(({ diff }) => {
 				for (const entry of diff) {
 					if (entry[0] === TestDiffOpType.Add) {
-						addToRerun({ testId: entry[1].item.extId, src: entry[1].src });
+						const { item, src } = entry[1];
+						addToRerun({ testId: item.extId, src });
 					}
 				}
 			}));
@@ -131,3 +155,5 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		return store;
 	}
 }
+
+const identifyTest = (test: TestIdWithMaybeSrc) => test.src ? `${test.testId}\0${test.src.controller}` : `${test.testId}\0`;

@@ -78,6 +78,11 @@ export interface IViewModelLinesCollection extends IDisposable {
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
 
 	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -983,6 +988,22 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		return this.lines[lineIndex].normalizePosition(this.model, lineIndex + 1, remainder, position, affinity);
 	}
+
+	public getLineIndentColumn(lineNumber: number): number {
+		const viewLineNumber = this._toValidViewLineNumber(lineNumber);
+		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		const lineIndex = r.index;
+		const remainder = r.remainder;
+
+		if (remainder === 0) {
+			return this.model.getLineIndentColumn(lineIndex + 1);
+		}
+
+		// wrapped lines have no indentation.
+		// We deliberately don't handle the case that indentation is wrapped
+		// to avoid two view lines reporting indentation for the very same model line.
+		return 0;
+	}
 }
 
 class VisibleIdentitySplitLine implements ISplitLine {
@@ -1574,6 +1595,10 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
 		return this.model.normalizePosition(position, affinity);
+	}
+
+	public getLineIndentColumn(lineNumber: number): number {
+		return this.model.getLineIndentColumn(lineNumber);
 	}
 }
 

@@ -102,22 +102,6 @@ suite('Untitled text editors', () => {
 		});
 	}
 
-	test('setValue()', async () => {
-		const service = accessor.untitledTextEditorService;
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-
-		const model = await untitled.resolve();
-
-		model.setValue('not dirty', true);
-		assert.ok(!model.isDirty());
-
-		model.setValue('dirty');
-		assert.ok(model.isDirty());
-
-		untitled.dispose();
-		model.dispose();
-	});
-
 	test('associated resource is dirty', async () => {
 		const service = accessor.untitledTextEditorService;
 		const file = URI.file(join('C:\\', '/foo/file.txt'));

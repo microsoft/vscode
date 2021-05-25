@@ -10,7 +10,7 @@ import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/comm
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
@@ -22,6 +22,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import product from 'vs/platform/product/common/product';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
@@ -29,7 +33,7 @@ export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gett
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.showGettingStarted',
+			id: 'workbench.action.openWalkthrough',
 			title: localize('Getting Started', "Getting Started"),
 			category: localize('help', "Help"),
 			f1: true,
@@ -41,8 +45,42 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor) {
-		accessor.get(IEditorService).openEditor(new GettingStartedInput({}), {});
+	public run(accessor: ServicesAccessor, walkthroughID: string | undefined, toSide: boolean | undefined) {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const editorService = accessor.get(IEditorService);
+		const configurationService = accessor.get(IConfigurationService);
+
+		if (walkthroughID) {
+			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
+			for (const group of editorGroupsService.groups) {
+				if (group.activeEditor instanceof GettingStartedInput) {
+					if (!group.activeEditor.selectedCategory) {
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(walkthroughID);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, resource: GettingStartedInput.RESOURCE });
+			for (const { editor, groupId } of result) {
+				if (editor instanceof GettingStartedInput) {
+					if (!editor.selectedCategory) {
+						editor.selectedCategory = walkthroughID;
+						editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
+						return;
+					}
+				}
+			}
+
+			// Otherwise, just make a new one.
+			if (configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
+				editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: walkthroughID }), {}, toSide ? SIDE_GROUP : undefined);
+			}
+		} else {
+			editorService.openEditor(new GettingStartedInput({}), {});
+		}
 	}
 });
 
@@ -81,6 +119,19 @@ registerAction2(class extends Action2 {
 		const editorPane = editorService.activeEditorPane;
 		if (editorPane instanceof GettingStartedPage) {
 			editorPane.escape();
+		}
+	}
+});
+
+CommandsRegistry.registerCommand({
+	id: 'walkthroughs.selectStep',
+	handler: (accessor, stepID: string) => {
+		const editorService = accessor.get(IEditorService);
+		const editorPane = editorService.activeEditorPane;
+		if (editorPane instanceof GettingStartedPage) {
+			editorPane.selectStepLoose(stepID);
+		} else {
+			console.error('Cannot run walkthroughs.selectStep outside of walkthrough context');
 		}
 	}
 });

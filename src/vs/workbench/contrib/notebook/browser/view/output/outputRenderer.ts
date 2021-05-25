@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
@@ -20,7 +20,7 @@ export class OutputRenderer extends Disposable {
 		private readonly instantiationService: IInstantiationService
 	) {
 		super();
-		for (const desc of NotebookRegistry.getOutputTransformContributions()) {
+		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
 			try {
 				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
 				contribution.getMimetypes().forEach(mimetype => {

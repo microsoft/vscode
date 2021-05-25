@@ -13,10 +13,11 @@ import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remo
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class TunnelFactoryContribution extends Disposable implements IWorkbenchContribution {
+
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IOpenerService openerService: IOpenerService,
+		@IOpenerService private openerService: IOpenerService,
 		@IRemoteExplorerService remoteExplorerService: IRemoteExplorerService,
 		@ILogService logService: ILogService
 	) {
@@ -51,7 +52,7 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 							tunnelRemoteHost: tunnel.remoteAddress.host,
 							// The tunnel factory may give us an inaccessible local address.
 							// To make sure this doesn't happen, resolve the uri immediately.
-							localAddress: (await openerService.resolveExternalUri(URI.parse(localAddress))).resolved.toString(),
+							localAddress: await this.resolveExternalUri(localAddress),
 							public: !!tunnel.public,
 							dispose: async () => { await tunnel.dispose(); }
 						};
@@ -60,6 +61,14 @@ export class TunnelFactoryContribution extends Disposable implements IWorkbenchC
 				}
 			}, environmentService.options?.tunnelProvider?.features ?? { elevation: false, public: false }));
 			remoteExplorerService.setTunnelInformation(undefined);
+		}
+	}
+
+	private async resolveExternalUri(uri: string): Promise<string> {
+		try {
+			return (await this.openerService.resolveExternalUri(URI.parse(uri))).resolved.toString();
+		} catch {
+			return uri;
 		}
 	}
 }

@@ -1154,7 +1154,9 @@ declare module 'vscode' {
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
-		 * the given {@link TextEditorDecorationType decoration type}, they will be replaced.
+		 * the given {@link TextEditorDecorationType decoration type}, they will be replaced. If
+		 * `rangesOrOptions` is empty, the existing decorations with the given {@link TextEditorDecorationType decoration type}
+		 * will be removed.
 		 *
 		 * @see {@link window.createTextEditorDecorationType createTextEditorDecorationType}.
 		 *
@@ -1311,6 +1313,15 @@ declare module 'vscode' {
 		 * @returns A new uri which path is joined with the given fragments
 		 */
 		static joinPath(base: Uri, ...pathSegments: string[]): Uri;
+
+		/**
+		 * Create an URI from its component parts
+		 *
+		 * @see {@link Uri.toString}
+		 * @param components The component parts of an Uri.
+		 * @return A new Uri instance.
+		 */
+		static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): Uri;
 
 		/**
 		 * Use the `file` and `parse` factory functions to create new `Uri` objects.
@@ -2050,7 +2061,7 @@ declare module 'vscode' {
 	 *
 	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
 	 *
-	 * Code action kinds are used by VS Code for UI elements such as the refactoring context menu. Users
+	 * Code action kinds are used by the editor for UI elements such as the refactoring context menu. Users
 	 * can also trigger code actions with a specific kind with the `editor.action.codeAction` command.
 	 */
 	export class CodeActionKind {
@@ -2236,7 +2247,7 @@ declare module 'vscode' {
 		/**
 		 * A {@link Command} this code action executes.
 		 *
-		 * If this command throws an exception, VS Code displays the exception message to users in the editor at the
+		 * If this command throws an exception, the editor displays the exception message to users in the editor at the
 		 * current cursor position.
 		 */
 		command?: Command;
@@ -2267,7 +2278,7 @@ declare module 'vscode' {
 		 * of code action, such as refactorings.
 		 *
 		 * - If the user has a [keybinding](https://code.visualstudio.com/docs/editor/refactoring#_keybindings-for-code-actions)
-		 * that auto applies a code action and only a disabled code actions are returned, VS Code will show the user an
+		 * that auto applies a code action and only a disabled code actions are returned, the editor will show the user an
 		 * error message with `reason` in the editor.
 		 */
 		disabled?: {
@@ -2344,17 +2355,17 @@ declare module 'vscode' {
 		 * list of kinds may either be generic, such as `[CodeActionKind.Refactor]`, or list out every kind provided,
 		 * such as `[CodeActionKind.Refactor.Extract.append('function'), CodeActionKind.Refactor.Extract.append('constant'), ...]`.
 		 */
-		readonly providedCodeActionKinds?: ReadonlyArray<CodeActionKind>;
+		readonly providedCodeActionKinds?: readonly CodeActionKind[];
 
 		/**
 		 * Static documentation for a class of code actions.
 		 *
 		 * Documentation from the provider is shown in the code actions menu if either:
 		 *
-		 * - Code actions of `kind` are requested by VS Code. In this case, VS Code will show the documentation that
+		 * - Code actions of `kind` are requested by the editor. In this case, the editor will show the documentation that
 		 *   most closely matches the requested code action kind. For example, if a provider has documentation for
 		 *   both `Refactor` and `RefactorExtract`, when the user requests code actions for `RefactorExtract`,
-		 *   VS Code will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
+		 *   the editor will use the documentation for `RefactorExtract` instead of the documentation for `Refactor`.
 		 *
 		 * - Any code actions of `kind` are returned by the provider.
 		 *
@@ -2373,7 +2384,7 @@ declare module 'vscode' {
 			/**
 			 * Command that displays the documentation to the user.
 			 *
-			 * This can display the documentation directly in VS Code or open a website using {@link env.openExternal `env.openExternal`};
+			 * This can display the documentation directly in the editor or open a website using {@link env.openExternal `env.openExternal`};
 			 *
 			 * The title of this documentation code action is taken from {@link Command.title `Command.title`}
 			 */
@@ -2685,13 +2696,13 @@ declare module 'vscode' {
 	/**
 	 * The evaluatable expression provider interface defines the contract between extensions and
 	 * the debug hover. In this contract the provider returns an evaluatable expression for a given position
-	 * in a document and VS Code evaluates this expression in the active debug session and shows the result in a debug hover.
+	 * in a document and the editor evaluates this expression in the active debug session and shows the result in a debug hover.
 	 */
 	export interface EvaluatableExpressionProvider {
 
 		/**
 		 * Provide an evaluatable expression for the given document and position.
-		 * VS Code will evaluate this expression in the active debug session and will show the result in the debug hover.
+		 * The editor will evaluate this expression in the active debug session and will show the result in the debug hover.
 		 * The expression can be implicitly specified by the range in the underlying document or by explicitly returning an expression.
 		 *
 		 * @param document The document for which the debug hover is about to appear.
@@ -5574,6 +5585,14 @@ declare module 'vscode' {
 	export interface StatusBarItem {
 
 		/**
+		 * The identifier of this item.
+		 *
+		 * *Note*: if no identifier was provided by the {@link window.createStatusBarItem `window.createStatusBarItem`}
+		 * method, the identifier will match the {@link Extension.id extension identifier}.
+		 */
+		readonly id: string;
+
+		/**
 		 * The alignment of this item.
 		 */
 		readonly alignment: StatusBarAlignment;
@@ -5583,6 +5602,13 @@ declare module 'vscode' {
 		 * be shown more to the left.
 		 */
 		readonly priority?: number;
+
+		/**
+		 * The name of the entry, like 'Python Language Indicator', 'Git Status' etc.
+		 * Try to keep the length of the name short, yet descriptive enough that
+		 * users can understand what the status bar item is about.
+		 */
+		name: string | undefined;
 
 		/**
 		 * The text to show for the entry. You can embed icons in the text by leveraging the syntax:
@@ -7756,7 +7782,7 @@ declare module 'vscode' {
 	/**
 	 * Event triggered by extensions to signal to VS Code that an edit has occurred on an {@link CustomDocument `CustomDocument`}.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentEditEvent<T extends CustomDocument = CustomDocument> {
 
@@ -7795,7 +7821,7 @@ declare module 'vscode' {
 	 * Event triggered by extensions to signal to VS Code that the content of a {@link CustomDocument `CustomDocument`}
 	 * has changed.
 	 *
-	 * @see {@link CustomDocumentProvider.onDidChangeCustomDocument `CustomDocumentProvider.onDidChangeCustomDocument`}.
+	 * @see {@link CustomEditorProvider.onDidChangeCustomDocument `CustomEditorProvider.onDidChangeCustomDocument`}.
 	 */
 	interface CustomDocumentContentChangeEvent<T extends CustomDocument = CustomDocument> {
 		/**
@@ -8794,6 +8820,16 @@ declare module 'vscode' {
 		export function createStatusBarItem(alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
 
 		/**
+		 * Creates a status bar {@link StatusBarItem item}.
+		 *
+		 * @param id The unique identifier of the item.
+		 * @param alignment The alignment of the item.
+		 * @param priority The priority of the item. Higher values mean the item should be shown more to the left.
+		 * @return A new status bar item.
+		 */
+		export function createStatusBarItem(id: string, alignment?: StatusBarAlignment, priority?: number): StatusBarItem;
+
+		/**
 		 * Creates a {@link Terminal} with a backing shell process. The cwd of the terminal will be the workspace
 		 * directory if it exists.
 		 *
@@ -8900,7 +8936,7 @@ declare module 'vscode' {
 				 *
 				 * Normally the webview's html context is created when the view becomes visible
 				 * and destroyed when it is hidden. Extensions that have complex state
-				 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
+				 * or UI can set the `retainContextWhenHidden` to make the editor keep the webview
 				 * context around, even when the webview moves to a background tab. When a webview using
 				 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
 				 * When the view becomes visible again, the context is automatically restored
@@ -8917,7 +8953,7 @@ declare module 'vscode' {
 		/**
 		 * Register a provider for custom editors for the `viewType` contributed by the `customEditors` extension point.
 		 *
-		 * When a custom editor is opened, VS Code fires an `onCustomEditor:viewType` activation event. Your extension
+		 * When a custom editor is opened, an `onCustomEditor:viewType` activation event is fired. Your extension
 		 * must register a {@link CustomTextEditorProvider `CustomTextEditorProvider`}, {@link CustomReadonlyEditorProvider `CustomReadonlyEditorProvider`},
 		 * {@link CustomEditorProvider `CustomEditorProvider`}for `viewType` as part of activation.
 		 *
@@ -8940,7 +8976,7 @@ declare module 'vscode' {
 			 * Indicates that the provider allows multiple editor instances to be open at the same time for
 			 * the same resource.
 			 *
-			 * By default, VS Code only allows one editor instance to be open at a time for each resource. If the
+			 * By default, the editor only allows one editor instance to be open at a time for each resource. If the
 			 * user tries to open a second editor instance for the resource, the first one is instead moved to where
 			 * the second one was to be opened.
 			 *
@@ -10306,7 +10342,7 @@ declare module 'vscode' {
 		export const rootPath: string | undefined;
 
 		/**
-		 * List of workspace folders that are open in VS Code. `undefined when no workspace
+		 * List of workspace folders that are open in VS Code. `undefined` when no workspace
 		 * has been opened.
 		 *
 		 * Refer to https://code.visualstudio.com/docs/editor/workspaces for more information
@@ -11572,6 +11608,12 @@ declare module 'vscode' {
 		readonly type: string;
 
 		/**
+		 * The parent session of this debug session, if it was created as a child.
+		 * @see DebugSessionOptions.parentSession
+		 */
+		readonly parentSession?: DebugSession;
+
+		/**
 		 * The debug session's name is initially taken from the {@link DebugConfiguration debug configuration}.
 		 * Any changes will be properly reflected in the UI.
 		 */
@@ -12728,6 +12770,420 @@ declare module 'vscode' {
 		 */
 		export function registerAuthenticationProvider(id: string, label: string, provider: AuthenticationProvider, options?: AuthenticationProviderOptions): Disposable;
 	}
+
+	/**
+	 * Namespace for testing functionality.
+	 */
+	export namespace test {
+		/**
+		 * Registers a controller that can discover and
+		 * run tests in workspaces and documents.
+		 */
+		export function registerTestController<T>(testController: TestController<T>): Disposable;
+
+		/**
+		 * Requests that tests be run by their controller.
+		 * @param run Run options to use
+		 * @param token Cancellation token for the test run
+		 */
+		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
+
+		/**
+		 * Creates a {@link TestRun<T>}. This should be called by the
+		 * {@link TestRunner} when a request is made to execute tests, and may also
+		 * be called if a test run is detected externally. Once created, tests
+		 * that are included in the results will be moved into the
+		 * {@link TestResultState.Pending} state.
+		 *
+		 * @param request Test run request. Only tests inside the `include` may be
+		 * modified, and tests in its `exclude` are ignored.
+		 * @param name The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
+		 * @param persist Whether the results created by the run should be
+		 * persisted in VS Code. This may be false if the results are coming from
+		 * a file already saved externally, such as a coverage information file.
+		 */
+		export function createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
+
+		/**
+		 * Creates a new managed {@link TestItem} instance.
+		 * @param options Initial/required options for the item
+		 * @param data Custom data to be stored in {@link TestItem.data}
+		 */
+		export function createTestItem<T, TChildren = T>(options: TestItemOptions, data: T): TestItem<T, TChildren>;
+
+		/**
+		 * Creates a new managed {@link TestItem} instance.
+		 * @param options Initial/required options for the item
+		 */
+		export function createTestItem<T = void, TChildren = any>(options: TestItemOptions): TestItem<T, TChildren>;
+	}
+
+	/**
+	 * Interface to discover and execute tests.
+	 */
+	export interface TestController<T> {
+		/**
+		 * Requests that tests be provided for the given workspace. This will
+		 * be called when tests need to be enumerated for the workspace, such as
+		 * when the user opens the test explorer.
+		 *
+		 * It's guaranteed that this method will not be called again while
+		 * there is a previous uncancelled call for the given workspace folder.
+		 *
+		 * @param workspace The workspace in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the workspace
+		 */
+		createWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestItem<T>>;
+
+		/**
+		 * Requests that tests be provided for the given document. This will be
+		 * called when tests need to be enumerated for a single open file, for
+		 * instance by code lens UI.
+		 *
+		 * It's suggested that the provider listen to change events for the text
+		 * document to provide information for tests that might not yet be
+		 * saved.
+		 *
+		 * If the test system is not able to provide or estimate for tests on a
+		 * per-file basis, this method may not be implemented. In that case, the
+		 * editor will request and use the information from the workspace tree.
+		 *
+		 * @param document The document in which to observe tests
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @returns the root test item for the document
+		 */
+		createDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<TestItem<T>>;
+
+		/**
+		 * Starts a test run. When called, the controller should call
+		 * {@link vscode.test.createTestRun}. All tasks associated with the
+		 * run should be created before the function returns or the reutrned
+		 * promise is resolved.
+		 *
+		 * @param options Options for this test run
+		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 */
+		runTests(options: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+	}
+
+	/**
+	 * Options given to {@link test.runTests}.
+	 */
+	export interface TestRunRequest<T> {
+		/**
+		 * Array of specific tests to run. The controllers should run all of the
+		 * given tests and all children of the given tests, excluding any tests
+		 * that appear in {@link TestRunRequest.exclude}.
+		 */
+		tests: TestItem<T>[];
+
+		/**
+		 * An array of tests the user has marked as excluded in VS Code. May be
+		 * omitted if no exclusions were requested. Test controllers should not run
+		 * excluded tests or any children of excluded tests.
+		 */
+		exclude?: TestItem<T>[];
+
+		/**
+		 * Whether tests in this run should be debugged.
+		 */
+		debug: boolean;
+	}
+
+	/**
+	 * Options given to {@link TestController.runTests}
+	 */
+	export interface TestRun<T = void> {
+		/**
+		 * The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
+		 */
+		readonly name?: string;
+
+		/**
+		 * Updates the state of the test in the run. Calling with method with nodes
+		 * outside the {@link TestRunRequest.tests} or in the
+		 * {@link TestRunRequest.exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
+		 * @param duration Optionally sets how long the test took to run
+		 */
+		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
+
+		/**
+		 * Appends a message, such as an assertion error, to the test item.
+		 *
+		 * Calling with method with nodes outside the {@link TestRunRequest.tests}
+		 * or in the {@link TestRunRequest.exclude} array will no-op.
+		 *
+		 * @param test The test to update
+		 * @param state The state to assign to the test
+		 *
+		 */
+		appendMessage(test: TestItem<T>, message: TestMessage): void;
+
+		/**
+		 * Appends raw output from the test runner. On the user's request, the
+		 * output will be displayed in a terminal. ANSI escape sequences,
+		 * such as colors and text styles, are supported.
+		 *
+		 * @param output Output text to append
+		 * @param associateTo Optionally, associate the given segment of output
+		 */
+		appendOutput(output: string): void;
+
+		/**
+		 * Signals that the end of the test run. Any tests whose states have not
+		 * been updated will be moved into the {@link TestResultState.Unset} state.
+		 */
+		end(): void;
+	}
+
+	/**
+	 * Indicates the the activity state of the {@link TestItem}.
+	 */
+	export enum TestItemStatus {
+		/**
+		 * All children of the test item, if any, have been discovered.
+		 */
+		Resolved = 1,
+
+		/**
+		 * The test item may have children who have not been discovered yet.
+		 */
+		Pending = 0,
+	}
+
+	/**
+	 * Options initially passed into `vscode.test.createTestItem`
+	 */
+	export interface TestItemOptions {
+		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This cannot change for the lifetime of the TestItem.
+		 */
+		id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or directory.
+		 */
+		uri?: Uri;
+
+		/**
+		 * Display name describing the test item.
+		 */
+		label: string;
+	}
+
+	/**
+	 * A test item is an item shown in the "test explorer" view. It encompasses
+	 * both a suite and a test, since they have almost or identical capabilities.
+	 */
+	export interface TestItem<T, TChildren = any> {
+		/**
+		 * Unique identifier for the TestItem. This is used to correlate
+		 * test results and tests in the document with those in the workspace
+		 * (test explorer). This must not change for the lifetime of the TestItem.
+		 */
+		readonly id: string;
+
+		/**
+		 * URI this TestItem is associated with. May be a file or directory.
+		 */
+		readonly uri?: Uri;
+
+		/**
+		 * A mapping of children by ID to the associated TestItem instances.
+		 */
+		readonly children: ReadonlyMap<string, TestItem<TChildren>>;
+
+		/**
+		 * The parent of this item, if any. Assigned automatically when calling
+		 * {@link TestItem.addChild}.
+		 */
+		readonly parent?: TestItem<any>;
+
+		/**
+		 * Indicates the state of the test item's children. The editor will show
+		 * TestItems in the `Pending` state and with a `resolveHandler` as being
+		 * expandable, and will call the `resolveHandler` to request items.
+		 *
+		 * A TestItem in the `Resolved` state is assumed to have discovered and be
+		 * watching for changes in its children if applicable. TestItems are in the
+		 * `Resolved` state when initially created; if the editor should call
+		 * the `resolveHandler` to discover children, set the state to `Pending`
+		 * after creating the item.
+		 */
+		status: TestItemStatus;
+
+		/**
+		 * Display name describing the test case.
+		 */
+		label: string;
+
+		/**
+		 * Optional description that appears next to the label.
+		 */
+		description?: string;
+
+		/**
+		 * Location of the test item in its `uri`. This is only meaningful if the
+		 * `uri` points to a file.
+		 */
+		range?: Range;
+
+		/**
+		 * May be set to an error associated with loading the test. Note that this
+		 * is not a test result and should only be used to represent errors in
+		 * discovery, such as syntax errors.
+		 */
+		error?: string | MarkdownString;
+
+		/**
+		 * Whether this test item can be run by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `true`.
+		 */
+		runnable: boolean;
+
+		/**
+		 * Whether this test item can be debugged by providing it in the
+		 * {@link TestRunRequest.tests} array. Defaults to `false`.
+		 */
+		debuggable: boolean;
+
+		/**
+		 * Custom extension data on the item. This data will never be serialized
+		 * or shared outside the extenion who created the item.
+		 */
+		data: T;
+
+		/**
+		 * Marks the test as outdated. This can happen as a result of file changes,
+		 * for example. In "auto run" mode, tests that are outdated will be
+		 * automatically rerun after a short delay. Invoking this on a
+		 * test with children will mark the entire subtree as outdated.
+		 *
+		 * Extensions should generally not override this method.
+		 */
+		invalidate(): void;
+
+		/**
+		 * A function provided by the extension that the editor may call to request
+		 * children of the item, if the {@link TestItem.status} is `Pending`.
+		 *
+		 * When called, the item should discover tests and call {@link TestItem.addChild}.
+		 * The items should set its {@link TestItem.status} to `Resolved` when
+		 * discovery is finished.
+		 *
+		 * The item should continue watching for changes to the children and
+		 * firing updates until the token is cancelled. The process of watching
+		 * the tests may involve creating a file watcher, for example. After the
+		 * token is cancelled and watching stops, the TestItem should set its
+		 * {@link TestItem.status} back to `Pending`.
+		 *
+		 * The editor will only call this method when it's interested in refreshing
+		 * the children of the item, and will not call it again while there's an
+		 * existing, uncancelled discovery for an item.
+		 *
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 */
+		resolveHandler?: (token: CancellationToken) => void;
+
+		/**
+		 * Attaches a child, created from the {@link test.createTestItem} function,
+		 * to this item. A `TestItem` may be a child of at most one other item.
+		 */
+		addChild(child: TestItem<TChildren>): void;
+
+		/**
+		 * Removes the test and its children from the tree. Any tokens passed to
+		 * child `resolveHandler` methods will be cancelled.
+		 */
+		dispose(): void;
+	}
+
+	/**
+	 * Possible states of tests in a test run.
+	 */
+	export enum TestResultState {
+		// Initial state
+		Unset = 0,
+		// Test will be run, but is not currently running.
+		Queued = 1,
+		// Test is currently running
+		Running = 2,
+		// Test run has passed
+		Passed = 3,
+		// Test run has failed (on an assertion)
+		Failed = 4,
+		// Test run has been skipped
+		Skipped = 5,
+		// Test run failed for some other reason (compilation error, timeout, etc)
+		Errored = 6
+	}
+
+	/**
+	 * Represents the severity of test messages.
+	 */
+	export enum TestMessageSeverity {
+		Error = 0,
+		Warning = 1,
+		Information = 2,
+		Hint = 3
+	}
+
+	/**
+	 * Message associated with the test state. Can be linked to a specific
+	 * source range -- useful for assertion failures, for example.
+	 */
+	export class TestMessage {
+		/**
+		 * Human-readable message text to display.
+		 */
+		message: string | MarkdownString;
+
+		/**
+		 * Message severity. Defaults to "Error".
+		 */
+		severity: TestMessageSeverity;
+
+		/**
+		 * Expected test output. If given with `actualOutput`, a diff view will be shown.
+		 */
+		expectedOutput?: string;
+
+		/**
+		 * Actual test output. If given with `expectedOutput`, a diff view will be shown.
+		 */
+		actualOutput?: string;
+
+		/**
+		 * Associated file location.
+		 */
+		location?: Location;
+
+		/**
+		 * Creates a new TestMessage that will present as a diff in the editor.
+		 * @param message Message to display to the user.
+		 * @param expected Expected output.
+		 * @param actual Actual output.
+		 */
+		static diff(message: string | MarkdownString, expected: string, actual: string): TestMessage;
+
+		/**
+		 * Creates a new TestMessage instance.
+		 * @param message The message to show to the user.
+		 */
+		constructor(message: string | MarkdownString);
+	}
+
 }
 
 /**

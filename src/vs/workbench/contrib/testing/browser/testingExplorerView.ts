@@ -63,7 +63,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoToTest } from './testExplorerActions';
+import { GoToTest, internalTestActionIds } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -417,8 +417,15 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
 		}));
 
-		this._register(testResults.onResultsChanged(() => {
+		this._register(testResults.onResultsChanged(evt => {
 			this.tree.resort(null);
+
+			if (followRunningTests && 'completed' in evt) {
+				const selected = this.tree.getSelection()[0];
+				if (selected) {
+					this.tree.reveal(selected, 0.5);
+				}
+			}
 		}));
 	}
 
@@ -811,7 +818,14 @@ class TestExplorerActionRunner extends ActionRunner {
 		const selection = this.getSelectedTests();
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		await action.run(...actualContext.filter(isActionableTestTreeElement));
+		const actionable = actualContext.filter(isActionableTestTreeElement);
+
+		// Is there a better way to do this?
+		if (internalTestActionIds.has(action.id)) {
+			await action.run(...actionable);
+		} else {
+			await action.run(...actionable.map(a => a instanceof TestItemTreeElement ? a.test.item.extId : a.folder.uri));
+		}
 	}
 }
 
@@ -821,11 +835,20 @@ const getLabelForTestTreeElement = (element: IActionableTestTreeElement) => {
 		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 	}, '{0} ({1})', element.label, testStateNames[element.state]);
 
-	if (element instanceof TestItemTreeElement && element.retired) {
-		label = localize({
-			key: 'testing.treeElementLabelOutdated',
-			comment: ['{0} is the original label in testing.treeElementLabel'],
-		}, '{0}, outdated result', label, testStateNames[element.state]);
+	if (element instanceof TestItemTreeElement) {
+		if (element.duration !== undefined) {
+			label = localize({
+				key: 'testing.treeElementLabelDuration',
+				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
+			}, '{0}, in {1}', label, formatDuration(element.duration));
+		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label, testStateNames[element.state]);
+		}
 	}
 
 	return label;
@@ -1036,9 +1059,26 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;
 		label.description = node.element.description || undefined;
+
+		if (node.element.duration) {
+			label.description = label.description
+				? `${label.description}: ${formatDuration(node.element.duration)}`
+				: formatDuration(node.element.duration);
+		}
+
 		data.label.setResource(label, options);
 	}
 }
+
+const formatDuration = (ms: number) => {
+	if (ms < 10) {
+		return `${ms.toPrecision(2)}ms`;
+	} else if (ms < 1000) {
+		return `${ms.toPrecision(3)}ms`;
+	} else {
+		return `${(ms / 1000).toPrecision(3)}s`;
+	}
+};
 
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';

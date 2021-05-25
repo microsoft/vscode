@@ -53,7 +53,7 @@ suite('ResourceWorkingCopy', function () {
 		assert.strictEqual(workingCopy.isOrphaned(), false);
 
 		let onDidChangeOrphanedPromise = Event.toPromise(workingCopy.onDidChangeOrphaned);
-		accessor.fileService.notExistsSet.add(resource);
+		accessor.fileService.notExistsSet.set(resource, true);
 		accessor.fileService.fireFileChanges(new FileChangesEvent([{ resource, type: FileChangeType.DELETED }], false));
 
 		await onDidChangeOrphanedPromise;

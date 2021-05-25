@@ -8,7 +8,7 @@ import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,11 +16,14 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { toolbarActiveBackground } from 'vs/platform/theme/common/colorRegistry';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
+import { GlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 
@@ -40,6 +43,8 @@ export class NotebookEditorToolbar extends Disposable {
 	get useGlobalToolbar(): boolean {
 		return this._useGlobalToolbar;
 	}
+
+	private _pendingLayout: IDisposable | undefined;
 
 	constructor(
 		readonly notebookEditor: INotebookEditor,
@@ -75,7 +80,7 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookTopLeftToolbarContainer.classList.add('notebook-toolbar-left');
 		this._leftToolbarScrollable = new DomScrollableElement(this._notebookTopLeftToolbarContainer, {
 			vertical: ScrollbarVisibility.Hidden,
-			horizontal: ScrollbarVisibility.Visible,
+			horizontal: ScrollbarVisibility.Auto,
 			horizontalScrollbarSize: 3,
 			useShadows: false,
 			scrollYToX: true
@@ -93,17 +98,17 @@ export class NotebookEditorToolbar extends Disposable {
 		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
-		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>('notebook.experimental.globalToolbar') ?? false;
+		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('notebook.experimental.globalToolbar')) {
-				this._useGlobalToolbar = this.configurationService.getValue<boolean>('notebook.experimental.globalToolbar');
+			if (e.affectsConfiguration(GlobalToolbar)) {
+				this._useGlobalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar);
 				this._showNotebookActionsinEditorToolbar();
 			}
 		}));
 
 		const context = {
 			ui: true,
-			notebookEditor: this
+			notebookEditor: this.notebookEditor
 		};
 
 		const actionProvider = (action: IAction) => {
@@ -159,7 +164,7 @@ export class NotebookEditorToolbar extends Disposable {
 			this.domNode.style.display = 'none';
 		} else {
 			this._notebookLeftToolbar.setActions([], []);
-			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true });
+			const groups = this._notebookGlobalActionsMenu.getActions({ shouldForwardArgs: true, renderShortTitle: true });
 			this.domNode.style.display = 'flex';
 			const primaryLeftGroups = groups.filter(group => /^navigation/.test(group[0]));
 			let primaryActions: IAction[] = [];
@@ -181,16 +186,45 @@ export class NotebookEditorToolbar extends Disposable {
 			});
 			const primaryRightGroup = groups.find(group => /^status/.test(group[0]));
 			const primaryRightActions = primaryRightGroup ? primaryRightGroup[1] : [];
-			const secondaryActions = groups.filter(group => /^navigation/.test(group[0]) && /^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
+			const secondaryActions = groups.filter(group => !/^navigation/.test(group[0]) && !/^status/.test(group[0])).reduce((prev: (MenuItemAction | SubmenuItemAction)[], curr) => { prev.push(...curr[1]); return prev; }, []);
 
 			this._notebookLeftToolbar.setActions(primaryActions, secondaryActions);
 			this._notebookRightToolbar.setActions(primaryRightActions, []);
+			this._updateScrollbar();
 		}
 
 		this._onDidChangeState.fire();
+	}
 
-		// if (this._dimension && this._isVisible) {
-		// 	this.layout(this._dimension);
-		// }
+	layout() {
+		this._updateScrollbar();
+	}
+
+	private _updateScrollbar() {
+		this._pendingLayout?.dispose();
+
+		this._pendingLayout = DOM.measure(() => {
+			DOM.measure(() => { // double RAF
+				this._leftToolbarScrollable.setRevealOnScroll(false);
+				this._leftToolbarScrollable.scanDomNode();
+				this._leftToolbarScrollable.setRevealOnScroll(true);
+			});
+		});
+	}
+
+	override dispose() {
+		this._pendingLayout?.dispose();
+		super.dispose();
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const toolbarActiveBackgroundColor = theme.getColor(toolbarActiveBackground);
+	if (toolbarActiveBackgroundColor) {
+		collector.addRule(`
+		.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active {
+			background-color: ${toolbarActiveBackgroundColor};
+		}
+		`);
+	}
+});

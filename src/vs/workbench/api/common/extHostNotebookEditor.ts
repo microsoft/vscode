@@ -73,6 +73,8 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 export class ExtHostNotebookEditor {
 
+	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
+
 	private _selections: vscode.NotebookRange[] = [];
 	private _visibleRanges: vscode.NotebookRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
@@ -127,6 +129,8 @@ export class ExtHostNotebookEditor {
 					return that.setDecorations(decorationType, range);
 				}
 			};
+
+			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
 		}
 		return this._editor;
 	}

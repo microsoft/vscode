@@ -173,6 +173,9 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 			});
 			socket.once('error', reject);
 
+			socket.on('close', () => {
+				onTerminate('renderer closed the socket');
+			});
 		});
 	}
 }

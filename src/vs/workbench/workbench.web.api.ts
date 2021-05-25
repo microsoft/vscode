@@ -322,6 +322,11 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
+	 * Filter for built-in extensions.
+	 */
+	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
+
+	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.

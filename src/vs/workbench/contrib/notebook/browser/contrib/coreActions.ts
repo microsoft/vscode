@@ -18,12 +18,13 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import * as icons from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { EditorsOrder, IEditorCommandsContext } from 'vs/workbench/common/editor';
@@ -679,7 +680,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
 				{
@@ -689,7 +690,7 @@ registerAction2(class ExecuteNotebookAction extends NotebookAction {
 					when: ContextKeyExpr.and(
 						executeNotebookCondition,
 						ContextKeyExpr.or(NOTEBOOK_INTERRUPTIBLE_KERNEL.toNegated(), NOTEBOOK_HAS_RUNNING_CELL.toNegated()),
-						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
 			]
@@ -750,7 +751,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 						NOTEBOOK_IS_ACTIVE_EDITOR,
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					)
 				},
 				{
@@ -760,7 +761,7 @@ registerAction2(class CancelNotebook extends NotebookAction {
 					when: ContextKeyExpr.and(
 						NOTEBOOK_HAS_RUNNING_CELL,
 						NOTEBOOK_INTERRUPTIBLE_KERNEL,
-						ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 					)
 				}
 			]
@@ -1027,7 +1028,25 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 0,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
+	command: {
+		id: INSERT_CODE_CELL_BELOW_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode.minimalToolbar', "Add Code"),
+		icon: Codicon.add,
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: 0,
+	group: 'inline',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
@@ -1039,7 +1058,11 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -5,
 	group: 'navigation/add',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -1050,7 +1073,25 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	},
 	order: 0,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
+});
+
+MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
+	command: {
+		id: INSERT_CODE_CELL_AT_TOP_COMMAND_ID,
+		title: localize('notebookActions.menu.insertCode.minimaltoolbar', "Add Code"),
+		icon: Codicon.add,
+		tooltip: localize('notebookActions.menu.insertCode.tooltip', "Add Code Cell")
+	},
+	order: 0,
+	group: 'inline',
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.equals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 registerAction2(class InsertMarkdownCellAboveAction extends InsertCellCommand {
@@ -1093,7 +1134,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellBetween, {
 	},
 	order: 1,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
@@ -1105,7 +1149,11 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	},
 	order: -5,
 	group: 'navigation/add',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
+	)
 });
 
 MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
@@ -1116,7 +1164,10 @@ MenuRegistry.appendMenuItem(MenuId.NotebookCellListTop, {
 	},
 	order: 1,
 	group: 'inline',
-	when: NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)
+	when: ContextKeyExpr.and(
+		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+		ContextKeyExpr.notEquals('config.notebook.experimental.insertToolbarAlignment', 'left')
+	)
 });
 
 registerAction2(class EditCellAction extends NotebookCellAction {
@@ -1300,12 +1351,18 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 		super({
 			id: CLEAR_CELL_OUTPUTS_COMMAND_ID,
 			title: localize('clearCellOutputs', 'Clear Cell Outputs'),
-			menu: {
-				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), executeNotebookCondition, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
-				order: CellToolbarOrder.ClearCellOutput,
-				group: CELL_TITLE_OUTPUT_GROUP_ID
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_TYPE.isEqualTo('code'), executeNotebookCondition, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON.toNegated()),
+					order: CellToolbarOrder.ClearCellOutput,
+					group: CELL_TITLE_OUTPUT_GROUP_ID
+				},
+				{
+					id: MenuId.NotebookOutputToolbar,
+					when: ContextKeyExpr.and(NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE)
+				},
+			],
 			keybinding: {
 				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey), NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE),
 				primary: KeyMod.Alt | KeyCode.Delete,
@@ -1526,14 +1583,14 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 					id: MenuId.EditorTitle,
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.experimental.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
 					),
 					group: 'navigation',
 					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
-					when: ContextKeyExpr.equals('config.notebook.experimental.globalToolbar', true),
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
 					group: 'navigation/execute',
 					order: 0
 				}
@@ -1708,6 +1765,32 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 
 	getMetadataDelta(): NotebookCellMetadata {
 		return { outputCollapsed: false };
+	}
+});
+
+registerAction2(class NotebookConfigureLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.configure',
+			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Editor Layout Settings"),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+				}
+			]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(IPreferencesService).openSettings(false, '@tag:notebookLayout');
 	}
 });
 

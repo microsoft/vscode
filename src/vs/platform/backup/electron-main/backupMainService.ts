@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { writeFileSync, writeFile, readdir, exists, rimraf, RimRafMode } from 'vs/base/node/pfs';
+import { writeFileSync, writeFile, readdir, exists, rimraf, RimRafMode, Promises } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -49,7 +49,7 @@ export class BackupMainService implements IBackupMainService {
 	async initialize(): Promise<void> {
 		let backups: IBackupWorkspacesFormat;
 		try {
-			backups = JSON.parse(await fs.promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
+			backups = JSON.parse(await Promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			backups = Object.create(null);
 		}
@@ -328,7 +328,7 @@ export class BackupMainService implements IBackupMainService {
 		// Rename backupPath to new empty window backup path
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
-			await fs.promises.rename(backupPath, newEmptyWindowBackupPath);
+			await Promises.rename(backupPath, newEmptyWindowBackupPath);
 		} catch (error) {
 			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;

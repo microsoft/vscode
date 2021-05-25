@@ -1485,6 +1485,28 @@ export namespace NotebookCellKind {
 	}
 }
 
+export namespace NotebookData {
+
+	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
+		const res: notebooks.NotebookDataDto = {
+			metadata: NotebookDocumentMetadata.from(data.metadata),
+			cells: [],
+		};
+		for (let cell of data.cells) {
+			types.NotebookCellData.validate(cell);
+			res.cells.push(NotebookCellData.from(cell));
+		}
+		return res;
+	}
+
+	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
+		return {
+			metadata: NotebookDocumentMetadata.to(data.metadata),
+			cells: data.cells.map(NotebookCellData.to)
+		};
+	}
+}
+
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
@@ -1511,15 +1533,30 @@ export namespace NotebookCellData {
 
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+		let value: unknown;
+		let valueBytes: number[] | undefined;
+		if (item.data instanceof Uint8Array) {
+			//todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes = Array.from(item.data);
+		} else {
+			value = item.value;
+		}
 		return {
+			metadata: item.metadata,
 			mime: item.mime,
-			value: item.value,
-			metadata: item.metadata
+			value,
+			valueBytes,
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+		let value: Uint8Array | any;
+		if (Array.isArray(item.valueBytes)) {
+			value = new Uint8Array(item.valueBytes);
+		} else {
+			value = item.value;
+		}
+		return new types.NotebookCellOutputItem(value, item.mime, item.metadata);
 	}
 }
 

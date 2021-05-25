@@ -6,10 +6,54 @@
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
 import { ITerminalProfile, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+const terminalProfileBaseProperties: IJSONSchemaMap = {
+	args: {
+		description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
+		type: 'array',
+		items: {
+			type: 'string'
+		}
+	},
+	overrideName: {
+		description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
+		type: 'boolean'
+	},
+	icon: {
+		description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
+		type: 'string',
+		enum: Array.from(iconRegistry.all, icon => icon.id),
+		markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
+	},
+	color: {
+		description: localize('terminalProfile.color', 'A theme color ID to associate with this terminal.'),
+		type: ['string', 'null'],
+		enum: [
+			'terminal.ansiBlack',
+			'terminal.ansiRed',
+			'terminal.ansiGreen',
+			'terminal.ansiYellow',
+			'terminal.ansiBlue',
+			'terminal.ansiMagenta',
+			'terminal.ansiCyan',
+			'terminal.ansiWhite'
+		],
+		default: null
+	},
+	env: {
+		markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
+		type: 'object',
+		additionalProperties: {
+			type: ['string', 'null']
+		},
+		default: {}
+	}
+};
 
 const terminalProfileSchema: IJSONSchema = {
 	type: 'object',
@@ -22,31 +66,7 @@ const terminalProfileSchema: IJSONSchema = {
 				type: 'string'
 			}
 		},
-		args: {
-			description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
-			type: 'array',
-			items: {
-				type: 'string'
-			}
-		},
-		overrideName: {
-			description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
-			type: 'boolean'
-		},
-		icon: {
-			description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-			type: 'string',
-			enum: Array.from(iconRegistry.all, icon => icon.id),
-			markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
-		},
-		env: {
-			markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
-			type: 'object',
-			additionalProperties: {
-				type: ['string', 'null']
-			},
-			default: {}
-		}
+		...terminalProfileBaseProperties
 	}
 };
 
@@ -187,31 +207,7 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 								description: localize('terminalProfile.windowsSource', 'A profile source that will auto detect the paths to the shell.'),
 								enum: ['PowerShell', 'Git Bash']
 							},
-							args: {
-								description: localize('terminalProfile.args', 'An optional set of arguments to run the shell executable with.'),
-								type: 'array',
-								items: {
-									type: 'string'
-								}
-							},
-							overrideName: {
-								description: localize('terminalProfile.overrideName', 'Controls whether or not the profile name overrides the auto detected one.'),
-								type: 'boolean'
-							},
-							icon: {
-								description: localize('terminalProfile.icon', 'A codicon ID to associate with this terminal.'),
-								type: 'string',
-								enum: Array.from(iconRegistry.all, icon => icon.id),
-								markdownEnumDescriptions: Array.from(iconRegistry.all, icon => `$(${icon.id})`),
-							},
-							env: {
-								markdownDescription: localize('terminalProfile.env', "An object with environment variables that will be added to the terminal profile process. Set to `null` to delete environment variables from the base environment."),
-								type: 'object',
-								additionalProperties: {
-									type: ['string', 'null']
-								},
-								default: {}
-							}
+							...terminalProfileBaseProperties
 						}
 					},
 					{ type: 'null' },
@@ -232,13 +228,16 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
+					args: ['-l'],
 					icon: 'terminal-bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					path: 'zsh',
+					args: ['-l']
 				},
 				'fish': {
-					path: 'fish'
+					path: 'fish',
+					args: ['-l']
 				},
 				'tmux': {
 					path: 'tmux',
@@ -374,7 +373,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 }
 
 function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${profile.icon || Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
+	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
 	if (profile.args) {
 		if (typeof profile.args === 'string') {
 			description += `\n- args: "${profile.args}"`;
@@ -384,6 +383,9 @@ function createProfileDescription(profile: ITerminalProfile): string {
 	}
 	if (profile.overrideName !== undefined) {
 		description += `\n- overrideName: ${profile.overrideName}`;
+	}
+	if (profile.color) {
+		description += `\n- color: ${profile.color}`;
 	}
 	if (profile.env) {
 		description += `\n- env: ${JSON.stringify(profile.env)}`;
