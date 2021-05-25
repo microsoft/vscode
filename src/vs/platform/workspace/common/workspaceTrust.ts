@@ -40,7 +40,7 @@ export interface IWorkspaceTrustManagementService {
 
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	onDidChangeTrustedFolders: Event<void>;
-
+	onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
 	get acceptsOutOfWorkspaceFiles(): boolean;
 	set acceptsOutOfWorkspaceFiles(value: boolean);
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;

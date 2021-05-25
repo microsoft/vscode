@@ -165,6 +165,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			return;
 		}
 
+		// Don't show modal prompt if workspace trust cannot be changed
+		if (!this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			return;
+		}
+
 		// Don't show modal prompt for virtual workspaces by default
 		if (getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined) {
 			this.updateWorkbenchIndicators(false);
@@ -366,6 +371,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private registerListeners(): void {
+		this._register(this.workspaceTrustManagementService.onDidInitiateWorkspaceTrustRequestOnStartup(() => {
+			this.showModalOnStart();
+		}));
+
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			// Message
 			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
