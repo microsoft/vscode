@@ -73,11 +73,13 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 		.map(key => {
 			const value = data[key];
 			const sibling = typeof value === 'boolean' ? undefined : value.when;
-
 			return {
-				id: key,
-				value: key,
-				sibling
+				value: {
+					type: 'string',
+					data: key
+				},
+				sibling,
+				elementType: element.valueType
 			};
 		});
 }
@@ -200,6 +202,29 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	});
 }
 
+function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
+	return keys => {
+		// let existingKeys: Set<string>;
+		// if (element.setting.uniqueItems) {
+		// 	existingKeys = new Set(keys);
+		// }
+		const enumOptions: IObjectEnumOption[] = [];
+
+		if (element.setting.enum) {
+			element.setting.enum.forEach((staticKey, i) => {
+				// if (!element.setting.uniqueItems || !existingKeys.has(staticKey)) {
+				const description = element.setting.enumDescriptions?.[i];
+				enumOptions.push({ value: staticKey, description });
+				// }
+			});
+		}
+
+		return enumOptions.length > 0
+			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+			: undefined;
+	};
+}
+
 function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
 	const { objectProperties } = element.setting;
 	const allStaticKeys = Object.keys(objectProperties ?? {});
@@ -267,11 +292,43 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 		return [];
 	}
 
-	return element.value.map((key: string) => {
-		return {
-			value: key
-		};
-	});
+	if (element.setting.arrayItemType === 'enum') {
+		let enumOptions: IObjectEnumOption[] = [];
+		if (element.setting.enum) {
+			enumOptions = element.setting.enum.map((setting, i) => {
+				return {
+					value: setting,
+					description: element.setting.enumDescriptions?.[i]
+				};
+			});
+		}
+		return element.value.map((key: string) => {
+			return {
+				value: {
+					type: 'enum',
+					data: key,
+					options: enumOptions
+				}
+			};
+		});
+	} else {
+		return element.value.map((key: string) => {
+			return {
+				value: {
+					type: 'string',
+					data: key
+				}
+			};
+		});
+	}
+}
+
+function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDisplayValue: IListDataItem[]): boolean {
+	if (dataElement.setting.enum && dataElement.setting.uniqueItems) {
+		return dataElement.setting.enum.length - listDisplayValue.length > 0;
+	} else {
+		return true;
+	}
 }
 
 export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
@@ -978,7 +1035,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 	}
 
-	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined | null {
+	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
 			if (isArray(template.context.scopeValue)) {
@@ -989,23 +1046,23 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 			if (e.targetIndex !== undefined) {
 				// Delete value
-				if (!e.item?.value && e.originalItem.value && e.targetIndex > -1) {
+				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
 				}
 				// Update value
-				else if (e.item?.value && e.originalItem.value) {
+				else if (e.item?.value.data && e.originalItem.value.data) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value;
+						newValue[e.targetIndex] = e.item.value.data.toString();
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value);
+						newValue.push(e.item.value.data.toString());
 					}
 				}
 				// Add value
-				else if (e.item?.value && !e.originalItem.value && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value);
+				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
+					newValue.push(e.item.value.data.toString());
 				}
 			}
 			if (
@@ -1029,7 +1086,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
-		template.listWidget.setValue(value);
+		template.listWidget.setValue(value, {
+			keySuggester: createArraySuggester(dataElement),
+			showAddButton: getShowAddButtonList(dataElement, value)
+		});
 		template.context = dataElement;
 
 		template.onChange = (v) => {
@@ -1037,7 +1097,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			renderArrayValidations(dataElement, template, v, false);
 		};
 
-		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
+		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
 	}
 }
 
@@ -1177,22 +1237,22 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value) {
-				if (e.originalItem.value in template.context.defaultValue) {
+			if (e.originalItem.value.data) {
+				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
 					// delete a default by overriding it
-					newValue[e.originalItem.value] = false;
+					newValue[e.originalItem.value.data.toString()] = false;
 				} else {
-					delete newValue[e.originalItem.value];
+					delete newValue[e.originalItem.value.data.toString()];
 				}
 			}
 
 			// then add the new or updated entry, if present
 			if (e.item?.value) {
-				if (e.item.value in template.context.defaultValue && !e.item.sibling) {
+				if (e.item.value.data.toString() in template.context.defaultValue && !e.item.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.item.value];
+					delete newValue[e.item.value.data.toString()];
 				} else {
-					newValue[e.item.value] = e.item.sibling ? { when: e.item.sibling } : true;
+					newValue[e.item.value.data.toString()] = e.item.sibling ? { when: e.item.sibling } : true;
 				}
 			}
 
@@ -1848,7 +1908,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.ArrayOfString) {
+			if (element.valueType === SettingValueType.StringOrEnumArray) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 

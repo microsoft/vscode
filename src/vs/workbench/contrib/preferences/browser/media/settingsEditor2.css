@@ -573,3 +573,10 @@
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
 	display: block;
 }
+
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-input.select-container {
+	width: 320px;
+}
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-input.select-container > select {
+	width: inherit;
+}
