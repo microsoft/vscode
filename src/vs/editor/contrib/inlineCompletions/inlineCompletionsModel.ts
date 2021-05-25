@@ -122,6 +122,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		super(editor);
 		this._register(toDisposable(() => {
 			this.clearGhostTextPromise();
+			this.clearCache();
 		}));
 
 		this._register(this.editor.onDidChangeModelDecorations(e => {
@@ -213,6 +214,13 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}, onUnexpectedError);
 	}
 
+	private clearCache(): void {
+		if (this.cachedCompletions) {
+			this.editor.deltaDecorations(this.cachedCompletions.map(c => c.decorationId), []);
+			this.cachedCompletions = undefined;
+		}
+	}
+
 	private clearGhostTextPromise(): void {
 		if (this.updatePromise) {
 			this.updatePromise.cancel();
@@ -232,12 +240,14 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: NormalizedInlineCompletion): void {
+		this.clearCache();
 		this.editor.executeEdits(
 			'inlineCompletions.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
+		this.onDidChangeEmitter.fire();
 	}
 }
 
