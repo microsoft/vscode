@@ -32,7 +32,8 @@
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": true
-    }
+    },
+    "virtualWorkspaces": true
   },
   "contributes": {
     "resourceLabelFormatters": [
