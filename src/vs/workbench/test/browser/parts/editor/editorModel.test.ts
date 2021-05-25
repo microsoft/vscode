@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { EditorModel } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -26,6 +25,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 
 suite('Workbench editor model', () => {
 

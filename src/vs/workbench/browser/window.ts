@@ -5,7 +5,7 @@
 
 import { setFullscreen } from 'vs/base/browser/browser';
 import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpenerWithSuccess, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -89,8 +89,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(domEvent(document.body, EventType.KEY_DOWN, true)),
-			Event.once(domEvent(document.body, EventType.MOUSE_DOWN, true))
+			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted

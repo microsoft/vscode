@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';

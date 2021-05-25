@@ -802,7 +802,7 @@ export class TabsTitleControl extends TitleControl {
 			}
 
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.doFillResourceDataTransfers(editor, e);
+			this.doFillResourceDataTransfers([editor], e);
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');

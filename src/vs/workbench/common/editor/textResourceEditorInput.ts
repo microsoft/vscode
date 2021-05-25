@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IRevertOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane } from 'vs/workbench/common/editor';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
@@ -15,6 +15,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IReference } from 'vs/base/common/lifecycle';
+import { IEditorViewState } from 'vs/editor/common/editorCommon';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -77,6 +78,18 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 
 	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
 		await this.textFileService.revert(this.resource, options);
+	}
+
+	protected getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
+		for (const editorPane of this.editorService.visibleEditorPanes) {
+			if (editorPane.group.id === group && this.matches(editorPane.input)) {
+				if (isTextEditorPane(editorPane)) {
+					return editorPane.getViewState();
+				}
+			}
+		}
+
+		return undefined;
 	}
 }
 

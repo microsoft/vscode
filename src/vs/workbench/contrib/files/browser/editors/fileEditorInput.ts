@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, isTextEditorPane } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IReference, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -18,7 +19,6 @@ import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { Schemas } from 'vs/base/common/network';
 
 const enum ForceOpenAs {
@@ -34,6 +34,22 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	override get typeId(): string {
 		return FILE_EDITOR_INPUT_ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this.model) {
+			if (this.model.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		}
+
+		return capabilities;
 	}
 
 	private preferredName: string | undefined;
@@ -194,6 +210,14 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
+	getMode(): string | undefined {
+		if (this.model) {
+			return this.model.getMode();
+		}
+
+		return this.preferredMode;
+	}
+
 	getPreferredMode(): string | undefined {
 		return this.preferredMode;
 	}
@@ -223,14 +247,6 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return !!(this.model?.isDirty());
 	}
 
-	override isReadonly(): boolean {
-		if (this.model) {
-			return this.model.isReadonly();
-		}
-
-		return super.isReadonly();
-	}
-
 	override isOrphaned(): boolean {
 		if (this.model) {
 			return this.model.hasState(TextFileEditorModelState.ORPHAN);
@@ -256,8 +272,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return super.isSaving();
 	}
 
-	override getPreferredEditorId(candidates: string[]): string {
-		return this.forceOpenAs === ForceOpenAs.Binary ? BINARY_FILE_EDITOR_ID : TEXT_FILE_EDITOR_ID;
+	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+		if (this.forceOpenAs === ForceOpenAs.Binary) {
+			return editors.find(editor => editor.typeId === BINARY_FILE_EDITOR_ID);
+		}
+
+		return editors.find(editor => editor.typeId === TEXT_FILE_EDITOR_ID);
 	}
 
 	override resolve(): Promise<ITextFileEditorModel | BinaryEditorModel> {
@@ -340,16 +360,15 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	private getViewStateFor(group: GroupIdentifier): IEditorViewState | undefined {
-		for (const editorPane of this.editorService.visibleEditorPanes) {
-			if (editorPane.group.id === group && this.matches(editorPane.input)) {
-				if (isTextEditorPane(editorPane)) {
-					return editorPane.getViewState();
-				}
+	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
+		return {
+			resource: this.preferredResource,
+			encoding: this.getEncoding(),
+			mode: this.getMode(),
+			options: {
+				viewState: this.getViewStateFor(group)
 			}
-		}
-
-		return undefined;
+		};
 	}
 
 	override matches(otherInput: unknown): boolean {

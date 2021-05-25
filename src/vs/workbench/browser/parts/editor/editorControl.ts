@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -72,7 +73,7 @@ export class EditorControl extends Disposable {
 		// to handle errors properly.
 		const editor = this._activeEditorPane?.input;
 		const options = this._activeEditorPane?.options;
-		if (editor?.requiresWorkspaceTrust()) {
+		if (editor?.hasCapability(EditorInputCapabilities.RequiresTrust)) {
 			this.groupView.openEditor(editor, options);
 		}
 	}
@@ -91,7 +92,7 @@ export class EditorControl extends Disposable {
 	}
 
 	private getEditorDescriptor(editor: EditorInput): IEditorDescriptor {
-		if (editor.requiresWorkspaceTrust() && !this.workspaceTrustService.isWorkpaceTrusted()) {
+		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkpaceTrusted()) {
 			// Workspace trust: if an editor signals it needs workspace trust
 			// but the current workspace is untrusted, we fallback to a generic
 			// editor descriptor to indicate this an do NOT load the registered
@@ -143,7 +144,6 @@ export class EditorControl extends Disposable {
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
-			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			editorPane.create(editorPaneContainer);
 		}
