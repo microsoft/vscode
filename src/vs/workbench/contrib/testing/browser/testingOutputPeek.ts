@@ -32,7 +32,7 @@ import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';

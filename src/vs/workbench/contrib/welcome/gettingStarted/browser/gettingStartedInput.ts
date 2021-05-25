@@ -5,7 +5,7 @@
 
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 

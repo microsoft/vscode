@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';

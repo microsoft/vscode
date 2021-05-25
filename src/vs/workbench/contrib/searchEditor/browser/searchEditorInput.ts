@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -29,6 +29,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export type SearchConfiguration = {
 	query: string,

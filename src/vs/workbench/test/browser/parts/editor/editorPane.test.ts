@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
-import { EditorInput, EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -27,6 +27,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const NullThemeService = new TestThemeService();
 

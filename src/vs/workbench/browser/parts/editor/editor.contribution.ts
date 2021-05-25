@@ -8,10 +8,11 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import {
-	EditorInput, IEditorInputSerializer, SideBySideEditorInput, IEditorInputFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext,
-	EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext,
-	EditorExtensions
+	IEditorInputSerializer, IEditorInputFactoryRegistry, TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorExtensions,
+	EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext, MultipleEditorGroupsContext, ActiveEditorDirtyContext
 } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';

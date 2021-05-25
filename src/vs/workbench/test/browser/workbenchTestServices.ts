@@ -9,7 +9,8 @@ import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorInput, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, SideBySideEditorInput, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorOptions, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -139,6 +140,7 @@ import { BrowserElevatedFileService } from 'vs/workbench/services/files/browser/
 import { IDiffComputationResult, IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { TextEdit, IInplaceReplaceSupportResult } from 'vs/editor/common/modes';
 import { ResourceMap } from 'vs/base/common/map';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined);
@@ -1366,7 +1368,7 @@ export function registerTestFileEditor(): IDisposable {
 			TestTextFileEditor.ID,
 			'Text File Editor'
 		),
-		[new SyncDescriptor<EditorInput>(FileEditorInput)]
+		[new SyncDescriptor(FileEditorInput)]
 	));
 
 	return disposables;
@@ -1382,8 +1384,8 @@ export function registerTestResourceEditor(): IDisposable {
 			'Text Editor'
 		),
 		[
-			new SyncDescriptor<EditorInput>(UntitledTextEditorInput),
-			new SyncDescriptor<EditorInput>(TextResourceEditorInput)
+			new SyncDescriptor(UntitledTextEditorInput),
+			new SyncDescriptor(TextResourceEditorInput)
 		]
 	));
 

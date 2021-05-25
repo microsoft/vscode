@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { withNullAsUndefined, assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, EditorActivation, EditorOpenContext, ITextEditorSelection, TextEditorSelectionRevealType, EditorOverride } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,10 +19,12 @@ import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
-import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
+import { coalesce } from 'vs/base/common/arrays';
 import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { IExtUri } from 'vs/base/common/resources';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -571,132 +573,6 @@ export interface IEditorInput extends IDisposable {
 	isDisposed(): boolean;
 }
 
-/**
- * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
- * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
- */
-export abstract class EditorInput extends Disposable implements IEditorInput {
-
-	protected readonly _onDidChangeDirty = this._register(new Emitter<void>());
-	readonly onDidChangeDirty = this._onDidChangeDirty.event;
-
-	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
-	readonly onDidChangeLabel = this._onDidChangeLabel.event;
-
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
-
-	private disposed: boolean = false;
-
-	abstract get typeId(): string;
-
-	abstract get resource(): URI | undefined;
-
-	get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly;
-	}
-
-	hasCapability(capability: EditorInputCapabilities): boolean {
-		if (capability === EditorInputCapabilities.None) {
-			return this.capabilities === EditorInputCapabilities.None;
-		}
-
-		return (this.capabilities & capability) !== 0;
-	}
-
-	getName(): string {
-		return `Editor ${this.typeId}`;
-	}
-
-	getDescription(verbosity?: Verbosity): string | undefined {
-		return undefined;
-	}
-
-	getTitle(verbosity?: Verbosity): string {
-		return this.getName();
-	}
-
-	getAriaLabel(): string {
-		return this.getTitle(Verbosity.SHORT);
-	}
-
-	/**
-	* Returns a descriptor suitable for telemetry events.
-	*
-	* Subclasses should extend if they can contribute.
-	*/
-	getTelemetryDescriptor(): { [key: string]: unknown } {
-		/* __GDPR__FRAGMENT__
-			"EditorTelemetryDescriptor" : {
-				"typeId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		return { typeId: this.typeId };
-	}
-
-	isDirty(): boolean {
-		return false;
-	}
-
-	isSaving(): boolean {
-		return false;
-	}
-
-	async resolve(): Promise<IEditorModel | null> {
-		return null;
-	}
-
-	async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this;
-	}
-
-	async saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this;
-	}
-
-	async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> { }
-
-	rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
-		return undefined;
-	}
-
-	copy(): IEditorInput {
-		return this;
-	}
-
-	matches(otherInput: unknown): boolean {
-		return this === otherInput;
-	}
-
-	/**
-	 * If a input was registered onto multiple editors, this method
-	 * will be asked to return the preferred one to use.
-	 *
-	 * @param editors a list of editor descriptors that are candidates
-	 * for the editor input to open in.
-	 */
-	prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
-		return firstOrDefault(editors);
-	}
-
-	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined {
-		return undefined;
-	}
-
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
-	override dispose(): void {
-		if (!this.disposed) {
-			this.disposed = true;
-			this._onWillDispose.fire();
-		}
-
-		super.dispose();
-	}
-}
-
 export interface IEditorInputWithPreferredResource {
 
 	/**
@@ -781,176 +657,6 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Figure out if the file input has been resolved or not.
 	 */
 	isResolved(): boolean;
-}
-
-/**
- * Side by side editor inputs that have a primary and secondary side.
- */
-export class SideBySideEditorInput extends EditorInput {
-
-	static readonly ID: string = 'workbench.editorinputs.sidebysideEditorInput';
-
-	override get typeId(): string {
-		return SideBySideEditorInput.ID;
-	}
-
-	override get capabilities(): EditorInputCapabilities {
-
-		// Use primary capabilities as main capabilities
-		let capabilities = this._primary.capabilities;
-
-		// Trust: should be considered for both sides
-		if (this._secondary.hasCapability(EditorInputCapabilities.RequiresTrust)) {
-			capabilities |= EditorInputCapabilities.RequiresTrust;
-		}
-
-		// Singleton: should be considered for both sides
-		if (this._secondary.hasCapability(EditorInputCapabilities.Singleton)) {
-			capabilities |= EditorInputCapabilities.Singleton;
-		}
-
-		return capabilities;
-	}
-
-	get resource(): URI | undefined {
-		return undefined; // use `EditorResourceAccessor` to obtain one side's resource
-	}
-
-	get primary(): EditorInput {
-		return this._primary;
-	}
-
-	get secondary(): EditorInput {
-		return this._secondary;
-	}
-
-	constructor(
-		protected readonly name: string | undefined,
-		protected readonly description: string | undefined,
-		private readonly _secondary: EditorInput,
-		private readonly _primary: EditorInput
-	) {
-		super();
-
-		this.registerListeners();
-	}
-
-	private registerListeners(): void {
-
-		// When the primary or secondary input gets disposed, dispose this diff editor input
-		const onceSecondaryDisposed = Event.once(this.secondary.onWillDispose);
-		this._register(onceSecondaryDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		const oncePrimaryDisposed = Event.once(this.primary.onWillDispose);
-		this._register(oncePrimaryDisposed(() => {
-			if (!this.isDisposed()) {
-				this.dispose();
-			}
-		}));
-
-		// Reemit some events from the primary side to the outside
-		this._register(this.primary.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
-		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
-	}
-
-	override getName(): string {
-		if (!this.name) {
-			return localize('sideBySideLabels', "{0} - {1}", this._secondary.getName(), this._primary.getName());
-		}
-
-		return this.name;
-	}
-
-	override getDescription(): string | undefined {
-		return this.description;
-	}
-
-	override getTelemetryDescriptor(): { [key: string]: unknown } {
-		const descriptor = this.primary.getTelemetryDescriptor();
-
-		return Object.assign(descriptor, super.getTelemetryDescriptor());
-	}
-
-	override isDirty(): boolean {
-		return this.primary.isDirty();
-	}
-
-	override isSaving(): boolean {
-		return this.primary.isSaving();
-	}
-
-	override save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this.primary.save(group, options);
-	}
-
-	override saveAs(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
-		return this.primary.saveAs(group, options);
-	}
-
-	override revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
-		return this.primary.revert(group, options);
-	}
-
-	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
-			return true;
-		}
-
-		if (otherInput instanceof SideBySideEditorInput) {
-			return this.primary.matches(otherInput.primary) && this.secondary.matches(otherInput.secondary);
-		}
-
-		return false;
-	}
-}
-
-/**
- * The editor model is the heavyweight counterpart of editor input. Depending on the editor input, it
- * resolves from a file system retrieve content and may allow for saving it back or reverting it.
- * Editor models are typically cached for some while because they are expensive to construct.
- */
-export class EditorModel extends Disposable implements IEditorModel {
-
-	private readonly _onWillDispose = this._register(new Emitter<void>());
-	readonly onWillDispose = this._onWillDispose.event;
-
-	private disposed = false;
-	private resolved = false;
-
-	/**
-	 * Causes this model to resolve returning a promise when loading is completed.
-	 */
-	async resolve(): Promise<void> {
-		this.resolved = true;
-	}
-
-	/**
-	 * Returns whether this model was loaded or not.
-	 */
-	isResolved(): boolean {
-		return this.resolved;
-	}
-
-	/**
-	 * Find out if this model has been disposed.
-	 */
-	isDisposed(): boolean {
-		return this.disposed;
-	}
-
-	/**
-	 * Subclasses should implement to free resources that have been claimed through loading.
-	 */
-	override dispose(): void {
-		this.disposed = true;
-		this._onWillDispose.fire();
-
-		super.dispose();
-	}
 }
 
 export interface IEditorInputWithOptions {

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, EditorResourceAccessor, IEditorInput, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, EditorExtensions, SideBySideEditor, IEditorDescriptor as ICommonEditorDescriptor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';

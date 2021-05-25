@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EditorResourceAccessor, SideBySideEditorInput, IEditorPane, IEditorInput, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IFileEditorInput, EditorResourceAccessor, IEditorPane, IEditorInput, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -53,6 +53,7 @@ import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platfor
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }

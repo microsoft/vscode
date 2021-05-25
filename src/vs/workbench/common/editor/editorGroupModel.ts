@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorInputFactoryRegistry, EditorInput, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, IEditorInput, EditorsOrder, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';

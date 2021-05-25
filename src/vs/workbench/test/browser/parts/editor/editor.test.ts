@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, SideBySideEditorInput, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, SideBySideEditor, IEditorInputWithPreferredResource, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +18,7 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditoInput';
 
 suite('Workbench editor', () => {
 

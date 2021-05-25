@@ -24,7 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EditorInput, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -42,6 +42,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const emptyEditableSettingsContent = '{\n}';
 

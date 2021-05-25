@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export class RuntimeExtensionsInput extends EditorInput {
 

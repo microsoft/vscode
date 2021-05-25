@@ -26,7 +26,7 @@ import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/c
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { AbstractSideBySideEditorInputSerializer } from 'vs/workbench/browser/parts/editor/editor.contribution';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
@@ -42,6 +42,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { DefaultPreferencesEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
