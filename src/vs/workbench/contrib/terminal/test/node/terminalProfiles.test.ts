@@ -231,9 +231,6 @@ suite('Workbench - TerminalProfiles', () => {
 					fail('Unexepected path');
 				}
 				return Buffer.from(etcShellsContent);
-			},
-			async getPaths(): Promise<string[]> {
-				return expectedPaths;
 			}
 		};
 		return provider;
