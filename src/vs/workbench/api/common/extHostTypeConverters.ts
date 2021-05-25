@@ -1433,18 +1433,6 @@ export namespace NotebookCellMetadata {
 	}
 }
 
-export namespace NotebookCellInternalMetadata {
-
-	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
-		return {
-			endTime: data.runEndTime,
-			startTime: data.runStartTime,
-			executionOrder: data.executionOrder,
-			success: data.lastRunSuccess
-		};
-	}
-}
-
 export namespace NotebookDocumentMetadata {
 
 	export function from(data: types.NotebookDocumentMetadata): notebooks.NotebookDocumentMetadata {
@@ -1540,7 +1528,7 @@ export namespace NotebookCellData {
 			data.language,
 			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
 			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
-			data.internalMetadata ? NotebookCellInternalMetadata.to(data.internalMetadata) : undefined
+			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
 		);
 	}
 }
