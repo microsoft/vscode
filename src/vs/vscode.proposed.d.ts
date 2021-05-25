@@ -1563,6 +1563,9 @@ declare module 'vscode' {
 
 		/**
 		 * The identifier of this notebook controller.
+		 *
+		 * _Note_ that controllers are remembered by their identifier and that extensions should use
+		 * stable identifiers across sessions.
 		 */
 		readonly id: string;
 
