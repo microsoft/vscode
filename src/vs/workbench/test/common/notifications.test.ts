@@ -10,6 +10,7 @@ import { INotification, Severity, NotificationsFilter } from 'vs/platform/notifi
 import { createErrorWithActions } from 'vs/base/common/errors';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { timeout } from 'vs/base/common/async';
 
 suite('Notifications', () => {
 
@@ -141,6 +142,17 @@ suite('Notifications', () => {
 
 		let item11 = NotificationViewItem.create({ severity: Severity.Warning, message: 'Error Message' }, NotificationsFilter.ERROR)!;
 		assert.strictEqual(item11.silent, true);
+	});
+
+	test('Items - does not fire changed when message did not change', async () => {
+		const item1 = NotificationViewItem.create({ severity: Severity.Error, message: 'Error Message' })!;
+		let fired = false;
+		item1.onDidChangeContent(() => {
+			fired = true;
+		});
+		item1.updateMessage('Error Message');
+		await timeout(0);
+		assert.ok(!fired, 'Expected onDidChangeContent to not be fired');
 	});
 
 	test('Model', () => {
