@@ -1274,7 +1274,7 @@ declare module 'vscode' {
 		 * @param mime Optional MIME type, defaults to `application/octet-stream`.
 		 * @returns A new output item object.
 		 */
-		//todo@API better names: bytes, raw, buffer?
+		//todo@API REMOVE, dupe ctor
 		static bytes(value: Uint8Array, mime?: string): NotebookCellOutputItem;
 
 		/**
@@ -1317,10 +1317,13 @@ declare module 'vscode' {
 		 * The value of this output item. Must always be an array of unsigned 8-bit integers.
 		 */
 		//todo@API only Unit8Array
+		//todo@API RENAME to data
 		value: Uint8Array | unknown;
 
 		metadata?: { [key: string]: any };
 
+		//todo@API RENAME to data
+		//todo@API swap args
 		/**
 		 * Create a new notbook cell output item.
 		 *
@@ -1654,6 +1657,7 @@ declare module 'vscode' {
 		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
+		// todo@API rename to NotebookCellExecution
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
 		// todo@API find a better name than "preloads"
