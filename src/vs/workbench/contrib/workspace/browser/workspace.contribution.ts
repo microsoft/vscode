@@ -158,7 +158,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private showModalOnStart(): void {
+	private async showModalOnStart(): Promise<void> {
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
 			return;
@@ -167,6 +167,11 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		// Don't show modal prompt for virtual workspaces by default
 		if (getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined) {
 			this.updateWorkbenchIndicators(false);
+			return;
+		}
+
+		// Don't show modal prompt if workspace trust cannot be changed
+		if (!(await this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
 			return;
 		}
 
