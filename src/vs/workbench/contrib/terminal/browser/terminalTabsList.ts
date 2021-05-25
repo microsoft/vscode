@@ -39,7 +39,6 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
-import { joinPath } from 'vs/base/common/resources';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 
@@ -252,7 +251,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			template.element.classList.toggle('has-text', hasText);
 
 			if (template.label.element.style.display = 'none') {
-				// was hidden bc rename was happening just prior
 				template.label.element.style.display = '';
 			}
 
@@ -347,10 +345,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
 
 		const label = this._labels.create(container);
-		const extraClasses = ['tab-edited'];
-		const labelOptions = { hidePath: true, hideLabel: true, extraClasses };
-
-		const parent = instance.resource;
 		const value = instance.title || '';
 
 		const inputBox = new InputBox(label.element, this._contextViewService, {
@@ -404,9 +398,6 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		const toDispose = [
 			inputBox,
-			inputBox.onDidChange(value => {
-				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
-			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.Enter)) {
 					done(inputBox.isInputValid(), true);

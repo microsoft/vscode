@@ -603,9 +603,8 @@ export interface ITerminalInstance {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 
 	/**
-	 * TODO:@meganrogge update this when the single tab action uses this too
-	 * If a title is provided via the inline tab rename action, that is set as the terminal's name.
-	 * Otherwise, this triggers a quick pick to rename this terminal.
+	 * Sets the terminal name to the provided title or triggers a quick pick
+	 * to take user input.
 	 */
 	rename(title?: string): Promise<void>;
 
