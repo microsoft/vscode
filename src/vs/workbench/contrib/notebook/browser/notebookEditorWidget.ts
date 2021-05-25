@@ -656,8 +656,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			styleSheets.push(`
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left:before {
-				border-left: 2px solid transparent;
-				border-right: 1px solid transparent;
+				border-left: 3px solid transparent;
 				border-radius: 2px;
 				margin-left: ${focusIndicatorLeftMargin}px;
 			}`);
