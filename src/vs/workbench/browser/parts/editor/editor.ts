@@ -132,7 +132,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
-export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): IEditorOptions {
+export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): ITextEditorOptions {
 	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {

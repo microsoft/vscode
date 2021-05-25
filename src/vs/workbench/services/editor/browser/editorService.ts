@@ -28,7 +28,6 @@ import { IEditorGroupView, EditorServiceImpl } from 'vs/workbench/browser/parts/
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isUndefined, withNullAsUndefined } from 'vs/base/common/types';
 import { EditorsObserver } from 'vs/workbench/browser/parts/editor/editorsObserver';
-import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { Promises, timeout } from 'vs/base/common/async';
@@ -1174,12 +1173,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Preserve view state by opening the editor first if the editor
 			// is untitled or we "Save As". This also allows the user to review
 			// the contents of the editor before making a decision.
-			let viewState: IEditorViewState | undefined = undefined;
 			const editorPane = await this.openEditor(editor, undefined, groupId);
-			if (isTextEditorPane(editorPane)) {
-				viewState = editorPane.getViewState();
-			}
-			const editorOptions: ITextEditorOptions = { pinned: true, viewState };
+			const editorOptions: ITextEditorOptions = {
+				pinned: true,
+				viewState: isTextEditorPane(editorPane) ? editorPane.getViewState() : undefined
+			};
 
 			const result = options?.saveAs ? await editor.saveAs(groupId, options) : await editor.save(groupId, options);
 			saveResults.push(result);
