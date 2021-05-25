@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
+ { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
+ * as DOM from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IMouseWheelEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IMouseWheelEvent, StandardMouseEvent } fom 'vs/base/browser/mouseEvent';
 import { IListContextMenuEvent } from 'vs/base/browser/ui/list/list';
 import { IAction } from 'vs/base/common/actions';
 import { SequencerByKey } from 'vs/base/common/async';
