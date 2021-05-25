@@ -37,6 +37,7 @@ export function detectAvailableProfiles(
 			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			testPaths,
 			variableResolver
 		);
 	}
@@ -58,6 +59,7 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
+	testPaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
@@ -73,7 +75,7 @@ async function detectAvailableWindowsProfiles(
 		useWSLexe = true;
 	}
 
-	await initializeWindowsProfiles();
+	await initializeWindowsProfiles(testPaths);
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -175,7 +177,7 @@ async function transformToTerminalProfiles(
 	return resultProfiles;
 }
 
-async function initializeWindowsProfiles(): Promise<void> {
+async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
 	if (profileSources) {
 		return;
 	}
@@ -197,7 +199,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: await getPowershellPaths(),
+		paths: testPaths || await getPowershellPaths(),
 		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
