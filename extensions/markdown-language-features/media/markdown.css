@@ -105,6 +105,18 @@ body.showEditorSelection li.code-line:hover:before {
 .vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
 	border-left: none;
 }
+ul ul{
+	margin-bottom: 0%;
+}
+ul ol{
+	margin-bottom: 0%;
+}
+ol ul{
+	margin-bottom: 0%;
+}
+ol ol{
+	margin-bottom: 0%;
+}
 
 img {
 	max-width: 100%;
@@ -132,9 +144,6 @@ p {
 }
 
 ul,
-ul{
-	margin-bottom: 0;
-}
 ol {
 	margin-bottom: 0.7em;
 }
