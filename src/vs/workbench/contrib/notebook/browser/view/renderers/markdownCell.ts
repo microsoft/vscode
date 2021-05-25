@@ -250,6 +250,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	private updateFoldingIconShowClass() {
 		const showFoldingIcon = this.notebookEditor.notebookOptions.getLayoutConfiguration().showFoldingControls;
+		this.templateData.foldingIndicator.classList.remove('mouseover', 'always');
 		this.templateData.foldingIndicator.classList.add(showFoldingIcon);
 	}
 
