@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -677,12 +677,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return options as EditorOptions;
 		}
 
-		const textOptions: ITextEditorOptions = options;
-		if (textOptions.selection || textOptions.viewState) {
-			return TextEditorOptions.create(options);
-		}
-
-		return EditorOptions.create(options);
+		return (options ?? Object.create(null)) as EditorOptions;
 	}
 
 	//#endregion

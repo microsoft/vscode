@@ -874,16 +874,6 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
 	/**
-	 * Helper to convert options bag to real class
-	 */
-	static override create(options: ITextEditorOptions = Object.create(null)): TextEditorOptions {
-		const textEditorOptions = new TextEditorOptions();
-		textEditorOptions.overwrite(options);
-
-		return textEditorOptions;
-	}
-
-	/**
 	 * Overwrites option values from the provided bag.
 	 */
 	override overwrite(options: ITextEditorOptions): TextEditorOptions {
