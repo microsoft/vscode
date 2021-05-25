@@ -64,7 +64,6 @@ import { editorGutterModifiedBackground } from 'vs/workbench/contrib/scm/browser
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { isWeb } from 'vs/base/common/platform';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { readFontInfo } from 'vs/editor/browser/config/configuration';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
@@ -332,7 +331,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super();
 		this.isEmbedded = creationOptions.isEmbedded || false;
 
-		this.useRenderer = !isWeb && !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
+		this.useRenderer = !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
 		this._notebookOptions = new NotebookOptions(this.configurationService);
 		this._register(this._notebookOptions);
 		this._viewContext = new ViewContext(this._notebookOptions, new NotebookEventDispatcher());
