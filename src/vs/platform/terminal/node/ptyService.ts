@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IProcessEnvironment, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, LocalReconnectConstants, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, IRawTerminalInstanceLayoutInfo, ITerminalTabLayoutInfoById, ITerminalInstanceLayoutInfoById, TerminalShellType, IProcessReadyEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { AutoOpenBarrier, Queue, RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
@@ -51,7 +51,8 @@ export class PtyService extends Disposable implements IPtyService {
 
 	constructor(
 		private _lastPtyId: number,
-		private readonly _logService: ILogService
+		private readonly _logService: ILogService,
+		private readonly _reconnectConstants: IReconnectConstants
 	) {
 		super();
 
@@ -92,7 +93,7 @@ export class PtyService extends Disposable implements IPtyService {
 		if (process.onProcessResolvedShellLaunchConfig) {
 			process.onProcessResolvedShellLaunchConfig(event => this._onProcessResolvedShellLaunchConfig.fire({ id, event }));
 		}
-		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._logService, shellLaunchConfig.icon);
+		const persistentProcess = new PersistentTerminalProcess(id, process, workspaceId, workspaceName, shouldPersist, cols, rows, this._reconnectConstants, this._logService, shellLaunchConfig.icon);
 		process.onProcessExit(() => {
 			persistentProcess.dispose();
 			this._ptys.delete(id);
@@ -324,6 +325,7 @@ export class PersistentTerminalProcess extends Disposable {
 		readonly workspaceName: string,
 		readonly shouldPersistTerminal: boolean,
 		cols: number, rows: number,
+		reconnectConstants: IReconnectConstants,
 		private readonly _logService: ILogService,
 		private _icon?: TerminalIcon,
 		private _color?: string
@@ -333,13 +335,13 @@ export class PersistentTerminalProcess extends Disposable {
 		this._orphanQuestionBarrier = null;
 		this._orphanQuestionReplyTime = 0;
 		this._disconnectRunner1 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionGraceTime)} has expired, shutting down pid "${this._pid}"`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The reconnection grace time of ${printTime(reconnectConstants.GraceTime)} has expired, shutting down pid "${this._pid}"`);
 			this.shutdown(true);
-		}, LocalReconnectConstants.ReconnectionGraceTime));
+		}, reconnectConstants.GraceTime));
 		this._disconnectRunner2 = this._register(new RunOnceScheduler(() => {
-			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(LocalReconnectConstants.ReconnectionShortGraceTime)} has expired, shutting down pid ${this._pid}`);
+			this._logService.info(`Persistent process "${this._persistentProcessId}": The short reconnection grace time of ${printTime(reconnectConstants.ShortGraceTime)} has expired, shutting down pid ${this._pid}`);
 			this.shutdown(true);
-		}, LocalReconnectConstants.ReconnectionShortGraceTime));
+		}, reconnectConstants.ShortGraceTime));
 
 		this._register(this._terminalProcess.onProcessReady(e => {
 			this._pid = e.pid;

@@ -14,13 +14,8 @@
 	position: relative;
 }
 
-.monaco-workbench .pane-body.integrated-terminal .terminal-outer-container {
-	height: 100%;
-	width: 100%;
-	box-sizing: border-box;
-	overflow: hidden;
-}
-
+.monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
+.monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group {
 	height: 100%;
 }
@@ -28,7 +23,7 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
 	margin: 0 10px;
-	bottom: 2px; /* Matches padding-bottom on .terminal-outer-container */
+	bottom: 2px;
 }
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	display: block;
@@ -107,7 +102,7 @@
 }
 
 /* Use the default cursor when alt is active to help with clicking to move cursor */
-.monaco-workbench .pane-body.integrated-terminal .terminal-outer-container.alt-active .xterm {
+.monaco-workbench .pane-body.integrated-terminal .terminal-groups-container.alt-active .xterm {
 	cursor: default;
 }
 
@@ -157,8 +152,8 @@
 	opacity: 0 !important;
 }
 
-.monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events),
-.monaco-workbench.hc-black.mac .pane-body.integrated-terminal .terminal-outer-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
+.monaco-workbench.vs-dark.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events),
+.monaco-workbench.hc-black.mac .pane-body.integrated-terminal .terminal-groups-container:not(.alt-active) .terminal:not(.enable-mouse-events) {
 	cursor: -webkit-image-set(url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAQAAAC1+jfqAAAAL0lEQVQoz2NgCD3x//9/BhBYBWdhgFVAiVW4JBFKGIa4AqD0//9D3pt4I4tAdAMAHTQ/j5Zom30AAAAASUVORK5CYII=') 1x, url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAQAAADZc7J/AAAAz0lEQVRIx2NgYGBY/R8I/vx5eelX3n82IJ9FxGf6tksvf/8FiTMQAcAGQMDvSwu09abffY8QYSAScNk45G198eX//yev73/4///701eh//kZSARckrNBRvz//+8+6ZohwCzjGNjdgQxkAg7B9WADeBjIBqtJCbhRA0YNoIkBSNmaPEMoNmA0FkYNoFKhapJ6FGyAH3nauaSmPfwI0v/3OukVi0CIZ+F25KrtYcx/CTIy0e+rC7R1Z4KMICVTQQ14feVXIbR695u14+Ir4gwAAD49E54wc1kWAAAAAElFTkSuQmCC') 2x) 5 8, text;
 }
 

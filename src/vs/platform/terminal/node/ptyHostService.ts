@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider, TerminalSettingId, TitleEventSource, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider, TerminalSettingId, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -79,6 +79,7 @@ export class PtyHostService extends Disposable implements IPtyService {
 	readonly onProcessOrphanQuestion = this._onProcessOrphanQuestion.event;
 
 	constructor(
+		private readonly _reconnectConstants: IReconnectConstants,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService
@@ -104,7 +105,9 @@ export class PtyHostService extends Disposable implements IPtyService {
 					VSCODE_LAST_PTY_ID: lastPtyId,
 					VSCODE_AMD_ENTRYPOINT: 'vs/platform/terminal/node/ptyHostMain',
 					VSCODE_PIPE_LOGGING: 'true',
-					VSCODE_VERBOSE_LOGGING: 'true' // transmit console logs from server to client
+					VSCODE_VERBOSE_LOGGING: 'true', // transmit console logs from server to client,
+					VSCODE_RECONNECT_GRACE_TIME: this._reconnectConstants.GraceTime,
+					VSCODE_RECONNECT_SHORT_GRACE_TIME: this._reconnectConstants.ShortGraceTime
 				}
 			}
 		);
@@ -331,6 +334,12 @@ export class PtyHostService extends Disposable implements IPtyService {
 				return this._configurationService.getValue(key) as any;
 			}
 			const inspected = this._configurationService.inspect(key);
+			if (!inspected) {
+				return undefined;
+			}
+			if (inspected.userValue && typeof inspected.userValue === 'object' && inspected.defaultValue && typeof inspected.defaultValue === 'object') {
+				return { ...inspected.defaultValue, ...inspected.userValue };
+			}
 			return inspected?.userValue || inspected?.defaultValue;
 		};
 	}

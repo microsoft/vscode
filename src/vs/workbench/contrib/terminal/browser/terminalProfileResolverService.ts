@@ -113,10 +113,14 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		// Verify the icon is valid, and fallback correctly to the generic terminal id if there is
 		// an issue
 		shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || this._getCustomIcon(resolvedProfile.icon) || Codicon.terminal;
+
 		// Override the name if specified
 		if (resolvedProfile.overrideName) {
 			shellLaunchConfig.name = resolvedProfile.profileName;
 		}
+
+		// Apply the color
+		shellLaunchConfig.color = resolvedProfile.color;
 
 		// Resolve useShellEnvironment based on the setting if it's not set
 		if (shellLaunchConfig.useShellEnvironment === undefined) {

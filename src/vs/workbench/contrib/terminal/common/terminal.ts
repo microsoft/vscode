@@ -25,6 +25,9 @@ export const KEYBINDING_CONTEXT_TERMINAL_FOCUS = new RawContextKey<boolean>('ter
 /** A context key that is set to the current number of integrated terminals. */
 export const KEYBINDING_CONTEXT_TERMINAL_COUNT = new RawContextKey<number>('terminalCount', 0, nls.localize('terminalCountContextKey', "The current number of terminals"));
 
+/** A context key that is set to the current number of integrated terminals. */
+export const KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT = new RawContextKey<number>('terminalGroupCount', 0, nls.localize('terminalGroupCountContextKey', "The current number of terminal groups"));
+
 /** A context key that is set when the terminal tabs view is narrow. */
 export const KEYBINDING_CONTEXT_TERMINAL_IS_TABS_NARROW_FOCUS = new RawContextKey<boolean>('isTerminalTabsNarrow', false, true);
 
@@ -199,8 +202,8 @@ export interface ITerminalConfiguration {
 	enablePersistentSessions: boolean;
 	tabs: {
 		enabled: boolean;
-		hideCondition: 'never' | 'singleTerminal';
-		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'never';
+		hideCondition: 'never' | 'singleTerminal' | 'singleGroup';
+		showActiveTerminal: 'always' | 'singleTerminal' | 'singleTerminalOrNarrow' | 'singleGroup' | 'never';
 		location: 'left' | 'right';
 		focusMode: 'singleClick' | 'doubleClick';
 	},

@@ -52,13 +52,14 @@ import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/t
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -1818,27 +1819,59 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!icon) {
 			return;
 		}
-		const items: IQuickPickItem[] = [];
-		for (const color of colors) {
-			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${color.replace('terminal.ansi', '')}`, id: `${color.replace(/\./g, '_')}`, description: `${color}`, iconClasses: [`terminal-icon-${color.replace(/\./g, '_')}`]
-			});
+
+		const standardColors: string[] = [];
+		const colorTheme = this._themeService.getColorTheme();
+		for (const colorKey in ansiColorMap) {
+			const color = colorTheme.getColor(colorKey);
+			if (color && !colorKey.toLowerCase().includes('bright')) {
+				standardColors.push(colorKey);
+			}
 		}
 
-		const result = await this._quickInputService.pick(items, {
-			title: nls.localize('changeTerminalColor', "Change Color"),
-			matchOnDescription: true
+		const styleElement = document.createElement('style');
+		let css = '';
+		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+		for (const colorKey of standardColors) {
+			const colorClass = getColorClass(colorKey);
+			items.push({
+				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
+			});
+			const color = colorTheme.getColor(colorKey);
+			if (color) {
+				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+			}
+		}
+		items.push({ type: 'separator' });
+		const showAllColorsItem = { label: 'Show all colors' };
+		items.push(showAllColorsItem);
+		styleElement.textContent = css;
+		document.body.appendChild(styleElement);
+
+		const quickPick = this._quickInputService.createQuickPick();
+		quickPick.items = items;
+		quickPick.matchOnDescription = true;
+		quickPick.title = nls.localize('changeTerminalColor', "Change Color");
+		quickPick.show();
+		const disposables: IDisposable[] = [];
+		const result = await new Promise<IQuickPickItem | undefined>(r => {
+			disposables.push(quickPick.onDidHide(() => r(undefined)));
+			disposables.push(quickPick.onDidAccept(() => r(quickPick.selectedItems[0])));
 		});
+		dispose(disposables);
+
 		if (result) {
 			this.shellLaunchConfig.color = result.id;
 			this._onIconChanged.fire(this);
 		}
+
+		quickPick.hide();
+		document.body.removeChild(styleElement);
 	}
 }
 
 class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
-
 
 	private readonly _onDropFile = new Emitter<string>();
 	get onDropFile(): Event<string> { return this._onDropFile.event; }
@@ -1946,19 +1979,7 @@ class TerminalInstanceDropAndDropController extends Disposable implements IDragA
 	}
 }
 
-let colors: string[] = [];
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-	// add icon colors
-	colors = [];
-	for (const colorKey in ansiColorMap) {
-		const color = theme.getColor(colorKey);
-		if (color && !colorKey.toLowerCase().includes('bright')) {
-			colors.push(colorKey);
-			// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
-			collector.addRule(`.monaco-workbench .terminal-icon-${colorKey.replace(/\./g, '_')} .codicon:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`);
-		}
-	}
-
 	// Border
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {

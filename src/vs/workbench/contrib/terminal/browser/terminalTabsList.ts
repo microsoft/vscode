@@ -90,6 +90,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			keybindingService,
 		);
 		this._terminalService.onInstancesChanged(() => this.render());
+		this._terminalService.onGroupsChanged(() => this.render());
 		this._terminalService.onInstanceTitleChanged(() => this.render());
 		this._terminalService.onInstanceIconChanged(() => this.render());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.render());
@@ -272,11 +273,11 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			}
 		} else {
 			this.fillActionBar(instance, template);
-			label = `${prefix}$(${iconId})`;
+			label = prefix;
 			// Only add the title if the icon is set, this prevents the title jumping around for
 			// example when launching with a ShellLaunchConfig.name and no icon
 			if (instance.icon) {
-				label += ` ${instance.title}`;
+				label += `$(${iconId}) ${instance.title}`;
 			}
 		}
 

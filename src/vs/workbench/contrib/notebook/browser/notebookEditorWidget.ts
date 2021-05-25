@@ -369,7 +369,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._updateForNotebookConfiguration();
 			}
 
-			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize) {
+			if (e.compactView || e.focusIndicator || e.insertToolbarPosition || e.cellToolbarLocation || e.dragAndDropEnabled || e.fontSize || e.insertToolbarAlignment) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -556,6 +556,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			cellRunGutter,
 			cellBottomMargin,
 			codeCellLeftMargin,
+			markdownCellLeftMargin,
 			markdownCellBottomMargin,
 			markdownCellTopMargin,
 			bottomToolbarGap: bottomCellToolbarGap,
@@ -564,6 +565,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			compactView,
 			focusIndicator,
 			insertToolbarPosition,
+			insertToolbarAlignment,
 			fontSize
 		} = this._notebookOptions.getLayoutConfiguration();
 
@@ -656,7 +658,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.focused .cell-focus-indicator-right:before,
 			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
-				top: 0px; height: 100%px;
+				top: 0px; height: 100%;
 			}`);
 		}
 
@@ -667,6 +669,35 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		} else {
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { display: none; }`);
 			styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { display: none; }`);
+		}
+
+		if (insertToolbarAlignment === 'left') {
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .action-item:first-child, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .action-item:first-child {
+				margin-right: 0px !important;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
+				padding: 0px !important;
+				justify-content: center;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
+				align-items: flex-start;
+				justify-content: left;
+				margin: 0 16px 0 8px;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container,
+			.notebookOverlay .cell-bottom-toolbar-container .action-item {
+				border: 0px;
+			}`);
 		}
 
 		// top insert toolbar
@@ -687,12 +718,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		styleSheets.push(`.notebookOverlay .output { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .output { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
 
+		// output toolbar
+		styleSheets.push(`.monaco-workbench .notebookOverlay .output .cell-output-toolbar { left: -${cellRunGutter}px; }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay .output .cell-output-toolbar { width: ${cellRunGutter}px; }`);
+
 		styleSheets.push(`.notebookOverlay .output-show-more-container { margin: 0px ${cellRightMargin}px 0px ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .output-show-more-container { width: calc(100% - ${codeCellLeftMargin + cellRunGutter + cellRightMargin}px); }`);
-
-		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .cell .run-button-container { width: ${cellRunGutter}px; left: ${codeCellLeftMargin}px }`);
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label { left: ${codeCellLeftMargin}px; width: ${cellRunGutter}px; }`);
+
+		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellLeftMargin - 20) / 2}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomCellToolbarGap}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,

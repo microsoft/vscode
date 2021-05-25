@@ -46,7 +46,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"]]`;
 
 	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
 

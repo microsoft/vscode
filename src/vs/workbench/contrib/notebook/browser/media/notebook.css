@@ -263,10 +263,13 @@
 	position: absolute;
 	top: 4px;
 	left: -32px;
-	width: 16px;
 	height: 16px;
 	cursor: pointer;
-	padding: 6px;
+	padding: 6px 0px;
+}
+
+.monaco-workbench .notebookOverlay .output .cell-output-toolbar .actions-container {
+	justify-content: center;
 }
 
 .monaco-workbench .notebookOverlay .output pre {

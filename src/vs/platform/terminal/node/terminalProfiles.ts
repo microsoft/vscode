@@ -115,8 +115,10 @@ async function detectAvailableWindowsProfiles(
 	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
-			if (result) {
-				resultProfiles.push(...result);
+			for (const wslProfile of result) {
+				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
+					resultProfiles.push(wslProfile);
+				}
 			}
 		} catch (e) {
 			logService?.info('WSL is not installed, so could not detect WSL profiles');
@@ -164,6 +166,7 @@ async function transformToTerminalProfiles(
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
+			validatedProfile.color = profile.color;
 			resultProfiles.push(validatedProfile);
 		} else {
 			logService?.trace('profile not validated', profileName, originalPaths);
