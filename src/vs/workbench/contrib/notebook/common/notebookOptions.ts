@@ -31,7 +31,7 @@ export interface NotebookLayoutConfiguration {
 	cellBottomMargin: number;
 	cellOutputPadding: number;
 	codeCellLeftMargin: number;
-	markdownCellLeftMargin: number;
+	markdownCellGutter: number;
 	markdownCellTopMargin: number;
 	markdownCellBottomMargin: number;
 	markdownPreviewPadding: number;
@@ -78,7 +78,7 @@ const defaultConfigConstants = {
 	cellRunGutter: 32,
 	markdownCellTopMargin: 8,
 	markdownCellBottomMargin: 8,
-	markdownCellLeftMargin: 32,
+	markdownCellGutter: 32,
 };
 
 const compactConfigConstants = {
@@ -86,7 +86,7 @@ const compactConfigConstants = {
 	cellRunGutter: 32,
 	markdownCellTopMargin: 6,
 	markdownCellBottomMargin: 6,
-	markdownCellLeftMargin: 32,
+	markdownCellGutter: 32,
 };
 
 export class NotebookOptions {
@@ -384,7 +384,7 @@ export class NotebookOptions {
 			outputNodePadding: this._layoutConfiguration.cellOutputPadding,
 			outputNodeLeftPadding: this._layoutConfiguration.cellOutputPadding,
 			previewNodePadding: this._layoutConfiguration.markdownPreviewPadding,
-			markdownLeftMargin: this._layoutConfiguration.markdownCellLeftMargin,
+			markdownLeftMargin: this._layoutConfiguration.markdownCellGutter,
 			leftMargin: this._layoutConfiguration.codeCellLeftMargin,
 			rightMargin: this._layoutConfiguration.cellRightMargin,
 			runGutter: this._layoutConfiguration.cellRunGutter,
