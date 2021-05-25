@@ -42,7 +42,6 @@ import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
@@ -71,7 +70,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
@@ -371,10 +369,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				// Proceed with the local extension host
 				await this._startLocalExtensionHost(localExtensions);
 				return;
-			}
-
-			if (resolverResult.options?.isTrusted) {
-				await this._workspaceTrustManagementService.setWorkspaceTrust(true);
 			}
 
 			// set the resolved authority

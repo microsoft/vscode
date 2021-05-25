@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Verbosity } from 'vs/workbench/common/editor';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { GroupIdentifier, Verbosity } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -113,6 +114,17 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		await this.modelResolve;
 
 		return this.model;
+	}
+
+	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
+		return {
+			resource: this.model.resource,
+			encoding: this.getEncoding(),
+			mode: this.getMode(),
+			options: {
+				viewState: this.getViewStateFor(group)
+			}
+		};
 	}
 
 	override matches(otherInput: unknown): boolean {

@@ -183,7 +183,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
-		// IURIIdentityService
+		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 

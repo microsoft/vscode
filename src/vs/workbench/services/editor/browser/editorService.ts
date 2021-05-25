@@ -5,7 +5,9 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ResourceMap } from 'vs/base/common/map';
@@ -306,7 +308,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						replacement: {
 							...moveResult.editor,
 							options: {
-								...moveResult.editor.options,
+								...(moveResult.editor as IResourceEditorInputType).options,
 								...optionOverrides
 							}
 						}
@@ -388,7 +390,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const editors: IEditorInput[] = [];
 
 		function conditionallyAddEditor(editor: IEditorInput): void {
-			if (editor.isUntitled() && !options.includeUntitled) {
+			if (editor.hasCapability(EditorInputCapabilities.Untitled) && !options.includeUntitled) {
 				return;
 			}
 
@@ -1156,7 +1158,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			editorsToSaveSequentially.push(...uniqueEditors);
 		} else {
 			for (const { groupId, editor } of uniqueEditors) {
-				if (editor.isUntitled()) {
+				if (editor.hasCapability(EditorInputCapabilities.Untitled)) {
 					editorsToSaveSequentially.push({ groupId, editor });
 				} else {
 					editorsToSaveParallel.push({ groupId, editor });
@@ -1202,7 +1204,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// only selected group) if the resulting editor is different from the
 			// current one.
 			if (!result.matches(editor)) {
-				const targetGroups = editor.isUntitled() ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
+				const targetGroups = editor.hasCapability(EditorInputCapabilities.Untitled) ? this.editorGroupService.groups.map(group => group.id) /* untitled replaces across all groups */ : [groupId];
 				for (const group of targetGroups) {
 					await this.replaceEditors([{ editor, replacement: result, options: { pinned: true, viewState } }], group);
 				}
@@ -1251,7 +1253,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					continue;
 				}
 
-				if (!options?.includeUntitled && editor.isUntitled()) {
+				if (!options?.includeUntitled && editor.hasCapability(EditorInputCapabilities.Untitled)) {
 					continue;
 				}
 

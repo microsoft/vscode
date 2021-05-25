@@ -60,8 +60,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		return this.session ? this.session.expanded : false;
 	}
 
-	public expand(): void {
-		this.session?.expand();
+	public setExpanded(expanded: boolean): void {
+		this.session?.setExpanded(expanded);
 	}
 
 	public setActive(active: boolean) {
@@ -118,8 +118,8 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 	private readonly textModel = this.editor.getModel();
 
-	constructor(private readonly editor: IActiveCodeEditor, private readonly triggerPosition: Position, private readonly shouldUpdate: () => boolean) {
-		super();
+	constructor(editor: IActiveCodeEditor, private readonly triggerPosition: Position, private readonly shouldUpdate: () => boolean) {
+		super(editor);
 		this._register(toDisposable(() => {
 			this.clearGhostTextPromise();
 		}));

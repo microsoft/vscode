@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorInput, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -29,6 +29,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export type SearchConfiguration = {
 	query: string,
@@ -50,6 +51,15 @@ export class SearchEditorInput extends EditorInput {
 
 	override get typeId(): string {
 		return SearchEditorInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.Singleton;
+		if (!this.backingUri) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
 	}
 
 	private memento: Memento;
@@ -99,7 +109,7 @@ export class SearchEditorInput extends EditorInput {
 			readonly typeId = SearchEditorWorkingCopyTypeId;
 			readonly resource = input.modelUri;
 			get name() { return input.getName(); }
-			readonly capabilities = input.isUntitled() ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
+			readonly capabilities = input.hasCapability(EditorInputCapabilities.Untitled) ? WorkingCopyCapabilities.Untitled : WorkingCopyCapabilities.None;
 			readonly onDidChangeDirty = input.onDidChangeDirty;
 			readonly onDidChangeContent = input.onDidChangeContent;
 			isDirty(): boolean { return input.isDirty(); }
@@ -187,14 +197,6 @@ export class SearchEditorInput extends EditorInput {
 		return this.dirty;
 	}
 
-	override isReadonly() {
-		return false;
-	}
-
-	override isUntitled() {
-		return !this.backingUri;
-	}
-
 	override rename(group: GroupIdentifier, target: URI): IMoveResult | undefined {
 		if (extname(target) === SEARCH_EDITOR_EXT) {
 			return {
@@ -247,10 +249,6 @@ export class SearchEditorInput extends EditorInput {
 		}
 		super.revert(group, options);
 		this.setDirty(false);
-	}
-
-	override canSplit() {
-		return false;
 	}
 
 	private async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
