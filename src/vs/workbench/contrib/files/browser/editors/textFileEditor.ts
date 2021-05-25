@@ -12,7 +12,7 @@ import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
@@ -105,7 +105,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	override async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: FileEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -157,7 +157,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
+	protected handleSetInputError(error: Error, input: FileEditorInput, options: IEditorOptions | undefined): void {
 
 		// In case we tried to open a file inside the text editor and the response
 		// indicates that this is not a text file, reopen the file through the binary
@@ -197,19 +197,18 @@ export class TextFileEditor extends BaseTextEditor {
 		throw error;
 	}
 
-	private openAsBinary(input: FileEditorInput, options: EditorOptions | undefined): void {
+	private openAsBinary(input: FileEditorInput, options: IEditorOptions | undefined): void {
 		input.setForceOpenAsBinary();
 
 		// Make sure to not steal away the currently active group
 		// because we are triggering another openEditor() call
 		// and do not control the initial intent that resulted
 		// in us now opening as binary.
-		const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE, override: EditorOverride.DISABLED };
-		if (options) {
-			options.overwrite(preservingOptions);
-		} else {
-			options = EditorOptions.create(preservingOptions);
-		}
+		options = {
+			...options,
+			activation: EditorActivation.PRESERVE,
+			override: EditorOverride.DISABLED
+		};
 
 		this.editorService.openEditor(input, options, this.group);
 	}

@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { ICodeEditor, getCodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { AbstractTextResourceEditorInput, TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -25,8 +25,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
-import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorOption, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ModelConstants } from 'vs/editor/common/model';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor implementation that is capable of showing the contents of resource inputs. Uses
@@ -55,7 +56,7 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 		return localize('textEditor', "Text Editor");
 	}
 
-	override async setInput(input: AbstractTextResourceEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: AbstractTextResourceEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Remember view settings if input changes
 		this.saveTextResourceEditorViewState(this.input);
@@ -181,7 +182,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		super(TextResourceEditor.ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, editorService);
 	}
 
-	protected override createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
+	protected override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): IEditor {
 		const control = super.createEditorControl(parent, configuration);
 
 		// Install a listener for paste to update this editors

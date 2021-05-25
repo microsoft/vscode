@@ -18,7 +18,7 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IEditorContributionDescription, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { FindController } from 'vs/editor/contrib/find/findController';
@@ -28,6 +28,7 @@ import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor'
 import * as nls from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
@@ -41,7 +42,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEditorRegistry } from 'vs/workbench/browser/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorExtensions, EditorOptions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorControl, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/contrib/preferences/browser/preferencesRenderers';
@@ -984,7 +985,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return contributions;
 	}
 
-	override createEditorControl(parent: HTMLElement, configuration: IEditorOptions): editorCommon.IEditor {
+	override createEditorControl(parent: HTMLElement, configuration: ICodeEditorOptions): editorCommon.IEditor {
 		const editor = this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, { contributions: DefaultPreferencesEditor._getContributions() });
 
 		// Inform user about editor being readonly if user starts type
@@ -1001,7 +1002,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		}
 	}
 
-	protected override getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.readOnly = true;
 		if (this.input) {
@@ -1022,7 +1023,7 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	override async setInput(input: DefaultPreferencesEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: DefaultPreferencesEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const editorModel = await this.input!.resolve();
 		if (!editorModel) {

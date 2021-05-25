@@ -9,7 +9,7 @@ import { isObject, isArray, assertIsDefined, withUndefinedAsNull } from 'vs/base
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, EditorExtensions, ITextDiffEditorPane, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -107,7 +107,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
-	override async setInput(input: DiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: DiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -190,7 +190,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return false;
 	}
 
-	private openAsBinary(input: DiffEditorInput, options: EditorOptions | undefined): void {
+	private openAsBinary(input: DiffEditorInput, options: IEditorOptions | undefined): void {
 		const originalInput = input.originalInput;
 		const modifiedInput = input.modifiedInput;
 
@@ -210,17 +210,12 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		// because we are triggering another openEditor() call
 		// and do not control the initial intent that resulted
 		// in us now opening as binary.
-		const preservingOptions: IEditorOptions = {
+		options = {
+			...options,
 			activation: EditorActivation.PRESERVE,
 			pinned: this.group?.isPinned(input),
 			sticky: this.group?.isSticky(input)
 		};
-
-		if (options) {
-			options.overwrite(preservingOptions);
-		} else {
-			options = EditorOptions.create(preservingOptions);
-		}
 
 		// Replace this editor with the binary one
 		this.editorService.replaceEditors([{ editor: input, replacement: binaryDiffInput, options }], this.group || ACTIVE_GROUP);

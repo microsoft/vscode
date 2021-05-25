@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -15,7 +15,7 @@ import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { withNullAsUndefined } from 'vs/base/common/types';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -132,7 +132,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
-export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
+export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): IEditorOptions {
 	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
@@ -141,11 +141,11 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
 				viewState: withNullAsUndefined(activeGroupCodeEditor.saveViewState())
 			};
 
-			return textOptions as EditorOptions;
+			return textOptions;
 		}
 	}
 
-	return presetOptions || new EditorOptions();
+	return presetOptions || Object.create(null);
 }
 
 /**

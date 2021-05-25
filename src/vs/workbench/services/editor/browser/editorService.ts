@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, ITextEditorOptions, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -526,7 +526,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				if (resolvedInputWithOptionsAndGroup) {
 					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
 						resolvedInputWithOptionsAndGroup.editor,
-						this.toOptions(resolvedInputWithOptionsAndGroup.options) ?? resolvedOptions
+						resolvedInputWithOptionsAndGroup.options ?? resolvedOptions
 					);
 				}
 			}
@@ -538,17 +538,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, EditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | ITextEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
 		let typedEditor: EditorInput | undefined;
-		let typedOptions: EditorOptions | undefined;
+		let typedOptions: IEditorOptions | undefined;
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
 			typedEditor = editor;
-			typedOptions = this.toOptions(optionsOrGroup as IEditorOptions);
+			typedOptions = optionsOrGroup as IEditorOptions;
 
 			candidateGroup = group;
 			resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
@@ -559,7 +559,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const textInput = editor as IResourceEditorInputType;
 			typedEditor = this.createEditorInput(textInput);
 			if (typedEditor) {
-				typedOptions = textInput.options as EditorOptions;
+				typedOptions = textInput.options;
 
 				candidateGroup = optionsOrGroup as OpenInEditorGroup;
 				resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
@@ -583,7 +583,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
 				// repeated Alt-clicking of files in the explorer always open
 				// into the same side group and not cause a group to be created each time.
-				typedOptions.overwrite({ activation: EditorActivation.ACTIVATE });
+				typedOptions.activation = EditorActivation.ACTIVATE;
 			}
 
 			return [resolvedGroup, typedEditor, typedOptions];
@@ -672,14 +672,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return neighbourGroup;
 	}
 
-	private toOptions(options?: IEditorOptions | ITextEditorOptions | EditorOptions): EditorOptions {
-		if (!options || options instanceof EditorOptions) {
-			return options as EditorOptions;
-		}
-
-		return (options ?? Object.create(null)) as EditorOptions;
-	}
-
 	//#endregion
 
 	//#region openEditors()
@@ -742,7 +734,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				targetGroupEditors.push(editorOverride ?
-					{ editor: editorOverride.editor, options: this.toOptions(editorOverride.options) } :
+					{ editor: editorOverride.editor, options: editorOverride.options } :
 					{ editor, options }
 				);
 			}
@@ -924,7 +916,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					editor: replacementArg.editor,
 					replacement: replacementArg.replacement,
 					forceReplaceDirty: replacementArg.forceReplaceDirty,
-					options: this.toOptions(replacementArg.options)
+					options: replacementArg.options
 				});
 			} else {
 				const replacementArg = replaceEditorArg as IResourceEditorReplacement;
@@ -932,7 +924,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				typedEditors.push({
 					editor: this.createEditorInput(replacementArg.editor),
 					replacement: this.createEditorInput(replacementArg.replacement),
-					options: this.toOptions(replacementArg.replacement.options)
+					options: replacementArg.replacement.options
 				});
 			}
 		}
