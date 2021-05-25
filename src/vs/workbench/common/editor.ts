@@ -873,14 +873,6 @@ export class TextEditorOptions extends EditorOptions implements ITextEditorOptio
 	 */
 	selectionRevealType: TextEditorSelectionRevealType | undefined;
 
-	static from(input?: IBaseResourceEditorInput): TextEditorOptions | undefined {
-		if (!input?.options) {
-			return undefined;
-		}
-
-		return TextEditorOptions.create(input.options);
-	}
-
 	/**
 	 * Helper to convert options bag to real class
 	 */

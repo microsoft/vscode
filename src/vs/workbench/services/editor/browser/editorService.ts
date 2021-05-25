@@ -559,7 +559,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			const textInput = editor as IResourceEditorInputType;
 			typedEditor = this.createEditorInput(textInput);
 			if (typedEditor) {
-				typedOptions = TextEditorOptions.from(textInput);
+				typedOptions = textInput.options as EditorOptions;
 
 				candidateGroup = optionsOrGroup as OpenInEditorGroup;
 				resolvedGroup = this.findTargetGroup(typedEditor, typedOptions, candidateGroup);
@@ -708,7 +708,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			return {
 				editor: this.createEditorInput(editor),
-				options: TextEditorOptions.from(editor)
+				options: editor.options
 			};
 		});
 
