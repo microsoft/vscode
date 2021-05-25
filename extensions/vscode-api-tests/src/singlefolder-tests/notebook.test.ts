@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
+import { TextDecoder } from 'util';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -476,7 +477,7 @@ suite('Notebook API tests', function () {
 		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true });
 		assert.strictEqual(secondCell!.outputs[0].outputs.length, 1);
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
-		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
+		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].outputs[0].data), 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
 		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
 		assert.strictEqual(secondCell!.executionSummary?.success, true);
@@ -747,9 +748,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'my output'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my output');
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
@@ -759,9 +758,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'my second output'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my second output');
 		});
 	});
 
@@ -801,7 +798,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, 'Canceled');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Canceled');
 		});
 
 		cancelableKernel.controller.dispose();
@@ -843,9 +840,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'Interrupted'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Interrupted');
 		});
 
 		interruptableKernel.controller.dispose();
@@ -1189,7 +1184,7 @@ suite('Notebook API tests', function () {
 					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
-				assert.deepStrictEqual(cell.notebook.cellAt(0).outputs[0].outputs[0].value, ['Some output']);
+				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].outputs[0].data), 'Some output');
 				task.end({});
 				called = true;
 			}
