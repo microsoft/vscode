@@ -69,7 +69,7 @@ export class TerminalService implements ITerminalService {
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
 
-	private _editable: { stat: ITerminalInstance, data: IEditableData } | undefined;
+	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -318,25 +318,23 @@ export class TerminalService implements ITerminalService {
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
 	}
 
-	async setEditable(stat: ITerminalInstance, data?: IEditableData | null): Promise<void> {
+	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
 		if (!data) {
 			this._editable = undefined;
 		} else {
-			this._editable = { stat, data };
+			this._editable = { instance: instance, data };
 		}
 		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		const isEditing = this._isEditable(stat);
-		if (pane?.terminalTabbedView) {
-			pane.terminalTabbedView.setEditable(isEditing);
-		}
+		const isEditing = this._isEditable(instance);
+		pane?.terminalTabbedView?.setEditable(isEditing);
 	}
 
-	private _isEditable(stat: ITerminalInstance | undefined): boolean {
-		return !!this._editable && (this._editable.stat === stat || !stat);
+	private _isEditable(instance: ITerminalInstance | undefined): boolean {
+		return !!this._editable && (this._editable.instance === instance || !instance);
 	}
 
-	getEditableData(stat: ITerminalInstance): IEditableData | undefined {
-		return this._editable && this._editable.stat === stat ? this._editable.data : undefined;
+	getEditableData(instance: ITerminalInstance): IEditableData | undefined {
+		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {

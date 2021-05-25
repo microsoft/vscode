@@ -240,106 +240,105 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
 		const editableData = this._terminalService.getEditableData(instance);
-
-		if (!editableData) {
-			const group = this._terminalService.getGroupForInstance(instance);
-			if (!group) {
-				throw new Error(`Could not find group for instance "${instance.instanceId}"`);
-			}
-
-			const hasText = !this.shouldHideText();
-			template.element.classList.toggle('has-text', hasText);
-
-			if (template.label.element.style.display = 'none') {
-				template.label.element.style.display = '';
-			}
-
-			let prefix: string = '';
-			if (group.terminalInstances.length > 1) {
-				const terminalIndex = group.terminalInstances.indexOf(instance);
-				if (terminalIndex === 0) {
-					prefix = `┌ `;
-				} else if (terminalIndex === group!.terminalInstances.length - 1) {
-					prefix = `└ `;
-				} else {
-					prefix = `├ `;
-				}
-			}
-
-			let title = instance.title;
-			const statuses = instance.statusList.statuses;
-			template.context.hoverActions = [];
-			for (const status of statuses) {
-				title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
-				if (status.hoverActions) {
-					template.context.hoverActions.push(...status.hoverActions);
-				}
-			}
-			const iconId = getIconId(instance);
-			const hasActionbar = !this.shouldHideActionBar();
-			let label: string = '';
-			if (!hasText) {
-				const primaryStatus = instance.statusList.primary;
-				// Don't show ignore severity
-				if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
-					label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
-				} else {
-					label = `${prefix}$(${iconId})`;
-				}
-			} else {
-				this.fillActionBar(instance, template);
-				label = prefix;
-				// Only add the title if the icon is set, this prevents the title jumping around for
-				// example when launching with a ShellLaunchConfig.name and no icon
-				if (instance.icon) {
-					label += `$(${iconId}) ${instance.title}`;
-				}
-			}
-
-			if (!hasActionbar) {
-				template.actionBar.clear();
-			}
-
-			if (!template.elementDispoables) {
-				template.elementDispoables = new DisposableStore();
-			}
-
-			// Kill terminal on middle click
-			template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
-				if (e.button === 1/*middle*/) {
-					instance.dispose();
-				}
-			}));
-
-			const extraClasses: string[] = [];
-			const colorClass = getColorClass(instance);
-			if (colorClass) {
-				extraClasses.push(colorClass);
-			}
-			const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
-			if (uriClasses) {
-				extraClasses.push(...uriClasses);
-			}
-
-			template.label.setResource({
-				resource: instance.resource,
-				name: label,
-				description: hasText ? instance.shellLaunchConfig.description : undefined
-			}, {
-				fileDecorations: {
-					colors: true,
-					badges: hasText
-				},
-				title: {
-					markdown: new MarkdownString(title, { supportThemeIcons: true }),
-					markdownNotSupportedFallback: undefined
-				},
-				extraClasses
-			});
-		} else {
+		if (editableData) {
 			template.label.element.style.display = 'none';
 			this._renderInputBox(template.label.element.parentElement!, instance, editableData);
+			return;
 		}
+		const group = this._terminalService.getGroupForInstance(instance);
+		if (!group) {
+			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
+		}
+
+		const hasText = !this.shouldHideText();
+		template.element.classList.toggle('has-text', hasText);
+
+		if (template.label.element.style.display = 'none') {
+			template.label.element.style.display = '';
+		}
+
+		let prefix: string = '';
+		if (group.terminalInstances.length > 1) {
+			const terminalIndex = group.terminalInstances.indexOf(instance);
+			if (terminalIndex === 0) {
+				prefix = `┌ `;
+			} else if (terminalIndex === group!.terminalInstances.length - 1) {
+				prefix = `└ `;
+			} else {
+				prefix = `├ `;
+			}
+		}
+
+		let title = instance.title;
+		const statuses = instance.statusList.statuses;
+		template.context.hoverActions = [];
+		for (const status of statuses) {
+			title += `\n\n---\n\n${status.icon ? `$(${status.icon?.id}) ` : ''}${status.tooltip || status.id}`;
+			if (status.hoverActions) {
+				template.context.hoverActions.push(...status.hoverActions);
+			}
+		}
+		const iconId = getIconId(instance);
+		const hasActionbar = !this.shouldHideActionBar();
+		let label: string = '';
+		if (!hasText) {
+			const primaryStatus = instance.statusList.primary;
+			// Don't show ignore severity
+			if (primaryStatus && primaryStatus.severity > Severity.Ignore) {
+				label = `${prefix}$(${primaryStatus.icon?.id || iconId})`;
+			} else {
+				label = `${prefix}$(${iconId})`;
+			}
+		} else {
+			this.fillActionBar(instance, template);
+			label = prefix;
+			// Only add the title if the icon is set, this prevents the title jumping around for
+			// example when launching with a ShellLaunchConfig.name and no icon
+			if (instance.icon) {
+				label += `$(${iconId}) ${instance.title}`;
+			}
+		}
+
+		if (!hasActionbar) {
+			template.actionBar.clear();
+		}
+
+		if (!template.elementDispoables) {
+			template.elementDispoables = new DisposableStore();
+		}
+
+		// Kill terminal on middle click
+		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+			if (e.button === 1/*middle*/) {
+				instance.dispose();
+			}
+		}));
+
+		const extraClasses: string[] = [];
+		const colorClass = getColorClass(instance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
+		}
+		const uriClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
+		}
+
+		template.label.setResource({
+			resource: instance.resource,
+			name: label,
+			description: hasText ? instance.shellLaunchConfig.description : undefined
+		}, {
+			fileDecorations: {
+				colors: true,
+				badges: hasText
+			},
+			title: {
+				markdown: new MarkdownString(title, { supportThemeIcons: true }),
+				markdownNotSupportedFallback: undefined
+			},
+			extraClasses
+		});
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
