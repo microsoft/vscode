@@ -1714,7 +1714,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
-	$createContributedProfileTerminal(id: string): Promise<void>;
+	$createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void>;
 }
 
 export interface ExtHostSCMShape {

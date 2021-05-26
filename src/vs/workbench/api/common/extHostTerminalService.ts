@@ -144,11 +144,16 @@ export class ExtHostTerminal {
 		});
 	}
 
-	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true, icon: iconPath });
+		await this._proxy.$createTerminal(this._id, {
+			name: this._name,
+			isExtensionCustomPtyTerminal: true,
+			icon: iconPath,
+			isSplitTerminal
+		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');
@@ -361,10 +366,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return profile?.args || [];
 	}
 
-	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
+	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(options.iconPath).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, options.iconPath).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -592,7 +597,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public async $createContributedProfileTerminal(id: string): Promise<void> {
+	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
 		// TODO: Use cancellation token
 		const options = await this._profileProviders.get(id)?.provideProfileOptions(new CancellationTokenSource().token);
 		if (!options) {
@@ -600,12 +605,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 		if ('pty' in options) {
 			// TODO: Pass in split terminal option
-			this.createExtensionTerminal(options);
+			this.createExtensionTerminal(options, { isSplitTerminal });
 		}
 		// if (options.iconPath) {
 		// 	checkProposedApiEnabled(extension);
 		// }
-		this.createTerminalFromOptions(options, { isSplitTerminal: true });
+		this.createTerminalFromOptions(options, { isSplitTerminal });
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
