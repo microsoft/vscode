@@ -517,7 +517,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
-		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight);
+		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.viewModel?.viewType);
 		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
@@ -890,12 +890,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 	private updateForLayout(element: CodeCellViewModel, templateData: CodeCellRenderTemplate): void {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+		const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.viewModel?.viewType);
+
 		templateData.focusIndicatorLeft.style.height = `${element.layoutInfo.indicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${element.layoutInfo.indicatorHeight}px`;
-		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - layoutInfo.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
+		templateData.focusIndicatorBottom.style.top = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px`;
 		templateData.outputContainer.style.top = `${element.layoutInfo.outputContainerOffset}px`;
 		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
-		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - layoutInfo.bottomToolbarGap}px`;
+		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
 
 		templateData.container.classList.toggle('cell-statusbar-hidden', element.getEditorStatusbarHeight() === 0);
 	}

@@ -556,8 +556,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			markdownCellLeftMargin,
 			markdownCellBottomMargin,
 			markdownCellTopMargin,
-			bottomToolbarGap: bottomCellToolbarGap,
-			bottomToolbarHeight: bottomCellToolbarHeight,
+			// bottomToolbarGap: bottomCellToolbarGap,
+			// bottomToolbarHeight: bottomCellToolbarHeight,
 			collapsedIndicatorHeight,
 			compactView,
 			focusIndicator,
@@ -566,6 +566,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			fontSize,
 			focusIndicatorLeftMargin
 		} = this._notebookOptions.getLayoutConfiguration();
+
+		const { bottomToolbarGap, bottomToolbarHeight } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
 		const styleSheets: string[] = [];
 
@@ -730,7 +732,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellGutter - 20) / 2 + markdownCellLeftMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
-		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomCellToolbarGap}px; }`);
+		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomToolbarGap}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
 	.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-drag-handle { width: ${codeCellLeftMargin + cellRunGutter}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row .cell-focus-indicator-left { width: ${codeCellLeftMargin}px; }`);
@@ -740,8 +742,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part { margin-left: ${codeCellLeftMargin + cellRunGutter}px; height: ${collapsedIndicatorHeight}px; }`);
 
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { height: ${bottomCellToolbarHeight}px }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { height: ${bottomCellToolbarHeight}px }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container { height: ${bottomToolbarHeight}px }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .cell-list-top-cell-toolbar-container { height: ${bottomToolbarHeight}px }`);
 
 		// cell toolbar
 		styleSheets.push(`.monaco-workbench .notebookOverlay.cell-title-toolbar-right > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-title-toolbar {
@@ -963,11 +965,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	async setModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined): Promise<void> {
 		if (this.viewModel === undefined || !this.viewModel.equal(textModel)) {
 			const oldTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+			const oldBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._detachModel();
 			await this._attachModel(textModel, viewState);
 			const newTopInsertToolbarHeight = this._notebookOptions.computeTopInserToolbarHeight(this.viewModel?.viewType);
+			const newBottomToolbarDimensions = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 
-			if (oldTopInsertToolbarHeight !== newTopInsertToolbarHeight) {
+			if (oldTopInsertToolbarHeight !== newTopInsertToolbarHeight
+				|| oldBottomToolbarDimensions.bottomToolbarGap !== newBottomToolbarDimensions.bottomToolbarGap
+				|| oldBottomToolbarDimensions.bottomToolbarHeight !== newBottomToolbarDimensions.bottomToolbarHeight) {
 				this._styleElement?.remove();
 				this._createLayoutStyles();
 				this._webview?.updateOptions(this.notebookOptions.computeWebviewOptions());
@@ -2483,9 +2489,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
 		const cell = this.getCellById(cellId);
-		const layoutConfiguration = this._notebookOptions.getLayoutConfiguration();
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			this._debug('updateMarkdownCellHeight', cell.handle, height + layoutConfiguration.bottomToolbarGap, isInit);
+			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
+			this._debug('updateMarkdownCellHeight', cell.handle, height + bottomToolbarGap, isInit);
 			cell.renderedMarkdownHeight = height;
 		}
 	}
