@@ -37,17 +37,17 @@ export interface IEditorModel {
 export interface IBaseResourceEditorInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * Optional options to use when opening the input.
 	 */
-	options?: ITextEditorOptions;
+	options?: IEditorOptions;
 
 	/**
-	 * Label to show for the diff editor
+	 * Label to show for the input.
 	 */
 	readonly label?: string;
 
 	/**
-	 * Description to show for the diff editor
+	 * Description to show for the input.
 	 */
 	readonly description?: string;
 
@@ -70,6 +70,41 @@ export interface IBaseResourceEditorInput {
 	readonly forceUntitled?: boolean;
 }
 
+export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * The encoding of the text input if known.
+	 */
+	readonly encoding?: string;
+
+	/**
+	 * The identifier of the language mode of the text input
+	 * if known to use when displaying the contents.
+	 */
+	readonly mode?: string;
+}
+
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
+
+	/**
+	 * The resource URI of the resource to open.
+	 */
+	readonly resource: URI;
+}
+
+export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+}
+
 /**
  * This identifier allows to uniquely identify an editor with a
  * resource and type identifier.
@@ -85,25 +120,6 @@ export interface IResourceEditorInputIdentifier {
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
-}
-
-export interface IResourceEditorInput extends IBaseResourceEditorInput {
-
-	/**
-	 * The resource URI of the resource to open.
-	 */
-	readonly resource: URI;
-
-	/**
-	 * The encoding of the text input if known.
-	 */
-	readonly encoding?: string;
-
-	/**
-	 * The identifier of the language mode of the text input
-	 * if known to use when displaying the contents.
-	 */
-	readonly mode?: string;
 }
 
 export enum EditorActivation {

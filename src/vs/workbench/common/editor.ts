@@ -9,7 +9,7 @@ import { assertIsDefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceEditorInput, IResourceEditorInput, ITextResourceEditorInput, IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0, ServicesAccessor, BrandedService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -275,7 +275,7 @@ export interface IEditorInputSerializer {
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): IEditorInput | undefined;
 }
 
-export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInput {
+export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEditorInput {
 
 	/**
 	 * Optional resource. If the resource is not provided a new untitled file is created (e.g. Untitled-1).
@@ -286,32 +286,22 @@ export interface IUntitledTextResourceEditorInput extends IBaseResourceEditorInp
 	readonly resource?: URI;
 
 	/**
-	 * Optional language of the untitled resource.
-	 */
-	readonly mode?: string;
-
-	/**
 	 * Optional contents of the untitled resource.
 	 */
 	readonly contents?: string;
-
-	/**
-	 * Optional encoding of the untitled resource.
-	 */
-	readonly encoding?: string;
 }
 
 export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 
 	/**
-	 * The left hand side URI to open inside a diff editor.
+	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly leftResource: URI;
+	readonly leftEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
-	 * The right hand side URI to open inside a diff editor.
+	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly rightResource: URI;
+	readonly rightEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
 export const enum Verbosity {

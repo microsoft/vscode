@@ -244,8 +244,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				leftResource: resources[0],
-				rightResource: resources[1],
+				leftEditor: { resource: resources[0] },
+				rightEditor: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -263,8 +263,8 @@ CommandsRegistry.registerCommand({
 		const rightResource = getResourceForCommand(resource, listService, editorService);
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
-				leftResource: globalResourceToCompare,
-				rightResource,
+				leftEditor: { resource: globalResourceToCompare },
+				rightEditor: { resource: rightResource },
 				options: { pinned: true }
 			});
 		}

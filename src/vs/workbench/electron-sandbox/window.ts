@@ -673,7 +673,11 @@ export class NativeWindow extends Disposable {
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+			return this.editorService.openEditor({
+				leftEditor: { resource: resources[0].resource },
+				rightEditor: { resource: resources[1].resource },
+				options: { pinned: true }
+			});
 		}
 
 		// Open resource(s)

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -16,7 +16,7 @@ import { IFileService, FileOperationEvent, FileOperation, FileChangesEvent, File
 import { Schemas } from 'vs/base/common/network';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { basename, joinPath, isEqual } from 'vs/base/common/resources';
+import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
@@ -34,8 +34,6 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
@@ -77,7 +75,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ILogService private readonly logService: ILogService,
 		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
@@ -787,9 +784,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				const resourceDiffEditor = editor as IResourceDiffEditorInput;
-				if (URI.isUri(resourceDiffEditor.leftResource) && URI.isUri(resourceDiffEditor.rightResource)) {
-					resources.set(resourceDiffEditor.leftResource, true);
-					resources.set(resourceDiffEditor.rightResource, true);
+				if (resourceDiffEditor.leftEditor && resourceDiffEditor.rightEditor) {
+					const leftResourceEditor = resourceDiffEditor.leftEditor as IResourceEditorInput;
+					if (URI.isUri(leftResourceEditor.resource)) {
+						resources.set(leftResourceEditor.resource, true);
+					}
+
+					const rightResourceEditor = resourceDiffEditor.rightEditor as IResourceEditorInput;
+					if (URI.isUri(rightResourceEditor.resource)) {
+						resources.set(rightResourceEditor.resource, true);
+					}
 				}
 
 				const resourceEditor = editor as IResourceEditorInput;
@@ -808,7 +812,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
-			resource: this.asCanonicalEditorResource(editor.resource),
+			resource: this.uriIdentityService.asCanonicalUri(editor.resource),
 			typeId: editor.typeId
 		});
 	}
@@ -954,9 +958,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		const resourceDiffInput = input as IResourceDiffEditorInput;
-		if (resourceDiffInput.leftResource && resourceDiffInput.rightResource) {
-			const leftInput = this.createEditorInput({ resource: resourceDiffInput.leftResource, forceFile: resourceDiffInput.forceFile });
-			const rightInput = this.createEditorInput({ resource: resourceDiffInput.rightResource, forceFile: resourceDiffInput.forceFile });
+		if (resourceDiffInput.leftEditor && resourceDiffInput.rightEditor) {
+			const leftInput = this.createEditorInput({ ...resourceDiffInput.leftEditor, forceFile: resourceDiffInput.forceFile });
+			const rightInput = this.createEditorInput({ ...resourceDiffInput.rightEditor, forceFile: resourceDiffInput.forceFile });
 
 			return this.instantiationService.createInstance(DiffEditorInput,
 				resourceDiffInput.label,
@@ -1003,31 +1007,31 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}) as EditorInput;
 		}
 
-		// Resource Editor Support
-		const resourceEditorInput = input as IResourceEditorInput;
-		if (resourceEditorInput.resource instanceof URI) {
+		// Text Resource Editor Support
+		const textResourceEditorInput = input as ITextResourceEditorInput;
+		if (textResourceEditorInput.resource instanceof URI) {
 
 			// Derive the label from the path if not provided explicitly
-			const label = resourceEditorInput.label || basename(resourceEditorInput.resource);
+			const label = textResourceEditorInput.label || basename(textResourceEditorInput.resource);
 
 			// We keep track of the preferred resource this input is to be created
 			// with but it may be different from the canonical resource (see below)
-			const preferredResource = resourceEditorInput.resource;
+			const preferredResource = textResourceEditorInput.resource;
 
 			// From this moment on, only operate on the canonical resource
 			// to ensure we reduce the chance of opening the same resource
 			// with different resource forms (e.g. path casing on Windows)
-			const canonicalResource = this.asCanonicalEditorResource(preferredResource);
+			const canonicalResource = this.uriIdentityService.asCanonicalUri(preferredResource);
 
 			return this.createOrGetCached(canonicalResource, () => {
 
 				// File
-				if (resourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.encoding, resourceEditorInput.mode, this.instantiationService);
+				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, resourceEditorInput.label, resourceEditorInput.description, resourceEditorInput.mode);
+				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode);
 			}, cachedInput => {
 
 				// Untitled
@@ -1039,20 +1043,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				else if (!(cachedInput instanceof TextResourceEditorInput)) {
 					cachedInput.setPreferredResource(preferredResource);
 
-					if (resourceEditorInput.label) {
-						cachedInput.setPreferredName(resourceEditorInput.label);
+					if (textResourceEditorInput.label) {
+						cachedInput.setPreferredName(textResourceEditorInput.label);
 					}
 
-					if (resourceEditorInput.description) {
-						cachedInput.setPreferredDescription(resourceEditorInput.description);
+					if (textResourceEditorInput.description) {
+						cachedInput.setPreferredDescription(textResourceEditorInput.description);
 					}
 
-					if (resourceEditorInput.encoding) {
-						cachedInput.setPreferredEncoding(resourceEditorInput.encoding);
+					if (textResourceEditorInput.encoding) {
+						cachedInput.setPreferredEncoding(textResourceEditorInput.encoding);
 					}
 
-					if (resourceEditorInput.mode) {
-						cachedInput.setPreferredMode(resourceEditorInput.mode);
+					if (textResourceEditorInput.mode) {
+						cachedInput.setPreferredMode(textResourceEditorInput.mode);
 					}
 				}
 
@@ -1062,40 +1066,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						cachedInput.setName(label);
 					}
 
-					if (resourceEditorInput.description) {
-						cachedInput.setDescription(resourceEditorInput.description);
+					if (textResourceEditorInput.description) {
+						cachedInput.setDescription(textResourceEditorInput.description);
 					}
 
-					if (resourceEditorInput.mode) {
-						cachedInput.setPreferredMode(resourceEditorInput.mode);
+					if (textResourceEditorInput.mode) {
+						cachedInput.setPreferredMode(textResourceEditorInput.mode);
 					}
 				}
 			}) as EditorInput;
 		}
 
 		throw new Error('Unknown input type');
-	}
-
-	private _modelService: IModelService | undefined = undefined;
-	private get modelService(): IModelService | undefined {
-		if (!this._modelService) {
-			this._modelService = this.instantiationService.invokeFunction(accessor => accessor.get(IModelService));
-		}
-
-		return this._modelService;
-	}
-
-	private asCanonicalEditorResource(resource: URI): URI {
-		const canonicalResource: URI = this.uriIdentityService.asCanonicalUri(resource);
-
-		// In the unlikely case that a model exists for the original resource but
-		// differs from the canonical resource, we print a warning as this means
-		// the model will not be able to be opened as editor.
-		if (!isEqual(resource, canonicalResource) && this.modelService?.getModel(resource)) {
-			this.logService.warn(`EditorService: a model exists for a resource that is not canonical: ${resource.toString(true)}`);
-		}
-
-		return canonicalResource;
 	}
 
 	private createOrGetCached(resource: URI, factoryFn: () => CachedEditorInput, cachedFn?: (input: CachedEditorInput) => void): CachedEditorInput {

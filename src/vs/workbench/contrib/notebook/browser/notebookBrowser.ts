@@ -27,7 +27,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -323,8 +323,8 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
-export interface INotebookEditorOptions extends IEditorOptions {
-	readonly cellOptions?: IResourceEditorInput;
+export interface INotebookEditorOptions extends ITextEditorOptions {
+	readonly cellOptions?: ITextResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
 }
