@@ -46,32 +46,25 @@ export class OutputRenderer extends Disposable {
 		return undefined;
 	}
 
-	private _renderNoop(viewModel: ICellOutputViewModel, container: HTMLElement): IRenderOutput {
+	private _renderMessage(container: HTMLElement, message: string): IRenderOutput {
 		const contentNode = document.createElement('p');
-		contentNode.innerText = localize('empty', "No renderer could be found for output.");
+		contentNode.innerText = message;
 		container.appendChild(contentNode);
 		return { type: RenderOutputType.Mainframe };
 	}
 
 	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
 		if (!viewModel.model.outputs.length) {
-			return this._renderNoop(viewModel, container);
+			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
-
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
-			const contentNode = document.createElement('p');
-			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
-
-			const mimeTypesMessage = mimeTypes.join(', ');
-
 			if (preferredMimeType) {
-				contentNode.innerText = localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType);
+				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
 			} else {
-				contentNode.innerText = localize('noRenderer.2', "No renderer could be found for output. It has the following MIME types: {0}", mimeTypesMessage);
+				const mimeTypes = viewModel.model.outputs.map(op => op.mime);
+				const mimeTypesMessage = mimeTypes.join(', ');
+				return this._renderMessage(container, localize('noRenderer.2', "No renderer could be found for output. It has the following MIME types: {0}", mimeTypesMessage));
 			}
-
-			container.appendChild(contentNode);
-			return { type: RenderOutputType.Mainframe };
 		}
 
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
@@ -80,7 +73,7 @@ export class OutputRenderer extends Disposable {
 		if (items.length && renderer) {
 			return renderer.render(viewModel, items, container, notebookUri);
 		} else {
-			return this._renderNoop(viewModel, container);
+			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
 	}
 }
