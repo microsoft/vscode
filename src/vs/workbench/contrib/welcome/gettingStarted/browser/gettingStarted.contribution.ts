@@ -24,7 +24,6 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import product from 'vs/platform/product/common/product';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 
@@ -45,18 +44,19 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, walkthroughID: string | undefined, toSide: boolean | undefined) {
+	public run(accessor: ServicesAccessor, walkthroughID: string | { category: string, step: string } | undefined, toSide: boolean | undefined) {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const instantiationService = accessor.get(IInstantiationService);
 		const editorService = accessor.get(IEditorService);
-		const configurationService = accessor.get(IConfigurationService);
 
 		if (walkthroughID) {
+			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
+			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
 			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					if (!group.activeEditor.selectedCategory) {
-						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(walkthroughID);
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 						return;
 					}
 				}
@@ -67,7 +67,8 @@ registerAction2(class extends Action2 {
 			for (const { editor, groupId } of result) {
 				if (editor instanceof GettingStartedInput) {
 					if (!editor.selectedCategory) {
-						editor.selectedCategory = walkthroughID;
+						editor.selectedCategory = selectedCategory;
+						editor.selectedStep = selectedStep;
 						editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
 						return;
 					}
@@ -75,9 +76,7 @@ registerAction2(class extends Action2 {
 			}
 
 			// Otherwise, just make a new one.
-			if (configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
-				editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: walkthroughID }), {}, toSide ? SIDE_GROUP : undefined);
-			}
+			editorService.openEditor(instantiationService.createInstance(GettingStartedInput, { selectedCategory: selectedCategory, selectedStep: selectedStep }), {}, toSide ? SIDE_GROUP : undefined);
 		} else {
 			editorService.openEditor(new GettingStartedInput({}), {});
 		}

@@ -8,7 +8,7 @@ import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/edit
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -33,6 +33,8 @@ import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/commo
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('EditorService', () => {
 
@@ -279,7 +281,7 @@ suite('EditorService', () => {
 		const [part, service, accessor] = await createEditorService();
 
 		const input = { resource: URI.parse('my://resource-openEditors') };
-		const otherInput = { leftResource: URI.parse('my://resource2-openEditors'), rightResource: URI.parse('my://resource3-openEditors') };
+		const otherInput: IResourceDiffEditorInput = { leftEditor: { resource: URI.parse('my://resource2-openEditors') }, rightEditor: { resource: URI.parse('my://resource3-openEditors') } };
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -294,8 +296,8 @@ suite('EditorService', () => {
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 3);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.leftResource.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.rightResource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.leftEditor.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.rightEditor.resource?.toString()), true);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
 		}
@@ -439,11 +441,14 @@ suite('EditorService', () => {
 		assert(input instanceof TextResourceEditorInput);
 
 		// Untyped Input (diff)
-		input = service.createEditorInput({
-			leftResource: toResource.call(this, '/primary.html'),
-			rightResource: toResource.call(this, '/secondary.html')
-		});
+		const resourceDiffInput = {
+			leftEditor: { resource: toResource.call(this, '/primary.html') },
+			rightEditor: { resource: toResource.call(this, '/secondary.html') }
+		};
+		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
+		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.leftEditor.resource.toString());
+		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.rightEditor.resource.toString());
 	});
 
 	test('delegate', function (done) {

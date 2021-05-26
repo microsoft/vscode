@@ -208,7 +208,7 @@ export abstract class SharedDesktopMain extends Disposable {
 			await result;
 		}
 
-		// Uri Identity
+		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 

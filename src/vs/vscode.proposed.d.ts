@@ -1247,11 +1247,12 @@ declare module 'vscode' {
 		 *
 		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
 		 *
-		 * @param value A string/
+		 * @param value A string.
 		 * @param mime Optional MIME type, defaults to `text/plain`.
+		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static text(value: string, mime?: string): NotebookCellOutputItem;
+		static text(value: string, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` from
@@ -1263,46 +1264,40 @@ declare module 'vscode' {
 		 *
 		 * @param value A JSON-stringifyable value.
 		 * @param mime Optional MIME type, defaults to `application/json`
+		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static json(value: any, mime?: string): NotebookCellOutputItem;
-
-		/**
-		 * Factory function to create a `NotebookCellOutputItem` from bytes.
-		 *
-		 * @param value An array of unsigned 8-bit integers.
-		 * @param mime Optional MIME type, defaults to `application/octet-stream`.
-		 * @returns A new output item object.
-		 */
-		//todo@API better names: bytes, raw, buffer?
-		static bytes(value: Uint8Array, mime?: string): NotebookCellOutputItem;
+		static json(value: any, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stdout` mime type.
 		 *
 		 * @param value A string.
+		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stdout(value: string): NotebookCellOutputItem;
+		static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stderr` mime type.
 		 *
 		 * @param value A string.
+		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stderr(value: string): NotebookCellOutputItem;
+		static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.error` mime type.
 		 *
 		 * @param value An error object.
+		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static error(value: Error): NotebookCellOutputItem;
+		static error(value: Error, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
 		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
@@ -1314,21 +1309,26 @@ declare module 'vscode' {
 		mime: string;
 
 		/**
-		 * The value of this output item. Must always be an array of unsigned 8-bit integers.
+		 * The data of this output item. Must always be an array of unsigned 8-bit integers.
 		 */
-		//todo@API only Unit8Array
-		value: Uint8Array | unknown;
+		data: Uint8Array;
 
+		/**
+		 * @deprecated
+		 */
+		value: unknown;
+
+		//todo@API
 		metadata?: { [key: string]: any };
 
 		/**
 		 * Create a new notbook cell output item.
 		 *
+		 * @param data The value of the output item.
 		 * @param mime The mime type of the output item.
-		 * @param value The value of the output item.
 		 * @param metadata Optional metadata for this output item.
 		 */
-		constructor(mime: string, value: Uint8Array | unknown, metadata?: { [key: string]: any });
+		constructor(data: Uint8Array, mime: string, metadata?: { [key: string]: any });
 	}
 
 	// @jrieken transient
@@ -1563,6 +1563,9 @@ declare module 'vscode' {
 
 		/**
 		 * The identifier of this notebook controller.
+		 *
+		 * _Note_ that controllers are remembered by their identifier and that extensions should use
+		 * stable identifiers across sessions.
 		 */
 		readonly id: string;
 
@@ -1654,6 +1657,7 @@ declare module 'vscode' {
 		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
+		// todo@API rename to NotebookCellExecution
 		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
 
 		// todo@API find a better name than "preloads"

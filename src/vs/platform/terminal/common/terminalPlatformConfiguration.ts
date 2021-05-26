@@ -10,6 +10,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
@@ -227,13 +228,16 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			default: {
 				'bash': {
 					path: 'bash',
+					args: ['-l'],
 					icon: 'terminal-bash'
 				},
 				'zsh': {
-					path: 'zsh'
+					path: 'zsh',
+					args: ['-l']
 				},
 				'fish': {
-					path: 'fish'
+					path: 'fish',
+					args: ['-l']
 				},
 				'tmux': {
 					path: 'tmux',
@@ -369,7 +373,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 }
 
 function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${profile.icon || Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
+	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
 	if (profile.args) {
 		if (typeof profile.args === 'string') {
 			description += `\n- args: "${profile.args}"`;

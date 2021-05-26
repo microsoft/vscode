@@ -512,7 +512,9 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		// only in web
 		IsWebContext,
 		// only on folders
-		ExplorerFolderContext
+		ExplorerFolderContext,
+		// only on editable folders
+		ExplorerResourceNotReadonlyContext
 	)
 }));
 

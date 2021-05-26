@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorModel } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
@@ -78,6 +80,16 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return NotebookDiffEditorInput.ID;
 	}
 
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this._modifiedTextModel?.object.resource.scheme === Schemas.untitled) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
+	}
+
 	override getName(): string {
 		return this.textDiffName;
 	}
@@ -89,18 +101,10 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return this._modifiedTextModel.object.isDirty();
 	}
 
-	override isUntitled(): boolean {
-		return this._modifiedTextModel?.object.resource.scheme === Schemas.untitled;
-	}
-
-	override isReadonly() {
-		return false;
-	}
-
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._modifiedTextModel) {
 
-			if (this.isUntitled()) {
+			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 				return this.saveAs(group, options);
 			} else {
 				await this._modifiedTextModel.object.save();

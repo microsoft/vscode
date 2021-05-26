@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -16,8 +16,9 @@ import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/comm
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -59,23 +60,31 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return NotebookEditorInput.ID;
 	}
 
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this.resource.scheme === Schemas.untitled) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		if (this._editorModelReference) {
+			if (this._editorModelReference.object.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		}
+
+		return capabilities;
+	}
+
 	override isDirty() {
 		if (!this._editorModelReference) {
 			return this._defaultDirtyState;
 		}
 		return this._editorModelReference.object.isDirty();
-	}
-
-	override isUntitled(): boolean {
-		return this.resource.scheme === Schemas.untitled;
-	}
-
-	override isReadonly() {
-		if (!this._editorModelReference) {
-			return super.isReadonly();
-		}
-
-		return this._editorModelReference.object.isReadonly();
 	}
 
 	override isOrphaned() {
@@ -89,7 +98,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._editorModelReference) {
 
-			if (this.isUntitled()) {
+			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 				return this.saveAs(group, options);
 			} else {
 				await this._editorModelReference.object.save(options);
@@ -112,7 +121,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 			return undefined;
 		}
 
-		const dialogPath = this.isUntitled() ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
+		const dialogPath = this.hasCapability(EditorInputCapabilities.Untitled) ? await this._suggestName(this.labelService.getUriBasenameLabel(this.resource)) : this._editorModelReference.object.resource;
 
 		const target = await this._fileDialogService.pickFileToSave(dialogPath, options?.availableFileSystems);
 		if (!target) {
@@ -189,6 +198,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return this._editorModelReference.object;
+	}
+
+	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+		return {
+			resource: this.preferredResource,
+			options: {
+				override: this.viewType
+			}
+		};
 	}
 
 	override matches(otherInput: unknown): boolean {
