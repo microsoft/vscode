@@ -19,7 +19,7 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -68,6 +68,8 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
+
+	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -314,6 +316,25 @@ export class TerminalService implements ITerminalService {
 	getActiveOrCreateInstance(): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
 		return activeInstance ? activeInstance : this.createTerminal(undefined);
+	}
+
+	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
+		if (!data) {
+			this._editable = undefined;
+		} else {
+			this._editable = { instance: instance, data };
+		}
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		const isEditing = this._isEditable(instance);
+		pane?.terminalTabbedView?.setEditable(isEditing);
+	}
+
+	private _isEditable(instance: ITerminalInstance | undefined): boolean {
+		return !!this._editable && (this._editable.instance === instance || !instance);
+	}
+
+	getEditableData(instance: ITerminalInstance): IEditableData | undefined {
+		return this._editable && this._editable.instance === instance ? this._editable.data : undefined;
 	}
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined> {

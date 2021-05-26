@@ -202,6 +202,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+		// Return trusted when workspace trust is disabled
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+			return { trusted: true, uri };
+		}
+
 		let resultState = false;
 		let maxLength = -1;
 
