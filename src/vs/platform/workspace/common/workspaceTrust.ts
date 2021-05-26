@@ -49,6 +49,7 @@ export interface IWorkspaceTrustManagementService {
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): Promise<void>;
 	canSetWorkspaceTrust(): Promise<boolean>;
+	recalculateWorkspaceTrust(): Promise<void>;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): Promise<IWorkspaceTrustUriInfo>;
 	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;

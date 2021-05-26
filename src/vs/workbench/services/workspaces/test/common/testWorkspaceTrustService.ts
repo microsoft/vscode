@@ -75,6 +75,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
+	recalculateWorkspaceTrust(): Promise<void> {
+		throw new Error('Method not implemented.');
+	}
+
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;
