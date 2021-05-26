@@ -65,6 +65,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
+	// try showing the banner only after some files have been opened
+	private showBannerInEmptyWindow = false;
+
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -336,6 +339,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
 
 		if (openFiles.length) {
+			this.showBannerInEmptyWindow = true;
+
 			// If all open files are trusted, transition to a trusted workspace
 			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
 
@@ -344,6 +349,14 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			}
 		} else {
 			// No open files, use the setting to set workspace trust state
+			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
+				const editor = this.editorService.activeEditor;
+				if (editor && !!EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })) {
+					this.showBannerInEmptyWindow = true;
+					this.updateWorkbenchIndicators(this.workspaceTrustManagementService.isWorkpaceTrusted());
+					disposable.dispose();
+				}
+			}));
 			this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
 		}
 	}
@@ -361,9 +374,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.updateStatusbarEntry(trusted);
 
 		const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined;
+		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const bannerItem = this.getBannerItem(isVirtualWorkspace, !trusted);
 
-		if (bannerItem) {
+		if (bannerItem && (!isEmptyWorkspace || this.showBannerInEmptyWindow)) {
 			if (!isVirtualWorkspace) {
 				if (!trusted) {
 					this.bannerService.show(bannerItem);
