@@ -359,7 +359,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						continue;
 					}
 
-					this._notebookRenderersInfoStore.add(this._instantiationService.createInstance(NotebookOutputRendererInfo, {
+					this._notebookRenderersInfoStore.add(new NotebookOutputRendererInfo({
 						id,
 						extension: extension.description,
 						entrypoint: notebookContribution.entrypoint,
