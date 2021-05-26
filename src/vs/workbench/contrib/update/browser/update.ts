@@ -186,11 +186,6 @@ export class ProductContribution implements IWorkbenchContribution {
 					});
 			}
 
-			// should we show the new license?
-			if (productService.licenseUrl && lastVersion && lastVersion.major < 1 && currentVersion && currentVersion.major >= 1) {
-				notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", productService.licenseUrl));
-			}
-
 			storageService.store(ProductContribution.KEY, productService.version, StorageScope.GLOBAL, StorageTarget.MACHINE);
 		});
 	}
