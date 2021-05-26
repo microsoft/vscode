@@ -42,6 +42,7 @@ interface IListElement {
 	readonly labelHighlights?: IMatch[];
 	readonly descriptionHighlights?: IMatch[];
 	readonly detailHighlights?: IMatch[];
+	readonly hasCheckBox: boolean;
 	readonly checked: boolean;
 	readonly separator?: IQuickPickSeparator;
 	readonly fireButtonTriggered: (event: IQuickPickItemButtonEvent<IQuickPickItem>) => void;
@@ -58,6 +59,7 @@ class ListElement implements IListElement, IDisposable {
 	hidden = false;
 	private readonly _onChecked = new Emitter<boolean>();
 	onChecked = this._onChecked.event;
+	hasCheckBox!: boolean;
 	_checked?: boolean;
 	get checked() {
 		return !!this._checked;
@@ -247,6 +249,7 @@ export class QuickInputList {
 	private inputElements: Array<IQuickPickItem | IQuickPickSeparator> = [];
 	private elements: ListElement[] = [];
 	private elementsToIndexes = new Map<IQuickPickItem, number>();
+	canSelectMany = false;
 	matchOnDescription = false;
 	matchOnDetail = false;
 	matchOnLabel = true;
@@ -440,6 +443,7 @@ export class QuickInputList {
 					saneAriaLabel,
 					saneDescription,
 					saneDetail,
+					hasCheckBox: this.canSelectMany,
 					labelHighlights: item.highlights?.label,
 					descriptionHighlights: item.highlights?.description,
 					detailHighlights: item.highlights?.detail,
@@ -737,7 +741,11 @@ class QuickInputAccessibilityProvider implements IListAccessibilityProvider<List
 		return 'listbox';
 	}
 
-	getRole() {
-		return 'option';
+	isChecked(element: ListElement) {
+		return element.checked;
+	}
+
+	getRole(element: ListElement) {
+		return element.hasCheckBox ? 'checkbox' : 'option';
 	}
 }

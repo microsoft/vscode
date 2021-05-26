@@ -1588,6 +1588,7 @@ export class QuickInputController extends Disposable {
 		ui.message.style.display = visibilities.message ? '' : 'none';
 		ui.progressBar.getContainer().style.display = visibilities.progressBar ? '' : 'none';
 		ui.list.display(!!visibilities.list);
+		ui.list.canSelectMany = !!visibilities.checkBox;
 		ui.container.classList[visibilities.checkBox ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
 	}
