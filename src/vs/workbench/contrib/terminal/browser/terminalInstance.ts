@@ -775,7 +775,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
-		const dndController = new TerminalInstanceDropAndDropController(container);
+		const dndController = new TerminalInstanceDragAndDropController(container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
@@ -1789,13 +1789,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return this._linkManager.registerExternalLinkProvider(this, provider);
 	}
 
-	async rename() {
-		const name = await this._quickInputService.input({
-			value: this.title,
-			prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
-		});
-		if (name) {
-			this.setTitle(name, TitleEventSource.Api);
+	async rename(title?: string) {
+		if (!title) {
+			title = await this._quickInputService.input({
+				value: this.title,
+				prompt: nls.localize('workbench.action.terminal.rename.prompt', "Enter terminal name"),
+			});
+		}
+		if (title) {
+			this.setTitle(title, TitleEventSource.Api);
 		}
 	}
 
@@ -1843,7 +1845,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}
 		items.push({ type: 'separator' });
-		const showAllColorsItem = { label: 'Show all colors' };
+		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
 		styleElement.textContent = css;
 		document.body.appendChild(styleElement);
@@ -1870,7 +1872,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
+class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
 	private readonly _onDropFile = new Emitter<string>();

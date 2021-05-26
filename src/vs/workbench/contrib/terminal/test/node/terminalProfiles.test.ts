@@ -115,36 +115,36 @@ suite('Workbench - TerminalProfiles', () => {
 				} as ITestTerminalConfig) as ITerminalConfiguration;
 
 				test('should prefer pwsh 7 to Windows PowerShell', async () => {
-					const fsProvider = createFsProvider([
+					const expectedPaths = [
 						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
 						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-					]);
-					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), fsProvider, undefined, undefined, undefined);
+					];
+					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), undefined, undefined, undefined, expectedPaths);
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
 					];
 					profilesEqual(profiles, expected);
 				});
 				test('should prefer pwsh 7 to pwsh 6', async () => {
-					const fsProvider = createFsProvider([
+					const expectedPaths = [
 						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
 						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
 						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-					]);
-					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), fsProvider, undefined, undefined, undefined);
+					];
+					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), undefined, undefined, undefined, expectedPaths);
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
 					];
 					profilesEqual(profiles, expected);
 				});
-				test.skip('should fallback to Windows PowerShell', async () => {
-					const fsProvider = createFsProvider([
+				test('should fallback to Windows PowerShell', async () => {
+					const expectedPaths = [
 						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-					]);
-					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), fsProvider, undefined, undefined, undefined);
+					];
+					const profiles = await detectAvailableProfiles(false, buildTestSafeConfigProvider(pwshSourceConfig), undefined, undefined, undefined, expectedPaths);
 					strictEqual(profiles.length, 1);
 					strictEqual(profiles[0].profileName, 'PowerShell');
 				});
@@ -228,7 +228,7 @@ suite('Workbench - TerminalProfiles', () => {
 			},
 			async readFile(path: string): Promise<Buffer> {
 				if (path !== '/etc/shells') {
-					fail('Unexected path');
+					fail('Unexepected path');
 				}
 				return Buffer.from(etcShellsContent);
 			}

@@ -21,7 +21,7 @@
     }
   },
   "contributes": {
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "markdownItRenderer-katex",
         "displayName": "Markdown it katex renderer",

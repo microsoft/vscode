@@ -219,7 +219,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopes: string[], options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
@@ -998,10 +998,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			stopDebugging(session?: vscode.DebugSession) {
 				return extHostDebugService.stopDebugging(session);
 			},
-			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
+			addBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
 			},
-			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
+			removeBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
 			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {

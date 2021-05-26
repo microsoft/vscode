@@ -6,6 +6,7 @@
 import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
 import { ByLocationTestItemElement, ByLocationFolderElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
@@ -38,7 +39,7 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	public override get description() {
 		let description: string | null = null;
 		for (let parent = this.actualParent; parent && !parent.isTestRoot; parent = parent.actualParent) {
-			description = description ? `${parent.label} › ${description}` : parent.label;
+			description = description ? parent.label + flatTestItemDelimiter + description : parent.label;
 		}
 
 		return description;
