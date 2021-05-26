@@ -15,7 +15,7 @@ import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/con
 import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOptions, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMatch } from 'vs/base/common/filters';
@@ -173,36 +173,15 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 	focusSearch?: boolean;
 }
 
-export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
+export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
+	return {
+		// Inherit provided options
+		...options,
 
-	target?: ConfigurationTarget;
-	folderUri?: URI;
-	query?: string;
-	revealSetting?: {
-		key: string;
-		edit?: boolean;
+		// Enforce some options for settings specifically
+		override: EditorOverride.DISABLED,
+		pinned: true
 	};
-	focusSearch?: boolean;
-
-	static override create(options: ISettingsEditorOptions): SettingsEditorOptions {
-		const newOptions = new SettingsEditorOptions();
-		options = {
-			...<IEditorOptions>{
-				override: EditorOverride.DISABLED,
-				pinned: true
-			},
-			...options
-		};
-		newOptions.overwrite(options);
-
-		newOptions.target = options.target;
-		newOptions.folderUri = options.folderUri;
-		newOptions.query = options.query;
-		newOptions.revealSetting = options.revealSetting;
-		newOptions.focusSearch = options.focusSearch;
-
-		return newOptions;
-	}
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {

@@ -6,13 +6,13 @@
 import * as nls from 'vs/nls';
 import { IAction } from 'vs/base/common/actions';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfigurationService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_VIEW_ID, IOutputService, CONTEXT_IN_OUTPUT, IOutputChannel, CONTEXT_ACTIVE_LOG_OUTPUT, CONTEXT_OUTPUT_SCROLL_LOCK } from 'vs/workbench/contrib/output/common/output';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -37,6 +37,7 @@ import { editorBackground, selectBorder } from 'vs/platform/theme/common/colorRe
 import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class OutputViewPane extends ViewPane {
 
@@ -146,7 +147,7 @@ export class OutputViewPane extends ViewPane {
 		this.channelId = channel.id;
 		const descriptor = this.outputService.getChannelDescriptor(channel.id);
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
-		this.editorPromise = this.editor.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: true }), Object.create(null), CancellationToken.None)
+		this.editorPromise = this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), CancellationToken.None)
 			.then(() => this.editor);
 	}
 
@@ -186,7 +187,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return nls.localize('output', "Output");
 	}
 
-	protected override getConfigurationOverrides(): IEditorOptions {
+	protected override getConfigurationOverrides(): ICodeEditorOptions {
 		const options = super.getConfigurationOverrides();
 		options.wordWrap = 'on';				// all output editors wrap
 		options.lineNumbers = 'off';			// all output editors hide line numbers
@@ -221,7 +222,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 		return channel ? nls.localize('outputViewWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputViewAriaLabel', "Output panel");
 	}
 
-	override async setInput(input: TextResourceEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
 		if (input.matches(this.input)) {
 			return;

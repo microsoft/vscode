@@ -5,14 +5,15 @@
 
 import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { isFunction, assertIsDefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { isValidBasename } from 'vs/base/common/extpath';
 import { basename } from 'vs/base/common/resources';
 import { toAction } from 'vs/base/common/actions';
 import { VIEWLET_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ITextFileService, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorOpenContext, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -28,7 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { createErrorWithActions } from 'vs/base/common/errors';
-import { EditorActivation, EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 
@@ -104,7 +105,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	override async setInput(input: FileEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: FileEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Update/clear view settings if input changes
 		this.doSaveOrClearTextEditorViewState(this.input);
@@ -140,9 +141,9 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 			}
 
-			// TextOptions (avoiding instanceof here for a reason, do not change!)
-			if (options && isFunction((<TextEditorOptions>options).apply)) {
-				(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
+			// Apply options to editor if any
+			if (options) {
+				applyTextEditorOptions(options, textEditor, ScrollType.Immediate);
 			}
 
 			// Since the resolved model provides information about being readonly
@@ -156,7 +157,7 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	protected handleSetInputError(error: Error, input: FileEditorInput, options: EditorOptions | undefined): void {
+	protected handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
 		// In case we tried to open a file inside the text editor and the response
 		// indicates that this is not a text file, reopen the file through the binary
@@ -196,21 +197,18 @@ export class TextFileEditor extends BaseTextEditor {
 		throw error;
 	}
 
-	private openAsBinary(input: FileEditorInput, options: EditorOptions | undefined): void {
+	private openAsBinary(input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 		input.setForceOpenAsBinary();
 
-		// Make sure to not steal away the currently active group
-		// because we are triggering another openEditor() call
-		// and do not control the initial intent that resulted
-		// in us now opening as binary.
-		const preservingOptions: IEditorOptions = { activation: EditorActivation.PRESERVE, override: EditorOverride.DISABLED };
-		if (options) {
-			options.overwrite(preservingOptions);
-		} else {
-			options = EditorOptions.create(preservingOptions);
-		}
-
-		this.editorService.openEditor(input, options, this.group);
+		this.editorService.openEditor(input, {
+			...options,
+			// Make sure to not steal away the currently active group
+			// because we are triggering another openEditor() call
+			// and do not control the initial intent that resulted
+			// in us now opening as binary.
+			activation: EditorActivation.PRESERVE,
+			override: EditorOverride.DISABLED
+		}, this.group);
 	}
 
 	private async openAsFolder(input: FileEditorInput): Promise<void> {

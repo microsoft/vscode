@@ -26,8 +26,8 @@ import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/cont
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -323,23 +323,10 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
-export class NotebookEditorOptions extends EditorOptions {
-
+export interface INotebookEditorOptions extends IEditorOptions {
 	readonly cellOptions?: IResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
-
-	constructor(options: Partial<NotebookEditorOptions>) {
-		super();
-		this.overwrite(options);
-		this.cellOptions = options.cellOptions;
-		this.cellSelections = options.cellSelections;
-		this.isReadOnly = options.isReadOnly;
-	}
-
-	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
-		return new NotebookEditorOptions({ ...this, ...options });
-	}
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
@@ -409,7 +396,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
-	setOptions(options: NotebookEditorOptions | undefined): Promise<void>;
+	setOptions(options: INotebookEditorOptions | undefined): Promise<void>;
 
 	/**
 	 * Select & focus cell
