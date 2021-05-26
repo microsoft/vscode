@@ -18,9 +18,10 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -120,24 +121,27 @@ export class ExtHostTerminal {
 	}
 
 	public async create(
-		shellPath?: string,
-		shellArgs?: string[] | string,
-		cwd?: string | URI,
-		env?: ITerminalEnvironment,
-		icon?: URI | { light: URI; dark: URI } | ThemeIcon,
-		initialText?: string,
-		waitOnExit?: boolean,
-		strictEnv?: boolean,
-		hideFromUser?: boolean,
-		isFeatureTerminal?: boolean,
-		isExtensionOwnedTerminal?: boolean,
-		useShellEnvironment?: boolean,
-		isSplitTerminal?: boolean
+		options: vscode.TerminalOptions,
+		internalOptions?: ITerminalInternalOptions,
 	): Promise<void> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal, useShellEnvironment, isSplitTerminal });
+		await this._proxy.$createTerminal(this._id, {
+			name: options.name,
+			shellPath: withNullAsUndefined(options.shellPath),
+			shellArgs: withNullAsUndefined(options.shellArgs),
+			cwd: withNullAsUndefined(options.cwd),
+			env: withNullAsUndefined(options.env),
+			icon: withNullAsUndefined(options.iconPath),
+			initialText: withNullAsUndefined(options.message),
+			strictEnv: withNullAsUndefined(options.strictEnv),
+			hideFromUser: withNullAsUndefined(options.hideFromUser),
+			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
+			isExtensionOwnedTerminal: true,
+			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
+			isSplitTerminal: withNullAsUndefined(internalOptions?.isSplitTerminal)
+		});
 	}
 
 	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
