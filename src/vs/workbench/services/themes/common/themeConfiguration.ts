@@ -144,7 +144,8 @@ const tokenColorSchema: IJSONSchema = {
 		'^[^\\[\\]]*$': {
 			type: 'object'
 		}
-	}
+	},
+	additionalProperties: false
 };
 
 const tokenColorCustomizationSchema: IConfigurationPropertySchema = {
