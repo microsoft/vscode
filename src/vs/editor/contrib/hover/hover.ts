@@ -21,7 +21,7 @@ import { ModesGlyphHoverWidget } from 'vs/editor/contrib/hover/modesGlyphHover';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { editorHoverBackground, editorHoverBorder, editorHoverHighlight, textCodeBlockBackground, textLinkForeground, editorHoverStatusBarBackground, editorHoverForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { GotoDefinitionAtPositionEditorContribution } from 'vs/editor/contrib/gotoSymbol/link/goToDefinitionAtPosition';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -52,7 +52,6 @@ export class ModesHoverController implements IEditorContribution {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IModeService private readonly _modeService: IModeService,
-		@IThemeService private readonly _themeService: IThemeService,
 		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		this._isMouseDown = false;
@@ -189,7 +188,7 @@ export class ModesHoverController implements IEditorContribution {
 						: mouseEvent.target.range
 				);
 				if (!this._contentWidget) {
-					this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
+					this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService);
 				}
 				this._contentWidget.startShowingAt(showAtRange, HoverStartMode.Delayed, false);
 			}
@@ -230,7 +229,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
 		if (!this._contentWidget) {
-			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService, this._themeService);
+			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService);
 		}
 		this._contentWidget.startShowingAt(range, mode, focus);
 	}

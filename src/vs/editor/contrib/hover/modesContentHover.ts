@@ -5,20 +5,17 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Color, RGBA } from 'vs/base/common/color';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
-import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
-import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel';
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { coalesce, flatten } from 'vs/base/common/arrays';
-import { IIdentifiedSingleEditOperation, IModelDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { IModelDecoration } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
 import { textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -33,7 +30,7 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverP
 import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 
 export interface IHoverPart {
-	readonly owner?: IEditorHoverParticipant;
+	readonly owner: IEditorHoverParticipant;
 	readonly range: Range;
 	equals(other: IHoverPart): boolean;
 }
@@ -41,6 +38,7 @@ export interface IHoverPart {
 export interface IEditorHover {
 	hide(): void;
 	onContentsChanged(): void;
+	setColorPicker(widget: ColorPickerWidget): void;
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
@@ -187,7 +185,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		editor: ICodeEditor,
 		private readonly _hoverVisibleKey: IContextKey<boolean>,
 		instantiationService: IInstantiationService,
-		private readonly _themeService: IThemeService,
 	) {
 		super();
 
@@ -264,7 +261,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 							blue: color.rgba.b / 255,
 							alpha: color.rgba.a
 						};
-						return new ColorHover(msg.owner, msg.range, newColor, msg.colorPresentations, msg.provider);
+						return new ColorHover(msg.owner, msg.range, newColor, msg.colorPresentations, true, msg.provider);
 					} else {
 						return msg;
 					}
@@ -436,6 +433,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return !!this._colorPicker;
 	}
 
+	public setColorPicker(widget: ColorPickerWidget): void {
+		this._colorPicker = widget;
+	}
+
 	public onContentsChanged(): void {
 		this._hover.onContentsChanged();
 	}
@@ -457,107 +458,27 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}
 		this._colorPicker = null as ColorPickerWidget | null; // TODO: TypeScript thinks this is always null
 
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		const editorModel = this._editor.getModel();
-
 		// update column from which to show
 		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
-		let highlightRange: Range | null = messages[0].range ? Range.lift(messages[0].range) : null;
+		let highlightRange: Range = messages[0].range;
 		let forceShowAtRange: Range | null = null as Range | null; // TODO: TypeScript thinks this is always null
 		let fragment = document.createDocumentFragment();
 
 		const disposables = new DisposableStore();
 		const hoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
 		messages.forEach((msg) => {
-			if (!msg.range) {
-				return;
-			}
-
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
-			highlightRange = highlightRange ? Range.plusRange(highlightRange, msg.range) : Range.lift(msg.range);
+			highlightRange = Range.plusRange(highlightRange, msg.range);
 
 			if (msg instanceof ColorHover) {
-				const { red, green, blue, alpha } = msg.color;
-				const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-				const color = new Color(rgba);
-
-				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
-
-				// create blank olor picker model and widget first to ensure it's positioned correctly.
-				const model = new ColorPickerModel(color, [], 0);
-				const widget = new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService);
-
-				model.colorPresentations = msg.colorPresentations || [];
-				const originalText = editorModel.getValueInRange(msg.range);
-				model.guessColorPresentation(color, originalText);
-
-				const updateEditorModel = () => {
-					let textEdits: IIdentifiedSingleEditOperation[];
-					let newRange: Range;
-					if (model.presentation.textEdit) {
-						textEdits = [model.presentation.textEdit as IIdentifiedSingleEditOperation];
-						newRange = new Range(
-							model.presentation.textEdit.range.startLineNumber,
-							model.presentation.textEdit.range.startColumn,
-							model.presentation.textEdit.range.endLineNumber,
-							model.presentation.textEdit.range.endColumn
-						);
-						const trackedRange = this._editor.getModel()!._setTrackedRange(null, newRange, TrackedRangeStickiness.GrowsOnlyWhenTypingAfter);
-						this._editor.pushUndoStop();
-						this._editor.executeEdits('colorpicker', textEdits);
-						newRange = this._editor.getModel()!._getTrackedRange(trackedRange) || newRange;
-					} else {
-						textEdits = [{ identifier: null, range, text: model.presentation.label, forceMoveMarkers: false }];
-						newRange = range.setEndPosition(range.endLineNumber, range.startColumn + model.presentation.label.length);
-						this._editor.pushUndoStop();
-						this._editor.executeEdits('colorpicker', textEdits);
-					}
-
-					if (model.presentation.additionalTextEdits) {
-						textEdits = [...model.presentation.additionalTextEdits as IIdentifiedSingleEditOperation[]];
-						this._editor.executeEdits('colorpicker', textEdits);
-						this.hide();
-					}
-					this._editor.pushUndoStop();
-					range = newRange;
-				};
-
-				const updateColorPresentations = (color: Color) => {
-					return getColorPresentations(editorModel, {
-						range: range,
-						color: {
-							red: color.rgba.r / 255,
-							green: color.rgba.g / 255,
-							blue: color.rgba.b / 255,
-							alpha: color.rgba.a
-						}
-					}, msg.provider, CancellationToken.None).then((colorPresentations) => {
-						model.colorPresentations = colorPresentations || [];
-					});
-				};
-
-				const colorListener = model.onColorFlushed((color: Color) => {
-					updateColorPresentations(color).then(updateEditorModel);
-				});
-				const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
-
-				this._colorPicker = widget;
-				forceShowAtRange = range;
-
-				disposables.add(colorListener);
-				disposables.add(colorChangeListener);
-				disposables.add(widget);
-			} else {
-				if (msg.owner) {
-					if (!hoverParts.has(msg.owner)) {
-						hoverParts.set(msg.owner, []);
-					}
-					const dest = hoverParts.get(msg.owner)!;
-					dest.push(msg);
-				}
+				forceShowAtRange = msg.range;
 			}
+
+			if (!hoverParts.has(msg.owner)) {
+				hoverParts.set(msg.owner, []);
+			}
+			const dest = hoverParts.get(msg.owner)!;
+			dest.push(msg);
 		});
 
 		for (const [participant, participantHoverParts] of hoverParts) {
