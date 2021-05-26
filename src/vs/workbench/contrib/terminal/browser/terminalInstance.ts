@@ -931,7 +931,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(immediate?: boolean): void {
-		this._logService.trace(`terminalInstance#dispose(instanceId: ${this.instanceId})`);
+		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -1178,7 +1178,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
-		this._logService.debug(`Terminal process exit(instanceId: ${this.instanceId}) with code ${this._exitCode} `);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
 
 		let exitCodeMessage: string | undefined;
 
@@ -1195,7 +1195,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (this._shellLaunchConfig.executable) {
 					commandLine = this._shellLaunchConfig.executable;
 					if (typeof this._shellLaunchConfig.args === 'string') {
-						commandLine += ` ${this._shellLaunchConfig.args} `;
+						commandLine += ` ${this._shellLaunchConfig.args}`;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						commandLine += this._shellLaunchConfig.args.map(a => ` '${a}'`).join();
 					}
@@ -1221,7 +1221,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 		}
 
-		this._logService.debug(`Terminal process exit(instanceId: ${this.instanceId}) state ${this._processManager.processState} `);
+		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1449,7 +1449,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
-			this._logService.warn(`Webgl could not be loaded.Falling back to the canvas renderer type.`, e);
+			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -1845,7 +1845,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async changeIcon() {
 		const items: IQuickPickItem[] = [];
 		for (const icon of iconRegistry.all) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id} ` });
+			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
 		}
 		const result = await this._quickInputService.pick(items, {
 			title: nls.localize('changeTerminalIcon', "Change Icon"),
@@ -1878,11 +1878,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')} `, id: colorKey, description: colorKey, iconClasses: [colorClass]
+				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
 			});
 			const color = colorTheme.getColor(colorKey);
 			if (color) {
-				css += `.monaco - workbench.${colorClass} .codicon: first - child: not(.codicon - split - horizontal): not(.codicon - trashcan): not(.file - icon) { color: ${color} !important; } `;
+				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
 			}
 		}
 		items.push({ type: 'separator' });
@@ -2027,8 +2027,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
-				.monaco - workbench.hc - black.pane - body.integrated - terminal.xterm.focus:: before,
-			.monaco - workbench.hc - black.pane - body.integrated - terminal.xterm: focus:: before { border - color: ${border}; } `
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
 
@@ -2036,24 +2036,24 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
-				.monaco - workbench.pane - body.integrated - terminal.find - focused.xterm.xterm - viewport,
-			.monaco - workbench.pane - body.integrated - terminal.xterm.focus.xterm - viewport,
-			.monaco - workbench.pane - body.integrated - terminal.xterm: focus.xterm - viewport,
-			.monaco - workbench.pane - body.integrated - terminal.xterm: hover.xterm - viewport { background - color: ${scrollbarSliderBackgroundColor} !important; }
-			.monaco - workbench.pane - body.integrated - terminal.xterm - viewport { scrollbar - color: ${scrollbarSliderBackgroundColor} transparent; }
-			`);
+			.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
+			.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }
+			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport { scrollbar-color: ${scrollbarSliderBackgroundColor} transparent; }
+		`);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(`
-				.monaco - workbench.pane - body.integrated - terminal.xterm.xterm - viewport:: -webkit - scrollbar - thumb: hover { background - color: ${scrollbarSliderHoverBackgroundColor}; }
-			.monaco - workbench.pane - body.integrated - terminal.xterm - viewport: hover { scrollbar - color: ${scrollbarSliderHoverBackgroundColor} transparent; }
-			`);
+			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }
+			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport:hover { scrollbar-color: ${scrollbarSliderHoverBackgroundColor} transparent; }
+		`);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
 	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`.monaco - workbench.pane - body.integrated - terminal.xterm.xterm - viewport:: -webkit - scrollbar - thumb: active { background - color: ${scrollbarSliderActiveBackgroundColor}; } `);
+		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
 	}
 });
