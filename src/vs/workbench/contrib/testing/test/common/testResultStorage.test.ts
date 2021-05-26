@@ -3,20 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
-import { range } from 'vs/base/common/arrays';
-import { NullLogService } from 'vs/platform/log/common/log';
-import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
-import { emptyOutputController } from 'vs/workbench/contrib/testing/test/common/testResultService.test';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+ * assert 'assert';
+ { range } 'vs/base/common/arrays';
+ { NullLogService } 'vs/platform/log/common/log';
+ { ITestResult, LiveTestResult } 'vs/workbench/contrib/testing/common/testResult';
+ { InMemoryResultStorage, RETAIN_MAX_RESULTS } 'vs/workbench/contrib/testing/common/testResultStorage';
+ { Convert, testStubs, testStubsChain } 'vs/workbench/contrib/testing/common/testStubs';
+ { emptyOutputController } 'vs/workbench/contrib/testing/test/common/testResultService.test';
+ { TestStorageService } 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workbench - Test Result Storage', () => {
-	let storage: InMemoryResultStorage;
+	 storage: InMemoryResultStorage;
 
-	const makeResult = (addMessage?: string) => {
-		const t = new LiveTestResult(
+	 makeResult = (addMessage?: string) => {
+		 t = new LiveTestResult(
 			'',
 			emptyOutputController(),
 			{
@@ -29,10 +29,10 @@ suite('Workbench - Test Result Storage', () => {
 		);
 
 		t.addTask({ id: 't', name: undefined, running: true });
-		const tests = testStubs.nested();
+		 tests = testStubs.nested();
 		t.addTestChainToRun(testStubsChain(tests, ['id-a', 'id-aa']).map(Convert.TestItem.from));
 
-		if (addMessage) {
+		(addMessage) {
 			t.appendMessage('id-a', 't', {
 				message: addMessage,
 				actualOutput: undefined,
@@ -42,55 +42,55 @@ suite('Workbench - Test Result Storage', () => {
 			});
 		}
 		t.markComplete();
-		return t;
+		t;
 	};
 
-	const assertStored = async (stored: ITestResult[]) =>
+	 assertStored =  (stored: ITestResult[]) =>
 		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
 
 	setup(async () => {
-		storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+		storage = InMemoryResultStorage(new TestStorageService(), new NullLogService());
 	});
 
-	test('stores a single result', async () => {
-		const r = range(5).map(() => makeResult());
-		await storage.persist(r);
-		await assertStored(r);
+	test('stores a single result', () => {
+		r = range(5).map(() => makeResult());
+		 storage.persist(r);
+		 assertStored(r);
 	});
 
-	test('deletes old results', async () => {
-		const r = range(5).map(() => makeResult());
-		await storage.persist(r);
-		const r2 = [makeResult(), ...r.slice(0, 3)];
-		await storage.persist(r2);
-		await assertStored(r2);
+	test('deletes old results', () => {
+		r = range(5).map(() => makeResult());
+		 storage.persist(r);
+		 r2 = [makeResult(), ...r.slice(0, 3)];
+		 storage.persist(r2);
+		 assertStored(r2);
 	});
 
-	test('limits stored results', async () => {
-		const r = range(100).map(() => makeResult());
-		await storage.persist(r);
-		await assertStored(r.slice(0, RETAIN_MAX_RESULTS));
+	test('limits stored results', () => {
+		 r = range(100).map(() => makeResult());
+		 storage.persist(r);
+		 assertStored(r.slice(0, RETAIN_MAX_RESULTS));
 	});
 
-	test('limits stored result by budget', async () => {
-		const r = range(100).map(() => makeResult('a'.repeat(2048)));
-		await storage.persist(r);
-		await assertStored(r.slice(0, 43));
+	test('limits stored result by budget', () => {
+		 r = range(100).map(() => makeResult('a'.repeat(2048)));
+		 storage.persist(r);
+		 assertStored(r.slice(0, 43));
 	});
 
-	test('always stores the min number of results', async () => {
-		const r = range(20).map(() => makeResult('a'.repeat(1024 * 10)));
-		await storage.persist(r);
-		await assertStored(r.slice(0, 16));
+	test('always stores the min number of results', () => {
+		 r = range(20).map(() => makeResult('a'.repeat(1024 * 10)));
+		 storage.persist(r);
+		 assertStored(r.slice(0, 16));
 	});
 
-	test('takes into account existing stored bytes', async () => {
-		const r = range(10).map(() => makeResult('a'.repeat(1024 * 10)));
-		await storage.persist(r);
-		await assertStored(r);
+	test('takes into account existing stored bytes', () => {
+		 r = range(10).map(() => makeResult('a'.repeat(1024 * 10)));
+		 storage.persist(r);
+		 assertStored(r);
 
-		const r2 = [...r, ...range(10).map(() => makeResult('a'.repeat(1024 * 10)))];
-		await storage.persist(r2);
-		await assertStored(r2.slice(0, 16));
+		 r2 = [...r, ...range(10).map(() => makeResult('a'.repeat(1024 * 10)))];
+		 storage.persist(r2);
+		 assertStored(r2.slice(0, 16));
 	});
 });
