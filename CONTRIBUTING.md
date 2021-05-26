@@ -45,7 +45,7 @@ File a single issue per problem and feature request. Do not enumerate multiple b
 
 Do not add your issue as a comment to an existing issue unless it's for the identical input. Many issues look similar, but have different causes.
 
-The more information you can provide, the more likely someone will be successful at reproducing the issue and finding a fix.
+The more information you have the ability of providing, the more likely someone will be successful at reproducing the issue and finding a way to fix that issue.
 
 The built-in tool for reporting an issue, which you can access by using `Report Issue` in VS Code's Help menu, can help streamline this process by automatically providing the version of VS Code, all your installed extensions, and your system info. Additionally, the tool will search among existing issues to see if a similar issue already exists.
 
@@ -102,4 +102,4 @@ please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-C
 
 # Thank You!
 
-Your contributions to open source, large or small, make great projects like this possible. Thank you for taking the time to contribute.
+Your contributions to open source, large or small, make those kinds of big projects like this possible. Thank you for taking the time to contribute.
