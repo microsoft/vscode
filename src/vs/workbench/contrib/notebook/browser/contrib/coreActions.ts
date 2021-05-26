@@ -1590,7 +1590,10 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 				},
 				{
 					id: MenuId.NotebookToolbar,
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						executeNotebookCondition,
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					),
 					group: 'navigation/execute',
 					order: 0
 				}

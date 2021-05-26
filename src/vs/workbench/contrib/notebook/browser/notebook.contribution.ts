@@ -613,7 +613,7 @@ configurationRegistry.registerConfiguration({
 		[CompactView]: {
 			description: nls.localize('notebook.compactView.description', "Control whether the notebook editor should be rendered in a compact form. "),
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
