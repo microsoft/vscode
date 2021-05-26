@@ -305,10 +305,6 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 	) {
 		super(resource, fileService);
 
-		if (!fileService.canHandleResource(this.resource)) {
-			throw new Error(`The file working copy resource ${this.resource.toString(true)} does not have an associated file system provider.`);
-		}
-
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
 	}
