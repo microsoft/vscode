@@ -321,7 +321,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostUrls.createAppUri(uri);
 				}
 
-				if (!matchesScheme(uri.scheme, Schemas.http) && !matchesScheme(uri.scheme, Schemas.https)) {
+				if (!matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https)) {
 					checkProposedApiEnabled(extension); // https://github.com/microsoft/vscode/issues/124263
 				}
 
