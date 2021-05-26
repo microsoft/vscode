@@ -34,7 +34,7 @@ import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/br
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getOuterEditor, IPeekViewService, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
+import { getOuterEditor, IPeekViewService, peekViewResultsBackground, peekViewResultsMatchForeground, peekViewResultsSelectionBackground, peekViewResultsSelectionForeground, peekViewTitleBackground, peekViewTitleForeground, peekViewTitleInfoForeground, PeekViewWidget } from 'vs/editor/contrib/peekView/peekView';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -43,21 +43,23 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
-import { IColorTheme, IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
-import { testingStatesToIcons, testMessageSeverityToIcons } from 'vs/workbench/contrib/testing/browser/icons';
+import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { testingPeekBorder } from 'vs/workbench/contrib/testing/browser/theme';
 import { AutoOpenPeekViewWhen, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { IRichLocation, ITestItem, ITestMessage, ITestRunTask, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { getPathForTestInResult, ITestResult, maxCountPriority, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
@@ -84,18 +86,6 @@ class TestDto {
 	}
 }
 
-export interface ITestingPeekOpener {
-	_serviceBrand: undefined;
-
-	/**
-	 * Tries to peek the first test error, if the item is in a failed state.
-	 * @returns a boolean indicating whether a peek was opened
-	 */
-	tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>): Promise<boolean>;
-}
-
-export const ITestingPeekOpener = createDecorator<ITestingPeekOpener>('testingPeekOpener');
-
 export class TestingPeekOpener extends Disposable implements ITestingPeekOpener {
 	declare _serviceBrand: undefined;
 
@@ -109,10 +99,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		this._register(testResults.onTestChanged(this.openPeekOnFailure, this));
 	}
 
-	/**
-	 * Tries to peek the first test error, if the item is in a failed state.
-	 * @returns a boolean if a peek was opened
-	 */
+	/** @inheritdoc */
 	public async tryPeekFirstError(result: ITestResult, test: TestResultItem, options?: Partial<ITextEditorOptions>) {
 		const candidate = this.getCandidateMessage(test);
 		if (!candidate) {
@@ -139,6 +126,13 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 		}));
 
 		return true;
+	}
+
+	/** @inheritdoc */
+	public closeAllPeeks() {
+		for (const editor of this.codeEditorService.listCodeEditors()) {
+			TestingOutputPeekController.get(editor).removePeek();
+		}
 	}
 
 	/**
@@ -766,7 +760,7 @@ export class TestResultElement implements ITreeElement {
 	public readonly label = this.value.name;
 
 	public get icon() {
-		return testingStatesToIcons.get(
+		return icons.testingStatesToIcons.get(
 			this.value.completedAt === undefined
 				? TestResultState.Running
 				: maxCountPriority(this.value.counts)
@@ -778,22 +772,22 @@ export class TestResultElement implements ITreeElement {
 
 export class TestCaseElement implements ITreeElement {
 	public readonly type = 'test';
-	public readonly context = this.value.item.extId;
-	public readonly id = `${this.results.id}/${this.value.item.extId}`;
-	public readonly label = this.value.item.label;
+	public readonly context = this.test.item.extId;
+	public readonly id = `${this.results.id}/${this.test.item.extId}`;
+	public readonly label = this.test.item.label;
 	public readonly description?: string;
 
 	public get icon() {
-		return testingStatesToIcons.get(this.value.computedState);
+		return icons.testingStatesToIcons.get(this.test.computedState);
 	}
 
 	public get path() {
-		return getPathForTestInResult(this.value, this.results);
+		return getPathForTestInResult(this.test, this.results);
 	}
 
 	constructor(
 		private readonly results: ITestResult,
-		public readonly value: TestResultItem,
+		public readonly test: TestResultItem,
 	) {
 		for (const parent of this.parents()) {
 			this.description = this.description
@@ -804,7 +798,7 @@ export class TestCaseElement implements ITreeElement {
 
 	private *parents() {
 		for (
-			let parent = this.value.parent && this.results.getStateById(this.value.parent);
+			let parent = this.test.parent && this.results.getStateById(this.test.parent);
 			parent;
 			parent = parent.parent && this.results.getStateById(parent.parent)
 		) {
@@ -825,7 +819,7 @@ class TestTaskElement implements ITreeElement {
 		return getPathForTestInResult(this.test, this.results);
 	}
 
-	constructor(private readonly results: ITestResult, private readonly test: TestResultItem, index: number) {
+	constructor(private readonly results: ITestResult, public readonly test: TestResultItem, index: number) {
 		this.id = `${results.id}/${test.item.extId}/${index}`;
 		this.task = results.tasks[index];
 		this.context = String(index);
@@ -861,7 +855,7 @@ class TestMessageElement implements ITreeElement {
 
 		this.id = this.uri.toString();
 		this.label = firstLine(renderStringAsPlaintext(message));
-		this.icon = testMessageSeverityToIcons.get(severity);
+		this.icon = icons.testMessageSeverityToIcons.get(severity);
 	}
 }
 
@@ -1155,9 +1149,9 @@ class TreeActionsProvider {
 	) { }
 
 	public provideActionBar(element: ITreeElement) {
-		const test = element instanceof TestCaseElement ? element.value : undefined;
+		const test = element instanceof TestCaseElement ? element.test : undefined;
 		const contextOverlay = this.contextKeyService.createOverlay([
-			['view', Testing.OutputPeekContributionId],
+			['peek', Testing.OutputPeekContributionId],
 			[TestingContextKeys.peekItemType.key, element.type],
 			[TestingContextKeys.testItemExtId.key, test?.item.extId],
 			[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
@@ -1172,23 +1166,62 @@ class TreeActionsProvider {
 
 			if (element instanceof TestResultElement) {
 				primary.push(new Action(
-					'testing.showResultOutput',
+					'testing.outputPeek.showResultOutput',
 					localize('testing.showResultOutput', "Show Result Output"),
 					Codicon.terminal.classNames,
 					undefined,
 					() => this.testTerminalService.open(element.value)
 				));
+
+				primary.push(new Action(
+					'testing.outputPeek.reRunLastRun',
+					localize('testing.reRunLastRun', "Rerun Test Run"),
+					ThemeIcon.asClassName(icons.testingRunIcon),
+					undefined,
+					() => this.commandService.executeCommand('testing.reRunLastRun', element.value.id),
+				));
+
+				if (Iterable.some(element.value.tests, t => t.item.debuggable)) {
+					primary.push(new Action(
+						'testing.outputPeek.debugLastRun',
+						localize('testing.debugLastRun', "Debug Test Run"),
+						ThemeIcon.asClassName(icons.testingDebugIcon),
+						undefined,
+						() => this.commandService.executeCommand('testing.debugLastRun', element.value.id),
+					));
+				}
 			}
 
 			if (element instanceof TestCaseElement || element instanceof TestTaskElement) {
 				primary.push(new Action(
-					'testing.revealInExplorer',
+					'testing.outputPeek.revealInExplorer',
 					localize('testing.revealInExplorer', "Reveal in Test Explorer"),
 					Codicon.listTree.classNames,
 					undefined,
 					() => this.commandService.executeCommand('vscode.revealTestInExplorer', element.path),
 				));
+
+				if (element.test.item.runnable) {
+					primary.push(new Action(
+						'testing.outputPeek.runTest',
+						localize('run test', 'Run Test'),
+						ThemeIcon.asClassName(icons.testingRunIcon),
+						undefined,
+						() => this.commandService.executeCommand('vscode.runTestsByPath', false, element.path),
+					));
+				}
+
+				if (element.test.item.debuggable) {
+					primary.push(new Action(
+						'testing.outputPeek.debugTest',
+						localize('debug test', 'Debug Test'),
+						ThemeIcon.asClassName(icons.testingDebugIcon),
+						undefined,
+						() => this.commandService.executeCommand('vscode.runTestsByPath', true, element.path),
+					));
+				}
 			}
+
 			const result = { primary, secondary };
 			const actionsDisposable = createAndFillInActionBarActions(menu, {
 				shouldForwardArgs: true,
@@ -1200,3 +1233,32 @@ class TreeActionsProvider {
 		}
 	}
 }
+
+registerThemingParticipant((theme, collector) => {
+	const resultsBackground = theme.getColor(peekViewResultsBackground);
+	if (resultsBackground) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { background-color: ${resultsBackground}; }`);
+	}
+	const resultsMatchForeground = theme.getColor(peekViewResultsMatchForeground);
+	if (resultsMatchForeground) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree { color: ${resultsMatchForeground}; }`);
+	}
+	const resultsSelectedBackground = theme.getColor(peekViewResultsSelectionBackground);
+	if (resultsSelectedBackground) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { background-color: ${resultsSelectedBackground}; }`);
+	}
+	const resultsSelectedForeground = theme.getColor(peekViewResultsSelectionForeground);
+	if (resultsSelectedForeground) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) { color: ${resultsSelectedForeground} !important; }`);
+	}
+
+	const textLinkForegroundColor = theme.getColor(textLinkForeground);
+	if (textLinkForegroundColor) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a { color: ${textLinkForegroundColor}; }`);
+	}
+
+	const textLinkActiveForegroundColor = theme.getColor(textLinkActiveForeground);
+	if (textLinkActiveForegroundColor) {
+		collector.addRule(`.monaco-editor .test-output-peek .test-output-peek-message-container a :hover { color: ${textLinkActiveForegroundColor}; }`);
+	}
+});

@@ -8,7 +8,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { isDefined } from 'vs/base/common/types';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
@@ -31,12 +30,12 @@ import { IActionableTestTreeElement, TestItemTreeElement } from 'vs/workbench/co
 import * as icons from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
-import { TestingOutputPeekController } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
 import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getPathForTestInResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -625,6 +624,7 @@ export class GoToTest extends Action2 {
 		const { range, uri, extId } = element.test.item;
 
 		accessor.get(ITestExplorerFilterState).reveal.value = [extId];
+		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;
 		try {
@@ -640,7 +640,7 @@ export class GoToTest extends Action2 {
 			return;
 		}
 
-		const pane = await editorService.openEditor({
+		await editorService.openEditor({
 			resource: uri,
 			options: {
 				selection: range
@@ -649,12 +649,6 @@ export class GoToTest extends Action2 {
 				preserveFocus: preserveFocus === true,
 			},
 		});
-
-		// if the user selected a failed test and now they didn't, hide the peek
-		const control = pane?.getControl();
-		if (isCodeEditor(control)) {
-			TestingOutputPeekController.get(control).removePeek();
-		}
 	}
 
 	/**
@@ -680,6 +674,7 @@ export class GoToTest extends Action2 {
 		const editorService = accessor.get(IEditorService);
 
 		accessor.get(ITestExplorerFilterState).reveal.value = [test.extId];
+		accessor.get(ITestingPeekOpener).closeAllPeeks();
 
 		let isFile = true;
 		try {
@@ -695,7 +690,7 @@ export class GoToTest extends Action2 {
 			return;
 		}
 
-		const pane = await editorService.openEditor({
+		await editorService.openEditor({
 			resource: test.uri,
 			options: {
 				selection: test.range
@@ -704,12 +699,6 @@ export class GoToTest extends Action2 {
 				preserveFocus,
 			},
 		});
-
-		// if the user selected a failed test and now they didn't, hide the peek
-		const control = pane?.getControl();
-		if (isCodeEditor(control)) {
-			TestingOutputPeekController.get(control).removePeek();
-		}
 	}
 }
 
@@ -954,41 +943,47 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 	}
 }
 
-abstract class RunOrDebugExtsById extends Action2 {
+export const runTestsByPath = async (
+	workspaceTests: IWorkspaceTestCollectionService,
+	progress: IProgressService,
+	paths: ReadonlyArray<TestIdPath>,
+	runTests: (tests: ReadonlyArray<InternalTestItem>) => Promise<ITestResult>,
+): Promise<ITestResult | undefined> => {
+	const subscription = workspaceTests.subscribeToWorkspaceTests();
+	try {
+		const todo = Promise.all([...subscription.workspaceFolderCollections.values()].map(
+			c => Promise.all(paths.map(p => getTestByPath(c, p))),
+		));
+
+		const tests = flatten(await showDiscoveringWhile(progress, todo)).filter(isDefined);
+		return tests.length ? await runTests(tests) : undefined;
+	} finally {
+		subscription.dispose();
+	}
+};
+
+abstract class RunOrDebugExtsByPath extends Action2 {
 	/**
 	 * @override
 	 */
-	public async run(accessor: ServicesAccessor) {
+	public async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const testService = accessor.get(ITestService);
-		const paths = [...this.getTestExtIdsToRun(accessor)];
-		if (paths.length === 0) {
-			return;
-		}
-
-		const workspaceTests = accessor.get(IWorkspaceTestCollectionService).subscribeToWorkspaceTests();
-
-		try {
-			const todo = Promise.all([...workspaceTests.workspaceFolderCollections.values()].map(
-				c => Promise.all(paths.map(p => getTestByPath(c, p))),
-			));
-
-			const tests = flatten(await showDiscoveringWhile(accessor.get(IProgressService), todo)).filter(isDefined);
-			if (tests.length) {
-				await this.runTest(testService, tests);
-			}
-		} finally {
-			workspaceTests.dispose();
-		}
+		await runTestsByPath(
+			accessor.get(IWorkspaceTestCollectionService),
+			accessor.get(IProgressService),
+			[...this.getTestExtIdsToRun(accessor, ...args)],
+			tests => this.runTest(testService, tests),
+		);
 	}
 
-	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor): Iterable<TestIdPath>;
+	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor, ...args: unknown[]): Iterable<TestIdPath>;
 
 	protected abstract filter(node: InternalTestItem): boolean;
 
-	protected abstract runTest(service: ITestService, node: InternalTestItem[]): Promise<ITestResult>;
+	protected abstract runTest(service: ITestService, node: readonly InternalTestItem[]): Promise<ITestResult>;
 }
 
-abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
+abstract class RunOrDebugFailedTests extends RunOrDebugExtsByPath {
 	/**
 	 * @inheritdoc
 	 */
@@ -1012,12 +1007,13 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsById {
 	}
 }
 
-abstract class RunOrDebugLastRun extends RunOrDebugExtsById {
+abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 	/**
 	 * @inheritdoc
 	 */
-	protected *getTestExtIdsToRun(accessor: ServicesAccessor): Iterable<TestIdPath> {
-		const lastResult = accessor.get(ITestResultService).results[0];
+	protected *getTestExtIdsToRun(accessor: ServicesAccessor, runId?: string): Iterable<TestIdPath> {
+		const resultService = accessor.get(ITestResultService);
+		const lastResult = runId ? resultService.results.find(r => r.id === runId) : resultService.results[0];
 		if (!lastResult) {
 			return;
 		}

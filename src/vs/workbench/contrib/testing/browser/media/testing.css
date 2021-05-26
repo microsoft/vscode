@@ -26,7 +26,7 @@
 .test-explorer .monaco-list-row .codicon-testing-hidden {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 0.8em;
 }
 
 .test-explorer .monaco-list-row:hover .monaco-action-bar,
@@ -128,7 +128,8 @@
 	border-bottom-width: 2px;
 }
 
-.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container {
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-tree {
 	height: 100%;
 }
 
@@ -144,6 +145,7 @@
 .monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
 	margin-bottom: 0;
 }
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
