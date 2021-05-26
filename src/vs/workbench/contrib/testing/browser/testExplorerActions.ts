@@ -521,7 +521,6 @@ export class ShowMostRecentOutputAction extends Action2 {
 	}
 }
 
-
 export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 	public static readonly ID = 'testing.collapseAll';
 	constructor() {
