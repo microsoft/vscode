@@ -3849,6 +3849,11 @@ declare namespace monaco.editor {
 		 */
 		showSuggestionPreview?: boolean;
 		/**
+		 * Enable or disable the default expansion of the suggestion preview.
+		 * Defaults to false.
+		 */
+		suggestionPreviewExpanded?: boolean;
+		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;

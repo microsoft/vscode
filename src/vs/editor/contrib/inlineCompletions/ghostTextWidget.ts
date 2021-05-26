@@ -7,7 +7,7 @@ import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -20,6 +20,8 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
+import { RGBA, Color } from 'vs/base/common/color';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -27,7 +29,7 @@ export interface GhostTextWidgetModel {
 	readonly onDidChange: Event<void>;
 	readonly ghostText: GhostText | undefined;
 
-	expand(): void;
+	setExpanded(expanded: boolean): void;
 	readonly expanded: boolean;
 
 	readonly minReservedLineCount: number;
@@ -41,7 +43,7 @@ export interface GhostText {
 export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
 	public abstract readonly ghostText: GhostText | undefined;
 
-	private _expanded = false;
+	private _expanded: boolean | undefined = undefined;
 
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
@@ -49,10 +51,23 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 	public abstract readonly minReservedLineCount: number;
 
 	public get expanded() {
+		if (this._expanded === undefined) {
+			return this.editor.getOption(EditorOption.suggest).suggestionPreviewExpanded;
+		}
 		return this._expanded;
 	}
 
-	public expand(): void {
+	constructor(protected readonly editor: IActiveCodeEditor) {
+		super();
+
+		this._register(editor.onDidChangeConfiguration((e) => {
+			if (e.hasChanged(EditorOption.suggest) && this._expanded === undefined) {
+				this.onDidChangeEmitter.fire();
+			}
+		}));
+	}
+
+	public setExpanded(expanded: boolean): void {
 		this._expanded = true;
 		this.onDidChangeEmitter.fire();
 	}
@@ -66,6 +81,7 @@ export class GhostTextWidget extends Disposable {
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
+	private viewMoreContentWidget2: ViewMoreLinesContentWidget | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -136,8 +152,15 @@ export class GhostTextWidget extends Disposable {
 		if (renderData) {
 			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
 			let opacity = '0.467';
+			let color = 'white';
 			if (suggestPreviewForeground) {
+				function opaque(color: Color): Color {
+					const { r, b, g } = color.rgba;
+					return new Color(new RGBA(r, g, b, 255));
+				}
+
 				opacity = String(suggestPreviewForeground.rgba.a);
+				color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
@@ -146,7 +169,8 @@ export class GhostTextWidget extends Disposable {
 					// TODO: escape?
 					contentText: renderData.lines[0],
 					opacity,
-				}
+					color,
+				},
 			});
 		}
 
@@ -154,7 +178,10 @@ export class GhostTextWidget extends Disposable {
 		if (renderData && this.codeEditorDecorationTypeKey) {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
-				options: this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true)
+				options: {
+					hoverMessage: new MarkdownString('⬅️ Previous | Next ➡️'),
+					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
+				}
 			});
 		}
 		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
@@ -162,6 +189,11 @@ export class GhostTextWidget extends Disposable {
 		if (this.viewMoreContentWidget) {
 			this.viewMoreContentWidget.dispose();
 			this.viewMoreContentWidget = null;
+		}
+
+		if (this.viewMoreContentWidget2) {
+			this.viewMoreContentWidget2.dispose();
+			this.viewMoreContentWidget2 = null;
 		}
 
 		this.editor.changeViewZones((changeAccessor) => {
@@ -215,7 +247,7 @@ export class GhostTextWidget extends Disposable {
 		button.append(`+${remainingLinesLength} lines…`);
 
 		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
-			this.model?.expand();
+			this.model?.setExpanded(true);
 			e.preventDefault();
 			this.editor.focus();
 		}));

@@ -40,7 +40,7 @@
     }
   },
   "contributes": {
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "markdownItRenderer",
         "displayName": "Markdown it renderer",

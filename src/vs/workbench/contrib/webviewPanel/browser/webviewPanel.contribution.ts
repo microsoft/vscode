@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -28,26 +29,28 @@ import { IWebviewWorkbenchService, WebviewEditorService } from './webviewWorkben
 
 class WebviewPanelContribution extends Disposable implements IWorkbenchContribution {
 
-	private readonly _disposables = new DisposableStore();
 	constructor(
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 	) {
 		super();
+
 		// Add all the initial groups to be listened to
 		this.editorGroupService.whenReady.then(() => this.editorGroupService.groups.forEach(group => {
 			this.registerGroupListener(group);
 		}));
 
 		// Additional groups added should also be listened to
-		this._register(this.editorGroupService.onDidAddGroup((group) => this.registerGroupListener(group)));
-
-		this._register(this._disposables);
+		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListener(group)));
 	}
 
 	private registerGroupListener(group: IEditorGroup): void {
 		const listener = group.onWillOpenEditor(e => this.onEditorOpening(e.editor, group));
-		this._disposables.add(listener);
+
+		Event.once(group.onWillDispose)(() => {
+			listener.dispose();
+		});
 	}
+
 	private onEditorOpening(
 		editor: IEditorInput,
 		group: IEditorGroup
@@ -74,7 +77,6 @@ class WebviewPanelContribution extends Disposable implements IWorkbenchContribut
 		}
 
 		previousGroup.closeEditor(editor);
-
 	}
 }
 
@@ -86,7 +88,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 	WebviewEditorInputSerializer);
 
 registerSingleton(IWebviewWorkbenchService, WebviewEditorService, true);
-
 
 registerAction2(ShowWebViewEditorFindWidgetAction);
 registerAction2(HideWebViewEditorFindCommand);

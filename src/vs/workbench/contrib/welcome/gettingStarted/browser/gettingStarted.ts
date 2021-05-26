@@ -6,7 +6,7 @@
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
-import { EditorOptions, IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
@@ -59,6 +59,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -225,7 +226,7 @@ export class GettingStartedPage extends EditorPane {
 		this.recentlyOpened = workspacesService.getRecentlyOpened();
 	}
 
-	override async setInput(newInput: GettingStartedInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
+	override async setInput(newInput: GettingStartedInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this.container.classList.remove('animationReady');
 		this.editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
@@ -233,7 +234,7 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
-	async makeCategoryVisibleWhenAvailable(categoryID: string) {
+	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
 		await this.gettingStartedService.installedExtensionsRegistered;
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
@@ -244,7 +245,7 @@ export class GettingStartedPage extends EditorPane {
 		if (ourCategory.content.type !== 'steps') {
 			throw Error('internaal error: category is not steps');
 		}
-		this.scrollToCategory(categoryID);
+		this.scrollToCategory(categoryID, stepId);
 	}
 
 	private registerDispatchListeners() {
@@ -870,10 +871,11 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private async scrollToCategory(categoryID: string) {
+	private async scrollToCategory(categoryID: string, stepId?: string) {
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
+			this.editorInput.selectedStep = stepId;
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === categoryID);
 			this.buildCategorySlide(categoryID);
 			this.setSlide('details');

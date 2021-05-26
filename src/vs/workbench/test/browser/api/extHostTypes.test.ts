@@ -696,28 +696,28 @@ suite('ExtHostTypes', function () {
 
 		item = types.NotebookCellOutputItem.json(1);
 		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode(JSON.stringify(1)));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
 		item = types.NotebookCellOutputItem.json(1, 'foo');
 		assert.strictEqual(item.mime, 'foo');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode(JSON.stringify(1)));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
 		item = types.NotebookCellOutputItem.json(true);
 		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode(JSON.stringify(true)));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(true)));
 
 		item = types.NotebookCellOutputItem.json([true, 1, 'ddd']);
 		assert.strictEqual(item.mime, 'application/json');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify([true, 1, 'ddd'], undefined, '\t')));
 
 		// --- text
 
 		item = types.NotebookCellOutputItem.text('Hęłlö');
 		assert.strictEqual(item.mime, 'text/plain');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode('Hęłlö'));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 
 		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');
 		assert.strictEqual(item.mime, 'foo/bar');
-		assert.deepStrictEqual(item.value, new TextEncoder().encode('Hęłlö'));
+		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 	});
 });

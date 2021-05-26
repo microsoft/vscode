@@ -130,13 +130,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	interface RendererContext {
 		getState<T>(): T | undefined;
 		setState<T>(newState: T): void;
-		getRenderer(id: string): any | undefined;
+		getRenderer(id: string): Promise<any | undefined>;
 		postMessage?(message: unknown): void;
 		onDidReceiveMessage?: Event<unknown>;
 	}
 
 	interface ScriptModule {
-		activate: (ctx?: RendererContext) => any;
+		activate(ctx?: RendererContext): Promise<RendererApi | undefined | any> | RendererApi | undefined | any;
 	}
 
 	const invokeSourceWithGlobals = (functionSrc: string, globals: { [name: string]: unknown }) => {
@@ -468,8 +468,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		text(): string;
 		json(): any;
-		bytes(): Uint8Array
+		data(): Uint8Array;
 		blob(): Blob;
+		/** @deprecated */
+		bytes(): Uint8Array;
 	}
 
 	interface IDestroyCellInfo {
@@ -492,7 +494,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
-	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value,
 		createScript: value => value,
 	});
@@ -643,9 +645,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 								mime: content.mimeType,
 								value: content.value,
 								metadata: content.metadata,
-								bytes() {
+								data() {
 									return content.valueBytes;
 								},
+								bytes() { return this.data(); },
 								text() {
 									return new TextDecoder().decode(content.valueBytes)
 										|| String(content.value); //todo@jrieken remove this once `value` is gone!
@@ -841,7 +844,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		) { }
 
 		private _onMessageEvent = createEmitter();
-		private _loadPromise: Promise<RendererApi> | undefined;
+		private _loadPromise?: Promise<RendererApi | undefined>;
 		private _api: RendererApi | undefined;
 
 		public get api() { return this._api; }
@@ -866,7 +869,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					const state = vscode.getState();
 					return typeof state === 'object' && state ? state[id] as T : undefined;
 				},
-				getRenderer: (id: string) => renderers.getRenderer(id)?.api,
+				// TODO: This is async so that we can return a promise to the API in the future.
+				// Currently the API is always resolved before we call `createRendererContext`.
+				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
 			};
 
 			if (messaging) {
@@ -878,13 +883,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		/** Inner function cached in the _loadPromise(). */
-		private async _load() {
+		private async _load(): Promise<RendererApi | undefined> {
 			const module = await runRenderScript(this.data.entrypoint, this.data.id);
 			if (!module) {
 				return;
 			}
 
-			const api = module.activate(this.createRendererContext());
+			const api = await module.activate(this.createRendererContext());
 			this._api = api;
 
 			// Squash any errors extends errors. They won't prevent the renderer
@@ -899,7 +904,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	}
 
 	const kernelPreloads = new class {
-		private readonly preloads = new Map<string /* uri */, Promise<ScriptModule>>();
+		private readonly preloads = new Map<string /* uri */, Promise<unknown>>();
 
 		/**
 		 * Returns a promise that resolves when the given preload is activated.
@@ -1038,8 +1043,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				outputId: undefined,
 				text() { return content; },
 				json() { return undefined; },
-				bytes() { return new Uint8Array(); },
-				blob() { return new Blob(); },
+				bytes() { return this.data(); },
+				data() { return new TextEncoder().encode(content); },
+				blob() { return new Blob([this.data()], { type: this.mime }); },
 			});
 		}
 	}();

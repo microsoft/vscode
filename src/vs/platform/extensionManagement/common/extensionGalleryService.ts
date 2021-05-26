@@ -25,48 +25,48 @@ import { optional } from 'vs/platform/instantiation/common/instantiation';
 import { joinPath } from 'vs/base/common/resources';
 
 interface IRawGalleryExtensionFile {
-	assetType: string;
-	source: string;
+	readonly assetType: string;
+	readonly source: string;
 }
 
 interface IRawGalleryExtensionProperty {
-	key: string;
-	value: string;
+	readonly key: string;
+	readonly value: string;
 }
 
 interface IRawGalleryExtensionVersion {
-	version: string;
-	lastUpdated: string;
-	assetUri: string;
-	fallbackAssetUri: string;
-	files: IRawGalleryExtensionFile[];
-	properties?: IRawGalleryExtensionProperty[];
+	readonly version: string;
+	readonly lastUpdated: string;
+	readonly assetUri: string;
+	readonly fallbackAssetUri: string;
+	readonly files: IRawGalleryExtensionFile[];
+	readonly properties?: IRawGalleryExtensionProperty[];
 }
 
 interface IRawGalleryExtensionStatistics {
-	statisticName: string;
-	value: number;
+	readonly statisticName: string;
+	readonly value: number;
 }
 
 interface IRawGalleryExtension {
-	extensionId: string;
-	extensionName: string;
-	displayName: string;
-	shortDescription: string;
-	publisher: { displayName: string, publisherId: string, publisherName: string; };
-	versions: IRawGalleryExtensionVersion[];
-	statistics: IRawGalleryExtensionStatistics[];
-	flags: string;
+	readonly extensionId: string;
+	readonly extensionName: string;
+	readonly displayName: string;
+	readonly shortDescription: string;
+	readonly publisher: { displayName: string, publisherId: string, publisherName: string; };
+	readonly versions: IRawGalleryExtensionVersion[];
+	readonly statistics: IRawGalleryExtensionStatistics[];
+	readonly flags: string;
 }
 
 interface IRawGalleryQueryResult {
-	results: {
-		extensions: IRawGalleryExtension[];
-		resultMetadata: {
-			metadataType: string;
-			metadataItems: {
-				name: string;
-				count: number;
+	readonly results: {
+		readonly extensions: IRawGalleryExtension[];
+		readonly resultMetadata: {
+			readonly metadataType: string;
+			readonly metadataItems: {
+				readonly name: string;
+				readonly count: number;
 			}[];
 		}[]
 	}[];
@@ -121,20 +121,20 @@ const PropertyType = {
 };
 
 interface ICriterium {
-	filterType: FilterType;
-	value?: string;
+	readonly filterType: FilterType;
+	readonly value?: string;
 }
 
 const DefaultPageSize = 10;
 
 interface IQueryState {
-	pageNumber: number;
-	pageSize: number;
-	sortBy: SortBy;
-	sortOrder: SortOrder;
-	flags: Flags;
-	criteria: ICriterium[];
-	assetTypes: string[];
+	readonly pageNumber: number;
+	readonly pageSize: number;
+	readonly sortBy: SortBy;
+	readonly sortOrder: SortOrder;
+	readonly flags: Flags;
+	readonly criteria: ICriterium[];
+	readonly assetTypes: string[];
 }
 
 const DefaultQueryState: IQueryState = {
@@ -148,32 +148,32 @@ const DefaultQueryState: IQueryState = {
 };
 
 type GalleryServiceQueryClassification = {
-	filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
-	success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly filterTypes: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly sortBy: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly sortOrder: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly duration: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', 'isMeasurement': true };
+	readonly success: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly requestBodySize: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly responseBodySize?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly statusCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly errorCode?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	readonly count?: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
 };
 
 type QueryTelemetryData = {
-	filterTypes: string[];
-	sortBy: string;
-	sortOrder: string;
+	readonly filterTypes: string[];
+	readonly sortBy: string;
+	readonly sortOrder: string;
 };
 
 type GalleryServiceQueryEvent = QueryTelemetryData & {
-	duration: number;
-	success: boolean;
-	requestBodySize: string;
-	responseBodySize?: string;
-	statusCode?: string;
-	errorCode?: string;
-	count?: string;
+	readonly duration: number;
+	readonly success: boolean;
+	readonly requestBodySize: string;
+	readonly responseBodySize?: string;
+	readonly statusCode?: string;
+	readonly errorCode?: string;
+	readonly count?: string;
 };
 
 class Query {
@@ -813,9 +813,10 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			return this.getLastValidExtensionVersionRecursively(extension, versions.slice(1));
 		}
 
-		version.properties = version.properties || [];
-		version.properties.push({ key: PropertyType.Engine, value: engine });
-		return version;
+		return {
+			...version,
+			properties: [...(version.properties || []), { key: PropertyType.Engine, value: engine }]
+		};
 	}
 
 	async getExtensionsReport(): Promise<IReportedExtension[]> {

@@ -9,6 +9,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
 import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
@@ -35,6 +36,11 @@ export interface ITestResult {
 	 * Whether this test result is triggered from an auto run.
 	 */
 	readonly isAutoRun?: boolean;
+
+	/**
+	 * Human-readable name of the test result.
+	 */
+	readonly name: string;
 
 	/**
 	 * Gets all tests involved in the run.
@@ -101,6 +107,16 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 	}
 
 	return total;
+};
+
+export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
+	for (const state of statesInOrder) {
+		if (counts[state] > 0) {
+			return state;
+		}
+	}
+
+	return TestResultState.Unset;
 };
 
 /**
@@ -225,6 +241,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTask[] = [];
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
 	 * Test IDs directly included in this run.
@@ -505,6 +522,7 @@ export class LiveTestResult implements ITestResult {
 		id: this.id,
 		completedAt: this.completedAt!,
 		tasks: this.tasks,
+		name: this.name,
 		items: [...this.testById.values()].map(entry => ({
 			...entry,
 			retired: undefined,
@@ -545,6 +563,11 @@ export class HydratedTestResult implements ITestResult {
 		return this.testById.values();
 	}
 
+	/**
+	 * @inheritdoc
+	 */
+	public readonly name: string;
+
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
@@ -555,6 +578,7 @@ export class HydratedTestResult implements ITestResult {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
 		this.tasks = serialized.tasks;
+		this.name = serialized.name;
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true };

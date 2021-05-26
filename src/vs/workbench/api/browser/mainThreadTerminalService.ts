@@ -140,7 +140,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				: undefined,
 			extHostTerminalId: extHostTerminalId,
 			isFeatureTerminal: launchConfig.isFeatureTerminal,
-			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal
+			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
+			useShellEnvironment: launchConfig.useShellEnvironment
 		};
 		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);

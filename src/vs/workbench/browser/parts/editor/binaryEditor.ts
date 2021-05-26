@@ -6,7 +6,8 @@
 import 'vs/css!./media/binaryeditor';
 import { localize } from 'vs/nls';
 import { Emitter } from 'vs/base/common/event';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,9 +20,10 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 import { ByteSize } from 'vs/platform/files/common/files';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IOpenCallbacks {
-	openInternal: (input: EditorInput, options: EditorOptions | undefined) => Promise<void>;
+	openInternal: (input: EditorInput, options: IEditorOptions | undefined) => Promise<void>;
 }
 
 /*
@@ -70,7 +72,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		const model = await input.resolve();
 
@@ -88,7 +90,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		this.inputDisposable.value = this.renderInput(input, options, model);
 	}
 
-	private renderInput(input: EditorInput, options: EditorOptions | undefined, model: BinaryEditorModel): IDisposable {
+	private renderInput(input: EditorInput, options: IEditorOptions | undefined, model: BinaryEditorModel): IDisposable {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 
 		clearNode(binaryContainer);

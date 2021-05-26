@@ -7,12 +7,12 @@ import { localize } from 'vs/nls';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
@@ -40,7 +40,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 		);
 	}
 
-	private async openInternal(input: EditorInput, options: EditorOptions | undefined): Promise<void> {
+	private async openInternal(input: EditorInput, options: IEditorOptions | undefined): Promise<void> {
 		if (input instanceof FileEditorInput && this.group) {
 
 			// Enforce to open the input as text to enable our text based viewer

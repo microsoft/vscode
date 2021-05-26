@@ -24,9 +24,9 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	public get isActive() { return this.isSuggestWidgetVisible; }
 
 	constructor(
-		private readonly editor: IActiveCodeEditor
+		editor: IActiveCodeEditor
 	) {
-		super();
+		super(editor);
 
 		const suggestController = SuggestController.get(this.editor);
 		if (suggestController) {

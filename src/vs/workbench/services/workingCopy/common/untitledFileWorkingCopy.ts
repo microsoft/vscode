@@ -9,7 +9,6 @@ import { IWorkingCopyBackup, WorkingCopyCapabilities } from 'vs/workbench/servic
 import { IFileWorkingCopy, IFileWorkingCopyModel, IFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/common/fileWorkingCopy';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Schemas } from 'vs/base/common/network';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ISaveOptions } from 'vs/workbench/common/editor';
@@ -76,7 +75,7 @@ export interface IUntitledFileWorkingCopySaveDelegate<M extends IUntitledFileWor
 
 export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends Disposable implements IUntitledFileWorkingCopy<M>  {
 
-	readonly capabilities: WorkingCopyCapabilities = WorkingCopyCapabilities.Untitled;
+	readonly capabilities = WorkingCopyCapabilities.Untitled;
 
 	private _model: M | undefined = undefined;
 	get model(): M | undefined { return this._model; }
@@ -110,10 +109,6 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 		@ILogService private readonly logService: ILogService
 	) {
 		super();
-
-		if (resource.scheme !== Schemas.untitled) {
-			throw new Error(`The untitled file working copy resource ${this.resource.toString(true)} is not using untitled as scheme.`);
-		}
 
 		// Make known to working copy service
 		this._register(workingCopyService.registerWorkingCopy(this));
