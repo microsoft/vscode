@@ -461,12 +461,12 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		// update column from which to show
 		let renderColumn = Constants.MAX_SAFE_SMALL_INTEGER;
 		let highlightRange: Range = messages[0].range;
-		let forceShowAtRange: Range | null = null as Range | null; // TODO: TypeScript thinks this is always null
+		let forceShowAtRange: Range | null = null;
 		let fragment = document.createDocumentFragment();
 
 		const disposables = new DisposableStore();
 		const hoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
-		messages.forEach((msg) => {
+		for (const msg of messages) {
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
@@ -479,7 +479,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			}
 			const dest = hoverParts.get(msg.owner)!;
 			dest.push(msg);
-		});
+		}
 
 		for (const [participant, participantHoverParts] of hoverParts) {
 			disposables.add(participant.renderHoverParts(participantHoverParts, fragment));
