@@ -124,7 +124,7 @@ export class CodeApplication extends Disposable {
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
 
-		const isUrlFromWebview = (requestingUrl: string) => requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
+		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
 		session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
