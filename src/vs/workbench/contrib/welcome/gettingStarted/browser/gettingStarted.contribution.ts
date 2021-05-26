@@ -56,7 +56,7 @@ registerAction2(class extends Action2 {
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					if (!group.activeEditor.selectedCategory) {
-						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory);
+						(group.activeEditorPane as GettingStartedPage).makeCategoryVisibleWhenAvailable(selectedCategory, selectedStep);
 						return;
 					}
 				}
@@ -68,6 +68,7 @@ registerAction2(class extends Action2 {
 				if (editor instanceof GettingStartedInput) {
 					if (!editor.selectedCategory) {
 						editor.selectedCategory = selectedCategory;
+						editor.selectedStep = selectedStep;
 						editorService.openEditor(editor, { revealIfOpened: true, override: EditorOverride.DISABLED }, groupId);
 						return;
 					}
