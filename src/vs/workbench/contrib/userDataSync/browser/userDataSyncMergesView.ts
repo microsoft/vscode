@@ -419,7 +419,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		return editor.getContribution<AcceptChangesContribution>(AcceptChangesContribution.ID);
 	}
 
-	public static readonly ID = 'editor.contrib.acceptChangesButton';
+	public static readonly ID = 'editor.contrib.acceptChangesButton2';
 
 	private acceptChangesButton: FloatingClickWidget | undefined;
 
