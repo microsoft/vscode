@@ -869,6 +869,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					const state = vscode.getState();
 					return typeof state === 'object' && state ? state[id] as T : undefined;
 				},
+				// TODO: This is async so that we can return a promise to the API in the future.
+				// Currently the API is always resolved before we call `createRendererContext`.
 				getRenderer: async (id: string) => renderers.getRenderer(id)?.api,
 			};
 
