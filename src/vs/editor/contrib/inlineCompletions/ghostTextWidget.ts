@@ -342,9 +342,20 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 }
 
 registerThemingParticipant((theme, collector) => {
+
 	const suggestPreviewForeground = theme.getColor(editorSuggestPreviewOpacity);
+
 	if (suggestPreviewForeground) {
-		collector.addRule(`.monaco-editor .suggest-preview-text { opacity: ${suggestPreviewForeground.rgba.a}; }`);
+		function opaque(color: Color): Color {
+			const { r, b, g } = color.rgba;
+			return new Color(new RGBA(r, g, b, 255));
+		}
+
+		const opacity = String(suggestPreviewForeground.rgba.a);
+		const color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
+
+		// We need to override the only used token type .mtk1
+		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { opacity: ${opacity}; color: ${color}; }`);
 	}
 
 	const suggestPreviewBorder = theme.getColor(editorSuggestPreviewBorder);
