@@ -8,42 +8,34 @@ import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/vi
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { dispose } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 
-export class OutputRenderer extends Disposable {
+export class OutputRenderer {
 
 	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
 		notebookEditor: ICommonNotebookEditor,
-		private readonly instantiationService: IInstantiationService
+		instantiationService: IInstantiationService
 	) {
-		super();
 		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
 			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
-				contribution.getMimetypes().forEach(mimetype => {
-					this._richMimeTypeRenderers.set(mimetype, contribution);
-				});
-				this._register(contribution);
+				const contribution = instantiationService.createInstance(desc.ctor, notebookEditor);
+				contribution.getMimetypes().forEach(mimetype => { this._richMimeTypeRenderers.set(mimetype, contribution); });
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 		}
 	}
 
-	override dispose(): void {
-		super.dispose();
+	dispose(): void {
+		dispose(this._richMimeTypeRenderers.values());
 		this._richMimeTypeRenderers.clear();
 	}
 
-	getContribution(preferredMimeType: string | undefined): IOutputTransformContribution | undefined {
-		if (preferredMimeType) {
-			return this._richMimeTypeRenderers.get(preferredMimeType);
-		}
-
-		return undefined;
+	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined {
+		return this._richMimeTypeRenderers.get(preferredMimeType);
 	}
 
 	private _renderMessage(container: HTMLElement, message: string): IRenderOutput {
@@ -65,7 +57,6 @@ export class OutputRenderer extends Disposable {
 		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
 			if (preferredMimeType) {
 				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
-			} else {
 			}
 		}
 		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
