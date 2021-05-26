@@ -28,7 +28,7 @@ import { URI } from 'vs/base/common/uri';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { EditorActivation, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorActivation, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { isEqual } from 'vs/base/common/resources';
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
@@ -107,7 +107,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration, {});
 	}
 
-	override async setInput(input: DiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: DiffEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		// Dispose previous diff navigator
 		this.diffNavigatorDisposables.clear();
@@ -190,7 +190,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 		return false;
 	}
 
-	private openAsBinary(input: DiffEditorInput, options: IEditorOptions | undefined): void {
+	private openAsBinary(input: DiffEditorInput, options: ITextEditorOptions | undefined): void {
 		const originalInput = input.originalInput;
 		const modifiedInput = input.modifiedInput;
 
@@ -206,19 +206,21 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 			modifiedInput.setForceOpenAsBinary();
 		}
 
-		// Make sure to not steal away the currently active group
-		// because we are triggering another openEditor() call
-		// and do not control the initial intent that resulted
-		// in us now opening as binary.
-		options = {
-			...options,
-			activation: EditorActivation.PRESERVE,
-			pinned: this.group?.isPinned(input),
-			sticky: this.group?.isSticky(input)
-		};
-
 		// Replace this editor with the binary one
-		this.editorService.replaceEditors([{ editor: input, replacement: binaryDiffInput, options }], this.group || ACTIVE_GROUP);
+		this.editorService.replaceEditors([{
+			editor: input,
+			replacement: binaryDiffInput,
+			options: {
+				...options,
+				// Make sure to not steal away the currently active group
+				// because we are triggering another openEditor() call
+				// and do not control the initial intent that resulted
+				// in us now opening as binary.
+				activation: EditorActivation.PRESERVE,
+				pinned: this.group?.isPinned(input),
+				sticky: this.group?.isSticky(input)
+			}
+		}], this.group || ACTIVE_GROUP);
 	}
 
 	protected override computeConfiguration(configuration: IEditorConfiguration): ICodeEditorOptions {

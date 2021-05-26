@@ -24,7 +24,7 @@ import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An implementation of editor for file system resources.
@@ -52,7 +52,7 @@ export class NativeTextFileEditor extends TextFileEditor {
 		super(telemetryService, fileService, viewletService, instantiationService, contextService, storageService, textResourceConfigurationService, editorService, themeService, editorGroupService, textFileService, explorerService, uriIdentityService);
 	}
 
-	protected override handleSetInputError(error: Error, input: FileEditorInput, options: IEditorOptions | undefined): void {
+	protected override handleSetInputError(error: Error, input: FileEditorInput, options: ITextEditorOptions | undefined): void {
 
 		// Allow to restart with higher memory limit if the file is too large
 		if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT) {
