@@ -68,7 +68,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._inFlightRequests.set(extensionId, inFlightRequests);
 
 			try {
-				await session;
+				const s = await session;
+				return s;
 			} finally {
 				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
 				if (requestIndex > -1) {
@@ -76,8 +77,6 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					this._inFlightRequests.set(extensionId, inFlightRequests);
 				}
 			}
-
-			return session;
 		}
 	}
 

@@ -503,7 +503,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 				this.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
 
 				this.removeAccessRequest(providerId, extensionId);
-				this.storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(`${extensionName}-${providerId}-${scopes.join('-')}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 
 				quickPick.dispose();
 				resolve(session);
@@ -638,7 +638,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 					this.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
 
 					// And also set it as the preferred account for the extension
-					storageService.store(`${extensionName}-${providerId}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+					storageService.store(`${extensionName}-${providerId}-${scopes.join('-')}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
 				}
 			});
 
