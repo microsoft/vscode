@@ -23,7 +23,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventSource } from 'vs/platform/terminal/common/terminal';
@@ -811,9 +811,30 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			return getSelectedInstances(accessor)?.[0].rename();
+			const terminalService = accessor.get(ITerminalService);
+			const notificationService = accessor.get(INotificationService);
+
+			const instance = getSelectedInstances(accessor)?.[0];
+			if (!instance) {
+				return;
+			}
+
+			await terminalService.setEditable(instance, {
+				validationMessage: value => validateTerminalName(value),
+				onFinish: async (value, success) => {
+					if (success) {
+						try {
+							await instance.rename(value);
+						} catch (e) {
+							notificationService.error(e);
+						}
+					}
+					await terminalService.setEditable(instance, null);
+				}
+			});
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1829,4 +1850,15 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 function focusNext(accessor: ServicesAccessor): void {
 	const listService = accessor.get(IListService);
 	listService.lastFocusedList?.focusNext();
+}
+
+export function validateTerminalName(name: string): { content: string, severity: Severity } | null {
+	if (!name || name.trim().length === 0) {
+		return {
+			content: localize('emptyTerminalNameError', "A name must be provided."),
+			severity: Severity.Error
+		};
+	}
+
+	return null;
 }

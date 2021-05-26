@@ -425,7 +425,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench .notebookOverlay.cell-statusbar-hidden .cell-statusbar-container {
+.monaco-workbench .notebookOverlay .cell-statusbar-hidden .cell-statusbar-container {
 	display: none;
 }
 

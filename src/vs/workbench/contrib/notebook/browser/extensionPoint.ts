@@ -192,6 +192,6 @@ export const notebooksExtensionPoint = ExtensionsRegistry.registerExtensionPoint
 
 export const notebookRendererExtensionPoint = ExtensionsRegistry.registerExtensionPoint<INotebookRendererContribution[]>(
 	{
-		extensionPoint: 'notebookOutputRenderer',
+		extensionPoint: 'notebookRenderer',
 		jsonSchema: notebookRendererContribution
 	});

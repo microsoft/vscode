@@ -468,8 +468,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		text(): string;
 		json(): any;
-		bytes(): Uint8Array
+		data(): Uint8Array;
 		blob(): Blob;
+		/** @deprecated */
+		bytes(): Uint8Array;
 	}
 
 	interface IDestroyCellInfo {
@@ -492,7 +494,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		postKernelMessage: (data: unknown) => postNotebookMessage('customKernelMessage', { message: data }),
 	};
 
-	const ttPolicy = window.trustedTypes?.createPolicy('notebookOutputRenderer', {
+	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value,
 		createScript: value => value,
 	});
@@ -643,9 +645,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 								mime: content.mimeType,
 								value: content.value,
 								metadata: content.metadata,
-								bytes() {
+								data() {
 									return content.valueBytes;
 								},
+								bytes() { return this.data(); },
 								text() {
 									return new TextDecoder().decode(content.valueBytes)
 										|| String(content.value); //todo@jrieken remove this once `value` is gone!
@@ -1038,8 +1041,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				outputId: undefined,
 				text() { return content; },
 				json() { return undefined; },
-				bytes() { return new Uint8Array(); },
-				blob() { return new Blob(); },
+				bytes() { return this.data(); },
+				data() { return new TextEncoder().encode(content); },
+				blob() { return new Blob([this.data()], { type: this.mime }); },
 			});
 		}
 	}();
