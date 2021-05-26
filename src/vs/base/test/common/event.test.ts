@@ -893,8 +893,8 @@ suite('Event utils', () => {
 
 		listener.dispose();
 	});
-  
-  test('dispose is reentrant', () => {
+
+	test('dispose is reentrant', () => {
 		const emitter = new Emitter<number>({
 			onLastListenerRemove: () => {
 				emitter.dispose();
@@ -959,4 +959,5 @@ suite('Event utils', () => {
 			e2.fire(6);
 			assert.deepStrictEqual(result, [2, 4]);
 		});
+	});
 });
