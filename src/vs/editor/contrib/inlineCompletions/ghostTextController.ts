@@ -13,6 +13,7 @@ import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/ghostTextWi
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
 import * as nls from 'vs/nls';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
@@ -31,7 +32,7 @@ class GhostTextController extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
@@ -55,7 +56,7 @@ class GhostTextController extends Disposable {
 
 		this.activeController.value = undefined;
 		this.activeController.value = this.editor.hasModel() && suggestOptions.showSuggestionPreview
-			? new ActiveGhostTextController(this.editor, this.widget, this.contextKeys)
+			? this.instantiationService.createInstance(ActiveGhostTextController, this.editor, this.widget, this.contextKeys)
 			: undefined;
 	}
 
@@ -92,12 +93,13 @@ class GhostTextContextKeys {
 */
 export class ActiveGhostTextController extends Disposable {
 	private readonly suggestWidgetAdapterModel = new SuggestWidgetAdapterModel(this.editor);
-	private readonly inlineCompletionsModel = new InlineCompletionsModel(this.editor);
+	private readonly inlineCompletionsModel = new InlineCompletionsModel(this.editor, this.commandService);
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
 		private readonly widget: GhostTextWidget,
 		private readonly contextKeys: GhostTextContextKeys,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -226,7 +228,7 @@ export class ShowPreviousInlineCompletionAction extends EditorAction {
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
-			controller.showNextInlineCompletion();
+			controller.showPreviousInlineCompletion();
 		}
 	}
 }

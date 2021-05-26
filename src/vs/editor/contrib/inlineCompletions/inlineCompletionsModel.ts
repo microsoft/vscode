@@ -5,7 +5,7 @@
 
 import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
@@ -13,9 +13,10 @@ import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
+import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
 import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -25,7 +26,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 	private active: boolean = false;
 
-	constructor(private readonly editor: IActiveCodeEditor) {
+	constructor(
+		private readonly editor: IActiveCodeEditor,
+		private readonly commandService: ICommandService
+	) {
 		super();
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
@@ -83,7 +87,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		if (this.completionSession.value) {
 			return;
 		}
-		this.completionSession.value = new InlineCompletionsSession(this.editor, this.editor.getPosition(), () => this.active);
+		this.completionSession.value = new InlineCompletionsSession(this.editor, this.editor.getPosition(), () => this.active, this.commandService);
 		this.completionSession.value.takeOwnership(
 			this.completionSession.value.onDidChange(() => {
 				this.onDidChangeEmitter.fire();
@@ -120,7 +124,7 @@ class CachedInlineCompletion {
 	public lastRange: Range;
 
 	constructor(
-		public readonly inlineCompletion: NormalizedInlineCompletion,
+		public readonly inlineCompletion: LiveInlineCompletion,
 		public readonly decorationId: string,
 	) {
 		this.lastRange = inlineCompletion.range;
@@ -130,17 +134,36 @@ class CachedInlineCompletion {
 class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
-	private updatePromise: CancelablePromise<NormalizedInlineCompletions> | undefined = undefined;
+	private updatePromise: CancelablePromise<LiveInlineCompletions> | undefined = undefined;
 	private cachedCompletions: CachedInlineCompletion[] | undefined = undefined;
+	private cachedCompletionsSource: LiveInlineCompletions | undefined = undefined;
 
 	private updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 	private readonly textModel = this.editor.getModel();
 
-	constructor(editor: IActiveCodeEditor, private readonly triggerPosition: Position, private readonly shouldUpdate: () => boolean) {
+	constructor(
+		editor: IActiveCodeEditor,
+		private readonly triggerPosition: Position,
+		private readonly shouldUpdate: () => boolean,
+		private readonly commandService: ICommandService,
+	) {
 		super(editor);
 		this._register(toDisposable(() => {
 			this.clearGhostTextPromise();
 			this.clearCache();
+		}));
+
+		let lastCompletionItem: InlineCompletion | undefined = undefined;
+		this._register(this.onDidChange(() => {
+			const currentCompletion = this.currentCompletion;
+			if (currentCompletion && currentCompletion.sourceInlineCompletion !== lastCompletionItem) {
+				lastCompletionItem = currentCompletion.sourceInlineCompletion;
+
+				const provider = currentCompletion.sourceProvider;
+				if (provider.handleItemDidShow) {
+					provider.handleItemDidShow(currentCompletion.sourceInlineCompletions, lastCompletionItem);
+				}
+			}
 		}));
 
 		this._register(this.editor.onDidChangeModelDecorations(e => {
@@ -219,14 +242,18 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel()) : undefined;
 	}
 
-	get currentCompletion(): NormalizedInlineCompletion | undefined {
+	get currentCompletion(): LiveInlineCompletion | undefined {
 		const completion = this.currentCachedCompletion;
 		if (!completion) {
 			return undefined;
 		}
 		return {
 			text: completion.inlineCompletion.text,
-			range: completion.lastRange
+			range: completion.lastRange,
+			command: completion.inlineCompletion.command,
+			sourceProvider: completion.inlineCompletion.sourceProvider,
+			sourceInlineCompletions: completion.inlineCompletion.sourceInlineCompletions,
+			sourceInlineCompletion: completion.inlineCompletion.sourceInlineCompletion,
 		};
 	}
 
@@ -262,15 +289,24 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				}))
 			);
 
+			this.cachedCompletionsSource?.dispose();
+			this.cachedCompletionsSource = result;
 			this.cachedCompletions = result.items.map((item, idx) => new CachedInlineCompletion(item, decorationIds[idx]));
 			this.onDidChangeEmitter.fire();
 		}, onUnexpectedError);
 	}
 
 	private clearCache(): void {
-		if (this.cachedCompletions) {
-			this.editor.deltaDecorations(this.cachedCompletions.map(c => c.decorationId), []);
+		const completions = this.cachedCompletions;
+		if (completions) {
 			this.cachedCompletions = undefined;
+			this.editor.deltaDecorations(completions.map(c => c.decorationId), []);
+
+			if (!this.cachedCompletionsSource) {
+				throw new Error('Unexpected state');
+			}
+			this.cachedCompletionsSource.dispose();
+			this.cachedCompletionsSource = undefined;
 		}
 	}
 
@@ -292,7 +328,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
-	public commit(completion: NormalizedInlineCompletion): void {
+	public commit(completion: LiveInlineCompletion): void {
 		this.clearCache();
 		this.editor.executeEdits(
 			'inlineCompletions.accept',
@@ -300,18 +336,16 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
+		if (completion.command) {
+			this.commandService.executeCommand(completion.command.id, ...(completion.command.arguments || [])).then(undefined, onUnexpectedExternalError);
+		}
+
 		this.onDidChangeEmitter.fire();
 	}
 }
 
 export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
-}
-
-/**
- * Contains no duplicated items.
-*/
-export interface NormalizedInlineCompletions extends InlineCompletions<NormalizedInlineCompletion> {
 }
 
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
@@ -326,6 +360,20 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 		lines,
 		position: inlineCompletion.range.getEndPosition()
 	};
+}
+
+export interface LiveInlineCompletion extends InlineCompletion {
+	range: Range;
+	sourceProvider: InlineCompletionsProvider;
+	sourceInlineCompletion: InlineCompletion;
+	sourceInlineCompletions: InlineCompletions;
+}
+
+/**
+ * Contains no duplicated items.
+*/
+export interface LiveInlineCompletions extends InlineCompletions<LiveInlineCompletion> {
+	dispose(): void;
 }
 
 function getDefaultRange(position: Position, model: ITextModel): Range {
@@ -343,25 +391,50 @@ async function provideInlineCompletions(
 	model: ITextModel,
 	context: InlineCompletionContext,
 	token: CancellationToken = CancellationToken.None
-): Promise<NormalizedInlineCompletions> {
+): Promise<LiveInlineCompletions> {
 	const defaultReplaceRange = getDefaultRange(position, model);
 
 	const providers = InlineCompletionsProviderRegistry.all(model);
 	const results = await Promise.all(
-		providers.map(provider => provider.provideInlineCompletions(model, position, context, token))
+		providers.map(
+			async provider => {
+				const completions = await provider.provideInlineCompletions(model, position, context, token);
+				return ({
+					completions,
+					provider,
+					dispose: () => {
+						if (completions) {
+							provider.freeInlineCompletions(completions);
+						}
+					}
+				});
+			}
+		)
 	);
 
-	const itemsByHash = new Map<string, NormalizedInlineCompletion>();
+	const itemsByHash = new Map<string, LiveInlineCompletion>();
 	for (const result of results) {
-		if (result) {
-			for (const item of result.items.map<NormalizedInlineCompletion>(item => ({
+		const completions = result.completions;
+		if (completions) {
+			for (const item of completions.items.map<LiveInlineCompletion>(item => ({
 				text: item.text,
-				range: item.range ? Range.lift(item.range) : defaultReplaceRange
+				range: item.range ? Range.lift(item.range) : defaultReplaceRange,
+				command: item.command,
+				sourceProvider: result.provider,
+				sourceInlineCompletions: completions,
+				sourceInlineCompletion: item
 			}))) {
 				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
 			}
 		}
 	}
 
-	return { items: [...itemsByHash.values()] };
+	return {
+		items: [...itemsByHash.values()],
+		dispose: () => {
+			for (const result of results) {
+				result.dispose();
+			}
+		},
+	};
 }

@@ -3065,27 +3065,19 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
 
-	export class InlineCompletionItem {
-		/**
-		 * The text to insert.
-		 * If the text contains a line break, the range must end at the end of a line.
-		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
-		*/
-		text: string;
-
-		/**
-		 * The range to replace.
-		 * Must begin and end on the same line.
-		*/
-		range?: Range;
-
-		constructor(text: string);
+	export namespace languages {
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
 	}
 
-	export class InlineCompletionList {
-		items: InlineCompletionItem[];
+	export interface InlineCompletionItemProvider<T extends InlineCompletionItem = InlineCompletionItem> {
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T>>;
+	}
 
-		constructor(items: InlineCompletionItem[]);
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
 	}
 
 	/**
@@ -3104,19 +3096,56 @@ declare module 'vscode' {
 		 */
 		Explicit = 1,
 	}
-	export interface InlineCompletionContext {
+
+	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
+		items: T[];
+
+		constructor(items: T[]);
+	}
+
+	export class InlineCompletionItem {
 		/**
-		 * How the completion was triggered.
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
+		text: string;
+
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		*/
+		range?: Range;
+
+		/**
+		 * An optional {@link Command} that is executed *after* inserting this completion.
 		 */
-		readonly triggerKind: InlineCompletionTriggerKind;
+		command?: Command;
+
+		constructor(text: string, range?: Range, command?: Command);
 	}
 
-	export interface InlineCompletionItemProvider {
-		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList>;
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export namespace window {
+		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
 	}
 
-	export namespace languages {
-		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionController<T extends InlineCompletionItem> {
+		// eslint-disable-next-line vscode-dts-event-naming
+		readonly onDidShowCompletionItem: Event<InlineCompletionItemDidShowEvent<T>>;
+	}
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionItemDidShowEvent<T extends InlineCompletionItem> {
+		completionItem: T;
 	}
 
 	//#endregion

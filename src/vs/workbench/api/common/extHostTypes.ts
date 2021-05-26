@@ -1552,9 +1552,12 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 
 	text: string;
 	range?: Range;
+	command?: vscode.Command;
 
-	constructor(text: string) {
+	constructor(text: string, range?: Range, command?: vscode.Command) {
 		this.text = text;
+		this.range = range;
+		this.command = command;
 	}
 }
 

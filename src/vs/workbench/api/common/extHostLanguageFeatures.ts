@@ -33,6 +33,7 @@ import { IExtHostApiDeprecationService } from 'vs/workbench/api/common/extHostAp
 import { Cache } from './cache';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { CancellationError } from 'vs/base/common/errors';
+import { Emitter } from 'vs/base/common/event';
 
 // --- adapter
 
@@ -1038,15 +1039,17 @@ class SuggestAdapter {
 	}
 }
 
-class InlineCompletionsAdapter {
+class InlineCompletionAdapter {
+	private readonly _cache = new Cache<vscode.InlineCompletionItem>('InlineCompletionItem');
+	private readonly _disposables = new Map<number, DisposableStore>();
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProvider,
+		private readonly _commands: CommandsConverter,
 	) { }
 
-	async provideInlineCompletions(resource: URI, position: IPosition, context: vscode.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
-
+	public async provideInlineCompletions(resource: URI, position: IPosition, context: vscode.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
 		const doc = this._documents.getDocument(resource);
 		const pos = typeConvert.Position.to(position);
 
@@ -1063,12 +1066,68 @@ class InlineCompletionsAdapter {
 			return undefined;
 		}
 
+		const pid = this._cache.add(result.items);
+
+		let disposableStore: DisposableStore | undefined = undefined;
+
 		return {
-			items: result.items.map(item => ({
-				text: item.text,
-				range: item.range ? typeConvert.Range.from(item.range) : undefined,
-			})),
+			pid,
+			items: result.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+				let command: modes.Command | undefined = undefined;
+				if (item.command) {
+					if (!disposableStore) {
+						disposableStore = new DisposableStore();
+						this._disposables.set(pid, disposableStore);
+					}
+					command = this._commands.toInternal(item.command, disposableStore);
+				}
+
+				return ({
+					text: item.text,
+					range: item.range ? typeConvert.Range.from(item.range) : undefined,
+					command,
+					idx: idx,
+				});
+			}),
 		};
+	}
+
+	public disposeCompletions(pid: number) {
+		this._cache.delete(pid);
+		const d = this._disposables.get(pid);
+		if (d) {
+			d.clear();
+		}
+		this._disposables.delete(pid);
+	}
+
+	public handleDidShowCompletionItem(pid: number, idx: number): void {
+		const completionItem = this._cache.get(pid, idx);
+		if (completionItem) {
+			InlineCompletionController.get(this._provider).fireOnDidShowCompletionItem({
+				completionItem
+			});
+		}
+	}
+}
+
+export class InlineCompletionController<T extends vscode.InlineCompletionItem> implements vscode.InlineCompletionController<T> {
+	private static readonly map = new WeakMap<vscode.InlineCompletionItemProvider<any>, InlineCompletionController<any>>();
+
+	public static get<T extends vscode.InlineCompletionItem>(provider: vscode.InlineCompletionItemProvider<T>): InlineCompletionController<T> {
+		let existing = InlineCompletionController.map.get(provider);
+		if (!existing) {
+			existing = new InlineCompletionController();
+			InlineCompletionController.map.set(provider, existing);
+		}
+		return existing;
+	}
+
+	private readonly _onDidShowCompletionItemEmitter = new Emitter<vscode.InlineCompletionItemDidShowEvent<T>>();
+	public readonly onDidShowCompletionItem: vscode.Event<vscode.InlineCompletionItemDidShowEvent<T>> = this._onDidShowCompletionItemEmitter.event;
+
+	public fireOnDidShowCompletionItem(event: vscode.InlineCompletionItemDidShowEvent<T>): void {
+		this._onDidShowCompletionItemEmitter.fire(event);
 	}
 }
 
@@ -1389,7 +1448,7 @@ type Adapter = DocumentSymbolAdapter | CodeLensAdapter | DefinitionAdapter | Hov
 	| TypeDefinitionAdapter | ColorProviderAdapter | FoldingProviderAdapter | DeclarationAdapter
 	| SelectionRangeAdapter | CallHierarchyAdapter | DocumentSemanticTokensAdapter | DocumentRangeSemanticTokensAdapter
 	| EvaluatableExpressionAdapter | InlineValuesAdapter
-	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionsAdapter;
+	| LinkedEditingRangeAdapter | InlayHintsAdapter | InlineCompletionAdapter;
 
 class AdapterData {
 	constructor(
@@ -1846,15 +1905,24 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	// --- ghost test
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider): vscode.Disposable {
-		const handle = this._addNewAdapter(new InlineCompletionsAdapter(this._documents, provider), extension);
+		const handle = this._addNewAdapter(new InlineCompletionAdapter(this._documents, provider, this._commands.converter), extension);
 		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector));
 		return this._createDisposable(handle);
 	}
 
-	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined> {
-		return this._withAdapter(handle, InlineCompletionsAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined);
+	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<extHostProtocol.IdentifiableInlineCompletions | undefined> {
+		return this._withAdapter(handle, InlineCompletionAdapter, adapter => adapter.provideInlineCompletions(URI.revive(resource), position, context, token), undefined);
 	}
 
+	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => {
+			adapter.handleDidShowCompletionItem(pid, idx);
+		}, undefined);
+	}
+
+	$freeInlineCompletionsList(handle: number, pid: number): void {
+		this._withAdapter(handle, InlineCompletionAdapter, async adapter => { adapter.disposeCompletions(pid); }, undefined);
+	}
 
 	// --- parameter hints
 

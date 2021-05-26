@@ -718,27 +718,32 @@ export interface InlineCompletion {
 	 * If the text contains a line break, the range must end at the end of a line.
 	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
 	*/
-	text: string;
+	readonly text: string;
 
 	/**
 	 * The range to replace.
 	 * Must begin and end on the same line.
 	*/
-	range?: IRange;
+	readonly range?: IRange;
+
+	readonly command?: Command;
 }
 
 /**
  * @internal
  */
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
-	items: TItem[];
+	readonly items: readonly TItem[];
 }
 
 /**
  * @internal
  */
-export interface InlineCompletionsProvider {
-	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletions>;
+export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
+	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+	freeInlineCompletions(completions: T): void;
 }
 
 export interface CodeAction {

@@ -3315,7 +3315,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			showSuggestionPreview: false,
-			suggestionPreviewExpanded: false,
+			suggestionPreviewExpanded: true,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
