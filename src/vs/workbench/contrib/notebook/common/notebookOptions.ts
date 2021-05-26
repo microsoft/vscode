@@ -111,7 +111,7 @@ export class NotebookOptions {
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey);
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
-		const compactView = this.configurationService.getValue<boolean>(CompactView);
+		const compactView = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
 		const insertToolbarPosition = this._computeInsertToolbarPositionOption();
 		const insertToolbarAlignment = this._computeInsertToolbarAlignmentOption();
@@ -217,7 +217,7 @@ export class NotebookOptions {
 		}
 
 		if (compactView) {
-			const compactViewValue = this.configurationService.getValue<boolean>(CompactView);
+			const compactViewValue = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
 			configuration = Object.assign(configuration, {
 				...(compactViewValue ? compactConfigConstants : defaultConfigConstants),
 			});
