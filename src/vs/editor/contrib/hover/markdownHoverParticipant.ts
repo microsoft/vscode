@@ -76,7 +76,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public async computeAsync(range: Range, token: CancellationToken): Promise<MarkdownHover[]> {
+	public async computeAsync(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
 		if (!this._editor.hasModel() || !range) {
 			return Promise.resolve([]);
 		}
