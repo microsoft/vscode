@@ -378,7 +378,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								this._configurationService.updateValue(`${TerminalSettingPrefix.ShellArgs + platform}`, null);
 								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
 							} else {
-								this._logService.trace('migration from shell/shellArgs to profile failed bc profile was undefined', shell, shellArgs);
+								this._logService.trace('migration from shell/shellArgs to profile did not occur bc created profile was an exact match for existing one', shell, shellArgs);
 							}
 						}
 					} as IPromptChoice,

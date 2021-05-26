@@ -417,12 +417,11 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
 			os: this._primaryBackendOs!
 		}));
-		const profileName = detectedProfile?.profileName || fallbackProfile.profileName;
-		const path = detectedProfile?.path || fallbackProfile.path;
-		const args = typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : undefined;
+		const profile = detectedProfile || fallbackProfile;
+		const args = typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : profile.args;
 		const createdProfile = {
-			profileName,
-			path,
+			profileName: profile.profileName,
+			path: profile.path,
 			args,
 			isDefault: true
 		};
