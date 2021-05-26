@@ -30,16 +30,14 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	 * Reads and parses all .md documents in the workspace.
 	 * Files are processed in batches, to keep the number of open files small.
 	 *
-	 * @returns
+	 * @returns Array of processed .md files.
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
-		const workspaceFolders = vscode.workspace.workspaceFolders;
 		const ignoreList: (string | vscode.RelativePattern)[] = ['**/node_modules/**'];
-		let isDone = false;
 		const docList: SkinnyTextDocument[] = [];
 
-		// Batch the request for files to a max of `maxConcurrent`.
+		let isDone = false;
 		while (!isDone) {
 			await new Promise(async (resolve) => {
 				const resources = await vscode.workspace.findFiles('**/*.md', `{${ignoreList.join(',')}}`, maxConcurrent);
@@ -47,17 +45,16 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 					isDone = true;
 				}
 
-				(await Promise.all(resources.map(doc => {
+				const docs = await Promise.all(resources.map(doc => {
 					// Convert path to be relative from the workspace
 					let path = doc.fsPath;
-					// TODO: What happens here if you have a workspace
-					// that has a folder at /a/b/c and another folder at /a/b
-					for (const folder of workspaceFolders || []) {
+					for (const folder of vscode.workspace.workspaceFolders || []) {
 						path = path.replace(folder.uri.fsPath + '/', '');
 					}
 					ignoreList.push(path);
 					return this.getMarkdownDocument(doc);
-				}))).forEach((doc) => {
+				}));
+				docs.forEach((doc) => {
 					if (doc) {
 						docList.push(doc);
 					}
