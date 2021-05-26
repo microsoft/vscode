@@ -38,7 +38,7 @@ else {
 		nextTick(callback: (...args: any[]) => void): void { return setImmediate(callback); },
 
 		// Unsupported
-		get env() { return Object.create(null); },
+		get env() { return {}; },
 		cwd() { return '/'; }
 	};
 }

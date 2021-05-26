@@ -25,7 +25,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { getRemoteName, getVirtualWorkspaceLocation, getVirtualWorkspaceScheme, isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteName, getVirtualWorkspaceLocation, getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
 import { getCodiconAriaLabel } from 'vs/base/common/codicons';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';

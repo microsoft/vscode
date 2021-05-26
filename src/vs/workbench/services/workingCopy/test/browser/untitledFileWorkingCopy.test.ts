@@ -129,10 +129,6 @@ suite('UntitledFileWorkingCopy', () => {
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 	});
 
-	test('requires good untitled URI', async () => {
-		assert.throws(() => createWorkingCopy(URI.from({ scheme: 'unknown', path: 'somePath' })));
-	});
-
 	test('dirty', async () => {
 		assert.strictEqual(workingCopy.isDirty(), false);
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, EventBufferer, EventMultiplexer, PauseableEmitter } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, EventMultiplexer, PauseableEmitter, Relay } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, IWaitUntil, timeout } from 'vs/base/common/async';
@@ -903,5 +903,61 @@ suite('Event utils', () => {
 
 		const listener = emitter.event(() => undefined);
 		listener.dispose(); // should not crash
+	});
+
+	suite('Relay', () => {
+		test('should input work', () => {
+			const e1 = new Emitter<number>();
+			const e2 = new Emitter<number>();
+			const relay = new Relay<number>();
+
+			const result: number[] = [];
+			const listener = (num: number) => result.push(num);
+			const subscription = relay.event(listener);
+
+			e1.fire(1);
+			assert.deepStrictEqual(result, []);
+
+			relay.input = e1.event;
+			e1.fire(2);
+			assert.deepStrictEqual(result, [2]);
+
+			relay.input = e2.event;
+			e1.fire(3);
+			e2.fire(4);
+			assert.deepStrictEqual(result, [2, 4]);
+
+			subscription.dispose();
+			e1.fire(5);
+			e2.fire(6);
+			assert.deepStrictEqual(result, [2, 4]);
+		});
+
+		test('should Relay dispose work', () => {
+			const e1 = new Emitter<number>();
+			const e2 = new Emitter<number>();
+			const relay = new Relay<number>();
+
+			const result: number[] = [];
+			const listener = (num: number) => result.push(num);
+			relay.event(listener);
+
+			e1.fire(1);
+			assert.deepStrictEqual(result, []);
+
+			relay.input = e1.event;
+			e1.fire(2);
+			assert.deepStrictEqual(result, [2]);
+
+			relay.input = e2.event;
+			e1.fire(3);
+			e2.fire(4);
+			assert.deepStrictEqual(result, [2, 4]);
+
+			relay.dispose();
+			e1.fire(5);
+			e2.fire(6);
+			assert.deepStrictEqual(result, [2, 4]);
+		});
 	});
 });

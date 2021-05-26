@@ -18,7 +18,7 @@ import { ColorPickerModel } from 'vs/editor/contrib/colorPicker/colorPickerModel
 import { ColorPickerWidget } from 'vs/editor/contrib/colorPicker/colorPickerWidget';
 import { HoverOperation, HoverStartMode, IHoverComputer } from 'vs/editor/contrib/hover/hoverOperation';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { coalesce } from 'vs/base/common/arrays';
+import { coalesce, flatten } from 'vs/base/common/arrays';
 import { IIdentifiedSingleEditOperation, IModelDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ConfigurationChangedEvent, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Constants } from 'vs/base/common/uint';
@@ -28,11 +28,12 @@ import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
-import { MarkerHover, MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
+import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { MarkdownHover, MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 
 export interface IHoverPart {
+	readonly owner?: IEditorHoverParticipant;
 	readonly range: Range;
 	equals(other: IHoverPart): boolean;
 }
@@ -45,6 +46,7 @@ export interface IEditorHover {
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(range: Range, token: CancellationToken): Promise<T[]>;
+	createLoadingMessage?(range: Range): T;
 	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
 }
 
@@ -76,8 +78,7 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 
 	constructor(
 		editor: ICodeEditor,
-		private readonly _markerHoverParticipant: IEditorHoverParticipant<MarkerHover>,
-		private readonly _markdownHoverParticipant: MarkdownHoverParticipant
+		private readonly _participants: readonly IEditorHoverParticipant[]
 	) {
 		this._editor = editor;
 		this._result = [];
@@ -94,12 +95,22 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 	}
 
 	public async computeAsync(token: CancellationToken): Promise<HoverPartInfo[]> {
-		if (!this._editor.hasModel() || !this._range) {
+		const range = this._range;
+
+		if (!this._editor.hasModel() || !range) {
 			return Promise.resolve([]);
 		}
 
-		const markdownHovers = await this._markdownHoverParticipant.computeAsync(this._range, token);
-		return markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, h));
+		const allResults = await Promise.all(this._participants.map(p => this._computeAsync(p, range, token)));
+		return flatten(allResults);
+	}
+
+	private async _computeAsync(participant: IEditorHoverParticipant, range: Range, token: CancellationToken): Promise<HoverPartInfo[]> {
+		if (!participant.computeAsync) {
+			return [];
+		}
+		const parts = await participant.computeAsync(range, token);
+		return parts.map(part => new HoverPartInfo(participant, part));
 	}
 
 	public computeSync(): HoverPartInfo[] {
@@ -142,13 +153,16 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 			}
 		}
 
-		const markdownHovers = this._markdownHoverParticipant.computeSync(this._range, lineDecorations);
-		result = result.concat(markdownHovers.map(h => new HoverPartInfo(this._markdownHoverParticipant, h)));
-
-		const markerHovers = this._markerHoverParticipant.computeSync(this._range, lineDecorations);
-		result = result.concat(markerHovers.map(h => new HoverPartInfo(this._markerHoverParticipant, h)));
+		for (const participant of this._participants) {
+			result = result.concat(this._computeSync(participant, this._range, lineDecorations));
+		}
 
 		return coalesce(result);
+	}
+
+	private _computeSync(participant: IEditorHoverParticipant, range: Range, lineDecorations: IModelDecoration[]): HoverPartInfo[] {
+		const parts = participant.computeSync(range, lineDecorations);
+		return parts.map(part => new HoverPartInfo(participant, part));
 	}
 
 	public onResult(result: HoverPartInfo[], isFromSynchronousComputation: boolean): void {
@@ -166,9 +180,12 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 
 	public getResultWithLoadingMessage(): HoverPartInfo[] {
 		if (this._range) {
-			const loadingMessage = new HoverPartInfo(this._markdownHoverParticipant, this._markdownHoverParticipant.createLoadingMessage(this._range));
-			return this._result.slice(0).concat([loadingMessage]);
-
+			for (const participant of this._participants) {
+				if (participant.createLoadingMessage) {
+					const loadingMessage = new HoverPartInfo(participant, participant.createLoadingMessage(this._range));
+					return this._result.slice(0).concat([loadingMessage]);
+				}
+			}
 		}
 		return this._result.slice(0);
 	}
@@ -177,9 +194,6 @@ class ModesContentComputer implements IHoverComputer<HoverPartInfo[]> {
 export class ModesContentHoverWidget extends Widget implements IContentWidget, IEditorHover {
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
-
-	private readonly _markerHoverParticipant: IEditorHoverParticipant<MarkerHover>;
-	private readonly _markdownHoverParticipant: MarkdownHoverParticipant;
 
 	private readonly _hover: HoverWidget;
 	private readonly _id: string;
@@ -210,8 +224,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	) {
 		super();
 
-		this._markerHoverParticipant = instantiationService.createInstance(MarkerHoverParticipant, editor, this);
-		this._markdownHoverParticipant = instantiationService.createInstance(MarkdownHoverParticipant, editor, this);
+		const markerHoverParticipant = instantiationService.createInstance(MarkerHoverParticipant, editor, this);
+		const markdownHoverParticipant = instantiationService.createInstance(MarkdownHoverParticipant, editor, this);
 
 		this._hover = this._register(new HoverWidget());
 		this._id = ModesContentHoverWidget.ID;
@@ -242,7 +256,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		this._messages = [];
 		this._lastRange = null;
-		this._computer = new ModesContentComputer(this._editor, this._markerHoverParticipant, this._markdownHoverParticipant);
+		this._computer = new ModesContentComputer(this._editor, [markdownHoverParticipant, markerHoverParticipant]);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
@@ -480,8 +494,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		let containColorPicker = false;
 		const disposables = new DisposableStore();
-		const markerMessages: MarkerHover[] = [];
-		const markdownParts: MarkdownHover[] = [];
+		const hoverParts = new Map<IEditorHoverParticipant, IHoverPart[]>();
 		messages.forEach((_msg) => {
 			const msg = _msg.data;
 			if (!msg.range) {
@@ -577,22 +590,18 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 					this._renderDisposable = combinedDisposable(colorListener, colorChangeListener, widget, disposables);
 				});
 			} else {
-				if (msg instanceof MarkerHover) {
-					markerMessages.push(msg);
-				} else {
-					if (msg instanceof MarkdownHover) {
-						markdownParts.push(msg);
+				if (msg.owner) {
+					if (!hoverParts.has(msg.owner)) {
+						hoverParts.set(msg.owner, []);
 					}
+					const dest = hoverParts.get(msg.owner)!;
+					dest.push(msg);
 				}
 			}
 		});
 
-		if (markdownParts.length > 0) {
-			disposables.add(this._markdownHoverParticipant.renderHoverParts(markdownParts, fragment));
-		}
-
-		if (markerMessages.length) {
-			disposables.add(this._markerHoverParticipant.renderHoverParts(markerMessages, fragment));
+		for (const [participant, participantHoverParts] of hoverParts) {
+			disposables.add(participant.renderHoverParts(participantHoverParts, fragment));
 		}
 
 		this._renderDisposable = disposables;

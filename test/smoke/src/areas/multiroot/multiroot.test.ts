@@ -22,7 +22,10 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 			{ path: toUri(path.join(workspacePath, 'public')) },
 			{ path: toUri(path.join(workspacePath, 'routes')) },
 			{ path: toUri(path.join(workspacePath, 'views')) }
-		]
+		],
+		settings: {
+			'workbench.startupEditor': 'none'
+		}
 	};
 
 	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));

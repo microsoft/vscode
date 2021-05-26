@@ -244,6 +244,9 @@ jobs:
       - name: Run Valid Layers Checks
         run: yarn valid-layers-check
 
+      - name: Compile /build/
+        run: yarn --cwd build compile
+
       - name: Run Monaco Editor Checks
         run: yarn monaco-compile-check
 

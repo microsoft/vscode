@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
-import { EditorOptions, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -108,7 +108,7 @@ suite('Workbench EditorPane', () => {
 	test('EditorPane API', async () => {
 		const editor = new TestEditor(NullTelemetryService);
 		const input = new OtherTestInput();
-		const options = new EditorOptions();
+		const options = {};
 
 		assert(!editor.isVisible());
 		assert(!editor.input);

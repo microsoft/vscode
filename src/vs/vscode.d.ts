@@ -536,7 +536,7 @@ declare module 'vscode' {
 		/**
 		 * The new value for the {@link TextEditor.selections text editor's selections}.
 		 */
-		readonly selections: ReadonlyArray<Selection>;
+		readonly selections: readonly Selection[];
 		/**
 		 * The {@link TextEditorSelectionChangeKind change kind} which has triggered this
 		 * event. Can be `undefined`.
@@ -555,7 +555,7 @@ declare module 'vscode' {
 		/**
 		 * The new value for the {@link TextEditor.visibleRanges text editor's visible ranges}.
 		 */
-		readonly visibleRanges: ReadonlyArray<Range>;
+		readonly visibleRanges: readonly Range[];
 	}
 
 	/**
@@ -1150,7 +1150,7 @@ declare module 'vscode' {
 		 * @return A promise that resolves with a value indicating if the snippet could be inserted. Note that the promise does not signal
 		 * that the snippet is completely filled-in or accepted.
 		 */
-		insertSnippet(snippet: SnippetString, location?: Position | Range | ReadonlyArray<Position> | ReadonlyArray<Range>, options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
+		insertSnippet(snippet: SnippetString, location?: Position | Range | readonly Position[] | readonly Range[], options?: { undoStopBefore: boolean; undoStopAfter: boolean; }): Thenable<boolean>;
 
 		/**
 		 * Adds a set of decorations to the text editor. If a set of decorations already exists with
@@ -1163,7 +1163,7 @@ declare module 'vscode' {
 		 * @param decorationType A decoration type.
 		 * @param rangesOrOptions Either {@link Range ranges} or more detailed {@link DecorationOptions options}.
 		 */
-		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: Range[] | DecorationOptions[]): void;
+		setDecorations(decorationType: TextEditorDecorationType, rangesOrOptions: readonly Range[] | readonly DecorationOptions[]): void;
 
 		/**
 		 * Scroll as indicated by `revealType` in order to reveal the given range.
@@ -2211,7 +2211,7 @@ declare module 'vscode' {
 		/**
 		 * An array of diagnostics.
 		 */
-		readonly diagnostics: ReadonlyArray<Diagnostic>;
+		readonly diagnostics: readonly Diagnostic[];
 
 		/**
 		 * Requested kind of actions to return.
@@ -2975,7 +2975,7 @@ declare module 'vscode' {
 		/**
 		 * Tags for this symbol.
 		 */
-		tags?: ReadonlyArray<SymbolTag>;
+		tags?: readonly SymbolTag[];
 
 		/**
 		 * The location of this symbol.
@@ -3031,7 +3031,7 @@ declare module 'vscode' {
 		/**
 		 * Tags for this symbol.
 		 */
-		tags?: ReadonlyArray<SymbolTag>;
+		tags?: readonly SymbolTag[];
 
 		/**
 		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g. comments and code.
@@ -3955,7 +3955,7 @@ declare module 'vscode' {
 		/**
 		 * List of characters that trigger signature help.
 		 */
-		readonly triggerCharacters: ReadonlyArray<string>;
+		readonly triggerCharacters: readonly string[];
 
 		/**
 		 * List of characters that re-trigger signature help.
@@ -3963,7 +3963,7 @@ declare module 'vscode' {
 		 * These trigger characters are only active when signature help is already showing. All trigger characters
 		 * are also counted as re-trigger characters.
 		 */
-		readonly retriggerCharacters: ReadonlyArray<string>;
+		readonly retriggerCharacters: readonly string[];
 	}
 
 	/**
@@ -4043,7 +4043,7 @@ declare module 'vscode' {
 		/**
 		 * Tags for this completion item.
 		 */
-		tags?: ReadonlyArray<CompletionItemTag>;
+		tags?: readonly CompletionItemTag[];
 
 		/**
 		 * A human-readable string with additional information
@@ -4608,7 +4608,7 @@ declare module 'vscode' {
 		/**
 		 * Tags for this item.
 		 */
-		tags?: ReadonlyArray<SymbolTag>;
+		tags?: readonly SymbolTag[];
 
 		/**
 		 * More detail for this item, e.g. the signature of a function.
@@ -5197,7 +5197,7 @@ declare module 'vscode' {
 		/**
 		 * An array of resources for which diagnostics have changed.
 		 */
-		readonly uris: ReadonlyArray<Uri>;
+		readonly uris: readonly Uri[];
 	}
 
 	/**
@@ -5366,7 +5366,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @param diagnostics Array of diagnostics or `undefined`
 		 */
-		set(uri: Uri, diagnostics: ReadonlyArray<Diagnostic> | undefined): void;
+		set(uri: Uri, diagnostics: readonly Diagnostic[] | undefined): void;
 
 		/**
 		 * Replace diagnostics for multiple resources in this collection.
@@ -5378,7 +5378,7 @@ declare module 'vscode' {
 		 *
 		 * @param entries An array of tuples, like `[[file1, [d1, d2]], [file2, [d3, d4, d5]]]`, or `undefined`.
 		 */
-		set(entries: ReadonlyArray<[Uri, ReadonlyArray<Diagnostic> | undefined]>): void;
+		set(entries: ReadonlyArray<[Uri, readonly Diagnostic[] | undefined]>): void;
 
 		/**
 		 * Remove all diagnostics from this collection that belong
@@ -5400,7 +5400,7 @@ declare module 'vscode' {
 		 * @param callback Function to execute for each entry.
 		 * @param thisArg The `this` context used when invoking the handler function.
 		 */
-		forEach(callback: (uri: Uri, diagnostics: ReadonlyArray<Diagnostic>, collection: DiagnosticCollection) => any, thisArg?: any): void;
+		forEach(callback: (uri: Uri, diagnostics: readonly Diagnostic[], collection: DiagnosticCollection) => any, thisArg?: any): void;
 
 		/**
 		 * Get the diagnostics for a given resource. *Note* that you cannot
@@ -5409,7 +5409,7 @@ declare module 'vscode' {
 		 * @param uri A resource identifier.
 		 * @returns An immutable array of {@link Diagnostic diagnostics} or `undefined`.
 		 */
-		get(uri: Uri): ReadonlyArray<Diagnostic> | undefined;
+		get(uri: Uri): readonly Diagnostic[] | undefined;
 
 		/**
 		 * Check if this collection contains diagnostics for a
@@ -6015,7 +6015,7 @@ declare module 'vscode' {
 			 *
 			 * @param keys The set of keys whose values are synced.
 			 */
-			setKeysForSync(keys: string[]): void;
+			setKeysForSync(keys: readonly string[]): void;
 		};
 
 		/**
@@ -6879,7 +6879,7 @@ declare module 'vscode' {
 		/**
 		 * The currently active task executions or an empty array.
 		 */
-		export const taskExecutions: ReadonlyArray<TaskExecution>;
+		export const taskExecutions: readonly TaskExecution[];
 
 		/**
 		 * Fires when a task starts.
@@ -7327,7 +7327,7 @@ declare module 'vscode' {
 		 *
 		 * Pass in an empty array to disallow access to any local resources.
 		 */
-		readonly localResourceRoots?: ReadonlyArray<Uri>;
+		readonly localResourceRoots?: readonly Uri[];
 
 		/**
 		 * Mappings of localhost ports used inside the webview.
@@ -7342,7 +7342,7 @@ declare module 'vscode' {
 		 * *Note* that port mappings only work for `http` or `https` urls. Websocket urls (e.g. `ws://localhost:3000`)
 		 * cannot be mapped to another port.
 		 */
-		readonly portMapping?: ReadonlyArray<WebviewPortMapping>;
+		readonly portMapping?: readonly WebviewPortMapping[];
 	}
 
 	/**
@@ -8408,7 +8408,7 @@ declare module 'vscode' {
 		/**
 		 * The currently opened terminals or an empty array.
 		 */
-		export const terminals: ReadonlyArray<Terminal>;
+		export const terminals: readonly Terminal[];
 
 		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
@@ -8631,7 +8631,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
+		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<string[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -8641,7 +8641,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selection or `undefined`.
 		 */
-		export function showQuickPick(items: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+		export function showQuickPick(items: readonly string[] | Thenable<readonly string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
 
 		/**
 		 * Shows a selection list allowing multiple selections.
@@ -8651,7 +8651,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected items or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<T[] | undefined>;
 
 		/**
 		 * Shows a selection list.
@@ -8661,7 +8661,7 @@ declare module 'vscode' {
 		 * @param token A token that can be used to signal cancellation.
 		 * @return A promise that resolves to the selected item or `undefined`.
 		 */
-		export function showQuickPick<T extends QuickPickItem>(items: T[] | Thenable<T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
+		export function showQuickPick<T extends QuickPickItem>(items: readonly T[] | Thenable<readonly T[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<T | undefined>;
 
 		/**
 		 * Shows a selection list of {@link workspace.workspaceFolders workspace folders} to pick from.
@@ -9849,7 +9849,7 @@ declare module 'vscode' {
 		/**
 		 * Buttons for actions in the UI.
 		 */
-		buttons: ReadonlyArray<QuickInputButton>;
+		buttons: readonly QuickInputButton[];
 
 		/**
 		 * An event signaling when a button was triggered.
@@ -9859,7 +9859,7 @@ declare module 'vscode' {
 		/**
 		 * Items to pick from.
 		 */
-		items: ReadonlyArray<T>;
+		items: readonly T[];
 
 		/**
 		 * If multiple items can be selected at the same time. Defaults to false.
@@ -9879,7 +9879,7 @@ declare module 'vscode' {
 		/**
 		 * Active items. This can be read and updated by the extension.
 		 */
-		activeItems: ReadonlyArray<T>;
+		activeItems: readonly T[];
 
 		/**
 		 * An event signaling when the active items have changed.
@@ -9889,7 +9889,7 @@ declare module 'vscode' {
 		/**
 		 * Selected items. This can be read and updated by the extension.
 		 */
-		selectedItems: ReadonlyArray<T>;
+		selectedItems: readonly T[];
 
 		/**
 		 * An event signaling when the selected items have changed.
@@ -9934,7 +9934,7 @@ declare module 'vscode' {
 		/**
 		 * Buttons for actions in the UI.
 		 */
-		buttons: ReadonlyArray<QuickInputButton>;
+		buttons: readonly QuickInputButton[];
 
 		/**
 		 * An event signaling when a button was triggered.
@@ -10022,7 +10022,7 @@ declare module 'vscode' {
 		/**
 		 * An array of content changes.
 		 */
-		readonly contentChanges: ReadonlyArray<TextDocumentContentChangeEvent>;
+		readonly contentChanges: readonly TextDocumentContentChangeEvent[];
 	}
 
 	/**
@@ -10110,7 +10110,7 @@ declare module 'vscode' {
 		/**
 		 * The files that are going to be created.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: readonly Uri[];
 
 		/**
 		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
@@ -10150,7 +10150,7 @@ declare module 'vscode' {
 		/**
 		 * The files that got created.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: readonly Uri[];
 	}
 
 	/**
@@ -10165,7 +10165,7 @@ declare module 'vscode' {
 		/**
 		 * The files that are going to be deleted.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: readonly Uri[];
 
 		/**
 		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
@@ -10205,7 +10205,7 @@ declare module 'vscode' {
 		/**
 		 * The files that got deleted.
 		 */
-		readonly files: ReadonlyArray<Uri>;
+		readonly files: readonly Uri[];
 	}
 
 	/**
@@ -10220,7 +10220,7 @@ declare module 'vscode' {
 		/**
 		 * The files that are going to be renamed.
 		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
 
 		/**
 		 * Allows to pause the event and to apply a {@link WorkspaceEdit workspace edit}.
@@ -10260,7 +10260,7 @@ declare module 'vscode' {
 		/**
 		 * The files that got renamed.
 		 */
-		readonly files: ReadonlyArray<{ oldUri: Uri, newUri: Uri }>;
+		readonly files: ReadonlyArray<{ readonly oldUri: Uri, readonly newUri: Uri }>;
 	}
 
 	/**
@@ -10270,12 +10270,12 @@ declare module 'vscode' {
 		/**
 		 * Added workspace folders.
 		 */
-		readonly added: ReadonlyArray<WorkspaceFolder>;
+		readonly added: readonly WorkspaceFolder[];
 
 		/**
 		 * Removed workspace folders.
 		 */
-		readonly removed: ReadonlyArray<WorkspaceFolder>;
+		readonly removed: readonly WorkspaceFolder[];
 	}
 
 	/**
@@ -10350,7 +10350,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that the first entry corresponds to the value of `rootPath`.
 		 */
-		export const workspaceFolders: ReadonlyArray<WorkspaceFolder> | undefined;
+		export const workspaceFolders: readonly WorkspaceFolder[] | undefined;
 
 		/**
 		 * The name of the workspace. `undefined` when no workspace
@@ -10534,7 +10534,7 @@ declare module 'vscode' {
 		/**
 		 * All text documents currently known to the editor.
 		 */
-		export const textDocuments: ReadonlyArray<TextDocument>;
+		export const textDocuments: readonly TextDocument[];
 
 		/**
 		 * Opens a document. Will return early if this document is already open. Otherwise
@@ -11922,17 +11922,17 @@ declare module 'vscode' {
 		/**
 		 * Added breakpoints.
 		 */
-		readonly added: ReadonlyArray<Breakpoint>;
+		readonly added: readonly Breakpoint[];
 
 		/**
 		 * Removed breakpoints.
 		 */
-		readonly removed: ReadonlyArray<Breakpoint>;
+		readonly removed: readonly Breakpoint[];
 
 		/**
 		 * Changed breakpoints.
 		 */
-		readonly changed: ReadonlyArray<Breakpoint>;
+		readonly changed: readonly Breakpoint[];
 	}
 
 	/**
@@ -12167,13 +12167,13 @@ declare module 'vscode' {
 		 * Add breakpoints.
 		 * @param breakpoints The breakpoints to add.
 		*/
-		export function addBreakpoints(breakpoints: Breakpoint[]): void;
+		export function addBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
 		 * Remove breakpoints.
 		 * @param breakpoints The breakpoints to remove.
 		 */
-		export function removeBreakpoints(breakpoints: Breakpoint[]): void;
+		export function removeBreakpoints(breakpoints: readonly Breakpoint[]): void;
 
 		/**
 		 * Converts a "Source" descriptor object received via the Debug Adapter Protocol into a Uri that can be used to load its contents.
@@ -12242,7 +12242,7 @@ declare module 'vscode' {
 		/**
 		 * All extensions currently known to the system.
 		 */
-		export const all: ReadonlyArray<Extension<any>>;
+		export const all: readonly Extension<any>[];
 
 		/**
 		 * An event which fires when `extensions.all` changes. This can happen when extensions are
@@ -12299,7 +12299,7 @@ declare module 'vscode' {
 		/**
 		 * The ordered comments of the thread.
 		 */
-		comments: ReadonlyArray<Comment>;
+		comments: readonly Comment[];
 
 		/**
 		 * Whether the thread should be collapsed or expanded when opening the document.
@@ -12512,7 +12512,7 @@ declare module 'vscode' {
 		 * @param range The range the comment thread is located within the document.
 		 * @param comments The ordered comments of the thread.
 		 */
-		createCommentThread(uri: Uri, range: Range, comments: Comment[]): CommentThread;
+		createCommentThread(uri: Uri, range: Range, comments: readonly Comment[]): CommentThread;
 
 		/**
 		 * Optional reaction handler for creating and deleting reactions on a {@link Comment}.
@@ -12564,7 +12564,7 @@ declare module 'vscode' {
 		 * The permissions granted by the session's access token. Available scopes
 		 * are defined by the {@link AuthenticationProvider}.
 		 */
-		readonly scopes: ReadonlyArray<string>;
+		readonly scopes: readonly string[];
 	}
 
 	/**
@@ -12656,19 +12656,19 @@ declare module 'vscode' {
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been added.
 		*/
-		readonly added?: ReadonlyArray<AuthenticationSession>;
+		readonly added?: readonly AuthenticationSession[];
 
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been removed.
 		 */
-		readonly removed?: ReadonlyArray<AuthenticationSession>;
+		readonly removed?: readonly AuthenticationSession[];
 
 		/**
 		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been changed.
 		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
 		 * access token being set for the session.
 		 */
-		readonly changed?: ReadonlyArray<AuthenticationSession>;
+		readonly changed?: readonly AuthenticationSession[];
 	}
 
 	/**
@@ -12687,7 +12687,7 @@ declare module 'vscode' {
 		 * these permissions, otherwise all sessions should be returned.
 		 * @returns A promise that resolves to an array of authentication sessions.
 		 */
-		getSessions(scopes?: string[]): Thenable<ReadonlyArray<AuthenticationSession>>;
+		getSessions(scopes?: readonly string[]): Thenable<readonly AuthenticationSession[]>;
 
 		/**
 		 * Prompts a user to login.
@@ -12702,7 +12702,7 @@ declare module 'vscode' {
 		 * @param scopes A list of scopes, permissions, that the new session should be created with.
 		 * @returns A promise that resolves to an authentication session.
 		 */
-		createSession(scopes: string[]): Thenable<AuthenticationSession>;
+		createSession(scopes: readonly string[]): Thenable<AuthenticationSession>;
 
 		/**
 		 * Removes the session corresponding to session id.
@@ -12733,7 +12733,7 @@ declare module 'vscode' {
 		 * @param options The {@link GetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session
 		 */
-		export function getSession(providerId: string, scopes: string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
+		export function getSession(providerId: string, scopes: readonly string[], options: AuthenticationGetSessionOptions & { createIfNone: true }): Thenable<AuthenticationSession>;
 
 		/**
 		 * Get an authentication session matching the desired scopes. Rejects if a provider with providerId is not
@@ -12748,7 +12748,7 @@ declare module 'vscode' {
 		 * @param options The {@link GetSessionOptions} to use
 		 * @returns A thenable that resolves to an authentication session if available, or undefined if there are no sessions
 		 */
-		export function getSession(providerId: string, scopes: string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
+		export function getSession(providerId: string, scopes: readonly string[], options?: AuthenticationGetSessionOptions): Thenable<AuthenticationSession | undefined>;
 
 		/**
 		 * An {@link Event} which fires when the authentication sessions of an authentication provider have
