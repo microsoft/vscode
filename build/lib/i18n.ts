@@ -1173,6 +1173,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		let resource = path.basename(xlf.relative, '.xlf');
 		let contents = xlf.contents.toString();
+		console.log(`Found ${project}:${resource}`);
 		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
 		parsePromises.push(parsePromise);
 		parsePromise.then(
