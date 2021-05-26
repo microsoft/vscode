@@ -233,7 +233,7 @@ export class GettingStartedPage extends EditorPane {
 		setTimeout(() => this.container.classList.add('animationReady'), 0);
 	}
 
-	async makeCategoryVisibleWhenAvailable(categoryID: string) {
+	async makeCategoryVisibleWhenAvailable(categoryID: string, stepId?: string) {
 		await this.gettingStartedService.installedExtensionsRegistered;
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
@@ -244,7 +244,7 @@ export class GettingStartedPage extends EditorPane {
 		if (ourCategory.content.type !== 'steps') {
 			throw Error('internaal error: category is not steps');
 		}
-		this.scrollToCategory(categoryID);
+		this.scrollToCategory(categoryID, stepId);
 	}
 
 	private registerDispatchListeners() {
@@ -870,10 +870,11 @@ export class GettingStartedPage extends EditorPane {
 		});
 	}
 
-	private async scrollToCategory(categoryID: string) {
+	private async scrollToCategory(categoryID: string, stepId?: string) {
 		this.inProgressScroll = this.inProgressScroll.then(async () => {
 			reset(this.stepsContent);
 			this.editorInput.selectedCategory = categoryID;
+			this.editorInput.selectedStep = stepId;
 			this.currentCategory = this.gettingStartedCategories.find(category => category.id === categoryID);
 			this.buildCategorySlide(categoryID);
 			this.setSlide('details');
