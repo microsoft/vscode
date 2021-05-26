@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInput, EditorOptions, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -17,6 +18,7 @@ import { Emitter } from 'vs/base/common/event';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { WorkspaceTrustRequiredEditor } from 'vs/workbench/browser/parts/editor/workspaceTrustRequiredEditor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IOpenEditorResult {
 	readonly editorPane: EditorPane;
@@ -72,12 +74,12 @@ export class EditorControl extends Disposable {
 		// to handle errors properly.
 		const editor = this._activeEditorPane?.input;
 		const options = this._activeEditorPane?.options;
-		if (editor?.requiresWorkspaceTrust()) {
+		if (editor?.hasCapability(EditorInputCapabilities.RequiresTrust)) {
 			this.groupView.openEditor(editor, options);
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor descriptor
 		const descriptor = this.getEditorDescriptor(editor);
@@ -91,7 +93,7 @@ export class EditorControl extends Disposable {
 	}
 
 	private getEditorDescriptor(editor: EditorInput): IEditorDescriptor {
-		if (editor.requiresWorkspaceTrust() && !this.workspaceTrustService.isWorkpaceTrusted()) {
+		if (editor.hasCapability(EditorInputCapabilities.RequiresTrust) && !this.workspaceTrustService.isWorkpaceTrusted()) {
 			// Workspace trust: if an editor signals it needs workspace trust
 			// but the current workspace is untrusted, we fallback to a generic
 			// editor descriptor to indicate this an do NOT load the registered
@@ -143,7 +145,6 @@ export class EditorControl extends Disposable {
 		if (!editorPane.getContainer()) {
 			const editorPaneContainer = document.createElement('div');
 			editorPaneContainer.classList.add('editor-instance');
-			editorPaneContainer.setAttribute('data-editor-id', descriptor.getId());
 
 			editorPane.create(editorPaneContainer);
 		}
@@ -182,7 +183,7 @@ export class EditorControl extends Disposable {
 		this._onDidChangeSizeConstraints.fire(undefined);
 	}
 
-	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
+	private async doSetInput(editorPane: EditorPane, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext): Promise<boolean> {
 
 		// If the input did not change, return early and only apply the options
 		// unless the options instruct us to force open it even if it is the same

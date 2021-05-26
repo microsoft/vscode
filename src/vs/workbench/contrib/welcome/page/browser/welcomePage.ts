@@ -32,7 +32,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorInputSerializer, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -53,6 +53,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, IConfigurationNode, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 
 export const DEFAULT_STARTUP_EDITOR_CONFIG: IConfigurationNode = {

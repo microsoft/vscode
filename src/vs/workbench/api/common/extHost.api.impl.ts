@@ -219,7 +219,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		})();
 
 		const authentication: typeof vscode.authentication = {
-			getSession(providerId: string, scopes: string[], options?: vscode.AuthenticationGetSessionOptions) {
+			getSession(providerId: string, scopes: readonly string[], options?: vscode.AuthenticationGetSessionOptions) {
 				return extHostAuthentication.getSession(extension, providerId, scopes, options as any);
 			},
 			get onDidChangeSessions(): Event<vscode.AuthenticationSessionsChangeEvent> {
@@ -316,16 +316,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					allowContributedOpeners: options?.allowContributedOpeners,
 				});
 			},
-			asExternalUri(uri: URI) {
+			async asExternalUri(uri: URI) {
 				if (uri.scheme === initData.environment.appUriScheme) {
 					return extHostUrls.createAppUri(uri);
 				}
 
-				if (!matchesScheme(uri.scheme, Schemas.http) && !matchesScheme(uri.scheme, Schemas.https)) {
+				if (!matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https)) {
 					checkProposedApiEnabled(extension); // https://github.com/microsoft/vscode/issues/124263
 				}
 
-				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
+				try {
+					return await extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
+				} catch {
+					return uri;
+				}
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
@@ -345,7 +349,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const test: typeof vscode.test = {
 			registerTestController(provider) {
-				checkProposedApiEnabled(extension);
 				return extHostTesting.registerTestController(extension.identifier.value, provider);
 			},
 			createDocumentTestObserver(document) {
@@ -357,14 +360,12 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTesting.createWorkspaceTestObserver(workspaceFolder);
 			},
 			runTests(provider) {
-				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
 			createTestItem<T>(options: vscode.TestItemOptions, data?: T) {
 				return new extHostTypes.TestItemImpl(options.id, options.label, options.uri, data);
 			},
 			createTestRun(request, name, persist) {
-				checkProposedApiEnabled(extension);
 				return extHostTesting.createTestRun(extension.identifier.value, request, name, persist);
 			},
 			get onDidChangeTestResults() {
@@ -376,9 +377,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTesting.results;
 			},
 		};
-
-		// todo@connor4312: backwards compatibility for a short period
-		(test as any).createTestRunTask = test.createTestRun;
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
@@ -1004,10 +1002,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			stopDebugging(session?: vscode.DebugSession) {
 				return extHostDebugService.stopDebugging(session);
 			},
-			addBreakpoints(breakpoints: vscode.Breakpoint[]) {
+			addBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
 				return extHostDebugService.addBreakpoints(breakpoints);
 			},
-			removeBreakpoints(breakpoints: vscode.Breakpoint[]) {
+			removeBreakpoints(breakpoints: readonly vscode.Breakpoint[]) {
 				return extHostDebugService.removeBreakpoints(breakpoints);
 			},
 			asDebugSourceUri(source: vscode.DebugProtocolSource, session?: vscode.DebugSession): vscode.Uri {

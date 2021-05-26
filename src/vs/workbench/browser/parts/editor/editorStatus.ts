@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { Action, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { Language } from 'vs/base/common/platform';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IFileEditorInput, EditorResourceAccessor, SideBySideEditorInput, IEditorPane, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IFileEditorInput, EditorResourceAccessor, IEditorPane, IEditorInput, SideBySideEditor, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
@@ -53,6 +53,7 @@ import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platfor
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -369,7 +370,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 			return this.quickInputService.pick([{ label: localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (this.editorService.activeEditor?.isReadonly()) {
+		if (this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
 			return this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
@@ -1279,7 +1280,7 @@ export class ChangeEOLAction extends Action {
 			return;
 		}
 
-		if (this.editorService.activeEditor?.isReadonly()) {
+		if (this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
 			await this.quickInputService.pick([{ label: localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 			return;
 		}
@@ -1296,7 +1297,7 @@ export class ChangeEOLAction extends Action {
 		const eol = await this.quickInputService.pick(EOLOptions, { placeHolder: localize('pickEndOfLine', "Select End of Line Sequence"), activeItem: EOLOptions[selectedIndex] });
 		if (eol) {
 			const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.isReadonly()) {
+			if (activeCodeEditor?.hasModel() && !this.editorService.activeEditor?.hasCapability(EditorInputCapabilities.Readonly)) {
 				textModel = activeCodeEditor.getModel();
 				textModel.pushStackElement();
 				textModel.pushEOL(eol.eol);
@@ -1362,7 +1363,7 @@ export class ChangeEncodingAction extends Action {
 		let action: IQuickPickItem | undefined;
 		if (encodingSupport instanceof UntitledTextEditorInput) {
 			action = saveWithEncodingPick;
-		} else if (activeEditorPane.input.isReadonly()) {
+		} else if (activeEditorPane.input.hasCapability(EditorInputCapabilities.Readonly)) {
 			action = reopenWithEncodingPick;
 		} else {
 			action = await this.quickInputService.pick([reopenWithEncodingPick, saveWithEncodingPick], { placeHolder: localize('pickAction', "Select Action"), matchOnDetail: true });

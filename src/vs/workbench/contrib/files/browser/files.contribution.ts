@@ -8,7 +8,7 @@ import { sep } from 'vs/base/common/path';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { EditorInput, IFileEditorInput, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { IFileEditorInput, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
@@ -61,7 +61,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		nls.localize('binaryFileEditor', "Binary File Editor")
 	),
 	[
-		new SyncDescriptor<EditorInput>(FileEditorInput)
+		new SyncDescriptor(FileEditorInput)
 	]
 );
 

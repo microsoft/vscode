@@ -852,7 +852,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 		const partType = part.type;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
-		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.metadata === LinePartMetadata.PSEUDO_AFTER);
+		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
 		charOffsetInPart = 0;
 
 		sb.appendASCIIString('<span class="');

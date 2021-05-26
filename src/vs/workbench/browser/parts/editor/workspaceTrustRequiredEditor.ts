@@ -5,7 +5,8 @@
 
 import 'vs/css!./media/workspacetrusteditor';
 import { localize } from 'vs/nls';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -20,6 +21,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorDescriptor } from 'vs/workbench/browser/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class WorkspaceTrustRequiredEditor extends EditorPane {
 
@@ -58,7 +60,7 @@ export class WorkspaceTrustRequiredEditor extends EditorPane {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	override async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		// Check for cancellation

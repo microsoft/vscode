@@ -3320,8 +3320,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
-							leftResource: upgrade[0],
-							rightResource: upgrade[1],
+							leftEditor: { resource: upgrade[0] },
+							rightEditor: { resource: upgrade[1] }
 						});
 					}
 				}

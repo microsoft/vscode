@@ -60,8 +60,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		return this.session ? this.session.expanded : false;
 	}
 
-	public expand(): void {
-		this.session?.expand();
+	public setExpanded(expanded: boolean): void {
+		this.session?.setExpanded(expanded);
 	}
 
 	public setActive(active: boolean) {
@@ -101,12 +101,30 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			this.session.commitCurrentCompletion();
 		}
 	}
+
+	public showNextInlineCompletion(): void {
+		if (this.session) {
+			this.session.showNextInlineCompletion();
+		}
+	}
+
+	public showPreviousInlineCompletion(): void {
+		if (this.session) {
+			this.session.showPreviousInlineCompletion();
+		}
+	}
 }
 
-interface CachedInlineCompletion {
-	inlineCompletion: NormalizedInlineCompletion;
-	decorationId: string;
-	lastRange: Range;
+class CachedInlineCompletion {
+	public readonly semanticId: string = JSON.stringify(this.inlineCompletion);
+	public lastRange: Range;
+
+	constructor(
+		public readonly inlineCompletion: NormalizedInlineCompletion,
+		public readonly decorationId: string,
+	) {
+		this.lastRange = inlineCompletion.range;
+	}
 }
 
 class InlineCompletionsSession extends BaseGhostTextWidgetModel {
@@ -118,10 +136,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
 	private readonly textModel = this.editor.getModel();
 
-	constructor(private readonly editor: IActiveCodeEditor, private readonly triggerPosition: Position, private readonly shouldUpdate: () => boolean) {
-		super();
+	constructor(editor: IActiveCodeEditor, private readonly triggerPosition: Position, private readonly shouldUpdate: () => boolean) {
+		super(editor);
 		this._register(toDisposable(() => {
 			this.clearGhostTextPromise();
+			this.clearCache();
 		}));
 
 		this._register(this.editor.onDidChangeModelDecorations(e => {
@@ -153,16 +172,55 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		this.updateSoon.schedule();
 	}
 
+	//#region Selection
+
+	// We use a semantic id to track the selection even if the cache changes.
+	private currentlySelectedCompletionId: string | undefined = undefined;
+
+	private getIndexOfCurrentSelection(): number {
+		if (!this.currentlySelectedCompletionId || !this.cachedCompletions) {
+			return 0;
+		}
+
+		return this.cachedCompletions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+	}
+
+	private get currentCachedCompletion(): CachedInlineCompletion | undefined {
+		if (!this.cachedCompletions) {
+			return undefined;
+		}
+		return this.cachedCompletions[this.getIndexOfCurrentSelection()];
+	}
+
+	public showNextInlineCompletion(): void {
+		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
+			const newIdx = (this.getIndexOfCurrentSelection() + 1) % this.cachedCompletions.length;
+			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
+		} else {
+			this.currentlySelectedCompletionId = undefined;
+		}
+		this.onDidChangeEmitter.fire();
+	}
+
+	public showPreviousInlineCompletion(): void {
+		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
+			const newIdx = (this.getIndexOfCurrentSelection() + this.cachedCompletions.length - 1) % this.cachedCompletions.length;
+			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
+		} else {
+			this.currentlySelectedCompletionId = undefined;
+		}
+		this.onDidChangeEmitter.fire();
+	}
+
+	//#endregion
+
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
 		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel()) : undefined;
 	}
 
 	get currentCompletion(): NormalizedInlineCompletion | undefined {
-		if (!this.cachedCompletions) {
-			return undefined;
-		}
-		const completion = this.cachedCompletions[0];
+		const completion = this.currentCachedCompletion;
 		if (!completion) {
 			return undefined;
 		}
@@ -204,13 +262,16 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				}))
 			);
 
-			this.cachedCompletions = result.items.map((item, idx) => ({
-				decorationId: decorationIds[idx],
-				inlineCompletion: item,
-				lastRange: item.range
-			}));
+			this.cachedCompletions = result.items.map((item, idx) => new CachedInlineCompletion(item, decorationIds[idx]));
 			this.onDidChangeEmitter.fire();
 		}, onUnexpectedError);
+	}
+
+	private clearCache(): void {
+		if (this.cachedCompletions) {
+			this.editor.deltaDecorations(this.cachedCompletions.map(c => c.decorationId), []);
+			this.cachedCompletions = undefined;
+		}
 	}
 
 	private clearGhostTextPromise(): void {
@@ -232,12 +293,14 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: NormalizedInlineCompletion): void {
+		this.clearCache();
 		this.editor.executeEdits(
 			'inlineCompletions.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
+		this.onDidChangeEmitter.fire();
 	}
 }
 
@@ -245,6 +308,9 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
+/**
+ * Contains no duplicated items.
+*/
 export interface NormalizedInlineCompletions extends InlineCompletions<NormalizedInlineCompletion> {
 }
 
@@ -285,15 +351,17 @@ async function provideInlineCompletions(
 		providers.map(provider => provider.provideInlineCompletions(model, position, context, token))
 	);
 
-	const items = new Array<NormalizedInlineCompletion>();
+	const itemsByHash = new Map<string, NormalizedInlineCompletion>();
 	for (const result of results) {
 		if (result) {
-			items.push(...result.items.map<NormalizedInlineCompletion>(item => ({
+			for (const item of result.items.map<NormalizedInlineCompletion>(item => ({
 				text: item.text,
 				range: item.range ? Range.lift(item.range) : defaultReplaceRange
-			})));
+			}))) {
+				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
+			}
 		}
 	}
 
-	return { items };
+	return { items: [...itemsByHash.values()] };
 }

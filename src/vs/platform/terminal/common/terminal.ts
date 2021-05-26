@@ -497,15 +497,20 @@ export interface ITerminalChildProcess {
 	getLatency(): Promise<number>;
 }
 
+export interface IReconnectConstants {
+	GraceTime: number,
+	ShortGraceTime: number
+}
+
 export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 60000, // 60 seconds
+	GraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
-	ReconnectionShortGraceTime = 6000, // 6 seconds
+	ShortGraceTime = 6000, // 6 seconds
 }
 
 export const enum FlowControlConstants {
@@ -560,6 +565,7 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
+	color?: string;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
@@ -582,6 +588,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	color?: string;
 	env?: ITerminalEnvironment;
 }
 

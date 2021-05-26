@@ -8,12 +8,13 @@ import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServ
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchEditorConfiguration, TextEditorOptions } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { isEqual } from 'vs/base/common/resources';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { applyTextEditorOptions } from 'vs/workbench/common/editor/editorOptions';
 
 export class CodeEditorService extends CodeEditorServiceImpl {
 
@@ -60,8 +61,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		) {
 			const targetEditor = activeTextEditorControl.getModifiedEditor();
 
-			const textOptions = TextEditorOptions.create(input.options);
-			textOptions.apply(targetEditor, ScrollType.Smooth);
+			applyTextEditorOptions(input.options, targetEditor, ScrollType.Smooth);
 
 			return targetEditor;
 		}

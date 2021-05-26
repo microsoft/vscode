@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { EditorInput, Verbosity, IEditorInputWithPreferredResource } from 'vs/workbench/common/editor';
+import { Verbosity, IEditorInputWithPreferredResource, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { IFileService, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
@@ -17,6 +18,20 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 
 	private _preferredResource: URI;
 	get preferredResource(): URI { return this._preferredResource; }
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this.fileService.canHandleResource(this.resource)) {
+			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		return capabilities;
+	}
 
 	constructor(
 		readonly resource: URI,
@@ -156,22 +171,10 @@ export abstract class AbstractResourceEditorInput extends EditorInput implements
 	}
 
 	private decorateLabel(label: string): string {
-		const readonly = this.isReadonly();
+		const readonly = this.hasCapability(EditorInputCapabilities.Readonly);
 		const orphaned = this.isOrphaned();
 
 		return decorateFileEditorLabel(label, { orphaned, readonly });
-	}
-
-	override isUntitled(): boolean {
-		return !this.fileService.canHandleResource(this.resource);
-	}
-
-	override isReadonly(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never readonly
-		}
-
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	isOrphaned(): boolean {

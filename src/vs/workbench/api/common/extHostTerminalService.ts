@@ -36,13 +36,18 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
-	createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal;
+	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
 	createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal;
 	attachPtyToTerminal(id: number, pty: vscode.Pseudoterminal): void;
 	getDefaultShell(useAutomationShell: boolean): string;
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
+}
+
+export interface ITerminalInternalOptions {
+	isFeatureTerminal?: boolean;
+	useShellEnvironment?: boolean;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -123,12 +128,13 @@ export class ExtHostTerminal {
 		strictEnv?: boolean,
 		hideFromUser?: boolean,
 		isFeatureTerminal?: boolean,
-		isExtensionOwnedTerminal?: boolean
+		isExtensionOwnedTerminal?: boolean,
+		useShellEnvironment?: boolean
 	): Promise<void> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal });
+		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal, useShellEnvironment });
 	}
 
 	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
@@ -335,7 +341,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public abstract createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal;
-	public abstract createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal;
+	public abstract createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
+
 	public getDefaultShell(useAutomationShell: boolean): string {
 		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
 		return profile?.path || '';
@@ -343,7 +350,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public getDefaultShellArgs(useAutomationShell: boolean): string[] | string {
 		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
-		return profile?.args || [''];
+		return profile?.args || [];
 	}
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
@@ -785,7 +792,7 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 		throw new NotSupportedError();
 	}
 
-	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
+	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		throw new NotSupportedError();
 	}
 }

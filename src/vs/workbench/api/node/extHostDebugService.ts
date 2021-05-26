@@ -98,7 +98,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
 				};
 				giveShellTimeToInitialize = true;
-				terminal = this._terminalService.createTerminalFromOptions(options, true);
+				terminal = this._terminalService.createTerminalFromOptions(options, {
+					isFeatureTerminal: true,
+					useShellEnvironment: true
+				});
 				this._integratedTerminalInstances.insert(terminal, shellConfig);
 
 			} else {

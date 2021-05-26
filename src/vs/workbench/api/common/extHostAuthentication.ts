@@ -48,11 +48,11 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 		return Object.freeze(this._providers.slice());
 	}
 
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
-	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions & { createIfNone: true }): Promise<vscode.AuthenticationSession>;
+	async getSession(requestingExtension: IExtensionDescription, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		const extensionId = ExtensionIdentifier.toKey(requestingExtension.identifier);
 		const inFlightRequests = this._inFlightRequests.get(extensionId) || [];
-		const sortedScopes = scopes.sort().join(' ');
+		const sortedScopes = [...scopes].sort().join(' ');
 		let inFlightRequest: GetSessionsRequest | undefined = inFlightRequests.find(request => request.scopes === sortedScopes);
 
 		if (inFlightRequest) {
@@ -68,7 +68,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 			this._inFlightRequests.set(extensionId, inFlightRequests);
 
 			try {
-				await session;
+				const s = await session;
+				return s;
 			} finally {
 				const requestIndex = inFlightRequests.findIndex(request => request.scopes === sortedScopes);
 				if (requestIndex > -1) {
@@ -76,12 +77,10 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 					this._inFlightRequests.set(extensionId, inFlightRequests);
 				}
 			}
-
-			return session;
 		}
 	}
 
-	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
+	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: readonly string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		await this._proxy.$ensureProvider(providerId);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
 		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);

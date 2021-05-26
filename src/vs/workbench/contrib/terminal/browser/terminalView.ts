@@ -47,7 +47,6 @@ export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
 	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
-	private _tabsViewWrapper: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
 	private _terminalsInitialized = false;
@@ -160,10 +159,7 @@ export class TerminalViewPane extends ViewPane {
 		if (!this._parentDomElement) {
 			return;
 		}
-		this._tabsViewWrapper = document.createElement('div');
-		this._tabsViewWrapper.classList.add('tabs-view-wrapper');
 		this._terminalTabbedView = this.instantiationService.createInstance(TerminalTabbedView, this._parentDomElement);
-		this._parentDomElement.append(this._tabsViewWrapper);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -317,6 +313,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onGroupsChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
@@ -522,30 +519,50 @@ class TerminalThemeIconStyle extends Themable {
 
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onGroupsChanged(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
 		super.updateStyles();
+		const colorTheme = this._themeService.getColorTheme();
+
+		// TODO: add a rule collector to avoid duplication
 		let css = '';
-		// TODO add a rule collector to avoid duplication
+
+		// Add icons
 		for (const instance of this._terminalService.terminalInstances) {
 			const icon = instance.icon;
 			if (!icon) {
-				return;
+				continue;
 			}
 			let uri = undefined;
 			if (icon instanceof URI) {
 				uri = icon;
 			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
-				uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
 			}
-			const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += `.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon {`;
 				css += `background-image: ${dom.asCSSUrl(uri)};}`;
 			}
 		}
+
+		// Add colors
+		for (const instance of this._terminalService.terminalInstances) {
+			const colorClass = getColorClass(instance);
+			if (!colorClass || !instance.color) {
+				continue;
+			}
+			const color = colorTheme.getColor(instance.color);
+			if (color) {
+				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
+				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+			}
+		}
+
 		this._styleElement.textContent = css;
 	}
 }

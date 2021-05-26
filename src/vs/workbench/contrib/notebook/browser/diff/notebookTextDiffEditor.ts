@@ -8,7 +8,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
@@ -20,10 +20,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -101,7 +101,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
 		this._notebookOptions = new NotebookOptions(this.configurationService);
 		this._register(this._notebookOptions);
-		const editorOptions = this.configurationService.getValue<IEditorOptions>('editor');
+		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, getZoomLevel(), getPixelRatio()));
 		this._revealFirst = true;
 		this._outputRenderer = new OutputRenderer(this, this.instantiationService);
@@ -292,7 +292,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	override async setInput(input: NotebookDiffEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: NotebookDiffEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 
 		const model = await input.resolve();

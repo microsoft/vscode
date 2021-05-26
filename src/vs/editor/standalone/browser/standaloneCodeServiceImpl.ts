@@ -12,7 +12,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
@@ -59,7 +59,7 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return Promise.resolve(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, input: IResourceEditorInput): ICodeEditor | null {
+	private doOpenEditor(editor: ICodeEditor, input: ITextResourceEditorInput): ICodeEditor | null {
 		const model = this.findModel(editor, input.resource);
 		if (!model) {
 			if (input.resource) {

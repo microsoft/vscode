@@ -37,6 +37,7 @@ export function detectAvailableProfiles(
 			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			testPaths,
 			variableResolver
 		);
 	}
@@ -58,6 +59,7 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
+	testPaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
@@ -73,7 +75,7 @@ async function detectAvailableWindowsProfiles(
 		useWSLexe = true;
 	}
 
-	await initializeWindowsProfiles();
+	await initializeWindowsProfiles(testPaths);
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -115,8 +117,10 @@ async function detectAvailableWindowsProfiles(
 	if (includeDetectedProfiles || (!includeDetectedProfiles && useWslProfiles)) {
 		try {
 			const result = await getWslProfiles(`${system32Path}\\${useWSLexe ? 'wsl' : 'bash'}.exe`, defaultProfileName);
-			if (result) {
-				resultProfiles.push(...result);
+			for (const wslProfile of result) {
+				if (!configProfiles || !(wslProfile.profileName in configProfiles)) {
+					resultProfiles.push(wslProfile);
+				}
 			}
 		} catch (e) {
 			logService?.info('WSL is not installed, so could not detect WSL profiles');
@@ -164,6 +168,7 @@ async function transformToTerminalProfiles(
 		if (validatedProfile) {
 			validatedProfile.isAutoDetected = profile.isAutoDetected;
 			validatedProfile.icon = icon;
+			validatedProfile.color = profile.color;
 			resultProfiles.push(validatedProfile);
 		} else {
 			logService?.trace('profile not validated', profileName, originalPaths);
@@ -172,7 +177,7 @@ async function transformToTerminalProfiles(
 	return resultProfiles;
 }
 
-async function initializeWindowsProfiles(): Promise<void> {
+async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
 	if (profileSources) {
 		return;
 	}
@@ -194,7 +199,7 @@ async function initializeWindowsProfiles(): Promise<void> {
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: await getPowershellPaths(),
+		paths: testPaths || await getPowershellPaths(),
 		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
@@ -242,21 +247,23 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			profileName,
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
-			isDefault: profileName === defaultProfileName
+			isDefault: profileName === defaultProfileName,
+			icon: getWslIcon(distroName)
 		};
-		if (distroName.includes('Ubuntu')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
-		}
-		else if (distroName.includes('Debian')) {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
-		} else {
-			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
-		}
-
 		// Add the profile
 		profiles.push(profile);
 	}
 	return profiles;
+}
+
+function getWslIcon(distroName: string): ThemeIcon {
+	if (distroName.includes('Ubuntu')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+	} else if (distroName.includes('Debian')) {
+		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+	} else {
+		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+	}
 }
 
 async function detectAvailableUnixProfiles(
