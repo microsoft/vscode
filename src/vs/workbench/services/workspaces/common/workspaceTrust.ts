@@ -302,7 +302,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async initializeWorkspaceTrust(): Promise<void> {
-		this._trustState.isTrusted = await this.calculateWorkspaceTrust();
+		this._trustState.isTrusted = isWorkspaceTrustEnabled(this.configurationService) ? await this.calculateWorkspaceTrust() : true;
 	}
 
 	isWorkpaceTrusted(): boolean {
@@ -401,7 +401,7 @@ export class RemoteWorkspaceTrustManagementService extends WorkspaceTrustManagem
 	}
 
 	override async initializeWorkspaceTrust(): Promise<void> {
-		this._trustState.isTrusted = false;
+		this._trustState.isTrusted = !isWorkspaceTrustEnabled(this.configurationService);
 	}
 
 	protected override async calculateWorkspaceTrust(): Promise<boolean> {
