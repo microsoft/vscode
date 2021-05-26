@@ -183,15 +183,21 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 		return choice === 0;
 	}
 
+	private async setTrustedExtensionAndAccountPreference(providerId: string, accountName: string, extensionId: string, extensionName: string, sessionId: string): Promise<void> {
+		this.authenticationService.updatedAllowedExtension(providerId, accountName, extensionId, extensionName, true);
+		this.storageService.store(`${extensionName}-${providerId}`, sessionId, StorageScope.GLOBAL, StorageTarget.MACHINE);
+
+	}
+
 	private async selectSession(providerId: string, extensionId: string, extensionName: string, scopes: string[], potentialSessions: readonly modes.AuthenticationSession[], clearSessionPreference: boolean, silent: boolean): Promise<modes.AuthenticationSession | undefined> {
 		if (!potentialSessions.length) {
 			throw new Error('No potential sessions found');
 		}
 
 		if (clearSessionPreference) {
-			this.storageService.remove(`${extensionName}-${providerId}-${scopes.join('-')}`, StorageScope.GLOBAL);
+			this.storageService.remove(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
 		} else {
-			const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}-${scopes.join('-')}`, StorageScope.GLOBAL);
+			const existingSessionPreference = this.storageService.get(`${extensionName}-${providerId}`, StorageScope.GLOBAL);
 			if (existingSessionPreference) {
 				const matchingSession = potentialSessions.find(session => session.id === existingSessionPreference);
 				if (matchingSession) {
@@ -255,8 +261,7 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 				}
 
 				session = await this.authenticationService.createSession(providerId, scopes, true);
-				await this.authenticationService.updatedAllowedExtension(providerId, session.account.label, extensionId, extensionName, true);
-				this.storageService.store(`${extensionName}-${providerId}-${scopes.join('-')}`, session.id, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				await this.setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
 			} else {
 				await this.authenticationService.requestNewSession(providerId, scopes, extensionId, extensionName);
 			}
