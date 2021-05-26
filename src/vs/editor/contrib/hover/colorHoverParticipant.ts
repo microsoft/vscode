@@ -20,6 +20,12 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export class ColorHover implements IHoverPart {
 
+	/**
+	 * Force the hover to always be rendered at this specific range,
+	 * even in the case of multiple hover parts.
+	 */
+	public readonly forceShowAtRange: boolean = true;
+
 	constructor(
 		public readonly owner: IEditorHoverParticipant<ColorHover>,
 		public readonly range: Range,

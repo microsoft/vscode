@@ -27,11 +27,16 @@ import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
-import { ColorHover, ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
+import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 
 export interface IHoverPart {
 	readonly owner: IEditorHoverParticipant;
 	readonly range: Range;
+	/**
+	 * Force the hover to always be rendered at this specific range,
+	 * even in the case of multiple hover parts.
+	 */
+	readonly forceShowAtRange?: boolean;
 	equals(other: IHoverPart): boolean;
 }
 
@@ -453,7 +458,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			renderColumn = Math.min(renderColumn, msg.range.startColumn);
 			highlightRange = Range.plusRange(highlightRange, msg.range);
 
-			if (msg instanceof ColorHover) {
+			if (msg.forceShowAtRange) {
 				forceShowAtRange = msg.range;
 			}
 
