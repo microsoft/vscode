@@ -316,7 +316,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					allowContributedOpeners: options?.allowContributedOpeners,
 				});
 			},
-			asExternalUri(uri: URI) {
+			async asExternalUri(uri: URI) {
 				if (uri.scheme === initData.environment.appUriScheme) {
 					return extHostUrls.createAppUri(uri);
 				}
@@ -325,7 +325,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension); // https://github.com/microsoft/vscode/issues/124263
 				}
 
-				return extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
+				try {
+					return await extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
+				} catch {
+					return uri;
+				}
 			},
 			get remoteName() {
 				return getRemoteName(initData.remote.authority);
