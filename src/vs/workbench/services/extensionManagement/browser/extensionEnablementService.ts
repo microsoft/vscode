@@ -26,7 +26,7 @@ import { IExtensionBisectService } from 'vs/workbench/services/extensionManageme
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { Promises } from 'vs/base/common/async';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
+import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -163,11 +163,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			if (this._isDisabledByTrustRequirement(e)) {
 				return this.workspaceTrustRequestService.requestWorkspaceTrust()
 					.then(trustState => {
-						if (trustState) {
-							return this._setEnablement(e, newState);
-						} else {
-							return Promise.resolve(false);
-						}
+						return Promise.resolve(trustState ?? false);
 					});
 			} else {
 				return this._setEnablement(e, newState);
@@ -233,8 +229,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	private _isDisabledByVirtualWorkspace(extension: IExtension): boolean {
-		if (getVirtualWorkspaceScheme(this.contextService.getWorkspace()) !== undefined) {
-			return !this.extensionManifestPropertiesService.canSupportVirtualWorkspace(extension.manifest);
+		if (isVirtualWorkspace(this.contextService.getWorkspace())) {
+			return this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false;
 		}
 		return false;
 	}

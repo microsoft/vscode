@@ -315,6 +315,14 @@ export enum FileType {
 	SymbolicLink = 64
 }
 
+export enum FilePermission {
+
+	/**
+	 * File is readonly.
+	 */
+	Readonly = 1
+}
+
 export interface IStat {
 
 	/**
@@ -335,7 +343,12 @@ export interface IStat {
 	/**
 	 * The size of the file in bytes.
 	 */
-	size: number;
+	readonly size: number;
+
+	/**
+	 * The file permissions.
+	 */
+	readonly permissions?: FilePermission;
 }
 
 export interface IWatchOptions {
@@ -475,7 +488,7 @@ export enum FileSystemProviderErrorCode {
 
 export class FileSystemProviderError extends Error {
 
-	constructor(message: string, public readonly code: FileSystemProviderErrorCode) {
+	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
@@ -592,7 +605,7 @@ export class FileOperationEvent {
 
 	constructor(resource: URI, operation: FileOperation.DELETE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
-	constructor(public readonly resource: URI, public readonly operation: FileOperation, public readonly target?: IFileStatWithMetadata) { }
+	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
 	isOperation(operation: FileOperation.DELETE): boolean;
 	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
@@ -868,6 +881,11 @@ interface IBaseStat {
 	 * it is optional.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * The file is read-only.
+	 */
+	readonly readonly?: boolean;
 }
 
 export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
@@ -906,6 +924,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata 
 	readonly ctime: number;
 	readonly etag: string;
 	readonly size: number;
+	readonly readonly: boolean;
 	readonly children?: IFileStatWithMetadata[];
 }
 

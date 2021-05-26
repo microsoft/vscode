@@ -347,8 +347,6 @@ suite('EditorGroupsService', () => {
 
 		await part.whenReady;
 		await part.whenRestored;
-
-		assert.strictEqual(part.isRestored(), true);
 	});
 
 	test('options', async () => {
@@ -1268,6 +1266,48 @@ suite('EditorGroupsService', () => {
 
 		rightGroup.moveEditor(inputInactive, group);
 		assert.strictEqual(leftFiredCount, 2);
+		assert.strictEqual(rightFiredCount, 1);
+
+		leftGroupListener.dispose();
+		rightGroupListener.dispose();
+	});
+
+	test('onWillOpenEditor', async () => {
+		const [part] = await createPart();
+		const group = part.activeGroup;
+		assert.strictEqual(group.isEmpty, true);
+
+		const rightGroup = part.addGroup(group, GroupDirection.RIGHT);
+
+		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
+		const secondInput = new TestFileEditorInput(URI.file('foo/bar/second'), TEST_EDITOR_INPUT_ID);
+		const thirdInput = new TestFileEditorInput(URI.file('foo/bar/third'), TEST_EDITOR_INPUT_ID);
+
+		let leftFiredCount = 0;
+		const leftGroupListener = group.onWillOpenEditor(() => {
+			leftFiredCount++;
+		});
+
+		let rightFiredCount = 0;
+		const rightGroupListener = rightGroup.onWillOpenEditor(() => {
+			rightFiredCount++;
+		});
+
+		await group.openEditor(input);
+		assert.strictEqual(leftFiredCount, 1);
+		assert.strictEqual(rightFiredCount, 0);
+
+		rightGroup.openEditor(secondInput);
+		assert.strictEqual(leftFiredCount, 1);
+		assert.strictEqual(rightFiredCount, 1);
+
+		group.openEditor(thirdInput);
+		assert.strictEqual(leftFiredCount, 2);
+		assert.strictEqual(rightFiredCount, 1);
+
+		// Ensure move fires the open event too
+		rightGroup.moveEditor(secondInput, group);
+		assert.strictEqual(leftFiredCount, 3);
 		assert.strictEqual(rightFiredCount, 1);
 
 		leftGroupListener.dispose();

@@ -1547,6 +1547,26 @@ export class CompletionList {
 	}
 }
 
+@es5ClassCompat
+export class InlineSuggestion implements vscode.InlineCompletionItem {
+
+	text: string;
+	range?: Range;
+
+	constructor(text: string) {
+		this.text = text;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestions implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItem[];
+
+	constructor(items: vscode.InlineCompletionItem[]) {
+		this.items = items;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2438,6 +2458,11 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	}
 }
 
+export enum InlineCompletionTriggerKind {
+	Automatic = 0,
+	Explicit = 1,
+}
+
 @es5ClassCompat
 export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
@@ -3023,6 +3048,18 @@ export class NotebookDocumentMetadata {
 
 export class NotebookCellData {
 
+	static validate(data: NotebookCellData): void {
+		if (typeof data.kind !== 'number') {
+			throw new Error('NotebookCellData MUST have \'kind\' property');
+		}
+		if (typeof data.value !== 'string') {
+			throw new Error('NotebookCellData MUST have \'value\' property');
+		}
+		if (typeof data.languageId !== 'string') {
+			throw new Error('NotebookCellData MUST have \'languageId\' property');
+		}
+	}
+
 	static isNotebookCellDataArray(value: unknown): value is vscode.NotebookCellData[] {
 		return Array.isArray(value) && (<unknown[]>value).every(elem => NotebookCellData.isNotebookCellData(elem));
 	}
@@ -3033,19 +3070,21 @@ export class NotebookCellData {
 	}
 
 	kind: NotebookCellKind;
-	source: string;
-	language: string;
+	value: string;
+	languageId: string;
 	outputs?: NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
-	latestExecutionSummary?: vscode.NotebookCellExecutionSummary;
+	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, source: string, language: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, latestExecutionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
-		this.source = source;
-		this.language = language;
+		this.value = value;
+		this.languageId = languageId;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
-		this.latestExecutionSummary = latestExecutionSummary;
+		this.executionSummary = executionSummary;
+
+		NotebookCellData.validate(this);
 	}
 }
 
@@ -3064,17 +3103,63 @@ export class NotebookData {
 export class NotebookCellOutputItem {
 
 	static isNotebookCellOutputItem(obj: unknown): obj is vscode.NotebookCellOutputItem {
-		return obj instanceof NotebookCellOutputItem;
+		if (obj instanceof NotebookCellOutputItem) {
+			return true;
+		}
+		if (!obj) {
+			return false;
+		}
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
 	}
 
+	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error', metadata);
+	}
+
+	static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout', metadata);
+	}
+
+	static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr', metadata);
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(value, mime, metadata);
+	}
+
+	static #encoder = new TextEncoder();
+
+	static text(value: string, mime: string = 'text/plain', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
+		return new NotebookCellOutputItem(bytes, mime, metadata);
+	}
+
+	static json(value: any, mime: string = 'application/json', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime, metadata);
+	}
+
+	/** @deprecated */
+	public value: Uint8Array | unknown; // JSON'able
+
 	constructor(
+		public data: Uint8Array,
 		public mime: string,
-		public value: unknown, // JSON'able
-		public metadata?: Record<string, any>
+		public metadata?: { [key: string]: any }
 	) {
+		if (!(data instanceof Uint8Array)) {
+			this.value = data;
+		}
 		if (isFalsyOrWhitespace(this.mime)) {
 			throw new Error('INVALID mime type, must not be empty or falsy');
 		}
+		// todo@joh stringify and check metadata and throw when not JSONable
 	}
 }
 
@@ -3101,7 +3186,7 @@ export class NotebookCellOutput {
 }
 
 export enum NotebookCellKind {
-	Markdown = 1,
+	Markup = 1,
 	Code = 2
 }
 
@@ -3208,6 +3293,25 @@ export class LinkedEditingRanges {
 	constructor(public readonly ranges: Range[], public readonly wordPattern?: RegExp) {
 	}
 }
+
+//#region ports
+export class PortAttributes {
+	private _port: number;
+	private _autoForwardAction: PortAutoForwardAction;
+	constructor(port: number, autoForwardAction: PortAutoForwardAction) {
+		this._port = port;
+		this._autoForwardAction = autoForwardAction;
+	}
+
+	get port(): number {
+		return this._port;
+	}
+
+	get autoForwardAction(): PortAutoForwardAction {
+		return this._autoForwardAction;
+	}
+}
+//#endregion ports
 
 //#region Testing
 export enum TestResultState {

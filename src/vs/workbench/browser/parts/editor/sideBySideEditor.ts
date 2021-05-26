@@ -5,7 +5,9 @@
 
 import { Dimension, $, clearNode } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions } from 'vs/workbench/common/editor';
+import { EditorOptions, IEditorControl, IEditorPane, IEditorOpenContext, EditorExtensions } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -94,11 +96,11 @@ export class SideBySideEditor extends EditorPane {
 		this.updateStyles();
 	}
 
-	override async setInput(newInput: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		const oldInput = this.input as SideBySideEditorInput;
-		await super.setInput(newInput, options, context, token);
+	override async setInput(input: SideBySideEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+		const oldInput = this.input;
+		await super.setInput(input, options, context, token);
 
-		return this.updateInput(oldInput, (newInput as SideBySideEditorInput), options, context, token);
+		return this.updateInput(oldInput, input, options, context, token);
 	}
 
 	override setOptions(options: EditorOptions | undefined): void {
@@ -162,7 +164,7 @@ export class SideBySideEditor extends EditorPane {
 		return this.secondaryEditorPane;
 	}
 
-	private async updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	private async updateInput(oldInput: EditorInput | undefined, newInput: SideBySideEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();

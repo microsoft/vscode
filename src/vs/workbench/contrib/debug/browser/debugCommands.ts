@@ -338,7 +338,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: CONTINUE_ID,
 	weight: KeybindingWeight.WorkbenchContrib + 10, // Use a stronger weight to get priority over start debugging F5 shortcut
 	primary: KeyCode.F5,
-	when: CONTEXT_IN_DEBUG_MODE,
+	when: CONTEXT_DEBUG_STATE.isEqualTo('stopped'),
 	handler: (accessor: ServicesAccessor, _: string, context: CallStackContext | unknown) => {
 		getThreadAndRun(accessor, context, thread => thread.continue());
 	}
@@ -389,7 +389,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DEBUG_START_COMMAND_ID,
 	weight: KeybindingWeight.WorkbenchContrib,
 	primary: KeyCode.F5,
-	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.notEqualsTo(getStateLabel(State.Initializing))),
+	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_STATE.isEqualTo('inactive')),
 	handler: async (accessor: ServicesAccessor, debugStartOptions?: { config?: Partial<IConfig>; noDebug?: boolean }) => {
 		const debugService = accessor.get(IDebugService);
 		let { launch, name, getConfig } = debugService.getConfigurationManager().selectedConfiguration;

@@ -23,6 +23,7 @@ import { IExtHostConsumerFileSystem, ExtHostConsumerFileSystem } from 'vs/workbe
 import { IExtHostFileSystemInfo, ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
 import { IExtHostSecretState, ExtHostSecretState } from 'vs/workbench/api/common/exHostSecretState';
 import { ExtHostTelemetry, IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostEditorTabs, IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
 registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 registerSingleton(IExtHostApiDeprecationService, ExtHostApiDeprecationService);
@@ -43,3 +44,4 @@ registerSingleton(IExtHostWindow, ExtHostWindow);
 registerSingleton(IExtHostWorkspace, ExtHostWorkspace);
 registerSingleton(IExtHostSecretState, ExtHostSecretState);
 registerSingleton(IExtHostTelemetry, ExtHostTelemetry);
+registerSingleton(IExtHostEditorTabs, ExtHostEditorTabs);

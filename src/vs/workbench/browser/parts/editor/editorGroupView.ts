@@ -5,7 +5,9 @@
 
 import 'vs/css!./media/editorgroupview';
 import { EditorGroupModel, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
-import { EditorInput, EditorOptions, GroupIdentifier, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent } from 'vs/workbench/common/editor';
+import { EditorOptions, GroupIdentifier, CloseDirection, IEditorCloseEvent, ActiveEditorDirtyContext, IEditorPane, EditorGroupEditorsCountContext, SaveReason, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, ActiveEditorStickyContext, ActiveEditorPinnedContext, EditorResourceAccessor, IEditorMoveEvent, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor, asCSSUrl } from 'vs/base/browser/dom';
@@ -99,6 +101,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly _onWillMoveEditor = this._register(new Emitter<IEditorMoveEvent>());
 	readonly onWillMoveEditor = this._onWillMoveEditor.event;
+
+	private readonly _onWillOpenEditor = this._register(new Emitter<IEditorOpenEvent>());
+	readonly onWillOpenEditor = this._onWillOpenEditor.event;
 
 	//#endregion
 
@@ -901,23 +906,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	async openEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
 
-		// Guard against invalid inputs
-		if (!editor) {
-			return undefined;
-		}
-
-		// Proceed with opening
-		return this.doOpenEditor(editor, options);
-	}
-
-	private async doOpenEditor(editor: EditorInput, options?: EditorOptions): Promise<IEditorPane | undefined> {
-
 		// Guard against invalid inputs. Disposed inputs
 		// should never open because they emit no events
 		// e.g. to indicate dirty changes.
-		if (editor.isDisposed()) {
+		if (!editor || editor.isDisposed()) {
 			return;
 		}
+
+		// Fire the event letting everyone know we are about to open an editor
+		this._onWillOpenEditor.fire({ editor, groupId: this.id });
 
 		// Determine options
 		const openEditorOptions: IEditorOpenOptions = {
@@ -1448,7 +1445,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let confirmation: ConfirmResult;
 		let saveReason = SaveReason.EXPLICIT;
 		let autoSave = false;
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled() && !options?.skipAutoSave) {
+		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled) && !options?.skipAutoSave) {
 			autoSave = true;
 			confirmation = ConfirmResult.SAVE;
 			saveReason = SaveReason.FOCUS_CHANGE;
@@ -1673,7 +1670,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		for (const { editor, replacement, forceReplaceDirty, options } of inactiveReplacements) {
 
 			// Open inactive editor
-			await this.doOpenEditor(replacement, options);
+			await this.openEditor(replacement, options);
 
 			// Close replaced inactive editor unless they match
 			if (!editor.matches(replacement)) {
@@ -1694,7 +1691,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (activeReplacement) {
 
 			// Open replacement as active editor
-			const openEditorResult = this.doOpenEditor(activeReplacement.replacement, activeReplacement.options);
+			const openEditorResult = this.openEditor(activeReplacement.replacement, activeReplacement.options);
 
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {

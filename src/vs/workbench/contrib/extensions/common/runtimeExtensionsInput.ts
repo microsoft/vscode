@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
@@ -13,6 +14,10 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	override get typeId(): string {
 		return RuntimeExtensionsInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
 	}
 
 	static _instance: RuntimeExtensionsInput;
@@ -31,10 +36,6 @@ export class RuntimeExtensionsInput extends EditorInput {
 
 	override getName(): string {
 		return nls.localize('extensionsInputName', "Running Extensions");
-	}
-
-	override canSplit(): boolean {
-		return false;
 	}
 
 	override matches(other: unknown): boolean {

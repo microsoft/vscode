@@ -587,6 +587,14 @@ export class SuggestController implements IEditorContribution {
 	resetWidgetSize(): void {
 		this.widget.value.resetPersistedSize();
 	}
+
+	forceRenderingAbove() {
+		this.widget.value.forceRenderingAbove();
+	}
+
+	stopForceRenderingAbove() {
+		this.widget.value.stopForceRenderingAbove();
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {

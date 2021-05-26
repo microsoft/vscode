@@ -114,7 +114,7 @@ export class IconLabel extends Disposable {
 		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
 		this.descriptionContainer = this._register(new FastLabelNode(dom.append(this.labelContainer, dom.$('span.monaco-icon-description-container'))));
 
-		if (options?.supportHighlights) {
+		if (options?.supportHighlights || options?.supportIcons) {
 			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
 		} else {
 			this.nameNode = new Label(nameContainer);

@@ -34,7 +34,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export interface IWindowCreationOptions {
@@ -153,7 +152,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
@@ -453,13 +451,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return false;
 		};
 
+		const isRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
+			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
+		};
+
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!isSafeResourceUrl) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 
@@ -485,8 +486,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 
@@ -509,22 +509,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
 		});
-
-		if (isMacintosh) {
-			this._register(this.nativeHostMainService.onDidChangeDisplay(() => {
-				if (!this._win) {
-					return; // disposed
-				}
-
-				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
-				// we need to detect when display metrics change or displays are added/removed and toggle the
-				// fullscreen manually.
-				if (!this.useNativeFullScreen() && this.isFullScreen) {
-					this.setFullScreen(false);
-					this.setFullScreen(true);
-				}
-			}));
-		}
 
 		// Window (Un)Maximize
 		this._win.on('maximize', (e: Event) => {

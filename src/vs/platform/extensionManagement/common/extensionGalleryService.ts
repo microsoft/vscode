@@ -433,7 +433,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 	private async getCompatibleExtensionByEngine(arg1: IExtensionIdentifier | IGalleryExtension, version?: string): Promise<IGalleryExtension | null> {
 		const extension: IGalleryExtension | null = isIExtensionIdentifier(arg1) ? null : arg1;
-		if (extension && extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version)) {
+		if (extension && extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version, this.productService.date)) {
 			return extension;
 		}
 		const { id, uuid } = extension ? extension.identifier : <IExtensionIdentifier>arg1;
@@ -458,7 +458,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			const versionAsset = rawExtension.versions.filter(v => v.version === version)[0];
 			if (versionAsset) {
 				const extension = toExtension(rawExtension, versionAsset, 0, query);
-				if (extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version)) {
+				if (extension.properties.engine && isEngineValid(extension.properties.engine, this.productService.version, this.productService.date)) {
 					return extension;
 				}
 			}
@@ -711,7 +711,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 					try {
 						engine = await this.getEngine(v);
 					} catch (error) { /* Ignore error and skip version */ }
-					if (engine && isEngineValid(engine, this.productService.version)) {
+					if (engine && isEngineValid(engine, this.productService.version, this.productService.date)) {
 						result.push({ version: v!.version, date: v!.lastUpdated });
 					}
 				}));
@@ -774,7 +774,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			if (!engine) {
 				return null;
 			}
-			if (isEngineValid(engine, this.productService.version)) {
+			if (isEngineValid(engine, this.productService.version, this.productService.date)) {
 				return version;
 			}
 		}
@@ -809,7 +809,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 
 		const version = versions[0];
 		const engine = await this.getEngine(version);
-		if (!isEngineValid(engine, this.productService.version)) {
+		if (!isEngineValid(engine, this.productService.version, this.productService.date)) {
 			return this.getLastValidExtensionVersionRecursively(extension, versions.slice(1));
 		}
 

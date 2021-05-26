@@ -23,7 +23,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 	) {
 
 		const addStatusBarEntry = () => {
-			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', nls.localize('status.debug', "Debug"), StatusbarAlignment.LEFT, 30 /* Low Priority */);
+			this.entryAccessor = this.statusBarService.addEntry(this.entry, 'status.debug', StatusbarAlignment.LEFT, 30 /* Low Priority */);
 		};
 
 		const setShowInStatusBar = () => {
@@ -65,6 +65,7 @@ export class DebugStatusContribution implements IWorkbenchContribution {
 		}
 
 		return {
+			name: nls.localize('status.debug', "Debug"),
 			text: '$(debug-alt-small) ' + text,
 			ariaLabel: nls.localize('debugTarget', "Debug: {0}", text),
 			tooltip: nls.localize('selectAndStartDebug', "Select and start debug configuration"),

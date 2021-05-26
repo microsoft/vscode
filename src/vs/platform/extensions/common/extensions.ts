@@ -116,10 +116,10 @@ export interface IAuthenticationContribution {
 export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
-	readonly description: string;
-	readonly media:
-	| { path: string | { dark: string, light: string, hc: string }, altText: string }
-	| { path: string, },
+	readonly description: string | undefined;
+	readonly media: { path: string | { dark: string, light: string, hc: string }, altText?: string }
+	readonly completionEvents?: string[];
+	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };
 	readonly when?: string;
 }
@@ -166,13 +166,30 @@ export interface IExtensionContributions {
 }
 
 export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: boolean;
+	readonly virtualWorkspaces?: ExtensionVirtualWorkpaceSupport;
 	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
+
+
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
-export type ExtensionUntrustedWorkpaceSupportType = boolean | 'limited';
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: 'limited', description: string, restrictedConfigurations?: string[] };
+
+export type LimitedWorkpaceSupportType = 'limited';
+export type ExtensionUntrustedWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
+export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkpaceSupportType, description: string, restrictedConfigurations?: string[] };
+
+export type ExtensionVirtualWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
+export type ExtensionVirtualWorkpaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkpaceSupportType, description: string };
+
+export function getWorkpaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkpaceSupport | undefined): string | undefined {
+	if (typeof supportType === 'object' && supportType !== null) {
+		if (supportType.supported !== true) {
+			return supportType.description;
+		}
+	}
+	return undefined;
+}
+
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing

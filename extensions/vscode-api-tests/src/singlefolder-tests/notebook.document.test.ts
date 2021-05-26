@@ -47,10 +47,6 @@ suite('Notebook Document', function () {
 		await utils.closeAllEditors();
 		utils.disposeAll(disposables);
 		disposables.length = 0;
-
-		for (let doc of vscode.notebook.notebookDocuments) {
-			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
-		}
 	});
 
 	suiteSetup(function () {
@@ -91,16 +87,27 @@ suite('Notebook Document', function () {
 	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		let didHappen = false;
-		const p = utils.asPromise(vscode.workspace.onDidOpenTextDocument).then(doc => {
-			if (doc.uri.scheme !== 'vscode-notebook-cell') {
-				return;
-			}
-			const notebook = vscode.notebook.notebookDocuments.find(notebook => {
-				const cell = notebook.getCells().find(cell => cell.document === doc);
-				return Boolean(cell);
+
+		const p = new Promise<void>((resolve, reject) => {
+			const sub = vscode.workspace.onDidOpenTextDocument(doc => {
+				if (doc.uri.scheme !== 'vscode-notebook-cell') {
+					// ignore other open events
+					return;
+				}
+				const notebook = vscode.notebook.notebookDocuments.find(notebook => {
+					const cell = notebook.getCells().find(cell => cell.document === doc);
+					return Boolean(cell);
+				});
+				assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
+				didHappen = true;
+				sub.dispose();
+				resolve();
 			});
-			assert.ok(notebook, `notebook for cell ${doc.uri} NOT found`);
-			didHappen = true;
+
+			setTimeout(() => {
+				sub.dispose();
+				reject(new Error('TIMEOUT'));
+			}, 15000);
 		});
 
 		await vscode.notebook.openNotebookDocument(uri);
@@ -129,6 +136,30 @@ suite('Notebook Document', function () {
 		await p;
 	});
 
+	test('open untitled notebook', async function () {
+		const nb = await vscode.notebook.openNotebookDocument('notebook.nbdserializer');
+		assert.strictEqual(nb.isUntitled, true);
+		assert.strictEqual(nb.isClosed, false);
+		assert.strictEqual(nb.uri.scheme, 'untitled');
+		// assert.strictEqual(nb.cellCount, 0); // NotebookSerializer ALWAYS returns something here
+	});
+
+	test('open untitled with data', async function () {
+		const nb = await vscode.notebook.openNotebookDocument(
+			'notebook.nbdserializer',
+			new vscode.NotebookData([
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'console.log()', 'javascript'),
+				new vscode.NotebookCellData(vscode.NotebookCellKind.Markup, 'Hey', 'markdown'),
+			])
+		);
+		assert.strictEqual(nb.isUntitled, true);
+		assert.strictEqual(nb.isClosed, false);
+		assert.strictEqual(nb.uri.scheme, 'untitled');
+		assert.strictEqual(nb.cellCount, 2);
+		assert.strictEqual(nb.cellAt(0).kind, vscode.NotebookCellKind.Code);
+		assert.strictEqual(nb.cellAt(1).kind, vscode.NotebookCellKind.Markup);
+	});
+
 
 	test('workspace edit API (replaceCells)', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
@@ -140,17 +171,17 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-				kind: vscode.NotebookCellKind.Markdown,
-				language: 'markdown',
+				kind: vscode.NotebookCellKind.Markup,
+				languageId: 'markdown',
 				metadata: undefined,
 				outputs: [],
-				source: 'new_markdown'
+				value: 'new_markdown'
 			}, {
 				kind: vscode.NotebookCellKind.Code,
-				language: 'fooLang',
+				languageId: 'fooLang',
 				metadata: undefined,
 				outputs: [],
-				source: 'new_code'
+				value: 'new_code'
 			}]);
 
 			const success = await vscode.workspace.applyEdit(edit);
@@ -177,17 +208,17 @@ suite('Notebook Document', function () {
 		{
 			const edit = new vscode.WorkspaceEdit();
 			edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 1), [{
-				kind: vscode.NotebookCellKind.Markdown,
-				language: 'markdown',
+				kind: vscode.NotebookCellKind.Markup,
+				languageId: 'markdown',
 				metadata: undefined,
 				outputs: [],
-				source: 'new2_markdown'
+				value: 'new2_markdown'
 			}, {
 				kind: vscode.NotebookCellKind.Code,
-				language: 'fooLang',
+				languageId: 'fooLang',
 				metadata: undefined,
 				outputs: [],
-				source: 'new2_code'
+				value: 'new2_code'
 			}]);
 			const success = await vscode.workspace.applyEdit(edit);
 			assert.strictEqual(success, true);
@@ -213,17 +244,17 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(document.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
-			language: 'markdown',
+			kind: vscode.NotebookCellKind.Markup,
+			languageId: 'markdown',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_markdown'
+			value: 'new_markdown'
 		}, {
 			kind: vscode.NotebookCellKind.Code,
-			language: 'fooLang',
+			languageId: 'fooLang',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_code'
+			value: 'new_code'
 		}]);
 
 		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
@@ -260,17 +291,17 @@ suite('Notebook Document', function () {
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, new vscode.NotebookRange(0, 0), [{
-			kind: vscode.NotebookCellKind.Markdown,
-			language: 'markdown',
+			kind: vscode.NotebookCellKind.Markup,
+			languageId: 'markdown',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_markdown'
+			value: 'new_markdown'
 		}, {
 			kind: vscode.NotebookCellKind.Code,
-			language: 'fooLang',
+			languageId: 'fooLang',
 			metadata: undefined,
 			outputs: [],
-			source: 'new_code'
+			value: 'new_code'
 		}]);
 
 		const success = await vscode.workspace.applyEdit(edit);

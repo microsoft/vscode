@@ -10,7 +10,6 @@ import { URI } from 'vs/base/common/uri';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { dispose, IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ITextFileEditorModel, ITextFileEditorModelManager, ITextFileEditorModelResolveOrCreateOptions, ITextFileResolveEvent, ITextFileSaveEvent, ITextFileSaveParticipant } from 'vs/workbench/services/textfile/common/textfiles';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceMap } from 'vs/base/common/map';
 import { IFileService, FileChangesEvent, FileOperation, FileChangeType } from 'vs/platform/files/common/files';
@@ -72,7 +71,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	}
 
 	constructor(
-		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IFileService private readonly fileService: IFileService,
 		@INotificationService private readonly notificationService: INotificationService,
@@ -93,9 +91,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 		this._register(this.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => this.onWillRunWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidFailWorkingCopyFileOperation(e => this.onDidFailWorkingCopyFileOperation(e)));
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
-
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
@@ -428,21 +423,6 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 
 	//#endregion
 
-	clear(): void {
-
-		// model caches
-		this.mapResourceToModel.clear();
-		this.mapResourceToPendingModelResolvers.clear();
-
-		// dispose the dispose listeners
-		this.mapResourceToDisposeListener.forEach(listener => listener.dispose());
-		this.mapResourceToDisposeListener.clear();
-
-		// dispose the model change listeners
-		this.mapResourceToModelListeners.forEach(listener => listener.dispose());
-		this.mapResourceToModelListeners.clear();
-	}
-
 	canDispose(model: TextFileEditorModel): true | Promise<true> {
 
 		// quick return if model already disposed or not dirty and not resolving
@@ -482,6 +462,16 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 	override dispose(): void {
 		super.dispose();
 
-		this.clear();
+		// model caches
+		this.mapResourceToModel.clear();
+		this.mapResourceToPendingModelResolvers.clear();
+
+		// dispose the dispose listeners
+		dispose(this.mapResourceToDisposeListener.values());
+		this.mapResourceToDisposeListener.clear();
+
+		// dispose the model change listeners
+		dispose(this.mapResourceToModelListeners.values());
+		this.mapResourceToModelListeners.clear();
 	}
 }

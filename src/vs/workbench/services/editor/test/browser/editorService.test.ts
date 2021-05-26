@@ -8,16 +8,16 @@ import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/edit
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
@@ -31,6 +31,10 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('EditorService', () => {
 
@@ -61,6 +65,7 @@ suite('EditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
@@ -227,6 +232,77 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup.getIndexOfEditor(replaceInput), 0);
 	});
 
+	test('openEditors() handles workspace trust (typed editors)', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+
+			// Trust: cancel
+			let trustEditorUris: URI[] = [];
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => {
+				trustEditorUris = uris;
+				return WorkspaceTrustUriResponse.Cancel;
+			};
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			assert.strictEqual(part.activeGroup.count, 0);
+			assert.strictEqual(trustEditorUris.length, 4);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input1.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input2.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input3.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input4.resource.toString()), true);
+
+			// Trust: open in new window
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.OpenInNewWindow;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			assert.strictEqual(part.activeGroup.count, 0);
+
+			// Trust: allow
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Open;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			assert.strictEqual(part.activeGroup.count, 3);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
+	});
+
+	test('openEditors() extracts proper resources from untyped editors for workspace trust', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input = { resource: URI.parse('my://resource-openEditors') };
+		const otherInput = { leftResource: URI.parse('my://resource2-openEditors'), rightResource: URI.parse('my://resource3-openEditors') };
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+			let trustEditorUris: URI[] = [];
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => {
+				trustEditorUris = uris;
+				return oldHandler(uris);
+			};
+
+			await service.openEditors([input, otherInput]);
+			assert.strictEqual(part.activeGroup.count, 0);
+			assert.strictEqual(trustEditorUris.length, 3);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.leftResource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.rightResource.toString()), true);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
+	});
+
 	test('caching', function () {
 		const instantiationService = workbenchInstantiationService();
 		const service = instantiationService.createInstance(EditorService);
@@ -362,7 +438,7 @@ suite('EditorService', () => {
 
 		// Untyped Input (resource)
 		input = service.createEditorInput({ resource: URI.parse('custom:resource') });
-		assert(input instanceof ResourceEditorInput);
+		assert(input instanceof TextResourceEditorInput);
 
 		// Untyped Input (diff)
 		input = service.createEditorInput({
@@ -392,7 +468,7 @@ suite('EditorService', () => {
 
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(ResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
+		const inp = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
 			assert.ok(group);
 
@@ -956,7 +1032,8 @@ suite('EditorService', () => {
 			mtime: 0,
 			name: 'resource2',
 			size: 0,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			readonly: false
 		}));
 		await activeEditorChangePromise;
 
@@ -997,34 +1074,6 @@ suite('EditorService', () => {
 		const editorContextKeyService = service.activeEditorPane?.scopedContextKeyService;
 		assert.ok(!!editorContextKeyService);
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
-	});
-
-	test('overrideOpenEditor', async function () {
-		const [, service] = await createEditorService();
-
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		let overrideCalled = false;
-
-		const handler = service.overrideOpenEditor({
-			open: editor => {
-				if (editor === input1) {
-					overrideCalled = true;
-
-					return { override: service.openEditor(input2, { pinned: true }) };
-				}
-
-				return undefined;
-			}
-		});
-
-		await service.openEditor(input1, { pinned: true });
-
-		assert.ok(overrideCalled);
-		assert.strictEqual(service.activeEditor, input2);
-
-		handler.dispose();
 	});
 
 	test('editorOverrideService - openEditor', async function () {

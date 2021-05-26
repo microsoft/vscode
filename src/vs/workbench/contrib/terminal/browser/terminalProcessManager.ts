@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/terminalEnvironment';
-import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalConfiguration, TERMINAL_CONFIG_SECTION, TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ProcessState, ITerminalProcessManager, ITerminalConfigHelper, IBeforeProcessDataEvent, ITerminalProfileResolverService, ITerminalConfiguration, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -22,7 +22,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { EnvironmentVariableInfoChangesActive, EnvironmentVariableInfoStale } from 'vs/workbench/contrib/terminal/browser/environmentVariableInfo';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IEnvironmentVariableInfo, IEnvironmentVariableService, IMergedEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, FlowControlConstants, TerminalShellType, ILocalTerminalService, IOffProcessTerminalService, ITerminalDimensions, TerminalSettingId, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { TerminalRecorder } from 'vs/platform/terminal/common/terminalRecorder';
 import { localize } from 'vs/nls';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -85,8 +85,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	private readonly _onPtyReconnect = this._register(new Emitter<void>());
 	get onPtyReconnect(): Event<void> { return this._onPtyReconnect.event; }
 
-	private readonly _onProcessReady = this._register(new Emitter<void>());
-	get onProcessReady(): Event<void> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
+	private readonly _onProcessStateChange = this._register(new Emitter<void>());
+	get onProcessStateChange(): Event<void> { return this._onProcessStateChange.event; }
 	private readonly _onBeforeProcessData = this._register(new Emitter<IBeforeProcessDataEvent>());
 	get onBeforeProcessData(): Event<IBeforeProcessDataEvent> { return this._onBeforeProcessData.event; }
 	private readonly _onProcessData = this._register(new Emitter<IProcessDataEvent>());
@@ -137,11 +139,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dataFilter = this._instantiationService.createInstance(SeamlessRelaunchDataFilter);
 		this._dataFilter.onProcessData(ev => {
 			const data = (typeof ev === 'string' ? ev : ev.data);
-			const trackCommit = (typeof ev === 'string' ? false : ev.trackCommit);
 			const beforeProcessDataEvent: IBeforeProcessDataEvent = { data };
 			this._onBeforeProcessData.fire(beforeProcessDataEvent);
 			if (beforeProcessDataEvent.data && beforeProcessDataEvent.data.length > 0) {
-				this._onProcessData.fire({ data: beforeProcessDataEvent.data, trackCommit });
+				// This event is used by the caller so the object must be reused
+				if (typeof ev !== 'string') {
+					ev.data = beforeProcessDataEvent.data;
+				}
+				this._onProcessData.fire(typeof ev !== 'string' ? ev : { data: beforeProcessDataEvent.data, trackCommit: false });
 			}
 		});
 	}
@@ -152,7 +157,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// If the process was still connected this dispose came from
 			// within VS Code, not the process, so mark the process as
 			// killed by the user.
-			this.processState = ProcessState.KilledByUser;
+			this._setProcessState(ProcessState.KilledByUser);
 			this._process.shutdown(immediate);
 			this._process = null;
 		}
@@ -170,9 +175,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 	}
 
 	detachFromProcess(): void {
-		if (this._process?.detach) {
-			this._process.detach();
-		}
+		this._process?.detach?.();
 	}
 
 	async createProcess(
@@ -198,7 +201,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			} else {
 				this.remoteAuthority = this._workbenchEnvironmentService.remoteAuthority;
 			}
-			const hasRemoteAuthority = !!this.remoteAuthority;
 
 			// Create variable resolver
 			const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot();
@@ -209,7 +211,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// they're connected to the remote.
 			this.userHome = this._pathService.resolvedUserHome?.fsPath;
 			this.os = OS;
-			if (hasRemoteAuthority) {
+			if (!!this.remoteAuthority) {
 				const userHomeUri = await this._pathService.userHome();
 				this.userHome = userHomeUri.path;
 				const remoteEnv = await this._remoteAgentService.getEnvironment();
@@ -288,7 +290,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		this._process = newProcess;
 
-		this.processState = ProcessState.Launching;
+		this._setProcessState(ProcessState.Launching);
 
 		this._dataFilter.newProcess(this._process, reset);
 
@@ -296,10 +298,10 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			dispose(this._processListeners);
 		}
 		this._processListeners = [
-			newProcess.onProcessReady((e: { pid: number, cwd: string }) => {
+			newProcess.onProcessReady((e: IProcessReadyEvent) => {
 				this.shellProcessId = e.pid;
 				this._initialCwd = e.cwd;
-				this._onProcessReady.fire();
+				this._onProcessReady.fire(e);
 
 				if (this._preLaunchInputQueue.length > 0 && this._process) {
 					// Send any queued data that's waiting
@@ -320,7 +322,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 		setTimeout(() => {
 			if (this.processState === ProcessState.Launching) {
-				this.processState = ProcessState.Running;
+				this._setProcessState(ProcessState.Running);
 			}
 		}, LAUNCHING_DURATION);
 
@@ -356,7 +358,14 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// this._configurationService.getValue<ITerminalEnvironment | undefined>(`terminal.integrated.env.${platformKey}`);
 		const envFromConfigValue = this._terminalProfileResolverService.getSafeConfigValue('env', OS) as ITerminalEnvironment | undefined;
 		this._configHelper.showRecommendations(shellLaunchConfig);
-		const baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
+
+		let baseEnv: IProcessEnvironment;
+		if (shellLaunchConfig.useShellEnvironment) {
+			baseEnv = await this._localTerminalService?.getShellEnvironment() as any;
+		} else {
+			baseEnv = await this._terminalProfileResolverService.getEnvironment(this.remoteAuthority);
+		}
+
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
 
 		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
@@ -542,16 +551,21 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		// during launch. This typically means that there is a problem with the
 		// shell and args.
 		if (this.processState === ProcessState.Launching) {
-			this.processState = ProcessState.KilledDuringLaunch;
+			this._setProcessState(ProcessState.KilledDuringLaunch);
 		}
 
 		// If TerminalInstance did not know about the process exit then it was
 		// triggered by the process, not on VS Code's side.
 		if (this.processState === ProcessState.Running) {
-			this.processState = ProcessState.KilledByProcess;
+			this._setProcessState(ProcessState.KilledByProcess);
 		}
 
 		this._onProcessExit.fire(exitCode);
+	}
+
+	private _setProcessState(state: ProcessState) {
+		this.processState = state;
+		this._onProcessStateChange.fire();
 	}
 
 	private _onEnvironmentVariableCollectionChange(newCollection: IMergedEnvironmentVariableCollection): void {

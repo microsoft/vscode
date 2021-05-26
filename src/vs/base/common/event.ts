@@ -68,6 +68,7 @@ export namespace Event {
 	 * Given an event and a `filter` function, returns another event which emits those
 	 * elements for which the `filter` function returns `true`.
 	 */
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
@@ -188,16 +189,27 @@ export namespace Event {
 	 * Given an event, it returns another event which fires only when the event
 	 * element changes.
 	 */
-	export function latch<T>(event: Event<T>): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
 		return filter(event, value => {
-			const shouldEmit = firstCall || value !== cache;
+			const shouldEmit = firstCall || !equals(value, cache);
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
 		});
+	}
+
+	/**
+	 * Given an event, it returns another event which fires only when the event
+	 * element changes.
+	 */
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+		return [
+			Event.filter(event, isT),
+			Event.filter(event, e => !isT(e)) as Event<U>,
+		];
 	}
 
 	/**
@@ -633,10 +645,13 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		this._listeners?.clear();
-		this._deliveryQueue?.clear();
-		this._leakageMon?.dispose();
-		this._disposed = true;
+		if (!this._disposed) {
+			this._disposed = true;
+			this._listeners?.clear();
+			this._deliveryQueue?.clear();
+			this._options?.onLastListenerRemove?.();
+			this._leakageMon?.dispose();
+		}
 	}
 }
 

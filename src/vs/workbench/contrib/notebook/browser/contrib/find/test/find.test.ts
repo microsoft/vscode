@@ -50,9 +50,9 @@ suite('Notebook Find', () => {
 	test('Update find matches basics', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
@@ -85,11 +85,11 @@ suite('Notebook Find', () => {
 	test('Update find matches basics 2', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.3', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				setupEditorForTest(editor);
@@ -128,11 +128,11 @@ suite('Notebook Find', () => {
 	test('Update find matches basics 3', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.3', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				setupEditorForTest(editor);
@@ -164,11 +164,11 @@ suite('Notebook Find', () => {
 	test('Update find matches, #112748', async function () {
 		await withTestNotebook(
 			[
-				['# header 1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.1', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.2', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 1.3', 'markdown', CellKind.Markdown, [], {}],
-				['paragraph 2', 'markdown', CellKind.Markdown, [], {}],
+				['# header 1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.1', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.2', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
+				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
 			async (editor, accessor) => {
 				setupEditorForTest(editor);

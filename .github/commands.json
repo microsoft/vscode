@@ -135,6 +135,18 @@
 	},
 	{
 		"type": "comment",
+		"name": "needsPerfInfo",
+		"allowUsers": [
+			"cleidigh",
+			"usernamehw",
+			"gjsjohnmurray",
+			"IllusionMH"
+		],
+		"addLabel": "needs more info",
+		"comment": "Thanks for creating this issue regarding performance! Please follow this guide to help us diagnose performance issues: https://github.com/microsoft/vscode/wiki/Performance-Issues \n\nHappy Coding!"
+	},
+	{
+		"type": "comment",
 		"name": "jsDebugLogs",
 		"action": "updateLabels",
 		"addLabel": "needs more info",

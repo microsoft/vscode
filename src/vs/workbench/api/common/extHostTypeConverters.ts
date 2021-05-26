@@ -545,7 +545,7 @@ export namespace WorkspaceEdit {
 						resource: entry.uri,
 						edit: entry.edit,
 						notebookMetadata: entry.notebookMetadata,
-						notebookVersionId: extHostNotebooks?.lookupNotebookDocument(entry.uri)?.apiNotebook.version
+						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version
 					});
 
 				} else if (entry._type === types.FileEditType.CellOutput) {
@@ -580,7 +580,7 @@ export namespace WorkspaceEdit {
 						_type: extHostProtocol.WorkspaceEditType.Cell,
 						metadata: entry.metadata,
 						resource: entry.uri,
-						notebookVersionId: extHostNotebooks?.lookupNotebookDocument(entry.uri)?.apiNotebook.version,
+						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version,
 						edit: {
 							editType: notebooks.CellEditType.Replace,
 							index: entry.index,
@@ -1443,8 +1443,8 @@ export namespace NotebookDocumentMetadata {
 	}
 }
 
-export namespace NotebookCellPreviousExecutionResult {
-	export function to(data: notebooks.NotebookCellMetadata): vscode.NotebookCellExecutionSummary {
+export namespace NotebookCellExecutionSummary {
+	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
 		return {
 			startTime: data.runStartTime,
 			endTime: data.runEndTime,
@@ -1453,7 +1453,7 @@ export namespace NotebookCellPreviousExecutionResult {
 		};
 	}
 
-	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellMetadata> {
+	export function from(data: vscode.NotebookCellExecutionSummary): Partial<notebooks.NotebookCellInternalMetadata> {
 		return {
 			lastRunSuccess: data.success,
 			runStartTime: data.startTime,
@@ -1466,8 +1466,8 @@ export namespace NotebookCellPreviousExecutionResult {
 export namespace NotebookCellKind {
 	export function from(data: vscode.NotebookCellKind): notebooks.CellKind {
 		switch (data) {
-			case types.NotebookCellKind.Markdown:
-				return notebooks.CellKind.Markdown;
+			case types.NotebookCellKind.Markup:
+				return notebooks.CellKind.Markup;
 			case types.NotebookCellKind.Code:
 			default:
 				return notebooks.CellKind.Code;
@@ -1476,12 +1476,34 @@ export namespace NotebookCellKind {
 
 	export function to(data: notebooks.CellKind): vscode.NotebookCellKind {
 		switch (data) {
-			case notebooks.CellKind.Markdown:
-				return types.NotebookCellKind.Markdown;
+			case notebooks.CellKind.Markup:
+				return types.NotebookCellKind.Markup;
 			case notebooks.CellKind.Code:
 			default:
 				return types.NotebookCellKind.Code;
 		}
+	}
+}
+
+export namespace NotebookData {
+
+	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
+		const res: notebooks.NotebookDataDto = {
+			metadata: NotebookDocumentMetadata.from(data.metadata),
+			cells: [],
+		};
+		for (let cell of data.cells) {
+			types.NotebookCellData.validate(cell);
+			res.cells.push(NotebookCellData.from(cell));
+		}
+		return res;
+	}
+
+	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
+		return {
+			metadata: NotebookDocumentMetadata.to(data.metadata),
+			cells: data.cells.map(NotebookCellData.to)
+		};
 	}
 }
 
@@ -1490,12 +1512,10 @@ export namespace NotebookCellData {
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
-			language: data.language,
-			source: data.source,
-			metadata: {
-				...data.metadata,
-				...NotebookCellPreviousExecutionResult.from(data.latestExecutionSummary ?? {})
-			},
+			language: data.languageId,
+			source: data.value,
+			metadata: data.metadata,
+			internalMetadata: NotebookCellExecutionSummary.from(data.executionSummary ?? {}),
 			outputs: data.outputs ? data.outputs.map(NotebookCellOutput.from) : []
 		};
 	}
@@ -1513,15 +1533,30 @@ export namespace NotebookCellData {
 
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+		let value: unknown;
+		let valueBytes: number[] | undefined;
+		if (item.data instanceof Uint8Array) {
+			//todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
+			valueBytes = Array.from(item.data);
+		} else {
+			value = item.value;
+		}
 		return {
+			metadata: item.metadata,
 			mime: item.mime,
-			value: item.value,
-			metadata: item.metadata
+			value,
+			valueBytes,
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+		let value: Uint8Array | any;
+		if (Array.isArray(item.valueBytes)) {
+			value = new Uint8Array(item.valueBytes);
+		} else {
+			value = item.value;
+		}
+		return new types.NotebookCellOutputItem(value, item.mime, item.metadata);
 	}
 }
 
@@ -1642,15 +1677,7 @@ export namespace NotebookDocumentContentOptions {
 	export function from(options: vscode.NotebookDocumentContentOptions | undefined): notebooks.TransientOptions {
 		return {
 			transientOutputs: options?.transientOutputs ?? false,
-			transientCellMetadata: {
-				...options?.transientCellMetadata,
-				executionOrder: true,
-				runState: true,
-				runStartTime: true,
-				runStartTimeAdjustment: true,
-				runEndTime: true,
-				lastRunSuccess: true
-			},
+			transientCellMetadata: options?.transientCellMetadata ?? {},
 			transientDocumentMetadata: options?.transientDocumentMetadata ?? {}
 		};
 	}

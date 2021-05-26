@@ -7,9 +7,8 @@ import { SQLiteStorageDatabase, ISQLiteStorageDatabaseOptions } from 'vs/base/pa
 import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/parts/storage/common/storage';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
 import { strictEqual, ok } from 'assert';
-import { writeFile, exists, rimraf } from 'vs/base/node/pfs';
+import { writeFile, exists, rimraf, Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -23,7 +22,7 @@ flakySuite('Storage Library', function () {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -296,7 +295,7 @@ flakySuite('SQLite Storage Library', function () {
 	setup(function () {
 		testdir = getRandomTestPath(tmpdir(), 'vsctests', 'storagelibrary');
 
-		return promises.mkdir(testdir, { recursive: true });
+		return Promises.mkdir(testdir, { recursive: true });
 	});
 
 	teardown(function () {
@@ -477,7 +476,7 @@ flakySuite('SQLite Storage Library', function () {
 		// on shutdown.
 		await storage.checkIntegrity(true).then(null, error => { } /* error is expected here but we do not want to fail */);
 
-		await promises.unlink(backupPath); // also test that the recovery DB is backed up properly
+		await Promises.unlink(backupPath); // also test that the recovery DB is backed up properly
 
 		let recoveryCalled = false;
 		await storage.close(() => {

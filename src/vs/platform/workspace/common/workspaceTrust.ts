@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -40,15 +41,24 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: WorkspaceTrustChangeEvent;
 	onDidChangeTrustedFolders: Event<void>;
 
+	get acceptsOutOfWorkspaceFiles(): boolean;
+	set acceptsOutOfWorkspaceFiles(value: boolean);
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 	isWorkpaceTrusted(): boolean;
 	canSetParentFolderTrust(): boolean;
-	setParentFolderTrust(trusted: boolean): void;
+	setParentFolderTrust(trusted: boolean): Promise<void>;
 	canSetWorkspaceTrust(): boolean;
-	setWorkspaceTrust(trusted: boolean): void;
+	setWorkspaceTrust(trusted: boolean): Promise<void>;
 	getUriTrustInfo(folder: URI): IWorkspaceTrustUriInfo;
-	setUrisTrust(folders: URI[], trusted: boolean): void;
+	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
 	getTrustedFolders(): URI[];
-	setTrustedFolders(folders: URI[]): void;
+	setTrustedFolders(folders: URI[]): Promise<void>;
+}
+
+export const enum WorkspaceTrustUriResponse {
+	Open = 1,
+	OpenInNewWindow = 2,
+	Cancel = 3
 }
 
 export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequestService>('workspaceTrustRequestService');
@@ -58,9 +68,14 @@ export interface IWorkspaceTrustRequestService {
 
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
+	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse>;
 	cancelRequest(): void;
-	completeRequest(trusted?: boolean): void;
+	completeRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
+}
+
+export interface IWorkspaceTrustTransitionParticipant {
+	participate(trusted: boolean): Promise<void>;
 }
 
 export interface IWorkspaceTrustUriInfo {

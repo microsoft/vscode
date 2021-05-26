@@ -47,7 +47,7 @@ const editorAssociationsConfigurationNode: IConfigurationNode = {
 	properties: {
 		'workbench.editorAssociations': {
 			type: 'object',
-			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
+			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
 			additionalProperties: {
 				type: 'string'
 			}
@@ -140,6 +140,13 @@ export interface IEditorOverrideService {
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
 	 */
 	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+
+	/**
+	 * Given a resource returns all the editor ids that match that resource
+	 * @param resource The resource
+	 * @returns A list of editor ids
+	 */
+	getEditorIds(resource: URI): string[];
 }
 
 //#endregion

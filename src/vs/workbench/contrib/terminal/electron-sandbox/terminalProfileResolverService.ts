@@ -11,6 +11,7 @@ import { IRemoteTerminalService, ITerminalService } from 'vs/workbench/contrib/t
 import { BaseTerminalProfileResolverService } from 'vs/workbench/contrib/terminal/browser/terminalProfileResolverService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 
 export class ElectronTerminalProfileResolverService extends BaseTerminalProfileResolverService {
 
@@ -22,7 +23,8 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 		@ITerminalService terminalService: ITerminalService,
 		@ILocalTerminalService localTerminalService: ILocalTerminalService,
 		@IRemoteTerminalService remoteTerminalService: IRemoteTerminalService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService
 	) {
 		super(
 			{
@@ -43,7 +45,8 @@ export class ElectronTerminalProfileResolverService extends BaseTerminalProfileR
 			historyService,
 			logService,
 			terminalService,
-			workspaceContextService
+			workspaceContextService,
+			remoteAgentService
 		);
 	}
 }
