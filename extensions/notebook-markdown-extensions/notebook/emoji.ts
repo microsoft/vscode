@@ -6,10 +6,13 @@ import type * as markdownIt from 'markdown-it';
 
 const emoji = require('markdown-it-emoji');
 
-export function activate(ctx: {
+export async function activate(ctx: {
 	getRenderer: (id: string) => any
 }) {
-	const markdownItRenderer = ctx.getRenderer('markdownItRenderer');
+	const markdownItRenderer = await ctx.getRenderer('markdownItRenderer');
+	if (!markdownItRenderer) {
+		throw new Error('Could not load markdownItRenderer');
+	}
 
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {
 		return md.use(emoji);
