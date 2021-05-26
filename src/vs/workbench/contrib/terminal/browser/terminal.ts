@@ -198,6 +198,8 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
+	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
@@ -219,6 +221,10 @@ export interface IRemoteTerminalService extends IOffProcessTerminalService {
  */
 export interface ITerminalExternalLinkProvider {
 	provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined>;
+}
+
+export interface ITerminalProfileProvider {
+	provideProfile(): Promise<IShellLaunchConfig>;
 }
 
 export interface ITerminalLink {

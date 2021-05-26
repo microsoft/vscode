@@ -6,7 +6,7 @@
 import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -20,12 +20,12 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -41,6 +41,8 @@ import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -56,6 +58,7 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _activeGroupIndex: number;
 	private _activeInstanceIndex: number;
+	private _profileProviders: Map<string, ITerminalProfileProvider> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -144,6 +147,8 @@ export class TerminalService implements ITerminalService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ICommandService private readonly _commandService: ICommandService,
+		@IExtensionService private readonly _extensionService: IExtensionService,
+		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -776,6 +781,11 @@ export class TerminalService implements ITerminalService {
 		};
 	}
 
+	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable {
+		this._profileProviders.set(id, profileProvider);
+		return toDisposable(() => this._profileProviders.delete(id));
+	}
+
 	private _setInstanceLinkProviders(instance: ITerminalInstance): void {
 		for (const linkProvider of this._linkProviders) {
 			const disposables = this._linkProviderDisposables.get(linkProvider);
@@ -865,6 +875,9 @@ export class TerminalService implements ITerminalService {
 				if ('command' in context.item.profile) {
 					return;
 				}
+				if ('id' in context.item.profile) {
+					return;
+				}
 				const configKey = `terminal.integrated.profiles.${platformKey}`;
 				const configProfiles = this._configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(configKey);
 				const existingProfiles = configProfiles ? Object.keys(configProfiles) : [];
@@ -909,7 +922,14 @@ export class TerminalService implements ITerminalService {
 					profile: contributed
 				});
 			}
-			console.log('profiles', this._terminalContributionService.terminalProfiles);
+			console.log('this._terminalContributionService.terminalProfiles', this._terminalContributionService.terminalProfiles);
+			for (const contributed of this._terminalContributionService.terminalProfiles) {
+				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+				quickPickItems.push({
+					label: `$(${icon.id}) ${contributed.title}`,
+					profile: contributed
+				});
+			}
 		}
 		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
@@ -926,16 +946,33 @@ export class TerminalService implements ITerminalService {
 				return this._commandService.executeCommand(value.profile.command);
 			}
 
-			let instance;
 			const activeInstance = this.getActiveInstance();
-			if (keyMods?.alt && activeInstance) {
-				// create split, only valid if there's an active instance
-				if (activeInstance) {
-					instance = this.splitInstance(activeInstance, value.profile, cwd);
+			let instance;
+
+			if ('id' in value.profile) {
+				await this._extensionService.activateByEvent(`onTerminalProfile:${value.profile.id}`);
+				const profileProvider = this._profileProviders.get(value.profile.id);
+				if (!profileProvider) {
+					this._notificationService.error(`No terminal profile provider registered for id "${value.profile.id}"`);
+					return;
 				}
+				const slc = await profileProvider.provideProfile();
+				if (keyMods?.alt && activeInstance) {
+					// create split, only valid if there's an active instance
+					instance = this.splitInstance(activeInstance, slc);
+				} else {
+					instance = this.createTerminal(slc);
+				}
+				return;
 			} else {
-				instance = this.createTerminal(value.profile, cwd);
+				if (keyMods?.alt && activeInstance) {
+					// create split, only valid if there's an active instance
+					instance = this.splitInstance(activeInstance, value.profile, cwd);
+				} else {
+					instance = this.createTerminal(value.profile, cwd);
+				}
 			}
+
 			if (instance) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
@@ -943,6 +980,9 @@ export class TerminalService implements ITerminalService {
 			}
 		} else { // setDefault
 			if ('command' in value.profile) {
+				return; // Should never happen
+			}
+			if ('id' in value.profile) {
 				return; // Should never happen
 			}
 			// Add the profile to settings if necessary
@@ -1139,7 +1179,7 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | ITerminalTypeContribution;
+	profile: ITerminalProfile | ITerminalTypeContribution | ITerminalProfileContribution;
 }
 
 interface IInstanceLocation {

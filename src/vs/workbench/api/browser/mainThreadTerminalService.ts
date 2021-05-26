@@ -33,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _extHostTerminalIds = new Map<string, number>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
+	private readonly _profileProviders = new Map<string, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -198,6 +199,21 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerProcessSupport(isSupported: boolean): void {
 		this._terminalService.registerProcessSupport(isSupported);
+	}
+
+	public $registerProfileProvider(id: string): void {
+		// Proxy profile provider requests through the extension host
+		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(id, {
+			provideProfile: async () => {
+				console.log('provide profile', id);
+				return { name: 'My fake profile' };
+			}
+		}));
+	}
+
+	public $unregisterProfileProvider(id: string): void {
+		this._profileProviders.get(id)?.dispose();
+		this._profileProviders.delete(id);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {

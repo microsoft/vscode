@@ -42,6 +42,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShell(useAutomationShell: boolean): string;
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
+	registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -296,6 +297,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
+	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -561,6 +563,19 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			if (this._linkProviders.size === 0) {
 				this._proxy.$stopLinkProvider();
 			}
+		});
+	}
+
+	public registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
+		console.log('registerProfileProvider', id);
+		if (this._profileProviders.has(id)) {
+			throw new Error(`Terminal profile provider "${id}" already registered`);
+		}
+		this._profileProviders.set(id, provider);
+		this._proxy.$registerProfileProvider(id);
+		return new VSCodeDisposable(() => {
+			this._profileProviders.delete(id);
+			this._proxy.$unregisterProfileProvider(id);
 		});
 	}
 
