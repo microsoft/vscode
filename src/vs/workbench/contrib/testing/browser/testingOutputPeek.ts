@@ -237,7 +237,7 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		super();
 		this.visible = TestingContextKeys.isPeekVisible.bindTo(contextKeyService);
 		this._register(editor.onDidChangeModel(() => this.peek.clear()));
-		this._register(testResults.onResultsChanged(this.closePeekOnRunStart, this));
+		this._register(testResults.onResultsChanged(this.closePeekOnCertainResultEvents, this));
 		this._register(testResults.onTestChanged(this.closePeekOnTestChange, this));
 	}
 
@@ -312,9 +312,13 @@ export class TestingOutputPeekController extends Disposable implements IEditorCo
 		this.removeIfPeekingForTest(evt.item.item.extId);
 	}
 
-	private closePeekOnRunStart(evt: ResultChangeEvent) {
+	private closePeekOnCertainResultEvents(evt: ResultChangeEvent) {
 		if ('started' in evt) {
-			this.peek.clear();
+			this.peek.clear(); // close peek when runs start
+		}
+
+		if ('removed' in evt && this.testResults.results.length === 0) {
+			this.peek.clear(); // close the peek if results are cleared
 		}
 	}
 
@@ -347,7 +351,8 @@ class TestingOutputPeek extends PeekViewWidget {
 		editor: ICodeEditor,
 		@IThemeService themeService: IThemeService,
 		@IPeekViewService peekViewService: IPeekViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IMenuService private readonly menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextModelService protected readonly modelService: ITextModelService,
 	) {
@@ -369,6 +374,16 @@ class TestingOutputPeek extends PeekViewWidget {
 			primaryHeadingColor: theme.getColor(peekViewTitleForeground),
 			secondaryHeadingColor: theme.getColor(peekViewTitleInfoForeground)
 		});
+	}
+
+	protected override _fillHead(container: HTMLElement): void {
+		super._fillHead(container);
+
+		const actions: IAction[] = [];
+		const menu = this.menuService.createMenu(MenuId.TestPeekTitle, this.contextKeyService);
+		createAndFillInActionBarActions(menu, undefined, actions);
+		this._actionbarWidget!.push(actions, { label: false, icon: true, index: 0 });
+		menu.dispose();
 	}
 
 	protected override _fillBody(containerElement: HTMLElement): void {
