@@ -57,10 +57,6 @@ export class LogLevelMonitor extends Disposable {
 	}
 
 	private shouldNotifyExtendedLogging(): boolean {
-		// TODO: Should the fallback for this be 0, or new Date()?
-		// 0 Means every user that has logging enabled currently will be notified.
-		// new Date() means that users will not be notified until they have changed their
-		// logging setting at least once.
 		const lastChangeMilliseconds = this.lastLogLevelChange ? new Date(this.lastLogLevelChange).valueOf() : 0;
 		const lastChangePlusOneWeek = new Date(lastChangeMilliseconds + /* 7 days in milliseconds */ 86400000 * 7);
 
