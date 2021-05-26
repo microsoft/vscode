@@ -5,6 +5,7 @@
 
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { generateUuid } from 'vs/base/common/uuid';
+import { TerminalLaunchConfig } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { BaseExtHostTerminalService, ExtHostTerminal, ITerminalInternalOptions } from 'vs/workbench/api/common/extHostTerminalService';
 import type * as vscode from 'vscode';
@@ -18,10 +19,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[] | string): vscode.Terminal {
-		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), { name, shellPath, shellArgs }, name);
-		this._terminals.push(terminal);
-		terminal.create(shellPath, shellArgs);
-		return terminal.value;
+		return this.createTerminalFromOptions({ name, shellPath, shellArgs });
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
