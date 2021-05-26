@@ -159,9 +159,14 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.storageService.store(STARTUP_PROMPT_SHOWN_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private showModalOnStart(): void {
+	private async showModalOnStart(): Promise<void> {
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
 			this.updateWorkbenchIndicators(true);
+			return;
+		}
+
+		// Don't show modal prompt if workspace trust cannot be changed
+		if (!(await this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
 			return;
 		}
 
@@ -318,7 +323,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		};
 	}
 
-	private setEmptyWorkspaceTrustState(): void {
+	private async setEmptyWorkspaceTrustState(): Promise<void> {
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			return;
 		}
@@ -328,7 +333,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		if (openFiles.length) {
 			// If all open files are trusted, transition to a trusted workspace
-			if (openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!).trusted).every(trusted => trusted)) {
+			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
+
+			if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
 				this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			}
 		} else {
@@ -366,6 +373,10 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private registerListeners(): void {
+		this._register(this.workspaceTrustManagementService.onDidInitiateWorkspaceTrustRequestOnStartup(() => {
+			this.showModalOnStart();
+		}));
+
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			// Message
 			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
@@ -428,8 +439,9 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			return e.join(new Promise(async resolve => {
 				// Workspace is trusted and there are added/changed folders
 				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
-					const addedFoldersTrustInfo = e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri));
-					if (!addedFoldersTrustInfo.map(i => i.trusted).every(trusted => trusted)) {
+					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
+
+					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
 						const result = await this.dialogService.show(
 							Severity.Info,
 							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
@@ -618,7 +630,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		});
 	}
 
-	private logWorkspaceTrustChangeEvent(isTrusted: boolean): void {
+	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
 		if (!isWorkspaceTrustEnabled(this.configurationService)) {
 			return;
 		}
@@ -664,7 +676,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			};
 
 			for (const folder of this.workspaceContextService.getWorkspace().folders) {
-				const { trusted, uri } = this.workspaceTrustManagementService.getUriTrustInfo(folder.uri);
+				const { trusted, uri } = await this.workspaceTrustManagementService.getUriTrustInfo(folder.uri);
 				if (!trusted) {
 					continue;
 				}
