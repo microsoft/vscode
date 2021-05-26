@@ -13,7 +13,8 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
 	ShellArgs = 'terminal.integrated.shellArgs.',
-	DefaultProfile = 'terminal.integrated.defaultProfile.'
+	DefaultProfile = 'terminal.integrated.defaultProfile.',
+	Profiles = 'terminal.integrated.profiles.'
 }
 
 export const enum TerminalSettingId {
