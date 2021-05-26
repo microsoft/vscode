@@ -180,6 +180,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	protected async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+			return;
+		}
+
 		if (trusted === undefined) {
 			trusted = await this.calculateWorkspaceTrust();
 		}
