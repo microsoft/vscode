@@ -30,14 +30,16 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	 * Reads and parses all .md documents in the workspace.
 	 * Files are processed in batches, to keep the number of open files small.
 	 *
-	 * @returns Array of processed .md files.
+	 * @returns
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
+		const workspaceFolders = vscode.workspace.workspaceFolders;
 		const ignoreList: (string | vscode.RelativePattern)[] = ['**/node_modules/**'];
+		let isDone = false;
 		const docList: SkinnyTextDocument[] = [];
 
-		let isDone = false;
+		// Batch the request for files to a max of `maxConcurrent`.
 		while (!isDone) {
 			await new Promise(async (resolve) => {
 				const resources = await vscode.workspace.findFiles('**/*.md', `{${ignoreList.join(',')}}`, maxConcurrent);
@@ -45,15 +47,21 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 					isDone = true;
 				}
 
-				await Promise.all(resources.map(doc => {
+				(await Promise.all(resources.map(doc => {
 					// Convert path to be relative from the workspace
 					let path = doc.fsPath;
-					for (const folder of vscode.workspace.workspaceFolders || []) {
+					// TODO: What happens here if you have a workspace
+					// that has a folder at /a/b/c and another folder at /a/b
+					for (const folder of workspaceFolders || []) {
 						path = path.replace(folder.uri.fsPath + '/', '');
 					}
 					ignoreList.push(path);
 					return this.getMarkdownDocument(doc);
-				}));
+				}))).forEach((doc) => {
+					if (doc) {
+						docList.push(doc);
+					}
+				});
 				resolve(null);
 			});
 		}
@@ -84,12 +92,16 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 
 		this._watcher.onDidChange(async resource => {
 			const document = await this.getMarkdownDocument(resource);
-			this._onDidChangeMarkdownDocumentEmitter.fire(document);
+			if (document) {
+				this._onDidChangeMarkdownDocumentEmitter.fire(document);
+			}
 		}, null, this._disposables);
 
 		this._watcher.onDidCreate(async resource => {
 			const document = await this.getMarkdownDocument(resource);
-			this._onDidCreateMarkdownDocumentEmitter.fire(document);
+			if (document) {
+				this._onDidCreateMarkdownDocumentEmitter.fire(document);
+			}
 		}, null, this._disposables);
 
 		this._watcher.onDidDelete(async resource => {
@@ -103,7 +115,7 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 		}, null, this._disposables);
 	}
 
-	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument> {
+	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
 		const matchingDocuments = vscode.workspace.textDocuments.filter((doc) => doc.uri.toString() === resource.toString());
 		if (matchingDocuments.length !== 0) {
 			return matchingDocuments[0];
