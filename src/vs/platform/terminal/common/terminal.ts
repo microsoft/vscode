@@ -10,8 +10,13 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
-export const enum TerminalSettingId {
+export const enum TerminalSettingPrefix {
 	Shell = 'terminal.integrated.shell.',
+	ShellArgs = 'terminal.integrated.shellArgs.',
+	DefaultProfile = 'terminal.integrated.defaultProfile.'
+}
+
+export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
 	ShellMacOs = 'terminal.integrated.shell.osx',
 	ShellWindows = 'terminal.integrated.shell.windows',
@@ -22,11 +27,9 @@ export const enum TerminalSettingId {
 	ShellArgsLinux = 'terminal.integrated.shellArgs.linux',
 	ShellArgsMacOs = 'terminal.integrated.shellArgs.osx',
 	ShellArgsWindows = 'terminal.integrated.shellArgs.windows',
-	ShellArgs = 'terminal.integrated.shellArgs.',
 	ProfilesWindows = 'terminal.integrated.profiles.windows',
 	ProfilesMacOs = 'terminal.integrated.profiles.osx',
 	ProfilesLinux = 'terminal.integrated.profiles.linux',
-	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	DefaultProfileLinux = 'terminal.integrated.defaultProfile.linux',
 	DefaultProfileMacOs = 'terminal.integrated.defaultProfile.osx',
 	DefaultProfileWindows = 'terminal.integrated.defaultProfile.windows',

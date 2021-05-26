@@ -410,6 +410,25 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		return value;
 	}
+
+	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined> {
+		const knownProfile = this._terminalService.availableProfiles?.find(p => p.path === shell);
+		const fallbackProfile = (await this.getDefaultProfile({
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
+			os: this._primaryBackendOs!
+		}));
+		shell = knownProfile?.profileName || fallbackProfile.profileName;
+		const path = knownProfile?.path || fallbackProfile.path;
+		if (!shell || typeof shell !== 'string') {
+			return undefined;
+		}
+		return {
+			profileName: shell,
+			path: path,
+			args: typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : undefined,
+			isDefault: true
+		};
+	}
 }
 
 export class BrowserTerminalProfileResolverService extends BaseTerminalProfileResolverService {

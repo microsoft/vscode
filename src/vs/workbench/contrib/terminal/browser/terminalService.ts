@@ -41,11 +41,6 @@ import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-
-const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile.migrations';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -73,7 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
-	private _platform: string | undefined;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
@@ -152,9 +146,6 @@ export class TerminalService implements ITerminalService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@IStorageService private readonly _storageService: IStorageService,
-		@INotificationService private readonly _notificationService: INotificationService,
-		@IPreferencesService private readonly _preferencesService: IPreferencesService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -879,11 +870,9 @@ export class TerminalService implements ITerminalService {
 	private async _getPlatformKey(): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env) {
-			this._platform = env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
-			return this._platform;
+			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
 		}
-		this._platform = isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
-		return this._platform;
+		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
@@ -1019,7 +1008,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
-		this.showProfileMigrationNotification();
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalFocusContextKey,
 			this._terminalShellTypeContextKey,
@@ -1029,37 +1017,6 @@ export class TerminalService implements ITerminalService {
 		);
 		this._onInstanceCreated.fire(instance);
 		return instance;
-	}
-
-	async showProfileMigrationNotification(): Promise<void> {
-		await this._getPlatformKey();
-		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingId.Shell + this._platform) ||
-			!!this._configurationService.getValue(TerminalSettingId.ShellArgs + this._platform)) &&
-			!!this._configurationService.getValue(TerminalSettingId.DefaultProfile + this._platform);
-		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
-			this._notificationService.prompt(
-				Severity.Info,
-				nls.localize('terminalProfileMigration', "You are using deprecated shell/shellArgs settings, but have a defaultProfile set. Would you like to use that instead?"),
-				[
-					{
-						label: nls.localize('switchToProfile', "Yes"),
-						run: () => {
-							this._configurationService.updateValue(`${TerminalSettingId.Shell + this._platform}`, null);
-							this._configurationService.updateValue(`${TerminalSettingId.ShellArgs + this._platform}`, null);
-						}
-					} as IPromptChoice,
-					{
-						label: nls.localize('configureSettings', "Configure Default Profile"),
-						run: () => {
-							this._preferencesService.openSettings(false, `@id:${TerminalSettingId.DefaultProfile + this._platform}`);
-						}
-					} as IPromptChoice
-				],
-				{
-					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
-				}
-			);
-		}
 	}
 
 	private _convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile?: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): IShellLaunchConfig {

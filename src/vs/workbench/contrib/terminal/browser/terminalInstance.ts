@@ -18,7 +18,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -65,6 +65,8 @@ import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIco
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
+
+const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
 
 const enum Constants {
 	/**
@@ -326,6 +328,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
+		this.showProfileMigrationNotification();
 	}
 
 	private _getIcon(): TerminalIcon | undefined {
@@ -351,6 +354,44 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	addDisposable(disposable: IDisposable): void {
 		this._register(disposable);
+	}
+
+	async showProfileMigrationNotification(): Promise<void> {
+		const platform = this._getPlatformKey();
+		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + platform) ||
+			!!this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform)) &&
+			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + platform);
+		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
+			this._notificationService.prompt(
+				Severity.Info,
+				nls.localize('terminalProfileMigration', "You are using deprecated shell/shellArgs settings, but have a defaultProfile set. Want to create a profile from those and use that instead?"),
+				[
+					{
+						label: nls.localize('switchToProfile', "Yes"),
+						run: async () => {
+							const shell = this._configurationService.getValue(`${TerminalSettingPrefix.Shell + platform}`);
+							const shellArgs = this._configurationService.getValue(`${TerminalSettingPrefix.ShellArgs + platform}`);
+							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
+							if (profile) {
+								this._configurationService.updateValue(`${TerminalSettingPrefix.DefaultProfile + platform}`, profile.profileName);
+								this._configurationService.updateValue(`${TerminalSettingPrefix.Shell + platform}`, null);
+								this._configurationService.updateValue(`${TerminalSettingPrefix.ShellArgs + platform}`, null);
+								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
+							} else {
+								this._logService.trace('migration from shell/shellArgs to profile failed bc profile was undefined', shell, shellArgs);
+							}
+						}
+					} as IPromptChoice,
+				],
+				{
+					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
+				}
+			);
+		}
+	}
+
+	private _getPlatformKey(): string {
+		return isWindows ? 'windows' : (isMacintosh ? 'osx' : 'linux');
 	}
 
 	private _initDimensions(): void {
@@ -890,7 +931,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	override dispose(immediate?: boolean): void {
-		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
+		this._logService.trace(`terminalInstance#dispose(instanceId: ${this.instanceId})`);
 		dispose(this._linkManager);
 		this._linkManager = undefined;
 		dispose(this._commandTrackerAddon);
@@ -1137,7 +1178,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._isExiting = true;
 
 		await this._flushXtermData();
-		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) with code ${this._exitCode}`);
+		this._logService.debug(`Terminal process exit(instanceId: ${this.instanceId}) with code ${this._exitCode} `);
 
 		let exitCodeMessage: string | undefined;
 
@@ -1154,7 +1195,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				if (this._shellLaunchConfig.executable) {
 					commandLine = this._shellLaunchConfig.executable;
 					if (typeof this._shellLaunchConfig.args === 'string') {
-						commandLine += ` ${this._shellLaunchConfig.args}`;
+						commandLine += ` ${this._shellLaunchConfig.args} `;
 					} else if (this._shellLaunchConfig.args && this._shellLaunchConfig.args.length) {
 						commandLine += this._shellLaunchConfig.args.map(a => ` '${a}'`).join();
 					}
@@ -1180,7 +1221,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				break;
 		}
 
-		this._logService.debug(`Terminal process exit (instanceId: ${this.instanceId}) state ${this._processManager.processState}`);
+		this._logService.debug(`Terminal process exit(instanceId: ${this.instanceId}) state ${this._processManager.processState} `);
 
 		// Only trigger wait on exit when the exit was *not* triggered by the
 		// user (via the `workbench.action.terminal.kill` command).
@@ -1408,7 +1449,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
-			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
+			this._logService.warn(`Webgl could not be loaded.Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
 			// if it's already set to dom, no need to measure render time
 			if (!neverMeasureRenderTime && this._configHelper.config.gpuAcceleration !== 'off') {
@@ -1804,7 +1845,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async changeIcon() {
 		const items: IQuickPickItem[] = [];
 		for (const icon of iconRegistry.all) {
-			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
+			items.push({ label: `$(${icon.id})`, description: `${icon.id} ` });
 		}
 		const result = await this._quickInputService.pick(items, {
 			title: nls.localize('changeTerminalIcon', "Change Icon"),
@@ -1837,11 +1878,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
 			items.push({
-				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
+				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')} `, id: colorKey, description: colorKey, iconClasses: [colorClass]
 			});
 			const color = colorTheme.getColor(colorKey);
 			if (color) {
-				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+				css += `.monaco - workbench.${colorClass} .codicon: first - child: not(.codicon - split - horizontal): not(.codicon - trashcan): not(.file - icon) { color: ${color} !important; } `;
 			}
 		}
 		items.push({ type: 'separator' });
@@ -1986,8 +2027,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
-			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
-			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
+				.monaco - workbench.hc - black.pane - body.integrated - terminal.xterm.focus:: before,
+			.monaco - workbench.hc - black.pane - body.integrated - terminal.xterm: focus:: before { border - color: ${border}; } `
 		);
 	}
 
@@ -1995,24 +2036,24 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
-			.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }
-			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport { scrollbar-color: ${scrollbarSliderBackgroundColor} transparent; }
-		`);
+				.monaco - workbench.pane - body.integrated - terminal.find - focused.xterm.xterm - viewport,
+			.monaco - workbench.pane - body.integrated - terminal.xterm.focus.xterm - viewport,
+			.monaco - workbench.pane - body.integrated - terminal.xterm: focus.xterm - viewport,
+			.monaco - workbench.pane - body.integrated - terminal.xterm: hover.xterm - viewport { background - color: ${scrollbarSliderBackgroundColor} !important; }
+			.monaco - workbench.pane - body.integrated - terminal.xterm - viewport { scrollbar - color: ${scrollbarSliderBackgroundColor} transparent; }
+			`);
 	}
 
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(`
-			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }
-			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport:hover { scrollbar-color: ${scrollbarSliderHoverBackgroundColor} transparent; }
-		`);
+				.monaco - workbench.pane - body.integrated - terminal.xterm.xterm - viewport:: -webkit - scrollbar - thumb: hover { background - color: ${scrollbarSliderHoverBackgroundColor}; }
+			.monaco - workbench.pane - body.integrated - terminal.xterm - viewport: hover { scrollbar - color: ${scrollbarSliderHoverBackgroundColor} transparent; }
+			`);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
 	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+		collector.addRule(`.monaco - workbench.pane - body.integrated - terminal.xterm.xterm - viewport:: -webkit - scrollbar - thumb: active { background - color: ${scrollbarSliderActiveBackgroundColor}; } `);
 	}
 });
