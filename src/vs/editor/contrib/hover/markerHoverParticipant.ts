@@ -33,6 +33,7 @@ const $ = dom.$;
 export class MarkerHover implements IHoverPart {
 
 	constructor(
+		public readonly owner: IEditorHoverParticipant<MarkerHover>,
 		public readonly range: Range,
 		public readonly marker: IMarker,
 	) { }
@@ -81,7 +82,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 			}
 
 			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-			result.push(new MarkerHover(range, marker));
+			result.push(new MarkerHover(this, range, marker));
 		}
 
 		return result;
