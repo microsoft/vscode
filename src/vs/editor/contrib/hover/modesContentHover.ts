@@ -250,23 +250,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		}));
 		this._register(TokenizationRegistry.onDidChange(() => {
 			if (this._isVisible && this._lastRange && this._messages.length > 0) {
-				this._messages = this._messages.map(msg => {
-					// If a color hover is visible, we need to update the message that
-					// created it so that the color matches the last chosen color
-					if (msg instanceof ColorHover && !!this._lastRange?.intersectRanges(msg.range) && this._colorPicker?.model.color) {
-						const color = this._colorPicker.model.color;
-						const newColor = {
-							red: color.rgba.r / 255,
-							green: color.rgba.g / 255,
-							blue: color.rgba.b / 255,
-							alpha: color.rgba.a
-						};
-						return new ColorHover(msg.owner, msg.range, newColor, msg.colorPresentations, true, msg.provider);
-					} else {
-						return msg;
-					}
-				});
-
 				this._hover.contentsDomNode.textContent = '';
 				this._renderMessages(this._lastRange, this._messages);
 			}

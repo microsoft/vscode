@@ -6,7 +6,7 @@
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
-import { IColorPresentation, DocumentColorProvider, IColor } from 'vs/editor/common/modes';
+import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,9 +23,7 @@ export class ColorHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<ColorHover>,
 		public readonly range: Range,
-		public readonly color: IColor,
-		public readonly colorPresentations: IColorPresentation[],
-		public readonly shouldUpdateColorPresentations: boolean,
+		public readonly model: ColorPickerModel,
 		public readonly provider: DocumentColorProvider
 	) { }
 
@@ -54,18 +52,25 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		for (const d of lineDecorations) {
 			const colorData = colorDetector.getColorData(d.range.getStartPosition());
 			if (colorData) {
-				const { color, range } = colorData.colorInfo;
-				const colorHover = await this._createColorHover(this._editor.getModel(), Range.lift(range), color, colorData.provider);
+				const colorHover = await this._createColorHover(this._editor.getModel(), colorData.colorInfo, colorData.provider);
 				return [colorHover];
 			}
 		}
 		return [];
 	}
 
-	private async _createColorHover(editorModel: ITextModel, range: Range, color: IColor, provider: DocumentColorProvider): Promise<ColorHover> {
-		const colorInfo = { range: range, color: color };
+	private async _createColorHover(editorModel: ITextModel, colorInfo: IColorInformation, provider: DocumentColorProvider): Promise<ColorHover> {
+		const originalText = editorModel.getValueInRange(colorInfo.range);
+		const { red, green, blue, alpha } = colorInfo.color;
+		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
+		const color = new Color(rgba);
+
 		const colorPresentations = await getColorPresentations(editorModel, colorInfo, provider, CancellationToken.None);
-		return new ColorHover(this, range, color, colorPresentations || [], false, provider);
+		const model = new ColorPickerModel(color, [], 0);
+		model.colorPresentations = colorPresentations || [];
+		model.guessColorPresentation(color, originalText);
+
+		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
 	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment): IDisposable {
@@ -76,20 +81,10 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		const disposables = new DisposableStore();
 		const colorHover = hoverParts[0];
 		const editorModel = this._editor.getModel();
-
-		const { red, green, blue, alpha } = colorHover.color;
-		const rgba = new RGBA(Math.round(red * 255), Math.round(green * 255), Math.round(blue * 255), alpha);
-		const color = new Color(rgba);
-
-		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
-
-		// create blank olor picker model and widget first to ensure it's positioned correctly.
-		const model = new ColorPickerModel(color, [], 0);
+		const model = colorHover.model;
 		const widget = disposables.add(new ColorPickerWidget(fragment, model, this._editor.getOption(EditorOption.pixelRatio), this._themeService));
 
-		model.colorPresentations = colorHover.colorPresentations || [];
-		const originalText = editorModel.getValueInRange(colorHover.range);
-		model.guessColorPresentation(color, originalText);
+		let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 
 		const updateEditorModel = () => {
 			let textEdits: IIdentifiedSingleEditOperation[];
@@ -140,10 +135,6 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 			updateColorPresentations(color).then(updateEditorModel);
 		}));
 		disposables.add(model.onDidChangeColor(updateColorPresentations));
-
-		if (colorHover.shouldUpdateColorPresentations) {
-			updateColorPresentations(color);
-		}
 
 		this._hover.setColorPicker(widget);
 
