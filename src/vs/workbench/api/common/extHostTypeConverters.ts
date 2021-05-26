@@ -1527,6 +1527,7 @@ export namespace NotebookCellData {
 			data.language,
 			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
 			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
 		);
 	}
 }
