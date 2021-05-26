@@ -1055,4 +1055,3 @@ class ServerInitializingIndicator extends Disposable {
 		}
 	}
 }
-
