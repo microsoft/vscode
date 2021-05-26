@@ -364,18 +364,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
 			this._notificationService.prompt(
 				Severity.Info,
-				nls.localize('terminalProfileMigration', "You are using deprecated shell/shellArgs settings, but have a defaultProfile set. Want to create a profile from those and use that instead?"),
+				nls.localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
 				[
 					{
-						label: nls.localize('switchToProfile', "Yes"),
+						label: nls.localize('migrateToProfile', "Migrate"),
 						run: async () => {
-							const shell = this._configurationService.getValue(`${TerminalSettingPrefix.Shell + platform}`);
-							const shellArgs = this._configurationService.getValue(`${TerminalSettingPrefix.ShellArgs + platform}`);
+							const shell = this._configurationService.getValue(TerminalSettingPrefix.Shell + platform);
+							const shellArgs = this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform);
 							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
 							if (profile) {
-								this._configurationService.updateValue(`${TerminalSettingPrefix.DefaultProfile + platform}`, profile.profileName);
-								this._configurationService.updateValue(`${TerminalSettingPrefix.Shell + platform}`, null);
-								this._configurationService.updateValue(`${TerminalSettingPrefix.ShellArgs + platform}`, null);
+								this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
+								this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, null);
+								this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, null);
 								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
 							} else {
 								this._logService.trace('migration from shell/shellArgs to profile did not occur bc created profile was an exact match for existing one', shell, shellArgs);
