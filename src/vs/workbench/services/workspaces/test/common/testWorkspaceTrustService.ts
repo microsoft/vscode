@@ -47,7 +47,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -63,7 +63,11 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	canSetWorkspaceTrust(): boolean {
+	canSetWorkspaceTrust(): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	initializeWorkspaceTrust(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
