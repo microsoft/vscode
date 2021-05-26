@@ -817,11 +817,15 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			}
 		*/
 		this.telemetryReporter.logTelemetry('completions.execute', {
-			duration: duration,
+			duration: String(duration),
 			type: response?.type ?? 'unknown',
-			count: response?.type === 'response' && response.body ? response.body.entries.length : 0,
-			updateGraphDurationMs: response?.type === 'response' ? response.performanceData?.updateGraphDurationMs : undefined,
-			createAutoImportProviderProgramDurationMs: response?.type === 'response' ? response.performanceData?.createAutoImportProviderProgramDurationMs : undefined,
+			count: String(response?.type === 'response' && response.body ? response.body.entries.length : 0),
+			updateGraphDurationMs: response?.type === 'response' && typeof response.performanceData?.updateGraphDurationMs === 'number'
+				? String(response.performanceData.updateGraphDurationMs)
+				: undefined,
+			createAutoImportProviderProgramDurationMs: response?.type === 'response' && typeof response.performanceData?.createAutoImportProviderProgramDurationMs === 'number'
+				? String(response.performanceData.createAutoImportProviderProgramDurationMs)
+				: undefined,
 			includesPackageJsonImport: includesPackageJsonImport ? 'true' : undefined,
 			includesImportStatementCompletion: includesImportStatementCompletion ? 'true' : undefined,
 		});
