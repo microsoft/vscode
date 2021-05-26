@@ -211,8 +211,10 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	) {
 		super();
 
-		const markerHoverParticipant = instantiationService.createInstance(MarkerHoverParticipant, editor, this);
-		const markdownHoverParticipant = instantiationService.createInstance(MarkdownHoverParticipant, editor, this);
+		const participants = [
+			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
+			instantiationService.createInstance(MarkerHoverParticipant, editor, this)
+		];
 
 		this._hover = this._register(new HoverWidget());
 		this._id = ModesContentHoverWidget.ID;
@@ -243,7 +245,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		this._messages = [];
 		this._lastRange = null;
-		this._computer = new ModesContentComputer(this._editor, [markdownHoverParticipant, markerHoverParticipant]);
+		this._computer = new ModesContentComputer(this._editor, participants);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
