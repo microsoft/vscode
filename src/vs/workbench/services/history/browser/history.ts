@@ -399,7 +399,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return this.editorService.openEditor(location.input, options);
 		}
 
-		return this.editorService.openEditor({ resource: (location.input as IResourceEditorInput).resource, options });
+		return this.editorService.openEditor({ resource: location.input.resource, options });
 	}
 
 	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {

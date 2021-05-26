@@ -460,8 +460,8 @@ function registerOpenEditorAPICommands(): void {
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 		await editorService.openEditor({
-			leftResource: URI.revive(leftResource),
-			rightResource: URI.revive(rightResource),
+			leftEditor: { resource: URI.revive(leftResource) },
+			rightEditor: { resource: URI.revive(rightResource) },
 			label,
 			options
 		}, viewColumnToEditorGroup(editorGroupService, column));

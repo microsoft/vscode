@@ -256,8 +256,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							leftResource: editors[0].resource,
-							rightResource: editors[1].resource,
+							leftEditor: { resource: editors[0].resource },
+							rightEditor: { resource: editors[1].resource },
 							options: { pinned: true }
 						});
 					}

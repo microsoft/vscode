@@ -775,7 +775,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
-		const dndController = new TerminalInstanceDropAndDropController(container);
+		const dndController = new TerminalInstanceDragAndDropController(container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
@@ -1872,7 +1872,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 }
 
-class TerminalInstanceDropAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
+class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
 	private _dropOverlay?: HTMLElement;
 
 	private readonly _onDropFile = new Emitter<string>();

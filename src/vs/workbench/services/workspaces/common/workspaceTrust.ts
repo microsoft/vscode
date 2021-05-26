@@ -209,11 +209,15 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		const canonicalUri = await this.getCanonicalUri(uri);
+		// Return trusted when workspace trust is disabled
+		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+			return { trusted: true, uri };
+		}
 
 		let resultState = false;
 		let maxLength = -1;
 
+		const canonicalUri = await this.getCanonicalUri(uri);
 		let resultUri = canonicalUri;
 
 		for (const trustInfo of this._trustStateInfo.uriTrustInfo) {

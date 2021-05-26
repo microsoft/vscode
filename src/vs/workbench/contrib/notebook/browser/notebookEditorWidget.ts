@@ -42,7 +42,7 @@ import { IEditorMemento } from 'vs/workbench/common/editor';
 import { Memento, MementoObject } from 'vs/workbench/common/memento';
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, NotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, IActiveNotebookEditor, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IGenericCellViewModel, IInsetRenderOutput, INotebookCellList, INotebookCellOutputLayoutInfo, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorMouseEvent, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_ID, NOTEBOOK_OUTPUT_FOCUSED, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDecorationCSSRules, NotebookRefCountedStyleSheet } from 'vs/workbench/contrib/notebook/browser/notebookEditorDecorations';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
@@ -511,9 +511,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cellToolbarLocation = this._notebookOptions.computeCellToolbarLocation(this.viewModel?.viewType);
 		this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
 
-		const showCellStatusBar = this._notebookOptions.getLayoutConfiguration().showCellStatusBar;
-		this._overlayContainer.classList.toggle('cell-statusbar-hidden', !showCellStatusBar);
-
 		const cellToolbarInteraction = this._notebookOptions.getLayoutConfiguration().cellToolbarInteraction;
 		let cellToolbarInteractionState = 'hover';
 		this._overlayContainer.classList.remove('cell-toolbar-hover');
@@ -555,6 +552,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			cellRunGutter,
 			cellBottomMargin,
 			codeCellLeftMargin,
+			markdownCellGutter,
 			markdownCellLeftMargin,
 			markdownCellBottomMargin,
 			markdownCellTopMargin,
@@ -565,7 +563,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			focusIndicator,
 			insertToolbarPosition,
 			insertToolbarAlignment,
-			fontSize
+			fontSize,
+			focusIndicatorLeftMargin
 		} = this._notebookOptions.getLayoutConfiguration();
 
 		const styleSheets: string[] = [];
@@ -643,12 +642,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				height: 100%;
 				z-index: 10;
 			}
-
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before {
-				border-left: 1px solid transparent;
-				border-right: 1px solid transparent;
-				border-radius: 2px;
-			}
 			`);
 
 			// left and right border margins
@@ -658,6 +651,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list.selection-multiple .monaco-list-row.code-cell-row.selected .cell-focus-indicator-right:before {
 				top: 0px; height: 100%;
+			}`);
+
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-left:before,
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.selected .cell-focus-indicator-left:before {
+				border-left: 3px solid transparent;
+				border-radius: 2px;
+				margin-left: ${focusIndicatorLeftMargin}px;
 			}`);
 		}
 
@@ -727,7 +728,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .execution-count-label { left: ${codeCellLeftMargin}px; width: ${cellRunGutter}px; }`);
 
 		styleSheets.push(`.notebookOverlay .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row div.cell.markdown { padding-left: ${cellRunGutter}px; }`);
-		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellLeftMargin - 20) / 2}px; }`);
+		styleSheets.push(`.monaco-workbench .notebookOverlay > .cell-list-container .notebook-folding-indicator { left: ${(markdownCellGutter - 20) / 2 + markdownCellLeftMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row :not(.webview-backed-markdown-cell) .cell-focus-indicator-top { height: ${cellTopMargin}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-side { bottom: ${bottomCellToolbarGap}px; }`);
 		styleSheets.push(`.notebookOverlay .monaco-list .monaco-list-row.code-cell-row .cell-focus-indicator-left,
@@ -1020,7 +1021,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	async setOptions(options: NotebookEditorOptions | undefined) {
+	async setOptions(options: INotebookEditorOptions | undefined) {
 		if (!this.hasModel()) {
 			return;
 		}
@@ -2484,10 +2485,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const cell = this.getCellById(cellId);
 		const layoutConfiguration = this._notebookOptions.getLayoutConfiguration();
 		if (cell && cell instanceof MarkdownCellViewModel) {
-			if (height + layoutConfiguration.bottomToolbarGap !== cell.layoutInfo.totalHeight) {
-				this._debug('updateMarkdownCellHeight', cell.handle, height + layoutConfiguration.bottomToolbarGap, isInit);
-				cell.renderedMarkdownHeight = height;
-			}
+			this._debug('updateMarkdownCellHeight', cell.handle, height + layoutConfiguration.bottomToolbarGap, isInit);
+			cell.renderedMarkdownHeight = height;
 		}
 	}
 

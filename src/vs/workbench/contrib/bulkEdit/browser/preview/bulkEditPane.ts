@@ -353,8 +353,8 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
+				leftEditor: { resource: leftResource },
+				rightEditor: { resource: previewUri },
 				label,
 				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options

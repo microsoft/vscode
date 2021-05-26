@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -55,7 +55,7 @@ interface IDraggedResource {
 	isExternal?: boolean;
 }
 
-interface IDraggedEditor extends IResourceEditorInput {
+interface IDraggedEditor extends ITextResourceEditorInput {
 	contents?: string;
 	isExternal?: boolean;
 }
@@ -346,7 +346,7 @@ export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesO
 	for (const resourceOrEditor of resourcesOrEditors) {
 
 		// Extract resource editor from provided object or URI
-		let editor: IResourceEditorInput | undefined = undefined;
+		let editor: ITextResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
 		} else {

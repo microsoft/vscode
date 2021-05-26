@@ -21,7 +21,7 @@ module.exports = new class {
         const configs = context.options;
         for (const config of configs) {
             if (minimatch(context.getFilename(), config.target)) {
-                return utils_1.createImportRuleListener((node, value) => this._checkImport(context, config, node, value));
+                return (0, utils_1.createImportRuleListener)((node, value) => this._checkImport(context, config, node, value));
             }
         }
         return {};
@@ -29,7 +29,7 @@ module.exports = new class {
     _checkImport(context, config, node, path) {
         // resolve relative paths
         if (path[0] === '.') {
-            path = path_1.join(context.getFilename(), path);
+            path = (0, path_1.join)(context.getFilename(), path);
         }
         let restrictions;
         if (typeof config.restrictions === 'string') {
