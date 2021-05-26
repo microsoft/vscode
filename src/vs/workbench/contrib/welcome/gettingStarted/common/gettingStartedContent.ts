@@ -170,8 +170,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 
 	{
 		id: 'Setup',
-		title: localize('gettingStarted.setup.title', "Customize your Setup"),
-		description: localize('gettingStarted.setup.description', "Extend and customize VS Code to make it yours."),
+		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
+		description: localize('gettingStarted.setup.description', "Discover the best customizations to make VS Code yours."),
 		icon: setupIcon,
 		next: 'Beginner',
 		when: 'remoteName != codespaces',
@@ -180,14 +180,14 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			steps: [
 				{
 					id: 'pickColorTheme',
-					title: localize('gettingStarted.pickColor.title', "Customize the look with themes"),
-					description: localize('gettingStarted.pickColor.description', "Pick a color theme to match your taste and mood while coding.\n[Pick a Theme](command:workbench.action.selectTheme)"),
+					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
+					description: localize('gettingStarted.pickColor.description', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n[Browse Color Themes](command:workbench.action.selectTheme)"),
 					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
 				},
 				{
 					id: 'findLanguageExtensions',
-					title: localize('gettingStarted.findLanguageExts.title', "Code in any language"),
-					description: localize('gettingStarted.findLanguageExts.description', "VS Code supports over 50+ programming languages. While many are built-in, others can be easily installed as extensions in one click.\n[Browse Language Extensions](command:workbench.extensions.action.showLanguageExtensions)"),
+					title: localize('gettingStarted.findLanguageExts.title', "Rich support for all your languages"),
+					description: localize('gettingStarted.findLanguageExts.description', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n[Browse Language Extensions](command:workbench.extensions.action.showLanguageExtensions)"),
 					media: {
 						type: 'image', altText: 'Language extensions', path: {
 							dark: 'dark/languageExtensions.png',
@@ -197,9 +197,21 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					}
 				},
 				{
+					id: 'commandPaletteTask',
+					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
+					description: localize('gettingStarted.commandPalette.description', "Commands Palette is the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequently used commands to save time and keep in the flow.\n[Open Command Palette](command:workbench.action.showCommands)\n__Try searching for 'view toggle'.__"),
+					media: {
+						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
+							dark: 'dark/commandPalette.png',
+							light: 'light/commandPalette.png',
+							hc: 'hc/commandPalette.png',
+						}
+					},
+				},
+				{
 					id: 'keymaps',
-					title: localize('gettingStarted.keymaps.title', "Switch from other editors"),
-					description: localize('gettingStarted.keymaps.description', "Bring your favorite keyboard shortcuts from other editors into VS Code with keymaps.\n[Browse Keymap Extensions](command:workbench.extensions.action.showRecommendedKeymapExtensions)"),
+					title: localize('gettingStarted.keymaps.title', "Bring your favorite shortcuts"),
+					description: localize('gettingStarted.keymaps.description', "If you already have your favorite shortcuts from another editor, bring them into VS Code.\n[Browse Keymap Extensions](command:workbench.extensions.action.showRecommendedKeymapExtensions)"),
 					media: {
 						type: 'image', altText: 'List of keymap extensions.', path: {
 							dark: 'dark/keymaps.png',
@@ -210,8 +222,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sync your favorite setup"),
-					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several VS Code instances.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
+					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
+					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
@@ -224,8 +236,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'pickAFolderTask-Mac',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
-					description: localize('gettingStarted.setup.OpenFolder.description', "Open a project folder to start coding!\n[Pick a Folder](command:workbench.action.files.openFileFolder)"),
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
+					description: localize('gettingStarted.setup.OpenFolder.description', "You're all set to start coding. Open a project folder to get your files into VS Code.\n[Pick a Folder](command:workbench.action.files.openFileFolder)"),
 					when: 'isMac && workspaceFolderCount == 0',
 					media: {
 						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
@@ -237,8 +249,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'pickAFolderTask-Other',
-					title: localize('gettingStarted.setup.OpenFolder.title', "Open your project folder"),
-					description: localize('gettingStarted.setup.OpenFolder.description2', "Open a project folder to start coding!\n[Pick a Folder](command:workbench.action.files.openFolder)"),
+					title: localize('gettingStarted.setup.OpenFolder.title', "Open up your code"),
+					description: localize('gettingStarted.setup.OpenFolder.description2', "You're all set to start coding. Open a project folder to get your files into VS Code.\n[Pick a Folder](command:workbench.action.files.openFolder)"),
 					when: '!isMac && workspaceFolderCount == 0',
 					media: {
 						type: 'image', altText: 'Explorer view showing buttons for opening folder and cloning repository.', path: {
@@ -250,7 +262,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quick open files"),
+					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your file"),
 					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n[Quick Open a File](command:toSide:workbench.action.quickOpen)"),
 					when: 'workspaceFolderCount != 0',
 					media: {
@@ -275,15 +287,15 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				{
-					id: 'commandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "Find & run commands"),
-					description: localize('gettingStarted.commandPalette.description', "The easiest way to find everything VS Code can do. If you're ever looking for a feature or a shortcut, check here first!\n[Open Command Palette](command:workbench.action.showCommands)"),
+					id: 'playground',
+					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
+					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n[Open Interactive Playground](command:toSide:workbench.action.showInteractivePlayground)"),
 					media: {
-						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
-							dark: 'dark/commandPalette.png',
-							light: 'light/commandPalette.png',
-							hc: 'hc/commandPalette.png',
-						}
+						type: 'image', altText: 'Interactive Playground.', path: {
+							dark: 'dark/playground.png',
+							light: 'light/playground.png',
+							hc: 'light/playground.png'
+						},
 					},
 				},
 				{
@@ -341,18 +353,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		content: {
 			type: 'steps',
 			steps: [
-				{
-					id: 'playground',
-					title: localize('gettingStarted.playground.title', "Redefine your editing skills"),
-					description: localize('gettingStarted.playground.description', "Want to code faster and smarter? Practice powerful code editing features in the interactive playground.\n[Open Interactive Playground](command:toSide:workbench.action.showInteractivePlayground)"),
-					media: {
-						type: 'image', altText: 'Interactive Playground.', path: {
-							dark: 'dark/playground.png',
-							light: 'light/playground.png',
-							hc: 'light/playground.png'
-						},
-					},
-				},
 				{
 					id: 'splitview',
 					title: localize('gettingStarted.splitview.title', "Side by side editing"),
