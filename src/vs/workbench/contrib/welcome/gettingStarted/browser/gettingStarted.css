@@ -84,7 +84,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories {
-	padding: 24px;
+	padding: 12px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.animationReady .gettingStartedSlide {
@@ -557,11 +557,14 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-arrow-small-right {
-	padding-left: 8px;
+	position: relative;
+	top: 3px;
+	left: 2px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link .codicon-check-all {
-	padding-right: 8px;
+	position: relative;
+	top: 3px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlide .skip {
@@ -603,11 +606,6 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container {
-	display: flex;
-	padding: 8px 16px 16px;
-}
-
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link {
 	padding: 0;
 	background: transparent;
@@ -618,13 +616,9 @@
 	max-width: 100%;
 }
 
-.monaco-workbench .part.editor > .content .gettingStartedContainer .done-next-container .button-link {
-	display: flex;
-	align-items: center;
-}
-
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link.next {
-	margin-left: auto;
+	position: absolute;
+	right: 0;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .button-link:hover {
@@ -651,7 +645,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
-	top: 3px;
+	top: 0;
 }
 
 .monaco-workbench .part.editor > .content .getting-started-category .codicon::before{

@@ -288,7 +288,7 @@ export class TerminalTabbedView extends Disposable {
 		const hasText = this._tabListElement.clientWidth > TerminalTabsListSizes.MidpointViewWidth;
 		this._tabContainer.classList.toggle('has-text', hasText);
 		this._terminalIsTabsNarrowContextKey.set(!hasText);
-		this._tabList.refresh();
+		this._tabList.render();
 	}
 
 	private _addSashListener() {
@@ -467,13 +467,6 @@ export class TerminalTabbedView extends Disposable {
 				this._configurationService.updateValue(TerminalSettingId.TabsEnabled, false);
 			})
 		];
-	}
-
-	setEditable(isEditing: boolean): void {
-		if (!isEditing) {
-			this._tabList.domFocus();
-		}
-		return this._tabList.refresh();
 	}
 
 	focusTabs(): void {

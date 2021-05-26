@@ -144,8 +144,10 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		this._register(model.onDidChangeInternalMetadata(e => {
 			this._onDidChangeState.fire({ internalMetadataChanged: true, runStateChanged: e.runStateChanged });
-			if (e.runStateChanged || e.lastRunSuccessChanged) {
-				// Statusbar visibility may change
+		}));
+
+		this._register(this._viewContext.notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility || e.insertToolbarPosition) {
 				this.layoutChange({});
 			}
 		}));
@@ -158,17 +160,7 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	getEditorStatusbarHeight() {
-		return this.statusBarIsVisible() ? this._viewContext.notebookOptions.computeStatusBarHeight() : 0;
-	}
-
-	private statusBarIsVisible(): boolean {
-		if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar) {
-			return true;
-		} else if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBarAfterExecute) {
-			return typeof this.internalMetadata.lastRunSuccess === 'boolean' || this.internalMetadata.runState !== undefined;
-		} else {
-			return false;
-		}
+		return this._viewContext.notebookOptions.computeStatusBarHeight();
 	}
 
 	abstract hasDynamicHeight(): boolean;

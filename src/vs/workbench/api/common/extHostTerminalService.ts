@@ -350,7 +350,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public getDefaultShellArgs(useAutomationShell: boolean): string[] | string {
 		const profile = useAutomationShell ? this._defaultAutomationProfile : this._defaultProfile;
-		return profile?.args || [];
+		return profile?.args || [''];
 	}
 
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {

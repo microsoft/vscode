@@ -189,7 +189,6 @@ export interface ICellOutput {
 
 export interface CellInternalMetadataChangedEvent {
 	readonly runStateChanged?: boolean;
-	readonly lastRunSuccessChanged?: boolean;
 }
 
 export interface ICell {
@@ -904,7 +903,6 @@ export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
-export const ShowCellStatusBarAfterExecuteKey = 'notebook.showCellStatusBarAfterExecute';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';

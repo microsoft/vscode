@@ -5,8 +5,7 @@
 
 
 import * as assert from 'assert';
-import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { forEach } from 'vs/base/common/collections';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
@@ -81,24 +80,5 @@ suite('ExtHostTypeConverter', function () {
 				assert.strictEqual(entry.value.scheme, 'command');
 			}
 		});
-	});
-
-	test('NotebookCellOutputItem', function () {
-
-		const item = extHostTypes.NotebookCellOutputItem.text('Hello', 'foo/bar');
-
-		const dto = NotebookCellOutputItem.from(item);
-
-		assert.strictEqual(dto.mime, 'foo/bar');
-		assert.strictEqual(dto.metadata, undefined);
-		assert.strictEqual(dto.value, undefined);
-		assert.deepStrictEqual(dto.valueBytes, Array.from(new TextEncoder().encode('Hello')));
-
-		const item2 = NotebookCellOutputItem.to(dto);
-
-		assert.strictEqual(item2.mime, item.mime);
-		assert.strictEqual(item2.metadata, item.metadata);
-		assert.strictEqual(item2.value, item.value);
-		assert.deepStrictEqual(item2.data, item.data);
 	});
 });

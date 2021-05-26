@@ -701,7 +701,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		const isRemote = !!this.environmentService.remoteAuthority;
 
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && (this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -712,6 +712,22 @@ export class SearchResultModel extends SettingsTreeModel {
 			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
 			newExtElement.parent = this._root;
 			this._root.children.push(newExtElement);
+		}
+	}
+
+	private containsValidFeature(): boolean {
+		if (!this._viewState.featureFilters || !this._viewState.featureFilters.size || !tocData.children) {
+			return false;
+		}
+
+		const features = tocData.children.find(child => child.id === 'features');
+
+		if (features && features.children) {
+			return Array.from(this._viewState.featureFilters).some(filter => {
+				return features.children?.find(feature => 'features/' + filter === feature.id);
+			});
+		} else {
+			return false;
 		}
 	}
 

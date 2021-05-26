@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, ShowCellStatusBarAfterExecuteKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -580,12 +580,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
 			type: 'boolean',
 			default: true,
-			tags: ['notebookLayout']
-		},
-		[ShowCellStatusBarAfterExecuteKey]: {
-			description: nls.localize('notebook.showCellStatusbarAfterExecute.description', "Whether the cell status bar should be shown after the cell has been executed."),
-			type: 'boolean',
-			default: false,
 			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {

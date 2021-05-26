@@ -7,7 +7,6 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
-import { TextDecoder } from 'util';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -61,13 +60,13 @@ class Kernel {
 		task.executionOrder = 1;
 		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
 			await task.replaceOutput([new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('test', 'text/custom', undefined)
+				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
 			])]);
 			return;
 		}
 
 		await task.replaceOutput([new vscode.NotebookCellOutput([
-			vscode.NotebookCellOutputItem.text('my output', 'text/plain', undefined)
+			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
 		])]);
 		task.end({ success: true });
 	}
@@ -130,7 +129,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [
 								new vscode.NotebookCellOutput([
-									vscode.NotebookCellOutputItem.text('Hello World', 'text/plain', { testOutputItemMetadata: true })
+									new vscode.NotebookCellOutputItem('text/plain', 'Hello World', { testOutputItemMetadata: true })
 								],
 									{ testOutputMetadata: true })
 							],
@@ -183,7 +182,7 @@ suite('Notebook API tests', function () {
 				const task = this.controller.createNotebookCellExecutionTask(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('my second output', 'text/plain', undefined)
+					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
 				])]);
 				task.end({ success: true });
 			}
@@ -477,7 +476,7 @@ suite('Notebook API tests', function () {
 		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true });
 		assert.strictEqual(secondCell!.outputs[0].outputs.length, 1);
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
-		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].outputs[0].data), 'Hello World');
+		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
 		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
 		assert.strictEqual(secondCell!.executionSummary?.success, true);
@@ -748,7 +747,9 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my output');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'my output'
+			]);
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
@@ -758,7 +759,9 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my second output');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'my second output'
+			]);
 		});
 	});
 
@@ -776,7 +779,7 @@ suite('Notebook API tests', function () {
 					task.start();
 					task.token.onCancellationRequested(async () => {
 						await task.replaceOutput([new vscode.NotebookCellOutput([
-							vscode.NotebookCellOutputItem.text('Canceled', 'text/plain', undefined)
+							new vscode.NotebookCellOutputItem('text/plain', ['Canceled'], undefined)
 						])]);
 						task.end({});
 					});
@@ -798,7 +801,9 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Canceled');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'Canceled'
+			]);
 		});
 
 		cancelableKernel.controller.dispose();
@@ -821,7 +826,7 @@ suite('Notebook API tests', function () {
 
 			async interrupt() {
 				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('Interrupted', 'text/plain', undefined)
+					new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
 				])]);
 				this._task!.end({});
 			}
@@ -840,7 +845,9 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Interrupted');
+			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
+				'Interrupted'
+			]);
 		});
 
 		interruptableKernel.controller.dispose();
@@ -1181,10 +1188,10 @@ suite('Notebook API tests', function () {
 				const task = this.controller.createNotebookCellExecutionTask(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)
+					new vscode.NotebookCellOutputItem('text/plain', ['Some output'], undefined)
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
-				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].outputs[0].data), 'Some output');
+				assert.deepStrictEqual(cell.notebook.cellAt(0).outputs[0].outputs[0].value, ['Some output']);
 				task.end({});
 				called = true;
 			}

@@ -37,7 +37,6 @@ export function detectAvailableProfiles(
 			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
 			safeConfigProvider(TerminalSettingId.ProfilesWindows),
 			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
-			testPaths,
 			variableResolver
 		);
 	}
@@ -59,7 +58,6 @@ async function detectAvailableWindowsProfiles(
 	useWslProfiles?: boolean,
 	configProfiles?: { [key: string]: ITerminalProfileObject },
 	defaultProfileName?: string,
-	testPaths?: string[],
 	variableResolver?: (text: string[]) => Promise<string[]>
 ): Promise<ITerminalProfile[]> {
 	// Determine the correct System32 path. We want to point to Sysnative
@@ -75,7 +73,7 @@ async function detectAvailableWindowsProfiles(
 		useWSLexe = true;
 	}
 
-	await initializeWindowsProfiles(testPaths);
+	await initializeWindowsProfiles();
 
 	const detectedProfiles: Map<string, ITerminalProfileObject> = new Map();
 
@@ -177,7 +175,7 @@ async function transformToTerminalProfiles(
 	return resultProfiles;
 }
 
-async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
+async function initializeWindowsProfiles(): Promise<void> {
 	if (profileSources) {
 		return;
 	}
@@ -199,7 +197,7 @@ async function initializeWindowsProfiles(testPaths?: string[]): Promise<void> {
 	});
 	profileSources.set('PowerShell', {
 		profileName: 'PowerShell',
-		paths: testPaths || await getPowershellPaths(),
+		paths: await getPowershellPaths(),
 		icon: ThemeIcon.asThemeIcon(Codicon.terminalPowershell)
 	});
 }
@@ -247,23 +245,21 @@ async function getWslProfiles(wslPath: string, defaultProfileName: string | unde
 			profileName,
 			path: wslPath,
 			args: [`-d`, `${distroName}`],
-			isDefault: profileName === defaultProfileName,
-			icon: getWslIcon(distroName)
+			isDefault: profileName === defaultProfileName
 		};
+		if (distroName.includes('Ubuntu')) {
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
+		}
+		else if (distroName.includes('Debian')) {
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalDebian);
+		} else {
+			profile.icon = ThemeIcon.asThemeIcon(Codicon.terminalLinux);
+		}
+
 		// Add the profile
 		profiles.push(profile);
 	}
 	return profiles;
-}
-
-function getWslIcon(distroName: string): ThemeIcon {
-	if (distroName.includes('Ubuntu')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalUbuntu);
-	} else if (distroName.includes('Debian')) {
-		return ThemeIcon.asThemeIcon(Codicon.terminalDebian);
-	} else {
-		return ThemeIcon.asThemeIcon(Codicon.terminalLinux);
-	}
 }
 
 async function detectAvailableUnixProfiles(

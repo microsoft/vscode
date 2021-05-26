@@ -126,12 +126,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 		}));
 
-		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition) {
-				this.layoutChange({});
-			}
-		}));
-
 		this._outputCollection = new Array(this.model.outputs.length);
 
 		this._layoutInfo = {
@@ -158,7 +152,6 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
 		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
 
-		const originalLayout = this.layoutInfo;
 		if (!this.metadata.inputCollapsed) {
 			let newState: CodeCellLayoutState;
 			let editorHeight: number;
@@ -242,7 +235,10 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			};
 		}
 
-		state.totalHeight = this.layoutInfo.totalHeight !== originalLayout.totalHeight;
+		if (state.editorHeight || state.outputHeight) {
+			state.totalHeight = true;
+		}
+
 		state.source = source;
 
 		this._fireOnDidChangeLayout(state);

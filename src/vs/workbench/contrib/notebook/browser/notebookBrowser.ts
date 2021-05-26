@@ -235,7 +235,6 @@ export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
-	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -243,8 +242,6 @@ export interface MarkdownCellLayoutInfo {
 export interface MarkdownCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
-	editorHeight?: number;
-	previewHeight?: number;
 	totalHeight?: number;
 }
 
