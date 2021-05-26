@@ -16,10 +16,11 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellEditType, IImmediateCellEditOperation, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, IImmediateCellEditOperation, IOutputDto, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
+import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -388,9 +389,24 @@ class NotebookCellExecutionTask extends Disposable {
 		return cell.handle;
 	}
 
+	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): IOutputDto[] {
+		return items.map(output => {
+			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.outputs, true);
+			if (newOutput === output.outputs) {
+				return extHostTypeConverters.NotebookCellOutput.from(output);
+			}
+			return extHostTypeConverters.NotebookCellOutput.from({
+				outputs: newOutput,
+				id: output.id,
+				metadata: output.metadata
+			});
+		});
+	}
+
 	asApiObject(): vscode.NotebookCellExecutionTask {
 		const that = this;
 		return Object.freeze(<vscode.NotebookCellExecutionTask>{
+			get token() { return that._tokenSource.token; },
 			get document() { return that._document.apiNotebook; },
 			get cell() { return that._cell.apiCell; },
 
@@ -439,30 +455,28 @@ class NotebookCellExecutionTask extends Disposable {
 			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
-				outputs = asArray(outputs);
-				return that.applyEditSoon({ editType: CellEditType.Output, handle, append: true, outputs: outputs.map(extHostTypeConverters.NotebookCellOutput.from) });
+				const outputDtos = that.validateAndConvertOutputs(asArray(outputs));
+				return that.applyEditSoon({ editType: CellEditType.Output, handle, append: true, outputs: outputDtos });
 			},
 
 			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
 				that.verifyStateForOutput();
 				const handle = that.cellIndexToHandle(cellIndex);
-				outputs = asArray(outputs);
-				return that.applyEditSoon({ editType: CellEditType.Output, handle, outputs: outputs.map(extHostTypeConverters.NotebookCellOutput.from) });
+				const outputDtos = that.validateAndConvertOutputs(asArray(outputs));
+				return that.applyEditSoon({ editType: CellEditType.Output, handle, outputs: outputDtos });
 			},
 
 			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
-				items = asArray(items);
+				items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
 				return that.applyEditSoon({ editType: CellEditType.OutputItems, append: true, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
 			},
 
 			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
 				that.verifyStateForOutput();
-				items = asArray(items);
+				items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
 				return that.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
-			},
-
-			token: that._tokenSource.token
+			}
 		});
 	}
 }

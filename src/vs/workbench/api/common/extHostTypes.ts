@@ -8,7 +8,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { normalizeMimeType } from 'vs/base/common/mime';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -3156,14 +3156,38 @@ export class NotebookCellOutputItem {
 		if (!(data instanceof Uint8Array)) {
 			this.value = data;
 		}
-		if (isFalsyOrWhitespace(this.mime)) {
-			throw new Error('INVALID mime type, must not be empty or falsy');
+
+		const mimeNormalized = normalizeMimeType(mime, true);
+		if (!mimeNormalized) {
+			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
 		}
-		// todo@joh stringify and check metadata and throw when not JSONable
+		this.mime = mimeNormalized;
 	}
 }
 
 export class NotebookCellOutput {
+
+	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
+		const seen = new Set<string>();
+		const removeIdx = new Set<number>();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const normalMime = normalizeMimeType(item.mime);
+			if (!seen.has(normalMime)) {
+				seen.add(normalMime);
+				continue;
+			}
+			// duplicated mime types... first has won
+			removeIdx.add(i);
+			if (warn) {
+				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
+			}
+		}
+		if (removeIdx.size === 0) {
+			return items;
+		}
+		return items.filter((_item, index) => !removeIdx.has(index));
+	}
 
 	id: string;
 	outputs: NotebookCellOutputItem[];
@@ -3174,7 +3198,7 @@ export class NotebookCellOutput {
 		idOrMetadata?: string | Record<string, any>,
 		metadata?: Record<string, any>
 	) {
-		this.outputs = outputs;
+		this.outputs = NotebookCellOutput.ensureUniqueMimeTypes(outputs, true);
 		if (typeof idOrMetadata === 'string') {
 			this.id = idOrMetadata;
 			this.metadata = metadata;
