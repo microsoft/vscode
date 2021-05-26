@@ -143,7 +143,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment
 		};
-		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		let terminal: ITerminalInstance | undefined;
+		if (launchConfig.isSplitTerminal) {
+			const activeInstance = this._terminalService.getActiveInstance();
+			if (activeInstance) {
+				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+			}
+		}
+		if (!terminal) {
+			terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
 
@@ -205,10 +214,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerProfileProvider(id: string): void {
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(id, {
-			provideProfile: async () => {
-				console.log('provide profile', id);
-				return { name: 'My fake profile' };
-			}
+			createContributedTerminalProfile: async () => this._proxy.$createContributedProfileTerminal(id)
 		}));
 	}
 

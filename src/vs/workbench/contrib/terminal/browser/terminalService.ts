@@ -962,7 +962,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			// TODO: How to support alt here?
+			// Legacy implementation - remove when js-debug adopts new
 			if ('command' in value.profile) {
 				return this._commandService.executeCommand(value.profile.command);
 			}
@@ -977,13 +977,14 @@ export class TerminalService implements ITerminalService {
 					this._notificationService.error(`No terminal profile provider registered for id "${value.profile.id}"`);
 					return;
 				}
-				const slc = await profileProvider.provideProfile();
-				if (keyMods?.alt && activeInstance) {
-					// create split, only valid if there's an active instance
-					instance = this.splitInstance(activeInstance, slc);
-				} else {
-					instance = this.createTerminal(slc);
-				}
+				await profileProvider.createContributedTerminalProfile(!!(keyMods?.alt && activeInstance));
+				// TODO: Pass in cwd here? cwd should probably still be inherited
+				// if (keyMods?.alt && activeInstance) {
+				// 	// create split, only valid if there's an active instance
+				// 	instance = this.splitInstance(activeInstance, slc);
+				// } else {
+				// 	instance = this.createTerminal(slc);
+				// }
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {

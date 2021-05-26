@@ -27,6 +27,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		this._terminals.push(terminal);
+		// TODO: Pass in options instead of individual props
 		terminal.create(
 			withNullAsUndefined(options.shellPath),
 			withNullAsUndefined(options.shellArgs),
@@ -39,7 +40,8 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.hideFromUser),
 			withNullAsUndefined(internalOptions?.isFeatureTerminal),
 			true,
-			withNullAsUndefined(internalOptions?.useShellEnvironment)
+			withNullAsUndefined(internalOptions?.useShellEnvironment),
+			withNullAsUndefined(internalOptions?.isSplitTerminal)
 		);
 		return terminal.value;
 	}

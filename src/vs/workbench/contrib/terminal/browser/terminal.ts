@@ -227,7 +227,7 @@ export interface ITerminalExternalLinkProvider {
 }
 
 export interface ITerminalProfileProvider {
-	provideProfile(): Promise<IShellLaunchConfig>;
+	createContributedTerminalProfile(isSplitTerminal: boolean): Promise<void>;
 }
 
 export interface ITerminalLink {

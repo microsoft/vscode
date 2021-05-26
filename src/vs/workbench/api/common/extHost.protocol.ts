@@ -464,6 +464,7 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
+	isSplitTerminal?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -1713,6 +1714,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
+	$createContributedProfileTerminal(id: string): Promise<void>;
 }
 
 export interface ExtHostSCMShape {

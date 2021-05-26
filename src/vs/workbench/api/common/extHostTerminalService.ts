@@ -49,6 +49,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
+	isSplitTerminal?: boolean;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -130,12 +131,13 @@ export class ExtHostTerminal {
 		hideFromUser?: boolean,
 		isFeatureTerminal?: boolean,
 		isExtensionOwnedTerminal?: boolean,
-		useShellEnvironment?: boolean
+		useShellEnvironment?: boolean,
+		isSplitTerminal?: boolean
 	): Promise<void> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal, useShellEnvironment });
+		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal, useShellEnvironment, isSplitTerminal });
 	}
 
 	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
@@ -584,6 +586,22 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
 		});
+	}
+
+	public async $createContributedProfileTerminal(id: string): Promise<void> {
+		// TODO: Use cancellation token
+		const options = await this._profileProviders.get(id)?.provideProfileOptions(new CancellationTokenSource().token);
+		if (!options) {
+			throw new Error(`No terminal profile options provided for id "${id}"`);
+		}
+		if ('pty' in options) {
+			// TODO: Pass in split terminal option
+			this.createExtensionTerminal(options);
+		}
+		// if (options.iconPath) {
+		// 	checkProposedApiEnabled(extension);
+		// }
+		this.createTerminalFromOptions(options, { isSplitTerminal: true });
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
