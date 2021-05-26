@@ -412,22 +412,47 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined> {
-		const knownProfile = this._terminalService.availableProfiles?.find(p => p.path === shell);
+		const detectedProfile = this._terminalService.availableProfiles?.find(p => p.path === shell);
 		const fallbackProfile = (await this.getDefaultProfile({
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
 			os: this._primaryBackendOs!
 		}));
-		shell = knownProfile?.profileName || fallbackProfile.profileName;
-		const path = knownProfile?.path || fallbackProfile.path;
-		if (!shell || typeof shell !== 'string') {
-			return undefined;
-		}
-		return {
-			profileName: shell,
-			path: path,
-			args: typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : undefined,
+		const profileName = detectedProfile?.profileName || fallbackProfile.profileName;
+		const path = detectedProfile?.path || fallbackProfile.path;
+		const args = typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : undefined;
+		const createdProfile = {
+			profileName,
+			path,
+			args,
 			isDefault: true
 		};
+		return this._profilesMatch(createdProfile, detectedProfile) ? undefined : createdProfile;
+	}
+
+	private _profilesMatch(createdProfile: ITerminalProfile, detectedProfile?: ITerminalProfile): boolean {
+		if (!detectedProfile) {
+			return false;
+		}
+		return detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args);
+	}
+
+	private _argsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
+		if (!args1 && !args2) {
+			return true;
+		} else if (typeof args1 === 'string' && typeof args2 === 'string') {
+			return args1 === args2;
+		} else if (Array.isArray(args1) && Array.isArray(args2)) {
+			if (args1.length !== args2.length) {
+				return false;
+			}
+			for (let i = 0; i < args1.length; i++) {
+				if (args1[i] !== args2[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
 	}
 }
 
