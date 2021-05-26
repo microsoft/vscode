@@ -105,17 +105,8 @@ body.showEditorSelection li.code-line:hover:before {
 .vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
 	border-left: none;
 }
-ul ul{
-	margin-bottom: 0%;
-}
-ul ol{
-	margin-bottom: 0%;
-}
-ol ul{
-	margin-bottom: 0%;
-}
-ol ol{
-	margin-bottom: 0%;
+ul ul,ul ol,ol ul,ol ol{
+	margin-bottom: 0;
 }
 
 img {
