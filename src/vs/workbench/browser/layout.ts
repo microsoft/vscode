@@ -1628,7 +1628,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = 'compact';
+			newVisibilityValue = getTitleBarStyle(this.configurationService) === 'native' ? 'toggle' : 'compact';
 		} else {
 			newVisibilityValue = 'classic';
 		}
