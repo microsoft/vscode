@@ -250,13 +250,17 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const icon = choose(infoIcon, shieldIcon, infoIcon);
 		const ariaLabel = choose(
 			localize('virtualBannerAriaLabel', "Some features are not available because the current workspace is backed by a virtual file system. Use navigation keys to access banner actions."),
-			localize('restrictedModeBannerAriaLabel', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
+			this.useWorkspaceLanguage ?
+				localize('restrictedModeBannerAriaLabelWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features. Use navigation keys to access banner actions.") :
+				localize('restrictedModeBannerAriaLabelFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
 			localize('virtualAndRestrictedModeBannerAriaLabel', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enable some of these features. Use navigation keys to access banner actions."),
 		);
 
 		const message = choose(
 			localize('virtualBannerMessage', "Some features are not available because the current workspace is backed by a virtual file system."),
-			localize('restrictedModeBannerMessage', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
+			this.useWorkspaceLanguage ?
+				localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.") :
+				localize('restrictedModeBannerMessageLocal', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
 			localize('virtualAndRestrictedModeBannerMessage', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enabled some of these features."),
 		);
 
