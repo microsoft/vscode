@@ -862,6 +862,7 @@ class TestMessageElement implements ITreeElement {
 type TreeElement = TestResultElement | TestCaseElement | TestMessageElement | TestTaskElement;
 
 class OutputPeekTree extends Disposable {
+	private disposed = false;
 	private readonly tree: WorkbenchCompressibleObjectTree<TreeElement, FuzzyScore>;
 	private readonly treeActions: TreeActionsProvider;
 
@@ -971,6 +972,13 @@ class OutputPeekTree extends Disposable {
 		}));
 
 		this._register(results.onResultsChanged(e => {
+			// little hack here: a result change can cause the peek to be disposed,
+			// but this listener will still be queued. Doing stuff with the tree
+			// will cause errors.
+			if (this.disposed) {
+				return;
+			}
+
 			if ('completed' in e) {
 				const resultNode = creationCache.get(e.completed);
 				if (resultNode && this.tree.hasElement(resultNode)) {
@@ -1055,6 +1063,11 @@ class OutputPeekTree extends Disposable {
 			getActionsContext: () => evt.element?.context,
 			onHide: () => actions.dispose(),
 		});
+	}
+
+	public override dispose() {
+		super.dispose();
+		this.disposed = true;
 	}
 }
 
