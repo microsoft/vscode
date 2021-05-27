@@ -15,11 +15,13 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inli
 import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class GhostTextController extends Disposable {
 	public static readonly inlineCompletionsVisible = new RawContextKey<boolean>('inlineCompletionsVisible ', false, nls.localize('inlineCompletionsVisible', "Whether inline suggestions are visible"));
+	public static readonly inlineCompletionSuggestsIndentation = new RawContextKey<boolean>('inlineCompletionSuggestsIndentation', false, nls.localize('inlineCompletionSuggestsIndentation', "Whether the inline suggestion suggests extending indentation"));
+
 	static ID = 'editor.contrib.ghostTextController';
 
 	public static get(editor: ICodeEditor): GhostTextController {
@@ -88,6 +90,7 @@ export class GhostTextController extends Disposable {
 
 class GhostTextContextKeys {
 	public readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
+	public readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineCompletionSuggestsIndentation.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
 	}
@@ -130,6 +133,21 @@ export class ActiveGhostTextController extends Disposable {
 			this.widget.model === this.inlineCompletionsModel
 			&& this.inlineCompletionsModel.ghostText !== undefined
 		);
+
+		if (this.inlineCompletionsModel.ghostText) {
+			const firstLine = this.inlineCompletionsModel.ghostText.lines[0] || '';
+			const suggestionStartsWithWs = firstLine.startsWith(' ') || firstLine.startsWith('\t');
+			const p = this.inlineCompletionsModel.ghostText.position;
+			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(p.lineNumber);
+			const inIndentation = p.column <= indentationEndColumn;
+
+			this.contextKeys.inlineCompletionSuggestsIndentation.set(
+				this.widget.model === this.inlineCompletionsModel
+				&& suggestionStartsWithWs && inIndentation
+			);
+		} else {
+			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+		}
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {
@@ -182,7 +200,10 @@ const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.ge
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'commitInlineCompletion',
-	precondition: GhostTextController.inlineCompletionsVisible,
+	precondition: ContextKeyExpr.and(
+		GhostTextController.inlineCompletionsVisible,
+		GhostTextController.inlineCompletionSuggestsIndentation.toNegated()
+	),
 	kbOpts: {
 		weight: 100,
 		primary: KeyCode.Tab,
