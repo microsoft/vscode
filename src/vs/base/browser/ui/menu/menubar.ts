@@ -422,7 +422,7 @@ export class MenuBar extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.menuCache.forEach(menuBarMenu => {
@@ -976,7 +976,7 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${this.container.clientHeight}px`;
+			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
 			menuHolder.style.left = `${buttonBoundingRect.left}px`;
 		}
 

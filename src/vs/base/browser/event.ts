@@ -4,14 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
 export interface IDomEvent {
 	<K extends keyof HTMLElementEventMap>(element: EventHandler, type: K, useCapture?: boolean): BaseEvent<HTMLElementEventMap[K]>;
-	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<any>;
+	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<unknown>;
 }
 
+/**
+ * @deprecated Use `DomEmitter` instead
+ */
 export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
 	const fn = (e: Event) => emitter.fire(e);
 	const emitter = new Emitter<Event>({
@@ -25,6 +29,27 @@ export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapt
 
 	return emitter.event;
 };
+
+export class DomEmitter<K extends keyof HTMLElementEventMap> implements IDisposable {
+
+	private emitter: Emitter<HTMLElementEventMap[K]>;
+
+	get event(): BaseEvent<HTMLElementEventMap[K]> {
+		return this.emitter.event;
+	}
+
+	constructor(element: EventHandler, type: K, useCapture?: boolean) {
+		const fn = (e: Event) => this.emitter.fire(e as HTMLElementEventMap[K]);
+		this.emitter = new Emitter({
+			onFirstListenerAdd: () => element.addEventListener(type, fn, useCapture),
+			onLastListenerRemove: () => element.removeEventListener(type, fn, useCapture)
+		});
+	}
+
+	dispose(): void {
+		this.emitter.dispose();
+	}
+}
 
 export interface CancellableEvent {
 	preventDefault(): void;

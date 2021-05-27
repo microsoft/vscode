@@ -6,10 +6,6 @@
 import * as pfs from 'vs/base/node/pfs';
 import * as os from 'os';
 import * as path from 'vs/base/common/path';
-import { env } from 'vs/base/common/process';
-
-const WindowsPowerShell64BitLabel = 'Windows PowerShell';
-const WindowsPowerShell32BitLabel = 'Windows PowerShell (x86)';
 
 // This is required, since parseInt("7-preview") will return 7.
 const IntRegex: RegExp = /^\d+$/;
@@ -17,9 +13,66 @@ const IntRegex: RegExp = /^\d+$/;
 const PwshMsixRegex: RegExp = /^Microsoft.PowerShell_.*/;
 const PwshPreviewMsixRegex: RegExp = /^Microsoft.PowerShellPreview_.*/;
 
-// The platform details descriptor for the platform we're on
-const isProcess64Bit: boolean = process.arch === 'x64';
-const isOS64Bit: boolean = isProcess64Bit || os.arch() === 'x64';
+const enum Arch {
+	x64,
+	x86,
+	ARM
+}
+
+let processArch: Arch;
+switch (process.arch) {
+	case 'ia32':
+	case 'x32':
+		processArch = Arch.x86;
+		break;
+	case 'arm':
+	case 'arm64':
+		processArch = Arch.ARM;
+		break;
+	default:
+		processArch = Arch.x64;
+		break;
+}
+
+/*
+Currently, here are the values for these environment variables on their respective archs:
+
+On x86 process on x86:
+PROCESSOR_ARCHITECTURE is X86
+PROCESSOR_ARCHITEW6432 is undefined
+
+On x86 process on x64:
+PROCESSOR_ARCHITECTURE is X86
+PROCESSOR_ARCHITEW6432 is AMD64
+
+On x64 process on x64:
+PROCESSOR_ARCHITECTURE is AMD64
+PROCESSOR_ARCHITEW6432 is undefined
+
+On ARM process on ARM:
+PROCESSOR_ARCHITECTURE is ARM64
+PROCESSOR_ARCHITEW6432 is undefined
+
+On x86 process on ARM:
+PROCESSOR_ARCHITECTURE is X86
+PROCESSOR_ARCHITEW6432 is ARM64
+
+On x64 process on ARM:
+PROCESSOR_ARCHITECTURE is ARM64
+PROCESSOR_ARCHITEW6432 is undefined
+*/
+let osArch: Arch;
+if (process.env['PROCESSOR_ARCHITEW6432']) {
+	osArch = process.env['PROCESSOR_ARCHITEW6432'] === 'ARM64'
+		? Arch.ARM
+		: Arch.x64;
+} else if (process.env['PROCESSOR_ARCHITECTURE'] === 'ARM64') {
+	osArch = Arch.ARM;
+} else if (process.env['PROCESSOR_ARCHITECTURE'] === 'X86') {
+	osArch = Arch.x86;
+} else {
+	osArch = Arch.x64;
+}
 
 export interface IPowerShellExeDetails {
 	readonly displayName: string;
@@ -49,43 +102,21 @@ function getProgramFilesPath(
 
 	if (!useAlternateBitness) {
 		// Just use the native system bitness
-		return env.ProgramFiles || null;
+		return process.env.ProgramFiles || null;
 	}
 
 	// We might be a 64-bit process looking for 32-bit program files
-	if (isProcess64Bit) {
-		return env['ProgramFiles(x86)'] || null;
+	if (processArch === Arch.x64) {
+		return process.env['ProgramFiles(x86)'] || null;
 	}
 
 	// We might be a 32-bit process looking for 64-bit program files
-	if (isOS64Bit) {
-		return env.ProgramW6432 || null;
+	if (osArch === Arch.x64) {
+		return process.env.ProgramW6432 || null;
 	}
 
 	// We're a 32-bit process on 32-bit Windows, there is no other Program Files dir
 	return null;
-}
-
-function getSystem32Path({ useAlternateBitness = false }: { useAlternateBitness?: boolean } = {}): string {
-	const windir: string = env.windir!;
-
-	if (!useAlternateBitness) {
-		// Just use the native system bitness
-		return path.join(windir, 'System32');
-	}
-
-	// We might be a 64-bit process looking for 32-bit system32
-	if (isProcess64Bit) {
-		return path.join(windir, 'SysWOW64');
-	}
-
-	// We might be a 32-bit process looking for 64-bit system32
-	if (isOS64Bit) {
-		return path.join(windir, 'Sysnative');
-	}
-
-	// We're on a 32-bit Windows, so no alternate bitness
-	return path.join(windir, 'System32');
 }
 
 async function findPSCoreWindowsInstallation(
@@ -162,12 +193,12 @@ async function findPSCoreWindowsInstallation(
 
 async function findPSCoreMsix({ findPreview }: { findPreview?: boolean } = {}): Promise<IPossiblePowerShellExe | null> {
 	// We can't proceed if there's no LOCALAPPDATA path
-	if (!env.LOCALAPPDATA) {
+	if (!process.env.LOCALAPPDATA) {
 		return null;
 	}
 
 	// Find the base directory for MSIX application exe shortcuts
-	const msixAppDir = path.join(env.LOCALAPPDATA, 'Microsoft', 'WindowsApps');
+	const msixAppDir = path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WindowsApps');
 
 	if (!await pfs.SymlinkSupport.existsDirectory(msixAppDir)) {
 		return null;
@@ -196,33 +227,13 @@ function findPSCoreDotnetGlobalTool(): IPossiblePowerShellExe {
 	return new PossiblePowerShellExe(dotnetGlobalToolExePath, '.NET Core PowerShell Global Tool');
 }
 
-function findWinPS({ useAlternateBitness = false }: { useAlternateBitness?: boolean } = {}): IPossiblePowerShellExe | null {
+function findWinPS(): IPossiblePowerShellExe | null {
+	const winPSPath = path.join(
+		process.env.windir!,
+		processArch === Arch.x86 && osArch !== Arch.x86 ? 'SysNative' : 'System32',
+		'WindowsPowerShell', 'v1.0', 'powershell.exe');
 
-	// x86 and ARM only have one WinPS on them
-	if (!isOS64Bit && useAlternateBitness) {
-		return null;
-	}
-
-	const systemFolderPath = getSystem32Path({ useAlternateBitness });
-
-	const winPSPath = path.join(systemFolderPath, 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-
-	let displayName: string;
-	if (isProcess64Bit) {
-		displayName = useAlternateBitness
-			? WindowsPowerShell32BitLabel
-			: WindowsPowerShell64BitLabel;
-	} else if (isOS64Bit) {
-		displayName = useAlternateBitness
-			? WindowsPowerShell64BitLabel
-			: WindowsPowerShell32BitLabel;
-	} else {
-		// NOTE: ARM Windows devices also have Windows PowerShell x86 on them. There is no
-		// "ARM Windows PowerShell".
-		displayName = WindowsPowerShell32BitLabel;
-	}
-
-	return new PossiblePowerShellExe(winPSPath, displayName, true);
+	return new PossiblePowerShellExe(winPSPath, 'Windows PowerShell', true);
 }
 
 /**
@@ -276,15 +287,7 @@ async function* enumerateDefaultPowerShellInstallations(): AsyncIterable<IPossib
 	}
 
 	// Finally, get Windows PowerShell
-
-	// Get the natural Windows PowerShell for the process bitness
 	pwshExe = findWinPS();
-	if (pwshExe) {
-		yield pwshExe;
-	}
-
-	// Get the alternate bitness Windows PowerShell
-	pwshExe = findWinPS({ useAlternateBitness: true });
 	if (pwshExe) {
 		yield pwshExe;
 	}

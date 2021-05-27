@@ -25,6 +25,7 @@ const $ = dom.$;
 export class MarkdownHover implements IHoverPart {
 
 	constructor(
+		public readonly owner: IEditorHoverParticipant<MarkdownHover>,
 		public readonly range: Range,
 		public readonly contents: IMarkdownString[]
 	) { }
@@ -47,7 +48,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 	) { }
 
 	public createLoadingMessage(range: Range): MarkdownHover {
-		return new MarkdownHover(range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
+		return new MarkdownHover(this, range, [new MarkdownString().appendText(nls.localize('modesContentHover.loading', "Loading..."))]);
 	}
 
 	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkdownHover[] {
@@ -69,13 +70,13 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 			}
 
 			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
-			result.push(new MarkdownHover(range, asArray(hoverMessage)));
+			result.push(new MarkdownHover(this, range, asArray(hoverMessage)));
 		}
 
 		return result;
 	}
 
-	public async computeAsync(range: Range, token: CancellationToken): Promise<MarkdownHover[]> {
+	public async computeAsync(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<MarkdownHover[]> {
 		if (!this._editor.hasModel() || !range) {
 			return Promise.resolve([]);
 		}
@@ -97,7 +98,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 				continue;
 			}
 			const rng = hover.range ? Range.lift(hover.range) : range;
-			result.push(new MarkdownHover(rng, hover.contents));
+			result.push(new MarkdownHover(this, rng, hover.contents));
 		}
 		return result;
 	}

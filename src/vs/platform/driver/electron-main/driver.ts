@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IDriverOptions } from 'vs/platform/driver/node/driver';
+import { DriverChannel, WindowDriverRegistryChannel } from 'vs/platform/driver/node/driver';
+import { WindowDriverChannelClient } from 'vs/platform/driver/common/driverIpc';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -17,7 +18,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ScanCodeBinding } from 'vs/base/common/scanCode';
 import { KeybindingParser } from 'vs/base/common/keybindingParser';
 import { timeout } from 'vs/base/common/async';
-import { IDriver, IElement, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IDriver, IDriverOptions, IElement, IWindowDriver, IWindowDriverRegistry } from 'vs/platform/driver/common/driver';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 
@@ -62,7 +63,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		await this.whenUnfrozen(windowId);
 
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
@@ -101,7 +102,7 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		}
 
 		const window = this.windowsMainService.getWindowById(windowId);
-		if (!window) {
+		if (!window?.win) {
 			throw new Error('Invalid window');
 		}
 		const webContents = window.win.webContents;
@@ -207,10 +208,10 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
-	environmentService: IEnvironmentMainService,
+	environmentMainService: IEnvironmentMainService,
 	instantiationService: IInstantiationService
 ): Promise<IDisposable> {
-	const verbose = environmentService.driverVerbose;
+	const verbose = environmentMainService.driverVerbose;
 	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);

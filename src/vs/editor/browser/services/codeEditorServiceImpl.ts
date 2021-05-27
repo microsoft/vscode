@@ -11,7 +11,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class RefCountedStyleSheet {
@@ -88,7 +87,10 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 	private readonly _editorStyleSheets = new Map<string, RefCountedStyleSheet>();
 	private readonly _themeService: IThemeService;
 
-	constructor(@IThemeService themeService: IThemeService, styleSheet: GlobalStyleSheet | null = null) {
+	constructor(
+		styleSheet: GlobalStyleSheet | null,
+		@IThemeService themeService: IThemeService,
+	) {
 		super();
 		this._globalStyleSheet = styleSheet ? styleSheet : null;
 		this._themeService = themeService;
@@ -169,9 +171,6 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		}
 		return provider.resolveDecorationCSSRules();
 	}
-
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -328,7 +327,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 }
 
 
-const _CSS_MAP: { [prop: string]: string; } = {
+export const _CSS_MAP: { [prop: string]: string; } = {
 	color: 'color:{0} !important;',
 	opacity: 'opacity:{0};',
 	backgroundColor: 'background-color:{0};',

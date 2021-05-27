@@ -4,7 +4,7 @@
   "description": "%description%",
   "enableProposedApi": true,
   "version": "1.0.0",
-  "icon": "icon.png",
+  "icon": "media/icon.png",
   "publisher": "vscode",
   "license": "MIT",
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
@@ -16,12 +16,23 @@
   "categories": [
     "Other"
   ],
+  "extensionKind": [
+    "ui",
+    "workspace",
+    "web"
+  ],
   "activationEvents": [
     "onCommand:simpleBrowser.show",
     "onCommand:simpleBrowser.api.open",
     "onOpenExternalUri:http",
     "onOpenExternalUri:https"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "commands": [
       {
@@ -49,22 +60,18 @@
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "webpack --mode development",
-    "build-preview-production": "webpack --mode production",
+    "build-preview": "npx webpack-cli --mode development",
+    "build-preview-production": "npx webpack-cli --mode production",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-codicons": "^0.0.12",
-    "vscode-extension-telemetry": "0.1.1",
+    "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.11.7",
-    "ts-loader": "^6.2.1",
-    "typescript": "^3.7.3",
-    "webpack": "^4.41.2",
-    "webpack-cli": "^3.3.0"
+    "vscode-codicons": "^0.0.14",
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

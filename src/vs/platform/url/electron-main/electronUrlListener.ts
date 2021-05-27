@@ -6,7 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IURLService } from 'vs/platform/url/common/url';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { app, Event as ElectronEvent } from 'electron';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
@@ -43,7 +43,8 @@ export class ElectronURLListener {
 		initialUrisToHandle: { uri: URI, url: string }[],
 		private readonly urlService: IURLService,
 		windowsMainService: IWindowsMainService,
-		environmentService: IEnvironmentMainService
+		environmentMainService: IEnvironmentMainService,
+		productService: IProductService
 	) {
 
 		// the initial set of URIs we need to handle once the window is ready
@@ -51,9 +52,9 @@ export class ElectronURLListener {
 
 		// Windows: install as protocol handler
 		if (isWindows) {
-			const windowsParameters = environmentService.isBuilt ? [] : [`"${environmentService.appRoot}"`];
+			const windowsParameters = environmentMainService.isBuilt ? [] : [`"${environmentMainService.appRoot}"`];
 			windowsParameters.push('--open-url', '--');
-			app.setAsDefaultProtocolClient(product.urlProtocol, process.execPath, windowsParameters);
+			app.setAsDefaultProtocolClient(productService.urlProtocol, process.execPath, windowsParameters);
 		}
 
 		// macOS: listen to `open-url` events from here on to handle
@@ -82,7 +83,7 @@ export class ElectronURLListener {
 		if (isWindowReady) {
 			this.flush();
 		} else {
-			Event.once(windowsMainService.onWindowReady)(this.flush, this, this.disposables);
+			Event.once(windowsMainService.onDidSignalReadyWindow)(this.flush, this, this.disposables);
 		}
 	}
 

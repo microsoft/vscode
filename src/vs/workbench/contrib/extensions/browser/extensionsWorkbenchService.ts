@@ -16,7 +16,7 @@ import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IExtensionIdentifier, InstallOperation, DefaultIconPath, InstallOptions
 } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensioManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet, groupByExtension, ExtensionIdentifierWithVersion, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -36,12 +36,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getExtensionKind } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkspaceTrustService, WorkspaceTrustState } from 'vs/platform/workspace/common/workspaceTrust';
+import { isBoolean } from 'vs/base/common/types';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -393,6 +393,14 @@ class Extensions extends Disposable {
 		return false;
 	}
 
+	private async syncInstalledExtensionWithGallery(extension: Extension): Promise<void> {
+		const compatible = await this.galleryService.getCompatibleExtension(extension.identifier);
+		if (compatible) {
+			extension.gallery = compatible;
+			this._onChange.fire({ extension });
+		}
+	}
+
 	private getInstalledExtensionMatchingGallery(gallery: IGalleryExtension): Extension | null {
 		for (const installed of this.installed) {
 			if (installed.uuid) { // Installed from Gallery
@@ -442,6 +450,9 @@ class Extensions extends Disposable {
 			}
 		}
 		this._onChange.fire(error || !extension ? undefined : { extension, operation: event.operation });
+		if (extension && !extension.gallery) {
+			this.syncInstalledExtensionWithGallery(extension);
+		}
 	}
 
 	private onUninstallExtension(identifier: IExtensionIdentifier): void {
@@ -454,13 +465,13 @@ class Extensions extends Disposable {
 	}
 
 	private onDidUninstallExtension({ identifier, error }: DidUninstallExtensionEvent): void {
+		const uninstalled = this.uninstalling.find(e => areSameExtensions(e.identifier, identifier)) || this.installed.find(e => areSameExtensions(e.identifier, identifier));
+		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
 		if (!error) {
 			this.installed = this.installed.filter(e => !areSameExtensions(e.identifier, identifier));
 		}
-		const uninstalling = this.uninstalling.filter(e => areSameExtensions(e.identifier, identifier))[0];
-		this.uninstalling = this.uninstalling.filter(e => !areSameExtensions(e.identifier, identifier));
-		if (uninstalling) {
-			this._onChange.fire({ extension: uninstalling });
+		if (uninstalled) {
+			this._onChange.fire({ extension: uninstalled });
 		}
 	}
 
@@ -510,7 +521,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkbenchExtensioManagementService private readonly extensionManagementService: IWorkbenchExtensioManagementService,
+		@IWorkbenchExtensionManagementService private readonly extensionManagementService: IWorkbenchExtensionManagementService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -526,7 +537,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceTrustService private readonly workspaceTrustService: IWorkspaceTrustService
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -558,6 +569,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				if (this.isAutoCheckUpdatesEnabled()) {
 					this.checkForUpdates();
 				}
+			}
+		}, this));
+
+		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
+			if (this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+				this.checkForUpdates();
 			}
 		}, this));
 
@@ -696,7 +713,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return extensionsToChoose[0];
 		}
 
-		const extensionKinds = getExtensionKind(manifest, this.productService, this.configurationService);
+		const extensionKinds = this.extensionManifestPropertiesService.getExtensionKind(manifest);
 
 		let extension = extensionsToChoose.find(extension => {
 			for (const extensionKind of extensionKinds) {
@@ -834,8 +851,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promise.resolve(this.syncDelayer.trigger(() => this.syncWithGallery(), 0));
 	}
 
+	private getAutoUpdateValue(): boolean | 'onlyEnabledExtensions' {
+		const autoUpdate = this.configurationService.getValue<boolean | 'onlyEnabledExtensions'>(AutoUpdateConfigurationKey);
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
+
 	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
+		return this.getAutoUpdateValue() !== false;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -884,7 +906,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		const toUpdate = this.outdated.filter(e =>
+			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
+			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
+		);
+
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 
@@ -1033,54 +1059,33 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private async installFromVSIX(vsix: URI): Promise<IExtension> {
 		const manifest = await this.extensionManagementService.getManifest(vsix);
-		return this.promptForTrustIfNeededAndInstall(manifest, async () => {
-			const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
-			const { identifier } = await this.extensionManagementService.install(vsix);
+		const existingExtension = this.local.find(local => areSameExtensions(local.identifier, { id: getGalleryExtensionId(manifest.publisher, manifest.name) }));
+		const { identifier } = await this.extensionManagementService.install(vsix);
 
-			if (existingExtension && existingExtension.latestVersion !== manifest.version) {
-				this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
-			}
+		if (existingExtension && existingExtension.latestVersion !== manifest.version) {
+			this.ignoreAutoUpdate(new ExtensionIdentifierWithVersion(identifier, manifest.version));
+		}
 
-			return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
-		});
+		return this.local.filter(local => areSameExtensions(local.identifier, identifier))[0];
 	}
 
 	private async installFromGallery(extension: IExtension, gallery: IGalleryExtension, installOptions?: InstallOptions): Promise<IExtension> {
-		const manifest = await extension.getManifest(CancellationToken.None);
-
-		if (manifest) {
-			this.promptForTrustIfNeededAndInstall(manifest, async () => {
-				this.installing.push(extension);
-				this._onChange.fire(extension);
-				try {
-					if (extension.state === ExtensionState.Installed && extension.local) {
-						await this.extensionManagementService.updateFromGallery(gallery, extension.local);
-					} else {
-						await this.extensionManagementService.installFromGallery(gallery, installOptions);
-					}
-					const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
-					const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
-					this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
-					return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
-				} finally {
-					this.installing = this.installing.filter(e => e !== extension);
-					this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
-				}
-			});
+		this.installing.push(extension);
+		this._onChange.fire(extension);
+		try {
+			if (extension.state === ExtensionState.Installed && extension.local) {
+				await this.extensionManagementService.updateFromGallery(gallery, extension.local);
+			} else {
+				await this.extensionManagementService.installFromGallery(gallery, installOptions);
+			}
+			const ids: string[] | undefined = extension.identifier.uuid ? [extension.identifier.uuid] : undefined;
+			const names: string[] | undefined = extension.identifier.uuid ? undefined : [extension.identifier.id];
+			this.queryGallery({ names, ids, pageSize: 1 }, CancellationToken.None);
+			return this.local.filter(local => areSameExtensions(local.identifier, gallery.identifier))[0];
+		} finally {
+			this.installing = this.installing.filter(e => e !== extension);
+			this._onChange.fire(this.local.filter(e => areSameExtensions(e.identifier, extension.identifier))[0]);
 		}
-		return Promise.reject();
-	}
-
-	private async promptForTrustIfNeededAndInstall<T>(manifest: IExtensionManifest, installTask: () => Promise<T>): Promise<T> {
-		if (manifest.requiresWorkspaceTrust === 'onStart') {
-			const trustState = await this.workspaceTrustService.requireWorkspaceTrust(
-				{
-					immediate: true,
-					message: 'Installing this extension requires you to trust the contents of this workspace.'
-				});
-			return trustState === WorkspaceTrustState.Trusted ? installTask() : Promise.reject();
-		}
-		return installTask();
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): Promise<any> {
@@ -1325,7 +1330,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionIdentifierWithVersion(local.identifier, local.version).key() === extensionId));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.syncDelayer.cancel();
 	}

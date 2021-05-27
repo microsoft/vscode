@@ -56,6 +56,7 @@ const CORE_TYPES = [
 const NATIVE_TYPES = [
     'NativeParsedArgs',
     'INativeEnvironmentService',
+    'AbstractNativeEnvironmentService',
     'INativeWindowConfiguration',
     'ICommonNativeHostService'
 ];
@@ -80,19 +81,9 @@ const RULES = [
             '@types/node' // no node.js
         ]
     },
-    // Common: vs/platform/environment/common/argv.ts
+    // Common: vs/platform/environment/common/*
     {
-        target: '**/vs/platform/environment/common/argv.ts',
-        disallowedTypes: [ /* Ignore native types that are defined from here */],
-        allowedTypes: CORE_TYPES,
-        disallowedDefinitions: [
-            'lib.dom.d.ts',
-            '@types/node' // no node.js
-        ]
-    },
-    // Common: vs/platform/environment/common/environment.ts
-    {
-        target: '**/vs/platform/environment/common/environment.ts',
+        target: '**/vs/platform/environment/common/*.ts',
         disallowedTypes: [ /* Ignore native types that are defined from here */],
         allowedTypes: CORE_TYPES,
         disallowedDefinitions: [
@@ -208,7 +199,7 @@ const RULES = [
         ]
     }
 ];
-const TS_CONFIG_PATH = path_1.join(__dirname, '../../', 'src', 'tsconfig.json');
+const TS_CONFIG_PATH = (0, path_1.join)(__dirname, '../../', 'src', 'tsconfig.json');
 let hasErrors = false;
 function checkFile(program, sourceFile, rule) {
     checkNode(sourceFile);
@@ -259,8 +250,8 @@ function checkFile(program, sourceFile, rule) {
 }
 function createProgram(tsconfigPath) {
     const tsConfig = ts.readConfigFile(tsconfigPath, ts.sys.readFile);
-    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => fs_1.readFileSync(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
-    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, path_1.resolve(path_1.dirname(tsconfigPath)), { noEmit: true });
+    const configHostParser = { fileExists: fs_1.existsSync, readDirectory: ts.sys.readDirectory, readFile: file => (0, fs_1.readFileSync)(file, 'utf8'), useCaseSensitiveFileNames: process.platform === 'linux' };
+    const tsConfigParsed = ts.parseJsonConfigFileContent(tsConfig.config, configHostParser, (0, path_1.resolve)((0, path_1.dirname)(tsconfigPath)), { noEmit: true });
     const compilerHost = ts.createCompilerHost(tsConfigParsed.options, true);
     return ts.createProgram(tsConfigParsed.fileNames, tsConfigParsed.options, compilerHost);
 }
@@ -270,7 +261,7 @@ function createProgram(tsconfigPath) {
 const program = createProgram(TS_CONFIG_PATH);
 for (const sourceFile of program.getSourceFiles()) {
     for (const rule of RULES) {
-        if (minimatch_1.match([sourceFile.fileName], rule.target).length > 0) {
+        if ((0, minimatch_1.match)([sourceFile.fileName], rule.target).length > 0) {
             if (!rule.skip) {
                 checkFile(program, sourceFile, rule);
             }

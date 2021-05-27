@@ -300,7 +300,7 @@ export function toggleCollapseState(foldingModel: FoldingModel, levels: number, 
 
 /**
  * Collapse or expand the regions at the given locations including all children.
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
@@ -328,7 +328,7 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
 
 /**
  * Collapse or expand the regions at the given locations including all parents.
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand.
  */
@@ -343,7 +343,7 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
 
 /**
  * Collapse or expand a region at the given locations. If the inner most region is already collapsed/expanded, uses the first parent instead.
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
  * @param lineNumbers the location of the regions to collapse or expand.
  */
 export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boolean, lineNumbers: number[]): void {
@@ -360,10 +360,25 @@ export function setCollapseStateUp(foldingModel: FoldingModel, doCollapse: boole
 /**
  * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
  * @param foldLevel level. Level == 1 is the top level
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
 */
 export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {
 	let filter = (region: FoldingRegion, level: number) => level === foldLevel && region.isCollapsed !== doCollapse && !blockedLineNumbers.some(line => region.containsLine(line));
+	let toToggle = foldingModel.getRegionsInside(null, filter);
+	foldingModel.toggleCollapseState(toToggle);
+}
+
+/**
+ * Folds or unfolds all regions, except if they contain or are contained by a region of one of the blocked lines.
+ * @param doCollapse Whether to collapse or expand
+ * @param blockedLineNumbers the location of regions to not collapse or expand
+ */
+export function setCollapseStateForRest(foldingModel: FoldingModel, doCollapse: boolean, blockedLineNumbers: number[]): void {
+	let filteredRegions: FoldingRegion[] = [];
+	for (let lineNumber of blockedLineNumbers) {
+		filteredRegions.push(foldingModel.getAllRegionsAtLine(lineNumber, undefined)[0]);
+	}
+	let filter = (region: FoldingRegion) => filteredRegions.every((filteredRegion) => !filteredRegion.containedBy(region) && !region.containedBy(filteredRegion)) && region.isCollapsed !== doCollapse;
 	let toToggle = foldingModel.getRegionsInside(null, filter);
 	foldingModel.toggleCollapseState(toToggle);
 }

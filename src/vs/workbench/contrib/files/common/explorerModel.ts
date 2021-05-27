@@ -30,7 +30,7 @@ export class ExplorerModel implements IDisposable {
 		fileService: IFileService
 	) {
 		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
-			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, folder.name));
+			.map(folder => new ExplorerItem(folder.uri, fileService, undefined, true, false, false, folder.name));
 		setRoots();
 
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -89,6 +89,7 @@ export class ExplorerItem {
 		private _parent: ExplorerItem | undefined,
 		private _isDirectory?: boolean,
 		private _isSymbolicLink?: boolean,
+		private _readonly?: boolean,
 		private _name: string = basenameOrAuthority(resource),
 		private _mtime?: number,
 		private _unknown = false
@@ -124,7 +125,7 @@ export class ExplorerItem {
 	}
 
 	get isReadonly(): boolean {
-		return this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
+		return this._readonly || this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly);
 	}
 
 	get mtime(): number | undefined {
@@ -170,12 +171,16 @@ export class ExplorerItem {
 		return this.resource.toString();
 	}
 
+	toString(): string {
+		return `ExplorerItem: ${this.name}`;
+	}
+
 	get isRoot(): boolean {
 		return this === this.root;
 	}
 
 	static create(fileService: IFileService, raw: IFileStat, parent: ExplorerItem | undefined, resolveTo?: readonly URI[]): ExplorerItem {
-		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
+		const stat = new ExplorerItem(raw.resource, fileService, parent, raw.isDirectory, raw.isSymbolicLink, raw.readonly, raw.name, raw.mtime, !raw.isFile && !raw.isDirectory);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {

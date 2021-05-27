@@ -14,7 +14,7 @@ import { equals } from 'vs/base/common/objects';
 import { URI } from 'vs/base/common/uri';
 import { isWeb } from 'vs/base/common/platform';
 
-export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false);
+export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
 export interface IAutoSaveConfiguration {
 	autoSaveDelay?: number;
@@ -54,7 +54,7 @@ export interface IFilesConfigurationService {
 
 	readonly hotExitConfiguration: string | undefined;
 
-	preventSaveConflicts(resource: URI, language: string): boolean;
+	preventSaveConflicts(resource: URI, language?: string): boolean;
 }
 
 export class FilesConfigurationService extends Disposable implements IFilesConfigurationService {
@@ -203,7 +203,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		return this.currentHotExitConfig;
 	}
 
-	preventSaveConflicts(resource: URI, language: string): boolean {
+	preventSaveConflicts(resource: URI, language?: string): boolean {
 		return this.configurationService.getValue('files.saveConflictResolution', { resource, overrideIdentifier: language }) !== 'overwriteFileOnDisk';
 	}
 }

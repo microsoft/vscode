@@ -16,6 +16,7 @@ import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { localize } from 'vs/nls';
+import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -432,7 +433,7 @@ export class PaneView extends Disposable {
 
 	private dnd: IPaneDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
-	private el: HTMLElement;
+	readonly element: HTMLElement;
 	private paneItems: IPaneItem[] = [];
 	private orthogonalSize: number = 0;
 	private size: number = 0;
@@ -444,15 +445,17 @@ export class PaneView extends Disposable {
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
 		super();
 
 		this.dnd = options.dnd;
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
-		this.el = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
+		this.element = append(container, $('.monaco-pane-view'));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
+		this.onDidScroll = this.splitview.onDidScroll;
 	}
 
 	addPane(pane: Pane, size: number, index = this.splitview.length): void {
@@ -534,9 +537,9 @@ export class PaneView extends Disposable {
 		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
 
 		this.splitview.dispose();
-		clearNode(this.el);
+		clearNode(this.element);
 
-		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 
 		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
 		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;
@@ -560,15 +563,15 @@ export class PaneView extends Disposable {
 			window.clearTimeout(this.animationTimer);
 		}
 
-		this.el.classList.add('animated');
+		this.element.classList.add('animated');
 
 		this.animationTimer = window.setTimeout(() => {
 			this.animationTimer = undefined;
-			this.el.classList.remove('animated');
+			this.element.classList.remove('animated');
 		}, 200);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.paneItems.forEach(i => i.disposable.dispose());

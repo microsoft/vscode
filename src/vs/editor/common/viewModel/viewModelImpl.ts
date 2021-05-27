@@ -12,7 +12,7 @@ import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IConfiguration, IViewState, ScrollType, ICursorState, ICommand, INewScrollPosition } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, ITextModel, TrackedRangeStickiness, TextModelResolvedOptions, IIdentifiedSingleEditOperation, ICursorStateComputer, PositionNormalizationAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOverviewRulerOptions, ModelDecorationMinimapOptions } from 'vs/editor/common/model/textModel';
 import * as textModelEvents from 'vs/editor/common/model/textModelEvents';
 import { ColorId, LanguageId, TokenizationRegistry } from 'vs/editor/common/modes';
@@ -142,7 +142,7 @@ export class ViewModel extends Disposable implements IViewModel {
 		this._updateConfigurationViewLineCountNow();
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		// First remove listeners, as disposing the lines might end up sending
 		// model decoration changed events ... and we no longer care about them ...
 		super.dispose();
@@ -816,7 +816,23 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		const fontInfo = this._configuration.options.get(EditorOption.fontInfo);
 		const colorMap = this._getColorMap();
-		const fontFamily = fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily ? fontInfo.fontFamily : `'${fontInfo.fontFamily}', ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		const hasBadChars = (/[:;\\\/<>]/.test(fontInfo.fontFamily));
+		const useDefaultFontFamily = (hasBadChars || fontInfo.fontFamily === EDITOR_FONT_DEFAULTS.fontFamily);
+		let fontFamily: string;
+		if (useDefaultFontFamily) {
+			fontFamily = EDITOR_FONT_DEFAULTS.fontFamily;
+		} else {
+			fontFamily = fontInfo.fontFamily;
+			fontFamily = fontFamily.replace(/"/g, '\'');
+			const hasQuotesOrIsList = /[,']/.test(fontFamily);
+			if (!hasQuotesOrIsList) {
+				const needsQuotes = /[+ ]/.test(fontFamily);
+				if (needsQuotes) {
+					fontFamily = `'${fontFamily}'`;
+				}
+			}
+			fontFamily = `${fontFamily}, ${EDITOR_FONT_DEFAULTS.fontFamily}`;
+		}
 
 		return {
 			mode: languageId.language,
@@ -897,6 +913,9 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 	public getCursorColumnSelectData(): IColumnSelectData {
 		return this._cursor.getCursorColumnSelectData();
+	}
+	public getCursorAutoClosedCharacters(): Range[] {
+		return this._cursor.getAutoClosedCharacters();
 	}
 	public setCursorColumnSelectData(columnSelectData: IColumnSelectData): void {
 		this._cursor.setCursorColumnSelectData(columnSelectData);
@@ -1017,5 +1036,17 @@ export class ViewModel extends Disposable implements IViewModel {
 		} finally {
 			this._eventDispatcher.endEmitViewEvents();
 		}
+	}
+
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
+		return this._lines.normalizePosition(position, affinity);
+	}
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number {
+		return this._lines.getLineIndentColumn(lineNumber);
 	}
 }

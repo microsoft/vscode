@@ -809,63 +809,63 @@ suite('viewLineRenderer.renderLine', () => {
 		const _expected = decodeCharacterMapping(expected);
 		assert.deepStrictEqual(_actual, _expected);
 	}
-
-	function assertCharacterMapping(actual: CharacterMapping, expectedCharPartOffsets: number[][], expectedPartLengths: number[]): void {
-
-		assertCharPartOffsets(actual, expectedCharPartOffsets);
-
-		let expectedCharAbsoluteOffset: number[] = [], currentPartAbsoluteOffset = 0;
-		for (let partIndex = 0; partIndex < expectedCharPartOffsets.length; partIndex++) {
-			const part = expectedCharPartOffsets[partIndex];
-
-			for (const charIndex of part) {
-				expectedCharAbsoluteOffset.push(currentPartAbsoluteOffset + charIndex);
-			}
-
-			currentPartAbsoluteOffset += expectedPartLengths[partIndex];
-		}
-
-		let actualCharOffset: number[] = [];
-		let tmp = actual.getAbsoluteOffsets();
-		for (let i = 0; i < tmp.length; i++) {
-			actualCharOffset[i] = tmp[i];
-		}
-		assert.deepStrictEqual(actualCharOffset, expectedCharAbsoluteOffset);
-	}
-
-	function assertCharPartOffsets(actual: CharacterMapping, expected: number[][]): void {
-
-		let charOffset = 0;
-		for (let partIndex = 0; partIndex < expected.length; partIndex++) {
-			let part = expected[partIndex];
-			for (const charIndex of part) {
-				// here
-				let _actualPartData = actual.charOffsetToPartData(charOffset);
-				let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
-				let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
-
-				assert.deepStrictEqual(
-					{ partIndex: actualPartIndex, charIndex: actualCharIndex },
-					{ partIndex: partIndex, charIndex: charIndex },
-					`character mapping for offset ${charOffset}`
-				);
-
-				// here
-				let actualOffset = actual.partDataToCharOffset(partIndex, part[part.length - 1] + 1, charIndex);
-
-				assert.strictEqual(
-					actualOffset,
-					charOffset,
-					`character mapping for part ${partIndex}, ${charIndex}`
-				);
-
-				charOffset++;
-			}
-		}
-
-		assert.strictEqual(actual.length, charOffset);
-	}
 });
+
+function assertCharacterMapping(actual: CharacterMapping, expectedCharPartOffsets: number[][], expectedPartLengths: number[]): void {
+
+	assertCharPartOffsets(actual, expectedCharPartOffsets);
+
+	let expectedCharAbsoluteOffset: number[] = [], currentPartAbsoluteOffset = 0;
+	for (let partIndex = 0; partIndex < expectedCharPartOffsets.length; partIndex++) {
+		const part = expectedCharPartOffsets[partIndex];
+
+		for (const charIndex of part) {
+			expectedCharAbsoluteOffset.push(currentPartAbsoluteOffset + charIndex);
+		}
+
+		currentPartAbsoluteOffset += expectedPartLengths[partIndex];
+	}
+
+	let actualCharOffset: number[] = [];
+	let tmp = actual.getAbsoluteOffsets();
+	for (let i = 0; i < tmp.length; i++) {
+		actualCharOffset[i] = tmp[i];
+	}
+	assert.deepStrictEqual(actualCharOffset, expectedCharAbsoluteOffset);
+}
+
+function assertCharPartOffsets(actual: CharacterMapping, expected: number[][]): void {
+
+	let charOffset = 0;
+	for (let partIndex = 0; partIndex < expected.length; partIndex++) {
+		let part = expected[partIndex];
+		for (const charIndex of part) {
+			// here
+			let _actualPartData = actual.charOffsetToPartData(charOffset);
+			let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
+			let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
+
+			assert.deepStrictEqual(
+				{ partIndex: actualPartIndex, charIndex: actualCharIndex },
+				{ partIndex: partIndex, charIndex: charIndex },
+				`character mapping for offset ${charOffset}`
+			);
+
+			// here
+			let actualOffset = actual.partDataToCharOffset(partIndex, part[part.length - 1] + 1, charIndex);
+
+			assert.strictEqual(
+				actualOffset,
+				charOffset,
+				`character mapping for part ${partIndex}, ${charIndex}`
+			);
+
+			charOffset++;
+		}
+	}
+
+	assert.strictEqual(actual.length, charOffset);
+}
 
 suite('viewLineRenderer.renderLine 2', () => {
 
@@ -1643,8 +1643,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 			0,
 			createViewLineTokens([createPart(0, 3)]),
 			[
-				new LineDecoration(1, 2, 'before', InlineDecorationType.Before),
-				new LineDecoration(0, 1, 'after', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'before', InlineDecorationType.Before),
+				new LineDecoration(1, 1, 'after', InlineDecorationType.After),
 			],
 			2,
 			0,
@@ -1662,6 +1662,47 @@ suite('viewLineRenderer.renderLine 2', () => {
 			'<span>',
 			'<span class="before"></span>',
 			'<span class="after"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #118759: enable multiple text editor decorations in empty lines', () => {
+
+		let actual = renderViewLine(new RenderLineInput(
+			true,
+			true,
+			'',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(0, 3)]),
+			[
+				new LineDecoration(1, 1, 'after1', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'after2', InlineDecorationType.After),
+				new LineDecoration(1, 1, 'before1', InlineDecorationType.Before),
+				new LineDecoration(1, 1, 'before2', InlineDecorationType.Before),
+			],
+			2,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			false,
+			false,
+			null
+		));
+
+		let expected = [
+			'<span>',
+			'<span class="before1"></span>',
+			'<span class="before2"></span>',
+			'<span class="after1"></span>',
+			'<span class="after2"></span>',
 			'</span>'
 		].join('');
 
@@ -1698,7 +1739,7 @@ suite('viewLineRenderer.renderLine 2', () => {
 		let expected = [
 			'<span>',
 			'<span class="mtk3">\u00a0\u00a0\u00a0\u00a0}</span>',
-			'<span class="ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3 ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4"></span>',
+			'<span class="ced-TextEditorDecorationType2-5e9b9b3f-3 ced-TextEditorDecorationType2-3"></span><span class="ced-TextEditorDecorationType2-5e9b9b3f-4 ced-TextEditorDecorationType2-4"></span>',
 			'</span>'
 		].join('');
 
@@ -2063,6 +2104,84 @@ suite('viewLineRenderer.renderLine 2', () => {
 		].join('');
 
 		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #119416: Delete Control Character (U+007F / &#127;) displayed as space', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			false,
+			false,
+			'[' + String.fromCharCode(127) + '] [' + String.fromCharCode(0) + ']',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(7, 3)]),
+			[],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'none',
+			true,
+			true,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtk3">[\u2421]\u00a0[\u2400]</span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+	});
+
+	test('issue #124038: Multiple end-of-line text decorations get merged', () => {
+		const actual = renderViewLine(new RenderLineInput(
+			true,
+			false,
+			'    if',
+			false,
+			true,
+			false,
+			0,
+			createViewLineTokens([createPart(4, 1), createPart(6, 2)]),
+			[
+				new LineDecoration(7, 7, 'ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3', InlineDecorationType.Before),
+				new LineDecoration(7, 7, 'ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4', InlineDecorationType.After),
+				new LineDecoration(7, 7, 'ced-ghost-text-1-4', InlineDecorationType.After),
+			],
+			4,
+			0,
+			10,
+			10,
+			10,
+			10000,
+			'all',
+			false,
+			false,
+			null
+		));
+
+		const expected = [
+			'<span>',
+			'<span class="mtkw">····</span><span class="mtk2">if</span><span class="ced-1-TextEditorDecorationType2-17c14d98-3 ced-1-TextEditorDecorationType2-3"></span><span class="ced-1-TextEditorDecorationType2-17c14d98-4 ced-1-TextEditorDecorationType2-4"></span><span class="ced-ghost-text-1-4"></span>',
+			'</span>'
+		].join('');
+
+		assert.deepStrictEqual(actual.html, expected);
+		assertCharacterMapping(actual.characterMapping,
+			[
+				[0, 1, 2, 3],
+				[0, 1],
+				[],
+				[0],
+				[],
+			],
+			[4, 2, 0, 0]
+		);
 	});
 
 

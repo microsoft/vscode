@@ -9,6 +9,18 @@ interface IAutomatedWindow {
 	codeAutomationLog(type: string, args: any[]): void;
 }
 
+function logLevelToString(level: LogLevel): string {
+	switch (level) {
+		case LogLevel.Trace: return 'trace';
+		case LogLevel.Debug: return 'debug';
+		case LogLevel.Info: return 'info';
+		case LogLevel.Warning: return 'warn';
+		case LogLevel.Error: return 'error';
+		case LogLevel.Critical: return 'critical';
+	}
+	return 'info';
+}
+
 /**
  * A logger that is used when VSCode is running in the web with
  * an automation such as playwright. We expect a global codeAutomationLog
@@ -19,7 +31,7 @@ export class ConsoleLogInAutomationLogger extends AdapterLogger implements ILogg
 	declare codeAutomationLog: any;
 
 	constructor(logLevel: LogLevel = DEFAULT_LOG_LEVEL) {
-		super({ log: (type, args) => this.consoleLog(type, args) }, logLevel);
+		super({ log: (level, args) => this.consoleLog(logLevelToString(level), args) }, logLevel);
 	}
 
 	private consoleLog(type: string, args: any[]): void {

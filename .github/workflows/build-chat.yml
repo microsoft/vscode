@@ -7,7 +7,7 @@ on:
     types:
       - completed
     branches:
-      - master
+      - main
       - release/*
 
 jobs:

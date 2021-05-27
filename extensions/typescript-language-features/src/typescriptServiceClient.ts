@@ -280,7 +280,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		return this._configuration;
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 
 		this.bufferSyncSupport.dispose();
@@ -729,20 +729,24 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			return undefined;
 		}
 
-		if (resource.scheme === fileSchemes.file || resource.scheme === fileSchemes.untitled) {
-			for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
-				if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
-					return root.uri.fsPath;
+		switch (resource.scheme) {
+			case fileSchemes.file:
+			case fileSchemes.untitled:
+			case fileSchemes.vscodeNotebookCell:
+				for (const root of roots.sort((a, b) => a.uri.fsPath.length - b.uri.fsPath.length)) {
+					if (resource.fsPath.startsWith(root.uri.fsPath + path.sep)) {
+						return root.uri.fsPath;
+					}
 				}
-			}
-			return roots[0].uri.fsPath;
-		}
+				return roots[0].uri.fsPath;
 
-		return undefined;
+			default:
+				return undefined;
+		}
 	}
 
 	public execute(command: keyof TypeScriptRequests, args: any, token: vscode.CancellationToken, config?: ExecConfig): Promise<ServerResponse.Response<Proto.Response>> {
-		let execution: Promise<ServerResponse.Response<Proto.Response>>;
+		let executions: Array<Promise<ServerResponse.Response<Proto.Response>> | undefined>;
 
 		if (config?.cancelOnResourceChange) {
 			const runningServerState = this.service();
@@ -756,17 +760,18 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			};
 			runningServerState.toCancelOnResourceChange.add(inFlight);
 
-			execution = this.executeImpl(command, args, {
+			executions = this.executeImpl(command, args, {
 				isAsync: false,
 				token: source.token,
 				expectsResult: true,
 				...config,
-			}).finally(() => {
+			});
+			executions[0]!.finally(() => {
 				runningServerState.toCancelOnResourceChange.delete(inFlight);
 				source.dispose();
 			});
 		} else {
-			execution = this.executeImpl(command, args, {
+			executions = this.executeImpl(command, args, {
 				isAsync: false,
 				token,
 				expectsResult: true,
@@ -775,10 +780,17 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		if (config?.nonRecoverable) {
-			execution.catch(err => this.fatalError(command, err));
+			executions[0]!.catch(err => this.fatalError(command, err));
 		}
 
-		return execution;
+		if (command === 'updateOpen') {
+			// If update open has completed, consider that the project has loaded
+			Promise.all(executions).then(() => {
+				this.loadingIndicator.reset();
+			});
+		}
+
+		return executions[0]!;
 	}
 
 	public executeWithoutWaitingForResponse(command: keyof TypeScriptRequests, args: any): void {
@@ -794,12 +806,10 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			isAsync: true,
 			token,
 			expectsResult: true
-		});
+		})[0]!;
 	}
 
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: false, lowPriority?: boolean, requireSemantic?: boolean }): undefined;
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Promise<ServerResponse.Response<Proto.Response>>;
-	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Promise<ServerResponse.Response<Proto.Response>> | undefined {
+	private executeImpl(command: keyof TypeScriptRequests, args: any, executeInfo: { isAsync: boolean, token?: vscode.CancellationToken, expectsResult: boolean, lowPriority?: boolean, requireSemantic?: boolean }): Array<Promise<ServerResponse.Response<Proto.Response>> | undefined> {
 		this.bufferSyncSupport.beforeCommand(command);
 		const runningServerState = this.service();
 		return runningServerState.server.executeImpl(command, args, executeInfo);
@@ -820,7 +830,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			}
 		*/
 		this.logTelemetry('fatalError', { ...(error instanceof TypeScriptServerError ? error.telemetry : { command }) });
-		console.error(`A non-recoverable error occured while executing tsserver command: ${command}`);
+		console.error(`A non-recoverable error occurred while executing tsserver command: ${command}`);
 		if (error instanceof TypeScriptServerError && error.serverErrorText) {
 			console.error(error.serverErrorText);
 		}
@@ -1064,4 +1074,3 @@ class ServerInitializingIndicator extends Disposable {
 		}
 	}
 }
-

@@ -15,7 +15,7 @@ import { IExtensionDescription } from 'vs/platform/extensions/common/extensions'
 interface IIconExtensionPoint {
 	id: string;
 	description: string;
-	default: { iconFontId: string; character: string; } | string;
+	default: { fontId: string; fontCharacter: string; } | string;
 }
 
 interface IIconFontExtensionPoint {
@@ -29,7 +29,7 @@ interface IIconFontExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameExpression}$`;
+const iconIdPattern = `^${CSSIcon.iconNameSegment}-(${CSSIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint[]>({
 	extensionPoint: 'icons',
@@ -38,12 +38,13 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 		type: 'array',
 		items: {
 			type: 'object',
+			required: ['id', 'description', 'default'],
 			properties: {
 				id: {
 					type: 'string',
 					description: nls.localize('contributes.icon.id', 'The identifier of the themable icon'),
 					pattern: iconIdPattern,
-					patternErrorMessage: nls.localize('contributes.icon.id.format', 'Identifiers must only contain letters, digits and minus.'),
+					patternErrorMessage: nls.localize('contributes.icon.id.format', 'Identifiers can only contain letters, digits and minuses and need to consist of at least two segments in the form `component-iconname`.'),
 				},
 				description: {
 					type: 'string',
@@ -55,16 +56,16 @@ const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIco
 						{
 							type: 'object',
 							properties: {
-								iconFontId: {
-									description: nls.localize('contributes.icon.default.iconFontId', 'The id of the icon font that defines the icon.'),
+								fontId: {
+									description: nls.localize('contributes.icon.default.fontId', 'The id of the icon font that defines the icon.'),
 									type: 'string'
 								},
-								character: {
-									description: nls.localize('contributes.icon.default.character', 'The character for the icon in the icon font.'),
+								fontCharacter: {
+									description: nls.localize('contributes.icon.default.fontCharacter', 'The character for the icon in the icon font.'),
 									type: 'string'
 								}
 							},
-							defaultSnippets: [{ body: { iconFontId: '${1:myIconFont}', character: '${2:\\\\E001}' } }]
+							defaultSnippets: [{ body: { fontId: '${1:myIconFont}', fontCharacter: '${2:\\\\E001}' } }]
 						}
 					],
 					description: nls.localize('contributes.icon.default', 'The default of the icon. Either a reference to an extisting ThemeIcon or an icon in an icon font.'),
@@ -81,6 +82,7 @@ const iconFontConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<
 		type: 'array',
 		items: {
 			type: 'object',
+			required: ['id', 'src'],
 			properties: {
 				id: {
 					type: 'string',
@@ -139,23 +141,23 @@ export class IconExtensionPoint {
 						return;
 					}
 					if (!iconContribution.id.match(iconIdPattern)) {
-						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons.id' must only contain letters, digits and minuses"));
+						collector.error(nls.localize('invalid.icons.id.format', "'configuration.icons.id' can only contain letter, digits and minuses and need to consist of at least two segments in the form `component-iconname`."));
 						return;
 					}
-					if (typeof iconContribution.description !== 'string' || iconContribution.id.length === 0) {
+					if (typeof iconContribution.description !== 'string' || iconContribution.description.length === 0) {
 						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and can not be empty"));
 						return;
 					}
 					let defaultIcon = iconContribution.default;
 					if (typeof defaultIcon === 'string') {
 						iconRegistry.registerIcon(iconContribution.id, { id: defaultIcon }, iconContribution.description);
-					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.iconFontId === 'string' && typeof defaultIcon.character === 'string') {
+					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.fontId === 'string' && typeof defaultIcon.fontCharacter === 'string') {
 						iconRegistry.registerIcon(iconContribution.id, {
-							fontId: getFontId(extension.description, defaultIcon.iconFontId),
-							character: defaultIcon.character,
+							fontId: getFontId(extension.description, defaultIcon.fontId),
+							fontCharacter: defaultIcon.fontCharacter,
 						}, iconContribution.description);
 					} else {
-						collector.error(nls.localize('invalid.icons.default', "'configuration.icons.default' must be either a reference to the id of an other theme icon (string) or a icon definition (object)"));
+						collector.error(nls.localize('invalid.icons.default', "'configuration.icons.default' must be either a reference to the id of an other theme icon (string) or a icon definition (object) with properties `fontId` and `fontCharacter`."));
 					}
 				}
 			}
@@ -229,6 +231,6 @@ export class IconFontExtensionPoint {
 	}
 }
 
-function getFontId(description: IExtensionDescription, iconFontId: string) {
-	return `${description.identifier.value}/${iconFontId}`;
+function getFontId(description: IExtensionDescription, fontId: string) {
+	return `${description.identifier.value}/${fontId}`;
 }

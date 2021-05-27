@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/statusbarpart';
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { dispose, IDisposable, Disposable, toDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntry, IStatusbarEntryAccessor } from 'vs/workbench/services/statusbar/common/statusbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator } from 'vs/base/common/actions';
+import { Action, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, Separator, toAction } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ThemeColor } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_ITEM_ACTIVE_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND, STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -39,13 +39,36 @@ import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { CATEGORIES } from 'vs/workbench/common/actions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { hash } from 'vs/base/common/hash';
+
+interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance.
+	 *
+	 * May not be unique across all entries.
+	 */
+	primary: number;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	secondary: number;
+}
 
 interface IPendingStatusbarEntry {
 	id: string;
-	name: string;
 	entry: IStatusbarEntry;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	accessor?: IStatusbarEntryAccessor;
 }
 
@@ -53,12 +76,12 @@ interface IStatusbarViewModelEntry {
 	id: string;
 	name: string;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	container: HTMLElement;
 	labelContainer: HTMLElement;
 }
 
-const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false);
+const CONTEXT_STATUS_BAR_FOCUSED = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
 
 class StatusbarViewModel extends Disposable {
 
@@ -208,6 +231,11 @@ class StatusbarViewModel extends Disposable {
 		this.focusEntry(-1, this.entries.length - 1);
 	}
 
+	isEntryFocused(): boolean {
+		const focused = this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		return !!focused;
+	}
+
 	private focusEntry(delta: number, restartPosition: number): void {
 		const getVisibleEntry = (start: number) => {
 			let indexToFocus = start;
@@ -286,14 +314,16 @@ class StatusbarViewModel extends Disposable {
 
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				if (entryA.priority !== entryB.priority) {
-					return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority.primary !== entryB.priority.primary) {
+					return entryB.priority.primary - entryA.priority.primary; // higher priority towards the left (primary)
 				}
 
-				const indexA = mapEntryToIndex.get(entryA);
-				const indexB = mapEntryToIndex.get(entryB);
+				if (entryA.priority.secondary !== entryB.priority.secondary) {
+					return entryB.priority.secondary - entryA.priority.secondary; // higher priority towards the left (secondary)
+				}
 
-				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
+				// otherwise maintain stable order (both values known to be in map)
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!;
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -352,7 +382,7 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 		this.checked = !model.isHidden(id);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		if (this.model.isHidden(this.id)) {
 			this.model.show(this.id);
 		} else {
@@ -364,10 +394,10 @@ class ToggleStatusbarEntryVisibilityAction extends Action {
 class HideStatusbarEntryAction extends Action {
 
 	constructor(id: string, name: string, private model: StatusbarViewModel) {
-		super(id, nls.localize('hide', "Hide '{0}'", name), undefined, true);
+		super(id, localize('hide', "Hide '{0}'", name), undefined, true);
 	}
 
-	async run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.model.hide(this.id);
 	}
 }
@@ -414,20 +444,24 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, primaryPriority = 0): IStatusbarEntryAccessor {
+		const priority: IStatusbarEntryPriority = {
+			primary: primaryPriority,
+			secondary: hash(id) // derive from identifier to accomplish uniqueness
+		};
 
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			return this.doAddPendingEntry(entry, id, name, alignment, priority);
+			return this.doAddPendingEntry(entry, id, alignment, priority);
 		}
 
 		// Otherwise add to view
-		return this.doAddEntry(entry, id, name, alignment, priority);
+		return this.doAddEntry(entry, id, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
-		const pendingEntry: IPendingStatusbarEntry = { entry, id, name, alignment, priority };
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+		const pendingEntry: IPendingStatusbarEntry = { entry, id, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
 		const accessor: IStatusbarEntryAccessor = {
@@ -451,7 +485,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
@@ -461,7 +495,15 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
 
 		// Add to view model
-		const viewModelEntry: IStatusbarViewModelEntry = { id, name, alignment, priority, container: itemContainer, labelContainer: item.labelContainer };
+		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
+			readonly id = id;
+			readonly alignment = alignment;
+			readonly priority = priority;
+			readonly container = itemContainer;
+			readonly labelContainer = item.labelContainer;
+
+			get name() { return item.name; }
+		};
 		const viewModelEntryDispose = this.viewModel.add(viewModelEntry);
 
 		return {
@@ -496,6 +538,10 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.viewModel.focusPreviousEntry();
 	}
 
+	isEntryFocused(): boolean {
+		return this.viewModel.isEntryFocused();
+	}
+
 	focus(preserveEntryFocus = true): void {
 		this.getContainer()?.focus();
 		const lastFocusedEntry = this.viewModel.lastFocusedEntry;
@@ -505,7 +551,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		}
 	}
 
-	createContentArea(parent: HTMLElement): HTMLElement {
+	override createContentArea(parent: HTMLElement): HTMLElement {
 		this.element = parent;
 
 		// Track focus within container
@@ -516,7 +562,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		this.leftItemsContainer = document.createElement('div');
 		this.leftItemsContainer.classList.add('left-items', 'items-container');
 		this.element.appendChild(this.leftItemsContainer);
-		this.element.tabIndex = -1;
+		this.element.tabIndex = 0;
 
 		// Right items container
 		this.rightItemsContainer = document.createElement('div');
@@ -541,7 +587,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		while (this.pendingEntries.length) {
 			const pending = this.pendingEntries.shift();
 			if (pending) {
-				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority);
+				pending.accessor = this.addEntry(pending.entry, pending.id, pending.alignment, pending.priority.primary);
 			}
 		}
 	}
@@ -559,7 +605,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 	}
 
-	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
+	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): void {
 		const entries = this.viewModel.getEntries(alignment);
 
 		if (alignment === StatusbarAlignment.RIGHT) {
@@ -572,9 +618,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// and then insert the item before that one
 		let appended = false;
 		for (const entry of entries) {
+
+			// pick a priority that ideally is not the same
+			// by falling back to secondary priority
+			let existingEntryPriority = entry.priority.primary;
+			let newEntryPriority = priority.primary;
+			if (existingEntryPriority === newEntryPriority) {
+				existingEntryPriority = entry.priority.secondary;
+				newEntryPriority = priority.secondary;
+			}
+
+			// insert according to priority
 			if (
-				alignment === StatusbarAlignment.LEFT && entry.priority < priority ||
-				alignment === StatusbarAlignment.RIGHT && entry.priority > priority // reversing due to flex: row-reverse
+				alignment === StatusbarAlignment.LEFT && existingEntryPriority < newEntryPriority ||
+				alignment === StatusbarAlignment.RIGHT && existingEntryPriority > newEntryPriority // reversing due to flex: row-reverse
 			) {
 				target.insertBefore(itemContainer, entry.container);
 				appended = true;
@@ -613,7 +670,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const actions: IAction[] = [];
 
 		// Provide an action to hide the status bar at last
-		actions.push(this.instantiationService.createInstance(ToggleStatusbarVisibilityAction, ToggleStatusbarVisibilityAction.ID, nls.localize('hideStatusBar', "Hide Status Bar")));
+		actions.push(toAction({ id: ToggleStatusbarVisibilityAction.ID, label: localize('hideStatusBar', "Hide Status Bar"), run: () => this.instantiationService.invokeFunction(accessor => new ToggleStatusbarVisibilityAction().run(accessor)) }));
 		actions.push(new Separator());
 
 		// Show an entry per known status entry
@@ -646,7 +703,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return actions;
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -692,7 +749,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return itemContainer;
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		super.layout(width, height);
 		super.layoutContents(width, height);
 	}
@@ -724,7 +781,7 @@ class StatusBarCodiconLabel extends SimpleIconLabel {
 		}
 	}
 
-	set text(text: string) {
+	override set text(text: string) {
 
 		// Progress: insert progress codicon as first element as needed
 		// but keep it stable so that the animation does not reset
@@ -765,6 +822,7 @@ class StatusbarEntryItem extends Disposable {
 	private readonly label: StatusBarCodiconLabel;
 
 	private entry: IStatusbarEntry | undefined = undefined;
+	get name(): string { return assertIsDefined(this.entry).name; }
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -868,12 +926,8 @@ class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			if (entry.backgroundColor) {
-				this.applyColor(this.container, entry.backgroundColor, true);
-				this.container.classList.add('has-background-color');
-			} else {
-				this.container.classList.remove('has-background-color');
-			}
+			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 
 		// Remember for next round
@@ -932,7 +986,7 @@ class StatusbarEntryItem extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		dispose(this.foregroundListener);
@@ -1046,6 +1100,30 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: CONTEXT_STATUS_BAR_FOCUSED,
 	handler: (accessor: ServicesAccessor) => {
 		const statusBarService = accessor.get(IStatusbarService);
-		statusBarService.focus(false);
+		const editorService = accessor.get(IEditorService);
+		if (statusBarService.isEntryFocused()) {
+			statusBarService.focus(false);
+		} else if (editorService.activeEditorPane) {
+			editorService.activeEditorPane.focus();
+		}
 	}
 });
+
+class FocusStatusBarAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.focusStatusBar',
+			title: { value: localize('focusStatusBar', "Focus Status Bar"), original: 'Focus Status Bar' },
+			category: CATEGORIES.View,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		layoutService.focusPart(Parts.STATUSBAR_PART);
+	}
+}
+
+registerAction2(FocusStatusBarAction);

@@ -43,7 +43,6 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
 import { splitLines } from 'vs/base/common/strings';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ILogService } from 'vs/platform/log/common/log';
 
 type Omit<T, K extends keyof T> = Pick<T, Exclude<keyof T, K>>;
 
@@ -57,7 +56,7 @@ function withAllStandaloneServices<T extends IEditor>(domElement: HTMLElement, o
 	}
 
 	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService), services.get(ILogService)));
+		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
 	}
 
 	let result = callback(services);

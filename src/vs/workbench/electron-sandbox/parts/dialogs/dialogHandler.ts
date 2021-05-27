@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import { localize } from 'vs/nls';
 import { fromNow } from 'vs/base/common/date';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isLinux, isLinuxSnap, isWindows } from 'vs/base/common/platform';
@@ -58,13 +58,13 @@ export class NativeDialogHandler implements IDialogHandler {
 		if (confirmation.primaryButton) {
 			buttons.push(confirmation.primaryButton);
 		} else {
-			buttons.push(nls.localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
+			buttons.push(localize({ key: 'yesButton', comment: ['&& denotes a mnemonic'] }, "&&Yes"));
 		}
 
 		if (confirmation.secondaryButton) {
 			buttons.push(confirmation.secondaryButton);
 		} else if (typeof confirmation.secondaryButton === 'undefined') {
-			buttons.push(nls.localize('cancelButton', "Cancel"));
+			buttons.push(localize('cancelButton', "Cancel"));
 		}
 
 		const opts: MessageBoxOptions = {
@@ -166,7 +166,7 @@ export class NativeDialogHandler implements IDialogHandler {
 		const osProps = await this.nativeHostService.getOSProperties();
 
 		const detailString = (useAgo: boolean): string => {
-			return nls.localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
+			return localize({ key: 'aboutDetail', comment: ['Electron, Chrome, Node.js and V8 are product names that need no translation'] },
 				"Version: {0}\nCommit: {1}\nDate: {2}\nElectron: {3}\nChrome: {4}\nNode.js: {5}\nV8: {6}\nOS: {7}",
 				version,
 				this.productService.commit || 'Unknown',
@@ -182,8 +182,8 @@ export class NativeDialogHandler implements IDialogHandler {
 		const detail = detailString(true);
 		const detailToCopy = detailString(false);
 
-		const ok = nls.localize('okButton', "OK");
-		const copy = mnemonicButtonLabel(nls.localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
+		const ok = localize('okButton', "OK");
+		const copy = mnemonicButtonLabel(localize({ key: 'copy', comment: ['&& denotes a mnemonic'] }, "&&Copy"));
 		let buttons: string[];
 		if (isLinux) {
 			buttons = [copy, ok];

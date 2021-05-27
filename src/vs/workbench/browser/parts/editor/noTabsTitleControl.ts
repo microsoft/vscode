@@ -14,8 +14,9 @@ import { IAction } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/common/types';
-import { IEditorGroupTitleDimensions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -49,9 +50,9 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent, showPlaceholder: false });
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
-		this._register({ dispose: () => titleContainer.classList.remove('breadcrumbs') }); // important to remove because the container is a shared dom node
+		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
 		// Right Actions Container
 		const actionsContainer = document.createElement('div');
@@ -113,7 +114,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleTap(e: GestureEvent): void {
 
 		// We only want to open the quick access picker when
-		// the tap occured over the editor label, so we need
+		// the tap occurred over the editor label, so we need
 		// to check on the target
 		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
@@ -194,14 +195,14 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		this.redraw();
 	}
 
 	protected handleBreadcrumbsEnablementChange(): void {
 		const titleContainer = assertIsDefined(this.titleContainer);
-
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
+
 		this.redraw();
 	}
 
@@ -320,7 +321,7 @@ export class NoTabsTitleControl extends TitleControl {
 		}
 	}
 
-	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+	protected override prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
 		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Group active: show all actions
@@ -332,18 +333,16 @@ export class NoTabsTitleControl extends TitleControl {
 		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
 	}
 
-	getDimensions(): IEditorGroupTitleDimensions {
+	getHeight(): IEditorGroupTitleHeight {
 		return {
-			height: NoTabsTitleControl.HEIGHT,
+			total: NoTabsTitleControl.HEIGHT,
 			offset: 0
 		};
 	}
 
 	layout(dimensions: ITitleControlDimensions): Dimension {
-		if (this.breadcrumbsControl) {
-			this.breadcrumbsControl.layout(undefined);
-		}
+		this.breadcrumbsControl?.layout(undefined);
 
-		return new Dimension(dimensions.container.width, this.getDimensions().height);
+		return new Dimension(dimensions.container.width, this.getHeight().total);
 	}
 }

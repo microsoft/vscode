@@ -58,7 +58,7 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 		this.tunnelRemoteHost = tunnelRemoteHost;
 	}
 
-	public async dispose(): Promise<void> {
+	public override async dispose(): Promise<void> {
 		super.dispose();
 		this._server.removeListener('listening', this._listeningListener);
 		this._server.removeListener('connection', this._connectionListener);
@@ -76,12 +76,12 @@ class NodeRemoteTunnel extends Disposable implements RemoteTunnel {
 
 		// if that fails, the method above returns 0, which works out fine below...
 		let address: string | net.AddressInfo | null = null;
-		address = (<net.AddressInfo>this._server.listen(localPort).address());
+		address = (<net.AddressInfo>this._server.listen(localPort, '127.0.0.1').address());
 
 		// It is possible for findFreePortFaster to return a port that there is already a server listening on. This causes the previous listen call to error out.
 		if (!address) {
 			localPort = 0;
-			address = (<net.AddressInfo>this._server.listen(localPort).address());
+			address = (<net.AddressInfo>this._server.listen(localPort, '127.0.0.1').address());
 		}
 
 		this.tunnelLocalPort = address.port;
@@ -150,7 +150,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 		if (this._tunnelProvider) {
 			return this.createWithProvider(this._tunnelProvider, remoteHost, remotePort, localPort, elevateIfNeeded, isPublic);
 		} else {
-			this.logService.trace(`Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
+			this.logService.trace(`ForwardedPorts: (TunnelService) Creating tunnel without provider ${remoteHost}:${remotePort} on local port ${localPort}.`);
 			const options: IConnectionOptions = {
 				commit: this.productService.commit,
 				socketFactory: this.socketFactory,
@@ -161,7 +161,7 @@ export class BaseTunnelService extends AbstractTunnelService {
 			};
 
 			const tunnel = createRemoteTunnel(options, remoteHost, remotePort, localPort);
-			this.logService.trace('Tunnel created without provider.');
+			this.logService.trace('ForwardedPorts: (TunnelService) Tunnel created without provider.');
 			this.addTunnelToMap(remoteHost, remotePort, tunnel);
 			return tunnel;
 		}

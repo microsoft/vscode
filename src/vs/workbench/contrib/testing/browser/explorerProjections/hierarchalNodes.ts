@@ -3,144 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Iterable } from 'vs/base/common/iterator';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Test tree element element that groups be hierarchy.
  */
-export class HierarchicalElement implements ITestTreeElement {
-	public readonly children = new Set<HierarchicalElement>();
-	public computedState: TestRunState | undefined;
-	public readonly depth: number = this.parentItem.depth + 1;
+export class ByLocationTestItemElement extends TestItemTreeElement {
+	private errorChild?: TestTreeErrorMessage;
 
-	public get treeId() {
-		return `hitest:${this.test.id}`;
+	public override readonly parent: ByLocationFolderElement | ByLocationTestItemElement;
+
+	constructor(
+		test: InternalTestItem,
+		parent: ByLocationFolderElement | ByLocationTestItemElement,
+		protected readonly addedOrRemoved: (n: TestExplorerTreeElement) => void,
+	) {
+		super({ ...test, item: { ...test.item } }, parent);
+		this.parent = parent;
+		this.updateErrorVisiblity();
 	}
 
-	public get label() {
-		return this.test.item.label;
+	public update(patch: ITestItemUpdate) {
+		applyTestItemUpdate(this.test, patch);
+		this.updateErrorVisiblity();
 	}
 
-	public get state() {
-		return this.test.item.state.runState;
-	}
-
-	public get location() {
-		return this.test.item.location;
-	}
-
-	public get runnable(): Iterable<TestIdWithProvider> {
-		return this.test.item.runnable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
-			: Iterable.empty();
-	}
-
-	public get debuggable() {
-		return this.test.item.debuggable
-			? [{ providerId: this.test.providerId, testId: this.test.id }]
-			: Iterable.empty();
-	}
-
-	constructor(public readonly test: InternalTestItem, public readonly parentItem: HierarchicalFolder | HierarchicalElement) {
-		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
-	}
-
-	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
-		const stateChange = actual.item.state.runState !== this.state;
-		Object.assign(this.test, actual);
-		if (stateChange) {
-			refreshComputedState(this, addUpdated);
+	private updateErrorVisiblity() {
+		if (this.errorChild && !this.test.item.error) {
+			this.addedOrRemoved(this.errorChild);
+			this.children.delete(this.errorChild);
+			this.errorChild = undefined;
+		} else if (this.test.item.error && !this.errorChild) {
+			this.errorChild = new TestTreeErrorMessage(this.test.item.error, this);
+			this.children.add(this.errorChild);
+			this.addedOrRemoved(this.errorChild);
 		}
 	}
 }
 
 /**
- * Workspace folder in the hierarcha view.
+ * Workspace folder in the location view.
  */
-export class HierarchicalFolder implements ITestTreeElement {
-	public readonly children = new Set<HierarchicalElement>();
-	public readonly parentItem = null;
-	public readonly depth = 0;
-	public computedState: TestRunState | undefined;
-
-	public get treeId() {
-		return `hifolder:${this.folder.index}`;
-	}
-
-	public get runnable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
-	}
-
-	public get debuggable() {
-		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
-	}
-
-	constructor(private readonly folder: IWorkspaceFolder) { }
-
-	public get label() {
-		return this.folder.name;
-	}
+export class ByLocationFolderElement extends TestTreeWorkspaceFolder {
+	public override readonly children = new Set<ByLocationTestItemElement>();
 }
-
-/**
- * Gets the computed state for the node.
- */
-export const getComputedState = (node: ITestTreeElement) => {
-	if (node.computedState === undefined) {
-		node.computedState = node.state ?? TestRunState.Unset;
-		for (const child of node.children) {
-			node.computedState = maxPriority(node.computedState, getComputedState(child));
-		}
-	}
-
-	return node.computedState;
-};
-
-/**
- * Refreshes the computed state for the node and its parents. Any changes
- * elements cause `addUpdated` to be called.
- */
-export const refreshComputedState = (node: ITestTreeElement, addUpdated: (n: ITestTreeElement) => void) => {
-	if (node.computedState === undefined) {
-		return;
-	}
-
-	const oldPriority = statePriority[node.computedState];
-	node.computedState = undefined;
-	const newState = getComputedState(node);
-	const newPriority = statePriority[getComputedState(node)];
-	if (newPriority === oldPriority) {
-		return;
-	}
-
-	addUpdated(node);
-	if (newPriority > oldPriority) {
-		// Update all parents to ensure they're at least this priority.
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev !== undefined && statePriority[prev] >= newPriority) {
-				break;
-			}
-
-			parent.computedState = newState;
-			addUpdated(parent);
-		}
-	} else if (newPriority < oldPriority) {
-		// Re-render all parents of this node whose computed priority might have come from this node
-		for (let parent = node.parentItem; parent; parent = parent.parentItem) {
-			const prev = parent.computedState;
-			if (prev === undefined || statePriority[prev] > oldPriority) {
-				break;
-			}
-
-			parent.computedState = undefined;
-			parent.computedState = getComputedState(parent);
-			addUpdated(parent);
-		}
-	}
-};

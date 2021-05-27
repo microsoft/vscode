@@ -17,7 +17,7 @@ import { Stream } from 'stream';
 
 const mkdirp = require('mkdirp');
 
-interface IExtensionDefinition {
+export interface IExtensionDefinition {
 	name: string;
 	version: string;
 	repo: string;

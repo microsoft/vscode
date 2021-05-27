@@ -18,6 +18,7 @@
           ".ascx",
           ".atom",
           ".axml",
+          ".axaml",
           ".bpmn",
           ".cpt",
           ".csl",
@@ -108,7 +109,7 @@
     ]
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/.bin/vscode-grammar-updater atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin atom/language-xml grammars/xml.cson ./syntaxes/xml.tmLanguage.json grammars/xsl.cson ./syntaxes/xsl.tmLanguage.json"
   },
   "repository": {
     "type": "git",

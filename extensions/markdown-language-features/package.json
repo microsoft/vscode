@@ -29,7 +29,27 @@
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "%workspaceTrust%",
+      "restrictedConfigurations": [
+        "markdown.styles"
+      ]
+    }
+  },
   "contributes": {
+    "notebookRenderer": [
+      {
+        "id": "markdownItRenderer",
+        "displayName": "Markdown it renderer",
+        "entrypoint": "./notebook-out/index.js",
+        "mimeTypes": [
+          "text/markdown"
+        ]
+      }
+    ],
     "commands": [
       {
         "command": "markdown.showPreview",
@@ -200,6 +220,12 @@
           "description": "%markdown.preview.linkify%",
           "scope": "resource"
         },
+        "markdown.preview.typographer": {
+          "type": "boolean",
+          "default": false,
+          "description": "%markdown.preview.typographer%",
+          "scope": "resource"
+        },
         "markdown.preview.fontFamily": {
           "type": "string",
           "default": "-apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif",
@@ -315,11 +341,12 @@
     ]
   },
   "scripts": {
-    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview",
+    "compile": "gulp compile-extension:markdown-language-features && npm run build-preview && npm run build-notebook",
     "watch": "npm run build-preview && gulp watch-extension:markdown-language-features",
     "vscode:prepublish": "npm run build-ext && npm run build-preview",
     "build-ext": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:markdown-language-features ./tsconfig.json",
-    "build-preview": "webpack --mode production",
+    "build-preview": "npx webpack-cli --mode production",
+    "build-notebook": "node ./esbuild",
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
@@ -327,14 +354,14 @@
     "highlight.js": "^10.4.1",
     "markdown-it": "^12.0.3",
     "markdown-it-front-matter": "^0.2.1",
-    "vscode-extension-telemetry": "0.1.1",
+    "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
     "@types/highlight.js": "10.1.0",
     "@types/lodash.throttle": "^4.1.3",
     "@types/markdown-it": "0.0.2",
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "lodash.throttle": "^4.1.1"
   },
   "repository": {

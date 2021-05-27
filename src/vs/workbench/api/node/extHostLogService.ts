@@ -9,7 +9,6 @@ import { ExtensionHostLogFileName } from 'vs/workbench/services/extensions/commo
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
-import { dirname } from 'vs/base/common/resources';
 
 export class ExtHostLogService extends LogService implements ILogService, ExtHostLogServiceShape {
 
@@ -17,7 +16,7 @@ export class ExtHostLogService extends LogService implements ILogService, ExtHos
 		@IExtHostInitDataService initData: IExtHostInitDataService,
 	) {
 		if (initData.logFile.scheme !== Schemas.file) { throw new Error('Only file-logging supported'); }
-		super(new SpdLogLogger(ExtensionHostLogFileName, dirname(initData.logFile).fsPath, initData.logLevel));
+		super(new SpdLogLogger(ExtensionHostLogFileName, initData.logFile.fsPath, true, initData.logLevel));
 	}
 
 	$setLevel(level: LogLevel): void {

@@ -15,16 +15,20 @@ import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOpenContext } from 'vs/platform/editor/common/editor';
-import { ILogService } from 'vs/platform/log/common/log';
 import { IExternalOpener, IExternalUriResolver, IOpener, IOpenerService, IResolvedExternalUri, IValidator, matchesScheme, OpenOptions, ResolveExternalUriOptions } from 'vs/platform/opener/common/opener';
 
 class CommandOpener implements IOpener {
 
 	constructor(@ICommandService private readonly _commandService: ICommandService) { }
 
-	async open(target: URI | string) {
+	async open(target: URI | string, options?: OpenOptions): Promise<boolean> {
 		if (!matchesScheme(target, Schemas.command)) {
 			return false;
+		}
+		if (!options?.allowCommands) {
+			// silently ignore commands when command-links are disabled, also
+			// surpress other openers by returning TRUE
+			return true;
 		}
 		// run command or bail out if command isn't known
 		if (typeof target === 'string') {
@@ -106,8 +110,7 @@ export class OpenerService implements IOpenerService {
 
 	constructor(
 		@ICodeEditorService editorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@ILogService private logService: ILogService
+		@ICommandService commandService: ICommandService
 	) {
 		// Default external opener is going through window.open()
 		this._defaultExternalOpener = {
@@ -168,8 +171,7 @@ export class OpenerService implements IOpenerService {
 		// check with contributed validators
 		const targetURI = typeof target === 'string' ? URI.parse(target) : target;
 		// validate against the original URI that this URI resolves to, if one exists
-		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? targetURI;
-		this.logService.trace(`OpenerService#open: ${targetURI.authority} validating via ${validationTarget.authority}`);
+		const validationTarget = this._resolvedUriTargets.get(targetURI) ?? target;
 		for (const validator of this._validators) {
 			if (!(await validator.shouldOpen(validationTarget))) {
 				return false;
@@ -189,32 +191,41 @@ export class OpenerService implements IOpenerService {
 
 	async resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri> {
 		for (const resolver of this._resolvers) {
-			const result = await resolver.resolveExternalUri(resource, options);
-			if (result) {
-				if (!this._resolvedUriTargets.has(result.resolved)) {
-					this.logService.trace(`OpenerService#resolveExternalUri: ${resource.authority} resolved to ${result.resolved.authority}`);
-					this._resolvedUriTargets.set(result.resolved, resource);
+			try {
+				const result = await resolver.resolveExternalUri(resource, options);
+				if (result) {
+					if (!this._resolvedUriTargets.has(result.resolved)) {
+						this._resolvedUriTargets.set(result.resolved, resource);
+					}
+					return result;
 				}
-				return result;
+			} catch {
+				// noop
 			}
 		}
 
-		return { resolved: resource, dispose: () => { } };
+		throw new Error('Could not resolve external URI: ' + resource.toString());
 	}
 
 	private async _doOpenExternal(resource: URI | string, options: OpenOptions | undefined): Promise<boolean> {
 
 		//todo@jrieken IExternalUriResolver should support `uri: URI | string`
 		const uri = typeof resource === 'string' ? URI.parse(resource) : resource;
-		const { resolved } = await this.resolveExternalUri(uri, options);
+		let externalUri: URI;
+
+		try {
+			externalUri = (await this.resolveExternalUri(uri, options)).resolved;
+		} catch {
+			externalUri = uri;
+		}
 
 		let href: string;
-		if (typeof resource === 'string' && uri.toString() === resolved.toString()) {
+		if (typeof resource === 'string' && uri.toString() === externalUri.toString()) {
 			// open the url-string AS IS
 			href = resource;
 		} else {
 			// open URI using the toString(noEncode)+encodeURI-trick
-			href = encodeURI(resolved.toString(true));
+			href = encodeURI(externalUri.toString(true));
 		}
 
 		if (options?.allowContributedOpeners) {

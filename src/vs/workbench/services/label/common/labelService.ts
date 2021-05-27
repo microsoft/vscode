@@ -21,7 +21,6 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { hasDriveLetter } from 'vs/base/common/extpath';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -74,6 +73,10 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
+function hasDriveLetterIgnorePlatform(path: string): boolean {
+	return !!(path && path[2] === ':');
+}
+
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
 
@@ -96,7 +99,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[] = [];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>());
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
@@ -283,7 +286,7 @@ export class LabelService extends Disposable implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formatting.normalizeDriveLetter && hasDriveLetter(label.substr(1))) {
+		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 

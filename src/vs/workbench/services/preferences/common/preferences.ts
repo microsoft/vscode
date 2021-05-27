@@ -12,10 +12,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMatch } from 'vs/base/common/filters';
@@ -77,6 +77,7 @@ export interface ISetting {
 	enumDescriptionsAreMarkdown?: boolean;
 	tags?: string[];
 	disallowSyncIgnore?: boolean;
+	restricted?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
@@ -169,30 +170,18 @@ export interface ISettingsEditorOptions extends IEditorOptions {
 		key: string;
 		edit?: boolean;
 	};
+	focusSearch?: boolean;
 }
 
-export class SettingsEditorOptions extends EditorOptions implements ISettingsEditorOptions {
+export function validateSettingsEditorOptions(options: ISettingsEditorOptions): ISettingsEditorOptions {
+	return {
+		// Inherit provided options
+		...options,
 
-	target?: ConfigurationTarget;
-	folderUri?: URI;
-	query?: string;
-	revealSetting?: {
-		key: string;
-		edit?: boolean;
+		// Enforce some options for settings specifically
+		override: EditorOverride.DISABLED,
+		pinned: true
 	};
-
-	static create(settings: ISettingsEditorOptions): SettingsEditorOptions {
-		const options = new SettingsEditorOptions();
-		options.overwrite(settings);
-
-		options.target = settings.target;
-		options.folderUri = settings.folderUri;
-		options.query = settings.query;
-		options.revealSetting = settings.revealSetting;
-		options.pinned = true;
-
-		return options;
-	}
 }
 
 export interface IKeybindingsEditorModel<T> extends IPreferencesEditorModel<T> {
@@ -221,10 +210,12 @@ export interface IPreferencesService {
 	openRemoteSettings(): Promise<IEditorPane | undefined>;
 	openWorkspaceSettings(jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
 	openFolderSettings(folder: URI, jsonEditor?: boolean, options?: ISettingsEditorOptions, group?: IEditorGroup): Promise<IEditorPane | undefined>;
-	switchSettings(target: ConfigurationTarget, resource: URI, jsonEditor?: boolean): Promise<void>;
+	switchSettings(target: ConfigurationTarget, resource: URI): Promise<void>;
 	openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void>;
 	openDefaultKeybindingsFile(): Promise<IEditorPane | undefined>;
 	getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null>;
+
+	getCurrentOrNewSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI | undefined, group: IEditorGroup): IEditorInput;
 }
 
 export function getSettingsTargetName(target: ConfigurationTarget, resource: URI, workspaceContextService: IWorkspaceContextService): string {

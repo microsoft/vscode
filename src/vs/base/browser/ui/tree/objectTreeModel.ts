@@ -8,7 +8,6 @@ import { IndexTreeModel, IIndexTreeModelOptions, IList, IIndexTreeModelSpliceOpt
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { mergeSort } from 'vs/base/common/arrays';
 
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
@@ -130,7 +129,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 
 	private preserveCollapseState(elements: Iterable<ITreeElement<T>> = Iterable.empty()): Iterable<ITreeElement<T>> {
 		if (this.sorter) {
-			elements = mergeSort([...elements], this.sorter.compare.bind(this.sorter));
+			elements = [...elements].sort(this.sorter.compare.bind(this.sorter));
 		}
 
 		return Iterable.map(elements, treeElement => {
@@ -185,7 +184,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		let childrenNodes = [...node.children] as ITreeNode<T, TFilterData>[];
 
 		if (recursive || first) {
-			childrenNodes = mergeSort(childrenNodes, this.sorter!.compare.bind(this.sorter));
+			childrenNodes = childrenNodes.sort(this.sorter!.compare.bind(this.sorter));
 		}
 
 		return Iterable.map<ITreeNode<T | null, TFilterData>, ITreeElement<T>>(childrenNodes, node => ({

@@ -6,12 +6,12 @@
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
 import { Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
-import { Position } from 'vs/editor/common/core/position';
-import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { InternalTestItem, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -27,67 +27,234 @@ export interface ITestTreeProjection extends IDisposable {
 	onUpdate: Event<void>;
 
 	/**
-	 * Gets the test at the given position in th editor. Should be fast,
-	 * since it is called on each cursor move.
+	 * Fired when an element in the tree is expanded.
 	 */
-	getTestAtPosition(uri: URI, position: Position): ITestTreeElement | undefined;
+	expandElement(element: TestItemTreeElement, depth: number): void;
+
+	/**
+	 * Gets an element by its extension-assigned ID.
+	 */
+	getElementByTestId(testId: string): TestItemTreeElement | undefined;
 
 	/**
 	 * Applies pending update to the tree.
 	 */
-	applyTo(tree: ObjectTree<ITestTreeElement, FuzzyScore>): void;
+	applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>): void;
 }
 
-
-export interface ITestTreeElement {
+/**
+ * Interface describing the workspace folder and test item tree elements.
+ */
+export interface IActionableTestTreeElement {
 	/**
-	 * Computed element state. Will be set automatically if not initially provided.
-	 * The projection is responsible for clearing (or updating) this if it
-	 * becomes invalid.
+	 * Parent tree item.
 	 */
-	computedState: TestRunState | undefined;
-
-	readonly children: Set<ITestTreeElement>;
+	parent: IActionableTestTreeElement | null;
 
 	/**
 	 * Unique ID of the element in the tree.
 	 */
-	readonly treeId: string;
+	treeId: string;
 
 	/**
-	 * Location of the test, if any.
+	 * Test children of this item.
 	 */
-	readonly location?: { uri: URI; range: ITextEditorSelection };
+	children: Set<TestExplorerTreeElement>;
 
 	/**
-	 * Test item, if any.
+	 * Depth of the element in the tree.
 	 */
-	readonly test?: Readonly<InternalTestItem>;
+	depth: number;
 
 	/**
-	 * Tree description.
+	 * Folder associated with this element.
 	 */
-	readonly description?: string;
+	folder: IWorkspaceFolder;
 
 	/**
-	 * Depth of the item in the tree.
+	 * Tests to debug when the 'debug' context action is taken on this item.
 	 */
-	readonly depth: number;
+	debuggable: Iterable<TestIdWithSrc>;
 
 	/**
-	 * Tests that can be run using this tree item.
+	 * Tests to run when the 'debug' context action is taken on this item.
 	 */
-	readonly runnable: Iterable<TestIdWithProvider>;
+	runnable: Iterable<TestIdWithSrc>;
 
 	/**
-	 * Tests that can be run using this tree item.
+	 * State to show on the item. This is generally the item's computed state
+	 * from its children.
 	 */
-	readonly debuggable: Iterable<TestIdWithProvider>;
+	state: TestResultState;
 
 	/**
-	 * State of of the tree item. Mostly used for deriving the computed state.
+	 * Time it took this test/item to run.
 	 */
-	readonly state?: TestRunState;
-	readonly label: string;
-	readonly parentItem: ITestTreeElement | null;
+	duration: number | undefined;
+
+	/**
+	 * Label for the item.
+	 */
+	label: string;
 }
+
+let idCounter = 0;
+
+const getId = () => String(idCounter++);
+
+export class TestTreeWorkspaceFolder implements IActionableTestTreeElement {
+	/**
+	 * @inheritdoc
+	 */
+	public readonly parent = null;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly children = new Set<TestItemTreeElement>();
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly treeId = getId();
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly depth = 0;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	public duration: number | undefined;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get runnable() {
+		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public get debuggable() {
+		return Iterable.concatNested(Iterable.map(this.children, c => c.debuggable));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public state = TestResultState.Unset;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get label() {
+		return this.folder.name;
+	}
+
+	constructor(public readonly folder: IWorkspaceFolder) { }
+}
+
+export class TestItemTreeElement implements IActionableTestTreeElement {
+	/**
+	 * @inheritdoc
+	 */
+	public readonly children = new Set<TestExplorerTreeElement>();
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly treeId = getId();
+
+	/**
+	 * @inheritdoc
+	 */
+	public depth: number = this.parent.depth + 1;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get folder(): IWorkspaceFolder {
+		return this.parent.folder;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public get runnable() {
+		return this.test.item.runnable
+			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
+			: Iterable.empty();
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public get debuggable() {
+		return this.test.item.debuggable
+			? Iterable.single({ testId: this.test.item.extId, src: this.test.src })
+			: Iterable.empty();
+	}
+
+	public get description() {
+		return this.test.item.description;
+	}
+
+	/**
+	 * Whether the node's test result is 'retired' -- from an outdated test run.
+	 */
+	public retired = false;
+
+	/**
+	 * @inheritdoc
+	 */
+	public state = TestResultState.Unset;
+
+	/**
+	 * Own, non-computed state.
+	 */
+	public ownState = TestResultState.Unset;
+
+	/**
+	 * Own, non-computed duration.
+	 */
+	public ownDuration: number | undefined;
+
+	/**
+	 * Time it took this test/item to run.
+	 */
+	public duration: number | undefined;
+
+	/**
+	 * @inheritdoc
+	 */
+	public get label() {
+		return this.test.item.label;
+	}
+
+	constructor(
+		public readonly test: InternalTestItem,
+		public readonly parent: TestItemTreeElement | TestTreeWorkspaceFolder,
+	) { }
+}
+
+export class TestTreeErrorMessage {
+	public readonly treeId = getId();
+	public readonly children = new Set<never>();
+
+	public get description() {
+		return typeof this.message === 'string' ? this.message : this.message.value;
+	}
+
+	constructor(
+		public readonly message: string | IMarkdownString,
+		public readonly parent: TestExplorerTreeElement,
+	) { }
+}
+
+export const isActionableTestTreeElement = (t: unknown): t is (TestItemTreeElement | TestTreeWorkspaceFolder) =>
+	t instanceof TestItemTreeElement || t instanceof TestTreeWorkspaceFolder;
+
+export type TestExplorerTreeElement = TestItemTreeElement | TestTreeWorkspaceFolder | TestTreeErrorMessage;

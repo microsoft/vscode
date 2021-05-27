@@ -9,9 +9,9 @@ import * as encoding from 'vs/workbench/services/textfile/common/encoding';
 import * as terminalEncoding from 'vs/base/node/terminalEncoding';
 import * as streams from 'vs/base/common/stream';
 import * as iconv from 'iconv-lite-umd';
-import { getPathFromAmdModule } from 'vs/base/common/amd';
+import { getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
-import { isWindows } from 'vs/base/common/platform';
+import { splitLines } from 'vs/base/common/strings';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -351,7 +351,7 @@ suite('Encoding', () => {
 		assert.strictEqual(content.length, 65537);
 	});
 
-	(isWindows /* TODO@bpasero why does this fail on windows */ ? test.skip : test)('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
+	test('toDecodeStream - some stream (UTF-8 issue #102202)', async function () {
 		const path = getPathFromAmdModule(require, './fixtures/issue_102202.txt');
 		const source = streamToBufferReadableStream(fs.createReadStream(path));
 
@@ -360,7 +360,7 @@ suite('Encoding', () => {
 		assert.ok(stream);
 
 		const content = await readAllAsString(stream);
-		const lines = content.split('\n');
+		const lines = splitLines(content);
 
 		assert.strictEqual(lines[981].toString(), '啊啊啊啊啊啊aaa啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊啊，啊啊啊啊啊啊啊啊啊啊啊。');
 	});

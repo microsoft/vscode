@@ -15,6 +15,8 @@ import { ResourceMap } from '../utils/resourceMap';
 
 namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
+		displayPartsForJSDoc: true
+
 		includeInlineParameterNameHints?: boolean;
 		includeInlineFunctionParameterTypeHints?: boolean;
 		includeInlineVariableTypeHints?: boolean;
@@ -197,7 +199,11 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
-			...getInlineHintsPreferences(config)
+			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
+			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			displayPartsForJSDoc: true,
+			...getInlineHintsPreferences(config),
 		};
 
 		return preferences;

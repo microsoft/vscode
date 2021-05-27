@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup, IEditorGroupsService, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { LRUCache, Touch } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { isEmptyObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { MementoObject } from 'vs/workbench/common/memento';
 import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -51,13 +53,13 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	get minimumHeight() { return DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
 	get maximumHeight() { return DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
-	readonly onDidSizeConstraintsChange = Event.None;
+	readonly onDidChangeSizeConstraints = Event.None;
 
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
 
-	protected _options: EditorOptions | undefined;
-	get options(): EditorOptions | undefined { return this._options; }
+	protected _options: IEditorOptions | undefined;
+	get options(): IEditorOptions | undefined { return this._options; }
 
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
@@ -76,7 +78,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		super.create(parent);
 
 		// Create Editor
@@ -102,7 +104,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}
@@ -129,11 +131,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions | undefined): void {
+	setOptions(options: IEditorOptions | undefined): void {
 		this._options = options;
 	}
 
-	setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
@@ -163,19 +165,19 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		return editorMemento;
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Save all editor memento for this editor type
-		EditorPane.EDITOR_MEMENTOS.forEach(editorMemento => {
+		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
 			if (editorMemento.id === this.getId()) {
 				editorMemento.saveState();
 			}
-		});
+		}
 
 		super.saveState();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._input = undefined;
 		this._options = undefined;
 
@@ -193,7 +195,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,
@@ -224,9 +226,9 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 	}
 
-	loadEditorState(group: IEditorGroup, resource: URI, fallbackToOtherGroupState?: boolean): T | undefined;
-	loadEditorState(group: IEditorGroup, editor: EditorInput, fallbackToOtherGroupState?: boolean): T | undefined;
-	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, fallbackToOtherGroupState?: boolean): T | undefined {
+	loadEditorState(group: IEditorGroup, resource: URI): T | undefined;
+	loadEditorState(group: IEditorGroup, editor: EditorInput): T | undefined;
+	loadEditorState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T | undefined {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return; // we are not in a good state to load any state for a resource
@@ -236,18 +238,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 
 		const mementoForResource = cache.get(resource.toString());
 		if (mementoForResource) {
-			let mementoForResourceAndGroup = mementoForResource[group.id];
-			if (!fallbackToOtherGroupState || !isUndefinedOrNull(mementoForResourceAndGroup)) {
-				return mementoForResourceAndGroup;
-			}
-
-			// Fallback to retrieve state from the most recently active editor group as instructed
-			for (const group of this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
-				mementoForResourceAndGroup = mementoForResource[group.id];
-				if (!isUndefinedOrNull(mementoForResourceAndGroup)) {
-					return mementoForResourceAndGroup;
-				}
-			}
+			return mementoForResource[group.id];
 		}
 
 		return;
@@ -285,7 +276,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 
 		if (!this.editorDisposables.has(editor)) {
-			this.editorDisposables.set(editor, Event.once(editor.onDispose)(() => {
+			this.editorDisposables.set(editor, Event.once(editor.onWillDispose)(() => {
 				this.clearEditorState(resource);
 				this.editorDisposables?.delete(editor);
 			}));

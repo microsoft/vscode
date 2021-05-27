@@ -32,7 +32,11 @@ function adjustHandler(handler: (executor: ICommandsExecutor, ...args: any[]) =>
 
 interface INewWindowAPICommandOptions {
 	reuseWindow?: boolean;
-	remoteAuthority?: string;
+	/**
+	 * If set, defines the remoteAuthority of the new window. `null` will open a local window.
+	 * If not set, defaults to remoteAuthority of the current window.
+	 */
+	remoteAuthority?: string | null;
 }
 
 export class NewWindowAPICommand {
@@ -74,27 +78,11 @@ export class RemoveFromRecentlyOpenedAPICommand {
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
 
-export interface OpenIssueReporterArgs {
-	readonly extensionId: string;
-	readonly issueTitle?: string;
-	readonly issueBody?: string;
-}
-
-export class OpenIssueReporter {
-	public static readonly ID = 'vscode.openIssueReporter';
-
-	public static execute(executor: ICommandsExecutor, args: string | OpenIssueReporterArgs): Promise<void> {
-		const commandArgs = typeof args === 'string'
-			? { extensionId: args }
-			: args;
-		return executor.executeCommand('workbench.action.openIssueReporter', commandArgs);
-	}
-}
-
 interface RecentEntry {
 	uri: URI;
 	type: 'workspace' | 'folder' | 'file';
 	label?: string;
+	remoteAuthority?: string;
 }
 
 CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async function (accessor: ServicesAccessor, recentEntry: RecentEntry) {
@@ -102,13 +90,14 @@ CommandsRegistry.registerCommand('_workbench.addToRecentlyOpened', async functio
 	let recent: IRecent | undefined = undefined;
 	const uri = recentEntry.uri;
 	const label = recentEntry.label;
+	const remoteAuthority = recentEntry.remoteAuthority;
 	if (recentEntry.type === 'workspace') {
 		const workspace = await workspacesService.getWorkspaceIdentifier(uri);
-		recent = { workspace, label };
+		recent = { workspace, label, remoteAuthority };
 	} else if (recentEntry.type === 'folder') {
-		recent = { folderUri: uri, label };
+		recent = { folderUri: uri, label, remoteAuthority };
 	} else {
-		recent = { fileUri: uri, label };
+		recent = { fileUri: uri, label, remoteAuthority };
 	}
 	return workspacesService.addRecentlyOpened([recent]);
 });

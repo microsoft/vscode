@@ -3,46 +3,46 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
 import * as assert from 'assert';
 import * as fs from 'fs';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ISearchService } from 'vs/workbench/services/search/common/search';
-import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
+import { Emitter, Event } from 'vs/base/common/event';
 import * as path from 'vs/base/common/path';
-import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { TestEditorService, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
-
-import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
-import { QueryBuilder, ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
-
-import { Event, Emitter } from 'vs/base/common/event';
-import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
-import { NullLogService, ILogService } from 'vs/platform/log/common/log';
+import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfigurationService';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
-import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
+import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import 'vs/workbench/contrib/search/browser/search.contribution'; // load contributions
+import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
+import { SearchModel } from 'vs/workbench/contrib/search/common/searchModel';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ISearchService } from 'vs/workbench/services/search/common/search';
+import { LocalSearchService } from 'vs/workbench/services/search/electron-browser/searchService';
+import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestContextService, TestTextResourcePropertiesService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestEnvironmentService } from 'vs/workbench/test/electron-browser/workbenchTestServices';
+
+
 
 // declare var __dirname: string;
 
@@ -84,8 +84,8 @@ suite.skip('TextSearch performance (integration)', () => {
 			[IEditorService, new TestEditorService()],
 			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
-			[IUntitledTextEditorService, createSyncDescriptor(UntitledTextEditorService)],
-			[ISearchService, createSyncDescriptor(LocalSearchService)],
+			[IUntitledTextEditorService, new SyncDescriptor(UntitledTextEditorService)],
+			[ISearchService, new SyncDescriptor(LocalSearchService)],
 			[ILogService, logService]
 		));
 
@@ -105,12 +105,12 @@ suite.skip('TextSearch performance (integration)', () => {
 			function onComplete(): void {
 				try {
 					const allEvents = telemetryService.events.map(e => JSON.stringify(e)).join('\n');
-					assert.equal(telemetryService.events.length, 3, 'Expected 3 telemetry events, got:\n' + allEvents);
+					assert.strictEqual(telemetryService.events.length, 3, 'Expected 3 telemetry events, got:\n' + allEvents);
 
 					const [firstRenderEvent, resultsShownEvent, resultsFinishedEvent] = telemetryService.events;
-					assert.equal(firstRenderEvent.name, 'searchResultsFirstRender');
-					assert.equal(resultsShownEvent.name, 'searchResultsShown');
-					assert.equal(resultsFinishedEvent.name, 'searchResultsFinished');
+					assert.strictEqual(firstRenderEvent.name, 'searchResultsFirstRender');
+					assert.strictEqual(resultsShownEvent.name, 'searchResultsShown');
+					assert.strictEqual(resultsFinishedEvent.name, 'searchResultsFinished');
 
 					telemetryService.events = [];
 
@@ -202,7 +202,8 @@ class TestTelemetryService implements ITelemetryService {
 		return Promise.resolve({
 			instanceId: 'someValue.instanceId',
 			sessionId: 'someValue.sessionId',
-			machineId: 'someValue.machineId'
+			machineId: 'someValue.machineId',
+			firstSessionDate: 'someValue.firstSessionDate'
 		});
 	}
 }

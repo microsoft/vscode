@@ -43,18 +43,18 @@ class CheckoutItem implements QuickPickItem {
 
 class CheckoutTagItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('tag at', "Tag at {0}", this.shortCommit);
 	}
 }
 
 class CheckoutRemoteHeadItem extends CheckoutItem {
 
-	get description(): string {
+	override get description(): string {
 		return localize('remote branch at', "Remote branch at {0}", this.shortCommit);
 	}
 
-	async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
+	override async run(repository: Repository, opts?: { detached?: boolean }): Promise<void> {
 		if (!this.ref.name) {
 			return;
 		}
@@ -797,7 +797,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const from = path.relative(repository.root, fromUri.path);
+		const from = path.relative(repository.root, fromUri.fsPath);
 		let to = await window.showInputBox({
 			value: from,
 			valueSelection: [from.length - path.basename(from).length, from.length]
@@ -2246,8 +2246,8 @@ export class CommandCenter {
 			return;
 		}
 
-		await repository.addRemote(name, url);
-		await repository.fetch(name);
+		await repository.addRemote(name, url.trim());
+		await repository.fetch({ remote: name });
 		return name;
 	}
 
@@ -2667,6 +2667,52 @@ export class CommandCenter {
 		}
 
 		env.clipboard.writeText(item.message);
+	}
+
+	private _selectedForCompare: { uri: Uri, item: GitTimelineItem } | undefined;
+
+	@command('git.timeline.selectForCompare', { repository: false })
+	async timelineSelectForCompare(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri) {
+			return;
+		}
+
+		this._selectedForCompare = { uri, item };
+		await commands.executeCommand('setContext', 'git.timeline.selectedForCompare', true);
+	}
+
+	@command('git.timeline.compareWithSelected', { repository: false })
+	async timelineCompareWithSelected(item: TimelineItem, uri: Uri | undefined, _source: string) {
+		if (!GitTimelineItem.is(item) || !uri || !this._selectedForCompare || uri.toString() !== this._selectedForCompare.uri.toString()) {
+			return;
+		}
+
+		const { item: selected } = this._selectedForCompare;
+
+		const basename = path.basename(uri.fsPath);
+		let leftTitle;
+		if ((selected.previousRef === 'HEAD' || selected.previousRef === '~') && selected.ref === '') {
+			leftTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (selected.previousRef === 'HEAD' && selected.ref === '~') {
+			leftTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			leftTitle = localize('git.title.ref', '{0} ({1})', basename, selected.shortRef);
+		}
+
+		let rightTitle;
+		if ((item.previousRef === 'HEAD' || item.previousRef === '~') && item.ref === '') {
+			rightTitle = localize('git.title.workingTree', '{0} (Working Tree)', basename);
+		}
+		else if (item.previousRef === 'HEAD' && item.ref === '~') {
+			rightTitle = localize('git.title.index', '{0} (Index)', basename);
+		} else {
+			rightTitle = localize('git.title.ref', '{0} ({1})', basename, item.shortRef);
+		}
+
+
+		const title = localize('git.title.diff', '{0} ⟷ {1}', leftTitle, rightTitle);
+		await commands.executeCommand('vscode.diff', selected.ref === '' ? uri : toGitUri(uri, selected.ref), item.ref === '' ? uri : toGitUri(uri, item.ref), title);
 	}
 
 	@command('git.rebaseAbort', { repository: true })

@@ -21,6 +21,7 @@ import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/k
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { timeout } from 'vs/base/common/async';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -105,7 +106,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private isEnabled(): boolean {
-		return this.galleryService.isEnabled() && !this.environmentService.extensionDevelopmentLocationURI;
+		return this.galleryService.isEnabled() && !this.environmentService.isExtensionDevelopment;
 	}
 
 	private async activateProactiveRecommendations(): Promise<void> {
@@ -232,16 +233,20 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
 	}
 
+	// for testing
+	protected get workbenchRecommendationDelay() {
+		// remote extensions might still being installed #124119
+		return 5000;
+	}
+
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
 			.map(({ extensionId }) => extensionId)
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
+			await timeout(this.workbenchRecommendationDelay);
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
 	}
-
-
-
 }

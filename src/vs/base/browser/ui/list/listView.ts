@@ -339,7 +339,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		container.appendChild(this.domNode);
 
 		this.scrollableElement.onScroll(this.onScroll, this, this.disposables);
-		domEvent(this.rowsContainer, TouchEventType.Change)(this.onTouchChange, this, this.disposables);
+		domEvent(this.rowsContainer, TouchEventType.Change)(e => this.onTouchChange(e as GestureEvent), this, this.disposables);
 
 		// Prevent the monaco-scrollable-element from scrolling
 		// https://github.com/microsoft/vscode/issues/44181
@@ -362,6 +362,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	updateOptions(options: IListViewOptionsUpdate) {
 		if (options.additionalScrollHeight !== undefined) {
 			this.additionalScrollHeight = options.additionalScrollHeight;
+			this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 		}
 
 		if (options.smoothScrolling !== undefined) {
@@ -407,6 +408,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		this.items[index].size = size;
 
 		this.render(lastRenderRange, Math.max(0, this.lastRenderTop + heightDiff), this.lastRenderHeight, undefined, undefined, true);
+		this.setScrollTop(this.lastRenderTop);
 
 		this.eventuallyUpdateScrollDimensions();
 
@@ -436,7 +438,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const removeRange = Range.intersect(previousRenderRange, deleteRange);
 
 		// try to reuse rows, avoid removing them from DOM
-		const rowsToDispose = new Map<string, [IRow, T, number, number][]>();
+		const rowsToDispose = new Map<string, IRow[]>();
 		for (let i = removeRange.start; i < removeRange.end; i++) {
 			const item = this.items[i];
 			item.dragStartDisposable.dispose();
@@ -449,7 +451,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 					rowsToDispose.set(item.templateId, rows);
 				}
 
-				rows.push([item.row, item.element, i, item.size]);
+				const renderer = this.renderers.get(item.templateId);
+
+				if (renderer && renderer.disposeElement) {
+					renderer.disposeElement(item.element, i, item.row.templateData, item.size);
+				}
+
+				rows.push(item.row);
 			}
 
 			item.row = null;
@@ -479,8 +487,8 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		if (start === 0 && deleteCount >= this.items.length) {
 			this.rangeMap = new RangeMap();
 			this.rangeMap.splice(0, 0, inserted);
+			deleted = this.items;
 			this.items = inserted;
-			deleted = [];
 		} else {
 			this.rangeMap.splice(start, deleteCount, inserted);
 			deleted = this.items.splice(start, deleteCount, ...inserted);
@@ -512,31 +520,13 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			for (let i = range.start; i < range.end; i++) {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
-				const rowData = rows?.pop();
-
-				if (!rowData) {
-					this.insertItemInDOM(i, beforeElement);
-				} else {
-					const [row, element, index, size] = rowData;
-					const renderer = this.renderers.get(item.templateId);
-
-					if (renderer && renderer.disposeElement) {
-						renderer.disposeElement(element, index, row.templateData, size);
-					}
-
-					this.insertItemInDOM(i, beforeElement, row);
-				}
+				const row = rows?.pop();
+				this.insertItemInDOM(i, beforeElement, row);
 			}
 		}
 
-		for (const [templateId, rows] of rowsToDispose) {
-			for (const [row, element, index, size] of rows) {
-				const renderer = this.renderers.get(templateId);
-
-				if (renderer && renderer.disposeElement) {
-					renderer.disposeElement(element, index, row.templateData, size);
-				}
-
+		for (const rows of rowsToDispose.values()) {
+			for (const row of rows) {
 				this.cache.release(row);
 			}
 		}
@@ -691,12 +681,12 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 			if (this.supportDynamicHeights) {
 				this._rerender(this.scrollTop, this.renderHeight);
 			}
+		}
 
-			if (this.horizontalScrolling) {
-				this.scrollableElement.setScrollDimensions({
-					width: typeof width === 'number' ? width : getContentWidth(this.domNode)
-				});
-			}
+		if (this.horizontalScrolling) {
+			this.scrollableElement.setScrollDimensions({
+				width: typeof width === 'number' ? width : getContentWidth(this.domNode)
+			});
 		}
 	}
 
@@ -910,7 +900,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onMouseOut(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'mouseout'), e => this.toMouseEvent(e)); }
 	@memoize get onContextMenu(): Event<IListMouseEvent<T>> { return Event.map(domEvent(this.domNode, 'contextmenu'), e => this.toMouseEvent(e)); }
 	@memoize get onTouchStart(): Event<IListTouchEvent<T>> { return Event.map(domEvent(this.domNode, 'touchstart'), e => this.toTouchEvent(e)); }
-	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e)); }
+	@memoize get onTap(): Event<IListGestureEvent<T>> { return Event.map(domEvent(this.rowsContainer, TouchEventType.Tap), e => this.toGestureEvent(e as GestureEvent)); }
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target || null);

@@ -9,7 +9,7 @@
     "vscode": "0.10.x"
   },
   "scripts": {
-    "update-grammar": "node ../node_modules/.bin/vscode-grammar-updater demyte/language-cshtml grammars/cshtml.json ./syntaxes/cshtml.tmLanguage.json"
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin demyte/language-cshtml grammars/cshtml.json ./syntaxes/cshtml.tmLanguage.json"
   },
   "contributes": {
     "languages": [
