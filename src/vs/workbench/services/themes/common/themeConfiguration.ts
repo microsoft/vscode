@@ -138,7 +138,7 @@ const tokenColorSchema: IJSONSchema = {
 		}
 	},
 	patternProperties: {
-		'^\\s*\\[([^\\]]*\\]\\s*\\[[^\\]]*)*\\]\\s*$': {
+		'^\\[([^\\]]*\\]\\s*\\[[^\\]]*)*\\]$': {
 			type: 'object'
 		},
 		'^[^\\[\\]]*$': {
