@@ -56,7 +56,7 @@ class Kernel {
 	}
 
 	protected async _runCell(cell: vscode.NotebookCell) {
-		const task = this.controller.createNotebookCellExecutionTask(cell);
+		const task = this.controller.createNotebookCellExecution(cell);
 		task.start();
 		task.executionOrder = 1;
 		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
@@ -180,7 +180,7 @@ suite('Notebook API tests', function () {
 			}
 
 			override async _runCell(cell: vscode.NotebookCell) {
-				const task = this.controller.createNotebookCellExecutionTask(cell);
+				const task = this.controller.createNotebookCellExecution(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
 					vscode.NotebookCellOutputItem.text('my second output', 'text/plain', undefined)
@@ -772,7 +772,7 @@ suite('Notebook API tests', function () {
 
 			override async _execute(cells: vscode.NotebookCell[]) {
 				for (const cell of cells) {
-					const task = this.controller.createNotebookCellExecutionTask(cell);
+					const task = this.controller.createNotebookCellExecution(cell);
 					task.start();
 					task.token.onCancellationRequested(async () => {
 						await task.replaceOutput([new vscode.NotebookCellOutput([
@@ -812,10 +812,10 @@ suite('Notebook API tests', function () {
 				this.controller.interruptHandler = this.interrupt.bind(this);
 			}
 
-			private _task: vscode.NotebookCellExecutionTask | undefined;
+			private _task: vscode.NotebookCellExecution | undefined;
 
 			override async _execute(cells: vscode.NotebookCell[]) {
-				this._task = this.controller.createNotebookCellExecutionTask(cells[0]);
+				this._task = this.controller.createNotebookCellExecution(cells[0]);
 				this._task.start();
 			}
 
@@ -1178,7 +1178,7 @@ suite('Notebook API tests', function () {
 
 			override async _execute(cells: vscode.NotebookCell[]) {
 				const [cell] = cells;
-				const task = this.controller.createNotebookCellExecutionTask(cell);
+				const task = this.controller.createNotebookCellExecution(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
 					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)

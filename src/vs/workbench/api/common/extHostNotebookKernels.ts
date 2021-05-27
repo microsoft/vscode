@@ -164,7 +164,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.supportsInterrupt = Boolean(value);
 				_update();
 			},
-			createNotebookCellExecutionTask(cell) {
+			createNotebookCellExecution(cell) {
 				if (isDisposed) {
 					throw new Error('notebook controller is DISPOSED');
 				}
@@ -290,7 +290,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	// ---
 
-	_createNotebookCellExecution(cell: vscode.NotebookCell): vscode.NotebookCellExecutionTask {
+	_createNotebookCellExecution(cell: vscode.NotebookCell): vscode.NotebookCellExecution {
 		if (cell.index < 0) {
 			throw new Error('CANNOT execute cell that has been REMOVED from notebook');
 		}
@@ -403,9 +403,9 @@ class NotebookCellExecutionTask extends Disposable {
 		});
 	}
 
-	asApiObject(): vscode.NotebookCellExecutionTask {
+	asApiObject(): vscode.NotebookCellExecution {
 		const that = this;
-		return Object.freeze(<vscode.NotebookCellExecutionTask>{
+		return Object.freeze(<vscode.NotebookCellExecution>{
 			get token() { return that._tokenSource.token; },
 			get document() { return that._document.apiNotebook; },
 			get cell() { return that._cell.apiCell; },

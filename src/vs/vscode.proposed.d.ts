@@ -1562,20 +1562,21 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
-	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecutionTask
+	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecution
 	/**
-	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
-	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
+	 * A NotebookCellExecution is how the kernel modifies a notebook cell as it is executing. When
+	 * {@link notebook.createNotebookCellExecution `createNotebookCellExecution`} is called, the cell
 	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
 	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
 	 * modified with the methods on the run task.
 	 *
-	 * All outputs methods operate on this NotebookCellExecutionTask's cell by default. They optionally take
+	 * All outputs methods operate on this NotebookCellExecution's cell by default. They optionally take
 	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
 	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
 	 * all resolve once the output edit has been applied.
 	 */
-	export interface NotebookCellExecutionTask {
+	export interface NotebookCellExecution {
+
 		readonly document: NotebookDocument;
 		readonly cell: NotebookCell;
 		readonly token: CancellationToken;
@@ -1653,7 +1654,7 @@ declare module 'vscode' {
 
 		/**
 		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
-		 * [`NotebookCellExecutionTask#token`](NotebookCellExecutionTask#token)) and should only be used when
+		 * [`NotebookCellExecution#token`](NotebookCellExecution#token)) and should only be used when
 		 * execution-level cancellation is supported
 		 */
 		interruptHandler?: NotebookInterruptHandler
@@ -1690,7 +1691,7 @@ declare module 'vscode' {
 		 * @returns A notebook cell execution.
 		 */
 		// todo@API rename to NotebookCellExecution
-		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
 
 		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
