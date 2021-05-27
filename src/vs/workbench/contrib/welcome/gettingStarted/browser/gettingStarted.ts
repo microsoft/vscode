@@ -166,7 +166,18 @@ export class GettingStartedPage extends EditorPane {
 
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getCategories();
-			this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+			if (this.currentCategory && this.currentCategory.content.type === 'steps') {
+				const existingSteps = this.currentCategory.content.steps.map(step => step.id);
+				const newCategory = this.gettingStartedCategories.find(category => this.currentCategory?.id === category.id);
+				if (newCategory && newCategory.content.type === 'steps') {
+					const newSteps = newCategory.content.steps.map(step => step.id);
+					if (newSteps.length !== existingSteps.length || existingSteps.some((v, i) => v !== newSteps[i])) {
+						this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+					}
+				}
+			} else {
+				this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+			}
 		};
 
 		this._register(this.gettingStartedService.onDidAddCategory(rerender));
