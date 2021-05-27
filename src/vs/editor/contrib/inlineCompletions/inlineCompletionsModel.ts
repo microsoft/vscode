@@ -37,6 +37,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 			setTimeout(() => {
+				// Wait for the cursor update that happens in the same iteration loop iteration
 				this.startSessionIfTriggered();
 			}, 0);
 		}));
@@ -101,50 +102,25 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public commitCurrentSuggestion(): void {
-		if (this.session) {
-			this.session.commitCurrentCompletion();
-		}
+		this.session?.commitCurrentCompletion();
 	}
 
 	public showNextInlineCompletion(): void {
-		if (this.session) {
-			this.session.showNextInlineCompletion();
-		}
+		this.session?.showNextInlineCompletion();
 	}
 
 	public showPreviousInlineCompletion(): void {
-		if (this.session) {
-			this.session.showPreviousInlineCompletion();
-		}
-	}
-}
-
-class CachedInlineCompletion {
-	public readonly semanticId: string = JSON.stringify({
-		text: this.inlineCompletion.text,
-		startLine: this.inlineCompletion.range.startLineNumber,
-		startColumn: this.inlineCompletion.range.startColumn,
-		command: this.inlineCompletion.command
-	});
-	public lastRange: Range;
-
-	constructor(
-		public readonly inlineCompletion: LiveInlineCompletion,
-		public readonly decorationId: string,
-	) {
-		this.lastRange = inlineCompletion.range;
+		this.session?.showPreviousInlineCompletion();
 	}
 }
 
 class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
-	private updatePromise: CancelablePromise<void> | undefined = undefined;
-	private cachedCompletions: CachedInlineCompletion[] | undefined = undefined;
-	private fetchMoreContext = false;
-	private cachedCompletionsSource: LiveInlineCompletions | undefined = undefined;
+	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
+	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
+	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
@@ -154,10 +130,6 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		private readonly commandService: ICommandService,
 	) {
 		super(editor);
-		this._register(toDisposable(() => {
-			this.clearUpdatePromise();
-			this.clearCache();
-		}));
 
 		let lastCompletionItem: InlineCompletion | undefined = undefined;
 		this._register(this.onDidChange(() => {
@@ -172,29 +144,25 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			}
 		}));
 
-		this._register(this.editor.onDidChangeModelDecorations(e => {
-			if (!this.cachedCompletions) {
-				return;
-			}
-
-			let hasChanged = false;
-			for (const c of this.cachedCompletions) {
-				const newRange = this.textModel.getDecorationRange(c.decorationId);
-				if (!newRange) {
-					onUnexpectedError(new Error('Decoration has no range'));
-					continue;
-				}
-				if (!c.lastRange.equalsRange(newRange)) {
-					hasChanged = true;
-					c.lastRange = newRange;
-				}
-			}
-			if (hasChanged) {
-				this.onDidChangeEmitter.fire();
-			}
-		}));
-
 		this._register(this.editor.onDidChangeModelContent((e) => {
+			if (this.cache.value) {
+				let hasChanged = false;
+				for (const c of this.cache.value.completions) {
+					const newRange = this.textModel.getDecorationRange(c.decorationId);
+					if (!newRange) {
+						onUnexpectedError(new Error('Decoration has no range'));
+						continue;
+					}
+					if (!c.synchronizedRange.equalsRange(newRange)) {
+						hasChanged = true;
+						c.synchronizedRange = newRange;
+					}
+				}
+				if (hasChanged) {
+					this.onDidChangeEmitter.fire();
+				}
+			}
+
 			this.scheduleAutomaticUpdate();
 		}));
 
@@ -207,15 +175,15 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private currentlySelectedCompletionId: string | undefined = undefined;
 
 	private fixAndGetIndexOfCurrentSelection(): number {
-		if (!this.currentlySelectedCompletionId || !this.cachedCompletions) {
+		if (!this.currentlySelectedCompletionId || !this.cache.value) {
 			return 0;
 		}
-		if (this.cachedCompletions.length === 0) {
+		if (this.cache.value.completions.length === 0) {
 			// don't reset the selection in this case
 			return 0;
 		}
 
-		const idx = this.cachedCompletions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+		const idx = this.cache.value.completions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
 		if (idx === -1) {
 			// Reset the selection so that the selection does not jump back when it appears again
 			this.currentlySelectedCompletionId = undefined;
@@ -225,19 +193,19 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	private get currentCachedCompletion(): CachedInlineCompletion | undefined {
-		if (!this.cachedCompletions) {
+		if (!this.cache.value) {
 			return undefined;
 		}
-		return this.cachedCompletions[this.fixAndGetIndexOfCurrentSelection()];
+		return this.cache.value.completions[this.fixAndGetIndexOfCurrentSelection()];
 	}
 
 	public async showNextInlineCompletion(): Promise<void> {
 		await this.ensureUpdateWithExplicitContext();
 
-		this.fetchMoreContext = true;
-		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
-			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + 1) % this.cachedCompletions.length;
-			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
+		const completions = this.cache.value?.completions || [];
+		if (completions.length > 0) {
+			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + 1) % completions.length;
+			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
 		} else {
 			this.currentlySelectedCompletionId = undefined;
 		}
@@ -247,9 +215,10 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public async showPreviousInlineCompletion(): Promise<void> {
 		await this.ensureUpdateWithExplicitContext();
 
-		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
-			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + this.cachedCompletions.length - 1) % this.cachedCompletions.length;
-			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
+		const completions = this.cache.value?.completions || [];
+		if (completions.length > 0) {
+			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + completions.length - 1) % completions.length;
+			this.currentlySelectedCompletionId = completions[newIdx].semanticId;
 		} else {
 			this.currentlySelectedCompletionId = undefined;
 		}
@@ -257,16 +226,16 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	private async ensureUpdateWithExplicitContext(): Promise<void> {
-		if (this.fetchMoreContext) {
-			if (this.updatePromise) {
-				await this.updatePromise;
+		if (this.updateOperation.value) {
+			// Restart or wait for current update operation
+			if (this.updateOperation.value.triggerKind === InlineCompletionTriggerKind.Explicit) {
+				await this.updateOperation.value.promise;
+			} else {
+				await this.update(InlineCompletionTriggerKind.Explicit);
 			}
-		} else {
-			if (this.updatePromise) {
-				this.clearUpdatePromise();
-			}
-			this.fetchMoreContext = true;
-			await this.update();
+		} else if (this.cache.value?.triggerKind !== InlineCompletionTriggerKind.Explicit) {
+			// Refresh cache
+			await this.update(InlineCompletionTriggerKind.Explicit);
 		}
 	}
 
@@ -284,7 +253,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 		return {
 			text: completion.inlineCompletion.text,
-			range: completion.lastRange,
+			range: completion.synchronizedRange,
 			command: completion.inlineCompletion.command,
 			sourceProvider: completion.inlineCompletion.sourceProvider,
 			sourceInlineCompletions: completion.inlineCompletion.sourceInlineCompletions,
@@ -297,23 +266,22 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
-		this.fetchMoreContext = false;
 		this.updateSoon.schedule();
 	}
 
-	private async update(): Promise<void> {
+	private async update(triggerKind: InlineCompletionTriggerKind): Promise<void> {
 		if (!this.shouldUpdate()) {
 			return;
 		}
 
 		const position = this.editor.getPosition();
-		this.clearUpdatePromise();
-		this.updatePromise = createCancelablePromise(async token => {
+
+		const promise = createCancelablePromise(async token => {
 			let result;
 			try {
 				result = await provideInlineCompletions(position,
 					this.editor.getModel(),
-					{ triggerKind: this.fetchMoreContext ? InlineCompletionTriggerKind.Explicit : InlineCompletionTriggerKind.Automatic },
+					{ triggerKind },
 					token
 				);
 			} catch (e) {
@@ -325,46 +293,19 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				return;
 			}
 
-			this.cachedCompletions = [];
-			const decorationIds = this.editor.deltaDecorations(
-				(this.cachedCompletions || []).map(c => c.decorationId),
-				(result.items).map(i => ({
-					range: i.range,
-					options: {
-						description: 'inline-completion-tracking-range'
-					},
-				}))
+			this.cache.value = new SynchronizedInlineCompletionsCache(
+				this.editor,
+				result,
+				() => this.onDidChangeEmitter.fire(),
+				triggerKind
 			);
-
-			this.cachedCompletionsSource?.dispose();
-			this.cachedCompletionsSource = result;
-			this.cachedCompletions = result.items.map((item, idx) => new CachedInlineCompletion(item, decorationIds[idx]));
 			this.onDidChangeEmitter.fire();
-
-			this.updatePromise = undefined;
 		});
-
-		await this.updatePromise;
-	}
-
-	private clearCache(): void {
-		const completions = this.cachedCompletions;
-		if (completions) {
-			this.cachedCompletions = undefined;
-			this.editor.deltaDecorations(completions.map(c => c.decorationId), []);
-
-			if (!this.cachedCompletionsSource) {
-				throw new Error('Unexpected state');
-			}
-			this.cachedCompletionsSource.dispose();
-			this.cachedCompletionsSource = undefined;
-		}
-	}
-
-	private clearUpdatePromise(): void {
-		if (this.updatePromise) {
-			this.updatePromise.cancel();
-			this.updatePromise = undefined;
+		const operation = new UpdateOperation(promise, triggerKind);
+		this.updateOperation.value = operation;
+		await promise;
+		if (this.updateOperation.value === operation) {
+			this.updateOperation.clear();
 		}
 	}
 
@@ -380,7 +321,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: LiveInlineCompletion): void {
-		this.clearCache();
+		this.cache.clear();
 		this.editor.executeEdits(
 			'inlineCompletions.accept',
 			[
@@ -392,6 +333,88 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 
 		this.onDidChangeEmitter.fire();
+	}
+}
+
+class UpdateOperation implements IDisposable {
+	constructor(public readonly promise: CancelablePromise<void>, public readonly triggerKind: InlineCompletionTriggerKind) {
+	}
+
+	dispose() {
+		this.promise.cancel();
+	}
+}
+
+/**
+ * The cache keeps itself in sync with the editor.
+ * It also owns the completions result and disposes it when the cache is diposed.
+*/
+class SynchronizedInlineCompletionsCache extends Disposable {
+	public readonly completions: readonly CachedInlineCompletion[];
+
+	constructor(
+		editor: IActiveCodeEditor,
+		completionsSource: LiveInlineCompletions,
+		onChange: () => void,
+		public readonly triggerKind: InlineCompletionTriggerKind,
+	) {
+		super();
+
+		const decorationIds = editor.deltaDecorations(
+			[],
+			completionsSource.items.map(i => ({
+				range: i.range,
+				options: {
+					description: 'inline-completion-tracking-range'
+				},
+			}))
+		);
+		this._register(toDisposable(() => {
+			editor.deltaDecorations(decorationIds, []);
+		}));
+
+		this.completions = completionsSource.items.map((c, idx) => new CachedInlineCompletion(c, decorationIds[idx]));
+
+		this._register(editor.onDidChangeModelContent(() => {
+			let hasChanged = false;
+			const model = editor.getModel();
+			for (const c of this.completions) {
+				const newRange = model.getDecorationRange(c.decorationId);
+				if (!newRange) {
+					onUnexpectedError(new Error('Decoration has no range'));
+					continue;
+				}
+				if (!c.synchronizedRange.equalsRange(newRange)) {
+					hasChanged = true;
+					c.synchronizedRange = newRange;
+				}
+			}
+			if (hasChanged) {
+				onChange();
+			}
+		}));
+
+		this._register(completionsSource);
+	}
+}
+
+class CachedInlineCompletion {
+	public readonly semanticId: string = JSON.stringify({
+		text: this.inlineCompletion.text,
+		startLine: this.inlineCompletion.range.startLineNumber,
+		startColumn: this.inlineCompletion.range.startColumn,
+		command: this.inlineCompletion.command
+	});
+	/**
+	 * The range, synchronized with text model changes.
+	*/
+	public synchronizedRange: Range;
+
+	constructor(
+		public readonly inlineCompletion: LiveInlineCompletion,
+		public readonly decorationId: string,
+	) {
+		this.synchronizedRange = inlineCompletion.range;
 	}
 }
 
