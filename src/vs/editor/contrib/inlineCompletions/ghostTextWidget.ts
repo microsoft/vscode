@@ -21,7 +21,6 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -178,7 +177,6 @@ export class GhostTextWidget extends Disposable {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
 				options: {
-					hoverMessage: new MarkdownString('⬅️ Previous | Next ➡️'),
 					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
 				}
 			});

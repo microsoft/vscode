@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { DocumentColorProvider, IColorInformation } from 'vs/editor/common/modes';
 import { IIdentifiedSingleEditOperation, IModelDecoration, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { getColorPresentations } from 'vs/editor/contrib/colorPicker/color';
 import { ColorDetector } from 'vs/editor/contrib/colorPicker/colorDetector';
@@ -79,7 +79,7 @@ export class ColorHoverParticipant implements IEditorHoverParticipant<ColorHover
 		return new ColorHover(this, Range.lift(colorInfo.range), model, provider);
 	}
 
-	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment): IDisposable {
+	public renderHoverParts(hoverParts: ColorHover[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
 		if (hoverParts.length === 0 || !this._editor.hasModel()) {
 			return Disposable.None;
 		}

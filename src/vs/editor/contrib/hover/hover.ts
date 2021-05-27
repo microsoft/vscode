@@ -206,7 +206,7 @@ export class ModesHoverController implements IEditorContribution {
 
 	private _getOrCreateContentWidget(): ModesContentHoverWidget {
 		if (!this._contentWidget) {
-			this._contentWidget = new ModesContentHoverWidget(this._editor, this._hoverVisibleKey, this._instantiationService);
+			this._contentWidget = this._instantiationService.createInstance(ModesContentHoverWidget, this._editor, this._hoverVisibleKey);
 		}
 		return this._contentWidget;
 	}
