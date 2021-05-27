@@ -48,7 +48,7 @@ export class DefaultPreferencesEditorInput extends TextResourceEditorInput {
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService
 	) {
-		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, fileService, labelService);
+		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, undefined, textModelResolverService, textFileService, editorService, fileService, labelService);
 	}
 
 	override get typeId(): string {

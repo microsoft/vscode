@@ -20,6 +20,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 const enum ForceOpenAs {
 	None,
@@ -56,6 +57,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private preferredDescription: string | undefined;
 	private preferredEncoding: string | undefined;
 	private preferredMode: string | undefined;
+	private preferredContents: string | undefined;
 
 	private forceOpenAs: ForceOpenAs = ForceOpenAs.None;
 
@@ -71,6 +73,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		preferredDescription: string | undefined,
 		preferredEncoding: string | undefined,
 		preferredMode: string | undefined,
+		preferredContents: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ITextFileService textFileService: ITextFileService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
@@ -97,6 +100,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 		if (preferredMode) {
 			this.setPreferredMode(preferredMode);
+		}
+
+		if (typeof preferredContents === 'string') {
+			this.setPreferredContents(preferredContents);
 		}
 
 		// Attach to model that matches our resource once created
@@ -235,6 +242,13 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		this.setForceOpenAsText();
 	}
 
+	setPreferredContents(contents: string): void {
+		this.preferredContents = contents;
+
+		// contents is a good hint to open the file as text
+		this.setForceOpenAsText();
+	}
+
 	setForceOpenAsText(): void {
 		this.forceOpenAs = ForceOpenAs.Text;
 	}
@@ -299,6 +313,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
+				contents: typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: TextFileResolveReason.EDITOR

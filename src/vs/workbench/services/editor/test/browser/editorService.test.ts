@@ -35,6 +35,7 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 
 suite('EditorService', () => {
 
@@ -394,6 +395,16 @@ suite('EditorService', () => {
 		assert(input instanceof FileEditorInput);
 		contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.getPreferredMode(), mode);
+		let fileModel = (await contentInput.resolve() as ITextFileEditorModel);
+		assert.strictEqual(fileModel.textEditorModel?.getModeId(), mode);
+
+		// Untyped Input (file, contents)
+		input = service.createEditorInput({ resource: toResource.call(this, '/index.html'), contents: 'My contents' });
+		assert(input instanceof FileEditorInput);
+		contentInput = <FileEditorInput>input;
+		fileModel = (await contentInput.resolve() as ITextFileEditorModel);
+		assert.strictEqual(fileModel.textEditorModel?.getValue(), 'My contents');
+		assert.strictEqual(fileModel.isDirty(), true);
 
 		// Untyped Input (file, different mode)
 		input = service.createEditorInput({ resource: toResource.call(this, '/index.html'), mode: 'text' });
@@ -469,18 +480,18 @@ suite('EditorService', () => {
 			createEditor(): void { }
 		}
 
-		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
+		const editor = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
+		const input = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined, undefined);
 		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
 			assert.ok(group);
 
 			done();
 
-			return ed;
+			return editor;
 		});
 
-		delegate.openEditor(inp);
+		delegate.openEditor(input);
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {

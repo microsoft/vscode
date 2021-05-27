@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
@@ -11,7 +10,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
@@ -21,17 +19,15 @@ import { MIME_BINARY } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorIdentifier, GroupIdentifier, IEditorInputFactoryRegistry, EditorExtensions, isEditorIdentifier } from 'vs/workbench/common/editor';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Emitter } from 'vs/base/common/event';
-import { NO_TYPE_ID } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
 
@@ -50,18 +46,12 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles'
 };
 
-interface IDraggedResource {
-	resource: URI;
+interface IDraggedTextResourceEditorInput extends ITextResourceEditorInput {
 	isExternal?: boolean;
 }
 
-interface IDraggedEditor extends ITextResourceEditorInput {
-	contents?: string;
-	isExternal?: boolean;
-}
-
-export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolean): Array<IDraggedResource | IDraggedEditor> {
-	const resources: Array<IDraggedResource | IDraggedEditor> = [];
+export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Array<IDraggedTextResourceEditorInput> {
+	const editors: Array<IDraggedTextResourceEditorInput> = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
@@ -71,7 +61,7 @@ export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolea
 			const rawEditorsData = e.dataTransfer.getData(CodeDataTransfers.EDITORS);
 			if (rawEditorsData) {
 				try {
-					resources.push(...parse(rawEditorsData));
+					editors.push(...parse(rawEditorsData));
 				} catch (error) {
 					// Invalid transfer
 				}
@@ -82,8 +72,8 @@ export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolea
 				try {
 					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
 					if (rawResourcesData) {
-						const uriStrArray: string[] = JSON.parse(rawResourcesData);
-						resources.push(...uriStrArray.map(uriStr => ({ resource: URI.parse(uriStr), isExternal: false })));
+						const resourcesRaw: string[] = JSON.parse(rawResourcesData);
+						editors.push(...resourcesRaw.map(resourceRaw => ({ resource: URI.parse(resourceRaw), isExternal: false })));
 					}
 				} catch (error) {
 					// Invalid transfer
@@ -95,9 +85,9 @@ export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolea
 		if (e.dataTransfer && e.dataTransfer.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file?.path /* Electron only */ && !resources.some(resource => resource.resource.fsPath === file.path) /* prevent duplicates */) {
+				if (file?.path /* Electron only */ && !editors.some(editor => editor.resource.fsPath === file.path) /* prevent duplicates */) {
 					try {
-						resources.push({ resource: URI.file(file.path), isExternal: true });
+						editors.push({ resource: URI.file(file.path), isExternal: true });
 					} catch (error) {
 						// Invalid URI
 					}
@@ -111,8 +101,8 @@ export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolea
 			try {
 				const codeFiles: string[] = JSON.parse(rawCodeFiles);
 				codeFiles.forEach(codeFile => {
-					if (!resources.some(resource => resource.resource.fsPath === codeFile) /* prevent duplicates */) {
-						resources.push({ resource: URI.file(codeFile), isExternal: true });
+					if (!editors.some(editor => editor.resource.fsPath === codeFile) /* prevent duplicates */) {
+						editors.push({ resource: URI.file(codeFile), isExternal: true });
 					}
 				});
 			} catch (error) {
@@ -121,7 +111,7 @@ export function extractResourceDropTransfers(e: DragEvent, externalOnly?: boolea
 		}
 	}
 
-	return resources;
+	return editors;
 }
 
 export interface IResourcesDropHandlerOptions {
@@ -143,8 +133,6 @@ export class ResourcesDropHandler {
 		private readonly options: IResourcesDropHandlerOptions,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@ITextFileService private readonly textFileService: ITextFileService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
 		@IHostService private readonly hostService: IHostService
@@ -152,113 +140,62 @@ export class ResourcesDropHandler {
 	}
 
 	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
-		const untitledOrFileResources = extractResourceDropTransfers(event).filter(resource => this.fileService.canHandleResource(resource.resource) || resource.resource.scheme === Schemas.untitled);
-		if (!untitledOrFileResources.length) {
+		const editors = extractEditorsDropData(event);
+		if (!editors.length) {
 			return;
 		}
 
 		// Make the window active to handle the drop properly within
 		await this.hostService.focus();
 
-		// Check for special things being dropped
-		const isWorkspaceOpening = await this.doHandleDrop(untitledOrFileResources);
-		if (isWorkspaceOpening) {
-			return; // return early if the drop operation resulted in this window changing to a workspace
+		// Check for workspace file being dropped if we are allowed to do so
+		if (this.options.allowWorkspaceOpen) {
+			const externalLocalFiles = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => file.resource);
+			if (externalLocalFiles.length > 0) {
+				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(externalLocalFiles);
+				if (isWorkspaceOpening) {
+					return; // return early if the drop operation resulted in this window changing to a workspace
+				}
+			}
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		const recentFiles: IRecentFile[] = untitledOrFileResources.filter(untitledOrFileResource => untitledOrFileResource.isExternal && untitledOrFileResource.resource.scheme === Schemas.file).map(file => ({ fileUri: file.resource }));
+		const recentFiles: IRecentFile[] = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => ({ fileUri: file.resource }));
 		if (recentFiles.length) {
 			this.workspacesService.addRecentlyOpened(recentFiles);
 		}
 
-		const editors: IResourceEditorInputType[] = untitledOrFileResources.map(untitledOrFileResource => ({
-			resource: untitledOrFileResource.resource,
-			encoding: (untitledOrFileResource as IDraggedEditor).encoding,
-			mode: (untitledOrFileResource as IDraggedEditor).mode,
+		// Open in Editor
+		const targetGroup = resolveTargetGroup();
+		await this.editorService.openEditors(editors.map(editor => ({
+			...editor,
 			options: {
-				...(untitledOrFileResource as IDraggedEditor).options,
+				...editor.options,
 				pinned: true,
 				index: targetIndex
 			}
-		}));
-
-		// Open in Editor
-		const targetGroup = resolveTargetGroup();
-		await this.editorService.openEditors(editors, targetGroup);
+		})), targetGroup);
 
 		// Finish with provided function
 		afterDrop(targetGroup);
 	}
 
-	private async doHandleDrop(untitledOrFileResources: Array<IDraggedResource | IDraggedEditor>): Promise<boolean> {
-
-		// Check for dirty editors being dropped
-		const dirtyEditors: IDraggedEditor[] = untitledOrFileResources.filter(untitledOrFileResource => !untitledOrFileResource.isExternal && typeof (untitledOrFileResource as IDraggedEditor).contents === 'string');
-		if (dirtyEditors.length > 0) {
-			await Promise.all(dirtyEditors.map(dirtyEditor => this.handleDirtyEditorDrop(dirtyEditor)));
-			return false;
-		}
-
-		// Check for workspace file being dropped if we are allowed to do so
-		if (this.options.allowWorkspaceOpen) {
-			const externalFileOnDiskResources = untitledOrFileResources.filter(untitledOrFileResource => untitledOrFileResource.isExternal && untitledOrFileResource.resource.scheme === Schemas.file).map(file => file.resource);
-			if (externalFileOnDiskResources.length > 0) {
-				return this.handleWorkspaceFileDrop(externalFileOnDiskResources);
-			}
-		}
-
-		return false;
-	}
-
-	private async handleDirtyEditorDrop(droppedDirtyEditor: IDraggedEditor): Promise<boolean> {
-		const fileEditorFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
-
-		// Untitled: always ensure that we open a new untitled text editor for each file we drop
-		if (droppedDirtyEditor.resource.scheme === Schemas.untitled) {
-			const untitledTextEditorResource = this.editorService.createEditorInput({ mode: droppedDirtyEditor.mode, encoding: droppedDirtyEditor.encoding, forceUntitled: true }).resource;
-			if (untitledTextEditorResource) {
-				droppedDirtyEditor = {
-					...droppedDirtyEditor,
-					resource: untitledTextEditorResource
-				};
-			}
-		}
-
-		// File: ensure the file is not dirty or opened already
-		else if (this.textFileService.isDirty(droppedDirtyEditor.resource) || this.editorService.isOpened({ resource: droppedDirtyEditor.resource, typeId: fileEditorFactory.typeId })) {
-			return false;
-		}
-
-		// If the dropped editor is dirty with content we simply take that
-		// content and turn it into a backup so that it loads the contents
-		if (typeof droppedDirtyEditor.contents === 'string') {
-			try {
-				await this.workingCopyBackupService.backup({ resource: droppedDirtyEditor.resource, typeId: NO_TYPE_ID }, bufferToReadable(VSBuffer.fromString(droppedDirtyEditor.contents)));
-			} catch (e) {
-				// Ignore error
-			}
-		}
-
-		return false;
-	}
-
-	private async handleWorkspaceFileDrop(fileOnDiskResources: URI[]): Promise<boolean> {
+	private async handleWorkspaceFileDrop(resources: URI[]): Promise<boolean> {
 		const toOpen: IWindowOpenable[] = [];
 		const folderURIs: IWorkspaceFolderCreationData[] = [];
 
-		await Promise.all(fileOnDiskResources.map(async fileOnDiskResource => {
+		await Promise.all(resources.map(async resource => {
 
 			// Check for Workspace
-			if (hasWorkspaceFileExtension(fileOnDiskResource)) {
-				toOpen.push({ workspaceUri: fileOnDiskResource });
+			if (hasWorkspaceFileExtension(resource)) {
+				toOpen.push({ workspaceUri: resource });
 
 				return;
 			}
 
 			// Check for Folder
 			try {
-				const stat = await this.fileService.resolve(fileOnDiskResource);
+				const stat = await this.fileService.resolve(resource);
 				if (stat.isDirectory) {
 					toOpen.push({ folderUri: stat.resource });
 					folderURIs.push({ uri: stat.resource });
@@ -295,10 +232,10 @@ interface IResourceStat {
 	isDirectory?: boolean;
 }
 
-export function fillResourceDragTransfers(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDragTransfers(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDragTransfers(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
-export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
 	if (resourcesOrEditors.length === 0 || !event.dataTransfer) {
 		return;
 	}
@@ -341,7 +278,7 @@ export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesO
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 
-	const draggedEditors: IDraggedEditor[] = [];
+	const draggedEditors: IDraggedTextResourceEditorInput[] = [];
 
 	for (const resourceOrEditor of resourcesOrEditors) {
 
@@ -349,28 +286,45 @@ export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesO
 		let editor: ITextResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
-		} else {
-			let resource: URI | undefined = undefined;
-			if (URI.isUri(resourceOrEditor)) {
-				resource = resourceOrEditor;
-			} else if (!resourceOrEditor.isDirectory) {
-				resource = resourceOrEditor.resource;
+		} else if (URI.isUri(resourceOrEditor)) {
+			editor = { resource: resourceOrEditor };
+		} else if (!resourceOrEditor.isDirectory) {
+			editor = { resource: resourceOrEditor.resource };
+		}
+
+		if (!editor) {
+			continue; // skip over editors that cannot be transferred via dnd
+		}
+
+		// Fill in some properties if they are not there already by accessing
+		// some well known things, such as text files or untitled contents.
+		// This is not ideal for custom editors, but those have a chance to
+		// provide everything from the `asResourceEditorInput` method.
+		{
+			const resource = editor.resource;
+			const textModel = resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource);
+			if (textModel) {
+
+				// mode
+				if (typeof editor.mode !== 'string') {
+					editor.mode = textModel.getMode();
+				}
+
+				// encoding
+				if (typeof editor.encoding !== 'string') {
+					editor.encoding = textModel.getEncoding();
+				}
+
+				// contents (only if dirty)
+				if (typeof editor.contents !== 'string' && textModel.isDirty()) {
+					editor.contents = textModel.textEditorModel.getValue();
+				}
 			}
 
-			if (!resource) {
-				continue;
-			}
-
-			// If we only got a resource to work with, try to resolve as many
-			// editor properties as possible. This currently only works with
-			// text editors and not custom editors.
-			const model = resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource);
-
-			editor = {
-				resource,
-				encoding: model?.getEncoding(),
-				mode: model?.getMode(),
-				options: {
+			// viewState
+			if (!editor.options?.viewState) {
+				editor.options = {
+					...editor.options,
 					viewState: (() => {
 						for (const textEditorControl of editorService.visibleTextEditorControls) {
 							if (isCodeEditor(textEditorControl)) {
@@ -383,27 +337,12 @@ export function fillResourceDragTransfers(accessor: ServicesAccessor, resourcesO
 
 						return undefined;
 					})()
-				}
-			};
-		}
-
-		if (!editor) {
-			continue; // skip over editors that cannot be transferred via dnd
+				};
+			}
 		}
 
 		// Add as dragged editor
-		draggedEditors.push({
-			...editor,
-			contents: (() => {
-				// TODO@bpasero this should not happen from here but from the asResourceEditorInput() method
-				const model = editor.resource.scheme === Schemas.untitled ? textFileService.untitled.get(editor.resource) : textFileService.files.get(editor.resource);
-				if (model?.isDirty()) {
-					return model.textEditorModel.getValue();
-				}
-
-				return undefined;
-			})()
-		});
+		draggedEditors.push(editor);
 	}
 
 	if (draggedEditors.length) {

@@ -26,8 +26,8 @@ suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string): FileEditorInput {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode);
+	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode, preferredContents);
 	}
 
 	setup(() => {
@@ -151,6 +151,25 @@ suite('Files - FileEditorInput', () => {
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
 		assert.strictEqual(model2.textEditorModel!.getModeId(), mode);
+	});
+
+	test('preferred contents', async function () {
+		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined, undefined, 'My contents');
+
+		const model = await input.resolve() as TextFileEditorModel;
+		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
+		assert.strictEqual(input.isDirty(), true);
+
+		input.setPreferredContents('Other contents');
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel!.getValue(), 'Other contents');
+
+		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
+		input2.setPreferredContents('My contents');
+
+		const model2 = await input2.resolve() as TextFileEditorModel;
+		assert.strictEqual(model2.textEditorModel!.getValue(), 'My contents');
+		assert.strictEqual(input2.isDirty(), true);
 	});
 
 	test('matches', function () {

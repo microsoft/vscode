@@ -1027,11 +1027,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// File
 				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, this.instantiationService);
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode);
+				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode, textResourceEditorInput.contents);
 			}, cachedInput => {
 
 				// Untitled
@@ -1058,6 +1058,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (textResourceEditorInput.mode) {
 						cachedInput.setPreferredMode(textResourceEditorInput.mode);
 					}
+
+					if (typeof textResourceEditorInput.contents === 'string') {
+						cachedInput.setPreferredContents(textResourceEditorInput.contents);
+					}
 				}
 
 				// Resources
@@ -1072,6 +1076,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 					if (textResourceEditorInput.mode) {
 						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					}
+
+					if (typeof textResourceEditorInput.contents === 'string') {
+						cachedInput.setPreferredContents(textResourceEditorInput.contents);
 					}
 				}
 			}) as EditorInput;
