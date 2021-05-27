@@ -209,18 +209,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
-					id: 'keymaps',
-					title: localize('gettingStarted.keymaps.title', "Bring your favorite shortcuts"),
-					description: localize('gettingStarted.keymaps.description', "If you already have your favorite shortcuts from another editor, bring them into VS Code.\n[Browse Keymap Extensions](command:workbench.extensions.action.showRecommendedKeymapExtensions)"),
-					media: {
-						type: 'image', altText: 'List of keymap extensions.', path: {
-							dark: 'dark/keymaps.png',
-							light: 'light/keymaps.png',
-							hc: 'hc/keymaps.png',
-						},
-					}
-				},
-				{
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
 					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),

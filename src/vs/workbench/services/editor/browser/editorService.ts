@@ -339,7 +339,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Handle deletes in opened editors depending on:
 				// - we close any editor when `closeOnFileDelete: true`
-				// - we close any editor when the delete occured from within VSCode
+				// - we close any editor when the delete occurred from within VSCode
 				// - we close any editor without resolved working copy assuming that
 				//   this editor could not be opened after the file is gone
 				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {

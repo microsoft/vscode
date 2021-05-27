@@ -975,7 +975,7 @@ export interface IReadFileOptions extends IBaseReadFileOptions {
 	 *
 	 * Typically you should not need to use this flag but if
 	 * for example you are quickly reading a file right after
-	 * a file event occured and the file changes a lot, there
+	 * a file event occurred and the file changes a lot, there
 	 * is a chance that a read returns an empty or partial file
 	 * because a pending write has not finished yet.
 	 *

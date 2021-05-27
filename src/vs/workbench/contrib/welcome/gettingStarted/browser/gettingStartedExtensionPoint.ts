@@ -76,10 +76,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
-										required: ['path', 'altText'],
+										required: ['image', 'altText'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											image: {
 												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
 												oneOf: [
 													{
@@ -111,10 +114,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											}
 										}
 									}, {
-										required: ['path'],
+										required: ['markdown'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											markdown: {
 												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
 												type: 'string',
 											}
@@ -149,9 +155,9 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											body: 'onSettingChanged:${2:settingName}'
 										},
 										{
-											label: 'onContextKeyDefined',
-											description: localize('walkthroughs.steps.completionEvents.onContextKeyDefined', 'Check off step when a context key is defined to a truthy value. Note: this only accepts single context keys, not full context key expressions'),
-											body: 'onContextKeyDefined:${2:key}'
+											label: 'onContext',
+											description: localize('walkthroughs.steps.completionEvents.onContext', 'Check off step when a context key expression is true.'),
+											body: 'onContext:${2:key}'
 										},
 										{
 											label: 'extensionInstalled',
