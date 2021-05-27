@@ -171,6 +171,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private sessionInstalledExtensions = new Set<string>();
 
 	private categoryVisibilityContextKeys = new Set<string>();
+	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
 
 	private triggerInstalledExtensionsRegistered!: () => void;
@@ -217,9 +218,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._register(this.contextService.onDidChangeContext(event => {
 			if (event.affectsSome(this.categoryVisibilityContextKeys)) { this._onDidAddCategory.fire(); }
 			if (event.affectsSome(this.stepCompletionContextKeys)) {
-				this.stepCompletionContextKeys.forEach(key => {
-					if (event.affectsSome(new Set([key])) && this.contextService.getContextKeyValue(key)) {
-						this.progressByEvent(`onContextKeyDefined:` + key);
+				this.stepCompletionContextKeyExpressions.forEach(expression => {
+					if (event.affectsSome(new Set(expression.keys())) && this.contextService.contextMatchesRules(expression)) {
+						this.progressByEvent(`onContext:` + expression.serialize());
 					}
 				});
 			}
@@ -444,19 +445,41 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				const fullyQualifiedID = extension.identifier.value + '#' + walkthrough.id + '#' + step.id;
 
 				let media: IGettingStartedStep['media'];
-				if (typeof step.media.path === 'string' && step.media.path.endsWith('.md')) {
-					media = {
-						type: 'markdown',
-						path: convertExtensionPathToFileURI(step.media.path),
-						base: convertExtensionPathToFileURI(dirname(step.media.path)),
-						root: FileAccess.asFileUri(extension.extensionLocation),
-					};
-				} else {
+
+				if (step.media.image) {
 					const altText = (step.media as any).altText;
 					if (altText === undefined) {
 						console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
 					}
-					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.path) };
+					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.image) };
+				}
+				else if (step.media.markdown) {
+					media = {
+						type: 'markdown',
+						path: convertExtensionPathToFileURI(step.media.markdown),
+						base: convertExtensionPathToFileURI(dirname(step.media.markdown)),
+						root: FileAccess.asFileUri(extension.extensionLocation),
+					};
+				}
+
+				// Legacy media config
+				else {
+					const legacyMedia = step.media as unknown as { path: string, altText: string };
+					if (typeof legacyMedia.path === 'string' && legacyMedia.path.endsWith('.md')) {
+						media = {
+							type: 'markdown',
+							path: convertExtensionPathToFileURI(legacyMedia.path),
+							base: convertExtensionPathToFileURI(dirname(legacyMedia.path)),
+							root: FileAccess.asFileUri(extension.extensionLocation),
+						};
+					}
+					else {
+						const altText = legacyMedia.altText;
+						if (altText === undefined) {
+							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+						}
+						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(legacyMedia.path) };
+					}
 				}
 
 				return ({
@@ -539,8 +562,19 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 
 			switch (eventType) {
-				case 'onLink': case 'onEvent': case 'onView': case 'onContextKeyDefined': case 'onSettingChanged':
+				case 'onLink': case 'onEvent': case 'onView': case 'onSettingChanged':
 					break;
+				case 'onContext': {
+					const expression = ContextKeyExpr.deserialize(argument);
+					if (expression) {
+						this.stepCompletionContextKeyExpressions.add(expression);
+						expression.keys().forEach(key => this.stepCompletionContextKeys.add(key));
+						event = eventType + ':' + expression.serialize();
+					} else {
+						console.error('Unable to parse context key expression:', expression, 'in getting started step', step.id);
+					}
+					break;
+				}
 				case 'stepSelected':
 					event = eventType + ':' + step.id;
 					break;
