@@ -3112,7 +3112,8 @@ export class NotebookCellOutputItem {
 		if (!obj) {
 			return false;
 		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
 	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
@@ -3148,18 +3149,11 @@ export class NotebookCellOutputItem {
 		return NotebookCellOutputItem.text(rawStr, mime, metadata);
 	}
 
-	/** @deprecated */
-	public value: Uint8Array | unknown; // JSON'able
-
 	constructor(
 		public data: Uint8Array,
 		public mime: string,
 		public metadata?: { [key: string]: any }
 	) {
-		if (!(data instanceof Uint8Array)) {
-			this.value = data;
-		}
-
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {
 			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);

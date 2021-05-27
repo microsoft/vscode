@@ -1316,11 +1316,6 @@ declare module 'vscode' {
 		 */
 		data: Uint8Array;
 
-		/**
-		 * @deprecated
-		 */
-		value: unknown;
-
 		//todo@API
 		metadata?: { [key: string]: any };
 
@@ -1520,8 +1515,9 @@ declare module 'vscode' {
 		Preferred = 2
 	}
 
-	// todo@API this is called Controller
+	// todo@API rename to NotebookRendererScript
 	export class NotebookKernelPreload {
+
 		/**
 		 * APIs that the preload provides to the renderer. These are matched
 		 * against the `dependencies` and `optionalDependencies` arrays in the

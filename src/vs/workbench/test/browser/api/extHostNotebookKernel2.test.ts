@@ -223,10 +223,10 @@ suite('NotebookKernel', function () {
 
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 		assert.strictEqual(interruptCallCount, 1);
-		assert.strictEqual(tokenCancelCount, 1);
+		assert.strictEqual(tokenCancelCount, 0);
 
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 		assert.strictEqual(interruptCallCount, 2);
-		assert.strictEqual(tokenCancelCount, 1);
+		assert.strictEqual(tokenCancelCount, 0);
 	});
 });
