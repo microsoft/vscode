@@ -353,7 +353,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 			},
 			[TerminalSettingId.DefaultProfileMacOs]: {
 				restricted: true,
-				description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
 				type: ['string', 'null'],
 				default: null,
 				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? enumValues : undefined,
@@ -361,7 +361,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 			},
 			[TerminalSettingId.DefaultProfileWindows]: {
 				restricted: true,
-				description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
 				type: ['string', 'null'],
 				default: null,
 				enum: detectedProfiles?.os === OperatingSystem.Windows ? enumValues : undefined,
