@@ -920,6 +920,7 @@ export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
 export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
 export const ShowFoldingControls = 'notebook.showFoldingControls';
 export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
+export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
