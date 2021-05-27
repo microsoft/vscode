@@ -982,7 +982,7 @@ declare namespace monaco.editor {
 	 */
 	export function registerCommand(id: string, handler: (accessor: any, ...args: any[]) => void): IDisposable;
 
-	export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+	export type BuiltinTheme = 'vs' | 'vs-dark' | 'vs-dark+' | 'hc-black';
 
 	export interface IStandaloneThemeData {
 		base: BuiltinTheme;

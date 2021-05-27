@@ -10,11 +10,13 @@ import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeServic
 
 export const IStandaloneThemeService = createDecorator<IStandaloneThemeService>('themeService');
 
-export type BuiltinTheme = 'vs' | 'vs-dark' | 'hc-black';
+export type BaseTheme = 'vs' | 'vs-dark' | 'hc-black';
+export type builtinTheme = BaseTheme | 'vs-dark+';
 export type IColors = { [colorId: string]: string; };
 
 export interface IStandaloneThemeData {
-	base: BuiltinTheme;
+	base: BaseTheme;
+	theme: builtinTheme;
 	inherit: boolean;
 	rules: ITokenThemeRule[];
 	encodedTokensColors?: string[];

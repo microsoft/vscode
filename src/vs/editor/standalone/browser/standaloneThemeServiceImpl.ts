@@ -8,8 +8,8 @@ import { Color } from 'vs/base/common/color';
 import { Emitter } from 'vs/base/common/event';
 import { FontStyle, TokenizationRegistry, TokenMetadata } from 'vs/editor/common/modes';
 import { ITokenThemeRule, TokenTheme, generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { BuiltinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
-import { hc_black, vs, vs_dark } from 'vs/editor/standalone/common/themes';
+import { BaseTheme, builtinTheme, IStandaloneTheme, IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneThemeService';
+import { hc_black, vs, vs_dark, vs_dark_plus } from 'vs/editor/standalone/common/themes';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ColorIdentifier, Extensions, IColorRegistry } from 'vs/platform/theme/common/colorRegistry';
@@ -20,6 +20,7 @@ import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
+const VS_DARK_PLUS_THEME_NAME = 'vs-dark+';
 const HC_BLACK_THEME_NAME = 'hc-black';
 
 const colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
@@ -162,15 +163,16 @@ class StandaloneTheme implements IStandaloneTheme {
 	public readonly semanticHighlighting = false;
 }
 
-function isBuiltinTheme(themeName: string): themeName is BuiltinTheme {
+function isBuiltinTheme(themeName: string): themeName is BaseTheme {
 	return (
 		themeName === VS_THEME_NAME
 		|| themeName === VS_DARK_THEME_NAME
+		|| themeName === VS_DARK_PLUS_THEME_NAME
 		|| themeName === HC_BLACK_THEME_NAME
 	);
 }
 
-function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
+function getBuiltinRules(builtinTheme: builtinTheme): IStandaloneThemeData {
 	switch (builtinTheme) {
 		case VS_THEME_NAME:
 			return vs;
@@ -178,10 +180,12 @@ function getBuiltinRules(builtinTheme: BuiltinTheme): IStandaloneThemeData {
 			return vs_dark;
 		case HC_BLACK_THEME_NAME:
 			return hc_black;
+		case VS_DARK_PLUS_THEME_NAME:
+			return vs_dark_plus;
 	}
 }
 
-function newBuiltInTheme(builtinTheme: BuiltinTheme): StandaloneTheme {
+function newBuiltInTheme(builtinTheme: builtinTheme): StandaloneTheme {
 	let themeData = getBuiltinRules(builtinTheme);
 	return new StandaloneTheme(builtinTheme, themeData);
 }
@@ -216,6 +220,7 @@ export class StandaloneThemeServiceImpl extends Disposable implements IStandalon
 		this._knownThemes = new Map<string, StandaloneTheme>();
 		this._knownThemes.set(VS_THEME_NAME, newBuiltInTheme(VS_THEME_NAME));
 		this._knownThemes.set(VS_DARK_THEME_NAME, newBuiltInTheme(VS_DARK_THEME_NAME));
+		this._knownThemes.set(VS_DARK_PLUS_THEME_NAME, newBuiltInTheme(VS_DARK_PLUS_THEME_NAME));
 		this._knownThemes.set(HC_BLACK_THEME_NAME, newBuiltInTheme(HC_BLACK_THEME_NAME));
 
 		const iconsStyleSheet = getIconsStyleSheet();

@@ -10,6 +10,7 @@ import { editorBackground, editorForeground, editorInactiveSelection, editorSele
 /* -------------------------------- Begin vs theme -------------------------------- */
 export const vs: IStandaloneThemeData = {
 	base: 'vs',
+	theme: 'vs',
 	inherit: false,
 	rules: [
 		{ token: '', foreground: '000000', background: 'fffffe' },
@@ -83,6 +84,7 @@ export const vs: IStandaloneThemeData = {
 /* -------------------------------- Begin vs-dark theme -------------------------------- */
 export const vs_dark: IStandaloneThemeData = {
 	base: 'vs-dark',
+	theme: 'vs-dark',
 	inherit: false,
 	rules: [
 		{ token: '', foreground: 'D4D4D4', background: '1E1E1E' },
@@ -151,10 +153,26 @@ export const vs_dark: IStandaloneThemeData = {
 /* -------------------------------- End vs-dark theme -------------------------------- */
 
 
+/* -------------------------------- Begin vs-dark+ theme -------------------------------- */
+export const vs_dark_plus: IStandaloneThemeData = {
+	base: 'vs-dark',
+	theme: 'vs-dark+',
+	inherit: true,
+	rules: [
+		{ token: 'variable', foreground: '74B0DF' },
+		{ token: 'type', foreground: '4EC9B0' },
+		{ token: 'identifier.ts', foreground: '9CDCFE' }
+	],
+	colors: {}
+};
+/* -------------------------------- End vs-dark+ theme -------------------------------- */
+
+
 
 /* -------------------------------- Begin hc-black theme -------------------------------- */
 export const hc_black: IStandaloneThemeData = {
 	base: 'hc-black',
+	theme: 'hc-black',
 	inherit: false,
 	rules: [
 		{ token: '', foreground: 'FFFFFF', background: '000000' },
