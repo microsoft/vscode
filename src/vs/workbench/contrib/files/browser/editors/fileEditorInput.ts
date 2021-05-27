@@ -319,6 +319,11 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				reason: TextFileResolveReason.EDITOR
 			});
 
+			// Unset preferred contents after having applied it once
+			// to prevent this property to stick. We still want future
+			// `resolve` calls to fetch the contents from disk.
+			this.preferredContents = undefined;
+
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
 			// resolve() ensures we are not creating model references for these kind of resources.

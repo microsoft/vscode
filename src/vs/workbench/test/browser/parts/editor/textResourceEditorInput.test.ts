@@ -85,7 +85,7 @@ suite('Resource text editors', () => {
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
 
 		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
 	});
 
 	test('preferred contents (via setPreferredContents)', async () => {
@@ -103,6 +103,6 @@ suite('Resource text editors', () => {
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents');
 
 		await input.resolve();
-		assert.strictEqual(model.textEditorModel?.getValue(), 'My Resource Input Contents');
+		assert.strictEqual(model.textEditorModel?.getValue(), 'Some other contents'); // preferred contents only used once
 	});
 });

@@ -187,6 +187,14 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 			model.updateTextEditorModel(typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined, this.preferredMode);
 		}
 
+		// Unset preferred contents and mode after having applied
+		// them once to prevent these properties to stick. We still
+		// want the user to change the language mode in the editor
+		// and want to show updated contents (if any) in future
+		// `resolve` calls.
+		this.preferredContents = undefined;
+		this.preferredMode = undefined;
+
 		return model;
 	}
 

@@ -170,6 +170,10 @@ suite('Files - FileEditorInput', () => {
 		await input.resolve();
 		assert.strictEqual(model.textEditorModel!.getValue(), 'Other contents');
 
+		model.textEditorModel?.setValue('Changed contents');
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel!.getValue(), 'Changed contents'); // preferred contents only used once
+
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredContents('My contents');
 
