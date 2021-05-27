@@ -259,16 +259,19 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			// extension can dispose kernels in the meantime
 			return;
 		}
+
+		// cancel or interrupt depends on the controller. When an interrupt handler is used we
+		// don't trigger the cancelation token of executions.
 		const document = this._extHostNotebook.getNotebookDocument(URI.revive(uri));
 		if (obj.controller.interruptHandler) {
 			await obj.controller.interruptHandler.call(obj.controller, document.apiNotebook);
-		}
 
-		// we do both? interrupt and cancellation or should we be selective?
-		for (let cellHandle of handles) {
-			const cell = document.getCell(cellHandle);
-			if (cell) {
-				this._activeExecutions.get(cell.uri)?.cancel();
+		} else {
+			for (let cellHandle of handles) {
+				const cell = document.getCell(cellHandle);
+				if (cell) {
+					this._activeExecutions.get(cell.uri)?.cancel();
+				}
 			}
 		}
 	}

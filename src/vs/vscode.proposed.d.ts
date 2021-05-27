@@ -1577,17 +1577,38 @@ declare module 'vscode' {
 	 */
 	export interface NotebookCellExecution {
 
-		readonly document: NotebookDocument;
+		/**
+		 * The {@link NotebookCell cell} for which this execution has been created.
+		 */
 		readonly cell: NotebookCell;
+
+		/**
+		 * A cancellation token which will be triggered when the cell execution is canceled
+		 * from the UI.
+		 *
+		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
+		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
+		 */
 		readonly token: CancellationToken;
 
-		start(context?: NotebookCellExecuteStartContext): void;
+		//todo@API remove? use cell.notebook instead?
+		readonly document: NotebookDocument;
+
+		/**
+		 * Set and unset the order of this cell execution.
+		 */
 		executionOrder: number | undefined;
+
+		// todo@API inline context object?
+		start(context?: NotebookCellExecuteStartContext): void;
+		// todo@API inline context object?
 		end(result?: NotebookCellExecuteEndContext): void;
 
+		// todo@API use object instead of index? FF
 		clearOutput(cellIndex?: number): Thenable<void>;
 		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
 		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		// todo@API use object instead of index?
 		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
