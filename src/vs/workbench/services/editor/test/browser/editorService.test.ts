@@ -463,6 +463,9 @@ suite('EditorService', () => {
 		assert(input instanceof DiffEditorInput);
 		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
 		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
+		const untypedDiffInput = input.asResourceEditorInput(0) as IResourceDiffEditorInput;
+		assert.strictEqual(untypedDiffInput.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
+		assert.strictEqual(untypedDiffInput.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
 	});
 
 	test('delegate', function (done) {

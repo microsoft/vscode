@@ -13,6 +13,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -127,7 +128,8 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 			mode: this.getMode(),
 			contents: this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined,
 			options: {
-				viewState: this.getViewStateFor(group)
+				viewState: this.getViewStateFor(group),
+				override: EditorOverride.DISABLED
 			}
 		};
 	}

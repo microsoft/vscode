@@ -134,8 +134,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	}
 
 	override asResourceEditorInput(groupId: GroupIdentifier): IResourceDiffEditorInput | undefined {
-		const originalResourceEditorInput = this.primary.asResourceEditorInput(groupId);
-		const modifiedResourceEditorInput = this.secondary.asResourceEditorInput(groupId);
+		const originalResourceEditorInput = this.secondary.asResourceEditorInput(groupId);
+		const modifiedResourceEditorInput = this.primary.asResourceEditorInput(groupId);
 
 		if (originalResourceEditorInput && modifiedResourceEditorInput) {
 			return {

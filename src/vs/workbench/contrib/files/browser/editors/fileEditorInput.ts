@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorOverride, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -381,8 +381,17 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			forceFile: true,
 			encoding: this.getEncoding(),
 			mode: this.getMode(),
+			contents: (() => {
+				const model = this.textFileService.files.get(this.resource);
+				if (model && model.isDirty()) {
+					return model.textEditorModel.getValue(); // only if dirty
+				}
+
+				return undefined;
+			})(),
 			options: {
-				viewState: this.getViewStateFor(group)
+				viewState: this.getViewStateFor(group),
+				override: EditorOverride.DISABLED
 			}
 		};
 	}
