@@ -6,7 +6,7 @@
 import { basename } from 'vs/base/common/path';
 import * as Json from 'vs/base/common/json';
 import { Color } from 'vs/base/common/color';
-import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, IThemeSpecificColorCustomizations, THEME_ID_CLOSE_PAREN, THEME_ID_OPEN_PAREN, THEME_ID_REGEX, THEME_ID_WILDCARD } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ExtensionData, ITokenColorCustomizations, ITextMateThemingRule, IWorkbenchColorTheme, IColorMap, IThemeExtensionPoint, VS_LIGHT_THEME, VS_HC_THEME, IColorCustomizations, ISemanticTokenRules, ISemanticTokenColorizationSetting, ISemanticTokenColorCustomizations, IExperimentalSemanticTokenColorCustomizations, IThemeScopableCustomizations, IThemeScopedCustomizations, THEME_ID_CLOSE_PAREN, THEME_ID_OPEN_PAREN, THEME_ID_REGEX, THEME_ID_WILDCARD } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { convertSettings } from 'vs/workbench/services/themes/common/themeCompatibility';
 import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
@@ -425,11 +425,11 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 		this.textMateThemingRules = undefined;
 	}
 
-	public isThemeIdScope(key: string): boolean {
+	public isThemeScope(key: string): boolean {
 		return key.charAt(0) === THEME_ID_OPEN_PAREN && key.charAt(key.length - 1) === THEME_ID_CLOSE_PAREN;
 	}
 
-	public isThemeIdScopeMatch(themeId: string): boolean {
+	public isThemeScopeMatch(themeId: string): boolean {
 		const themeIdFirstChar = themeId.charAt(0);
 		const themeIdLastChar = themeId.charAt(themeId.length - 1);
 		const themeIdPrefix = themeId.slice(0, -1);
@@ -441,16 +441,18 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 			|| (this.settingsId.endsWith(themeIdSuffix) && themeIdFirstChar === THEME_ID_WILDCARD);
 	}
 
-	public getThemeSpecificColors(colors: IThemeSpecificColorCustomizations): IThemeSpecificColorCustomizations | undefined {
+	public getThemeSpecificColors(colors: IThemeScopableCustomizations): IThemeScopedCustomizations | undefined {
 		let themeSpecificColors;
 		for (let key in colors) {
 			const scopedColors = colors[key];
-			if (this.isThemeIdScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
+			if (this.isThemeScope(key) && scopedColors instanceof Object && !types.isArray(scopedColors)) {
 				const themeIdList = key.match(THEME_ID_REGEX) || [];
 				for (let themeId of themeIdList) {
-					if (this.isThemeIdScopeMatch(themeId)) {
-						themeSpecificColors = themeSpecificColors || {} as IThemeSpecificColorCustomizations;
-						const scopedThemeSpecificColors = scopedColors as IThemeSpecificColorCustomizations;
+					if (this.isThemeScopeMatch(themeId)) {
+						if (!themeSpecificColors) {
+							themeSpecificColors = {} as IThemeScopedCustomizations;
+						}
+						const scopedThemeSpecificColors = scopedColors as IThemeScopedCustomizations;
 						for (let subkey in scopedThemeSpecificColors) {
 							const originalColors = themeSpecificColors[subkey];
 							const overrideColors = scopedThemeSpecificColors[subkey];
@@ -469,7 +471,7 @@ export class ColorThemeData implements IWorkbenchColorTheme {
 
 	private readSemanticTokenRules(tokenStylingRuleSection: ISemanticTokenRules) {
 		for (let key in tokenStylingRuleSection) {
-			if (!this.isThemeIdScope(key)) { // still do this test until experimental settings are gone
+			if (!this.isThemeScope(key)) { // still do this test until experimental settings are gone
 				try {
 					const rule = readSemanticTokenRule(key, tokenStylingRuleSection[key]);
 					if (rule) {

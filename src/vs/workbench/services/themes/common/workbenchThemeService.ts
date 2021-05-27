@@ -85,12 +85,16 @@ export interface IWorkbenchThemeService extends IThemeService {
 
 }
 
-export interface IColorCustomizations {
-	[colorIdOrThemeSettingsId: string]: string | IColorCustomizations;
+export interface IThemeScopedColorCustomizations {
+	[colorId: string]: string;
 }
 
-export interface ITokenColorCustomizations {
-	[groupIdOrThemeSettingsId: string]: string | ITokenColorizationSetting | ITokenColorCustomizations | undefined | ITextMateThemingRule[] | boolean;
+export interface IColorCustomizations {
+	[colorIdOrThemeScope: string]: IThemeScopedColorCustomizations | string;
+}
+
+export interface IThemeScopedTokenColorCustomizations {
+	[groupId: string]: ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
 	comments?: string | ITokenColorizationSetting;
 	strings?: string | ITokenColorizationSetting;
 	numbers?: string | ITokenColorizationSetting;
@@ -102,17 +106,50 @@ export interface ITokenColorCustomizations {
 	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
 }
 
-export interface ISemanticTokenColorCustomizations {
+export interface ITokenColorCustomizations {
+	[groupIdOrThemeScope: string]: IThemeScopedTokenColorCustomizations | ITextMateThemingRule[] | ITokenColorizationSetting | boolean | string | undefined;
+	comments?: string | ITokenColorizationSetting;
+	strings?: string | ITokenColorizationSetting;
+	numbers?: string | ITokenColorizationSetting;
+	keywords?: string | ITokenColorizationSetting;
+	types?: string | ITokenColorizationSetting;
+	functions?: string | ITokenColorizationSetting;
+	variables?: string | ITokenColorizationSetting;
+	textMateRules?: ITextMateThemingRule[];
+	semanticHighlighting?: boolean; // deprecated, use ISemanticTokenColorCustomizations.enabled instead
+}
+
+export interface IThemeScopedSemanticTokenColorCustomizations {
+	[styleRule: string]: ISemanticTokenRules | boolean | undefined;
 	enabled?: boolean;
 	rules?: ISemanticTokenRules;
-	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | ISemanticTokenColorCustomizations | boolean | undefined;
+}
+
+export interface ISemanticTokenColorCustomizations {
+	[styleRuleOrThemeScope: string]: IThemeScopedSemanticTokenColorCustomizations | ISemanticTokenRules | boolean | undefined;
+	enabled?: boolean;
+	rules?: ISemanticTokenRules;
+}
+
+export interface IThemeScopedExperimentalSemanticTokenColorCustomizations {
+	[themeScope: string]: ISemanticTokenRules | undefined;
 }
 
 export interface IExperimentalSemanticTokenColorCustomizations {
-	[styleRuleOrThemeSettingsId: string]: ISemanticTokenRules | IExperimentalSemanticTokenColorCustomizations | undefined;
+	[styleRuleOrThemeScope: string]: IThemeScopedExperimentalSemanticTokenColorCustomizations | ISemanticTokenRules | undefined;
 }
 
-export type IThemeSpecificColorCustomizations = IColorCustomizations | ITokenColorCustomizations | IExperimentalSemanticTokenColorCustomizations | ISemanticTokenColorCustomizations | IColorCustomizations;
+export type IThemeScopedCustomizations =
+	IThemeScopedColorCustomizations
+	| IThemeScopedTokenColorCustomizations
+	| IThemeScopedExperimentalSemanticTokenColorCustomizations
+	| IThemeScopedSemanticTokenColorCustomizations;
+
+export type IThemeScopableCustomizations =
+	IColorCustomizations
+	| ITokenColorCustomizations
+	| IExperimentalSemanticTokenColorCustomizations
+	| ISemanticTokenColorCustomizations;
 
 export interface ISemanticTokenRules {
 	[selector: string]: string | ISemanticTokenColorizationSetting | undefined;
