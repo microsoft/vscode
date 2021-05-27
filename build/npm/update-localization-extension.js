@@ -61,7 +61,7 @@ function update(options) {
 
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
-		gulp.src(path.join(location, '**', '*.xlf'))
+		gulp.src(path.join(location, '**', '*.xlf'), { silent: false })
 			.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
 			.on('error', (error) => {
 				console.log(`Error occurred while importing translations:`);
@@ -76,6 +76,7 @@ function update(options) {
 			})
 			.pipe(vfs.dest(translationDataFolder))
 			.on('end', function () {
+				console.log(`did anything happen?`);
 				if (translationPaths !== undefined) {
 					localization.translations = [];
 					for (let tp of translationPaths) {
