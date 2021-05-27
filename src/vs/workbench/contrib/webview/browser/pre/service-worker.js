@@ -9,7 +9,7 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 1;
+const VERSION = 2;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
