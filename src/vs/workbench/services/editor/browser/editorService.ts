@@ -784,15 +784,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				const resourceDiffEditor = editor as IResourceDiffEditorInput;
-				if (resourceDiffEditor.leftEditor && resourceDiffEditor.rightEditor) {
-					const leftResourceEditor = resourceDiffEditor.leftEditor as IResourceEditorInput;
-					if (URI.isUri(leftResourceEditor.resource)) {
-						resources.set(leftResourceEditor.resource, true);
+				if (resourceDiffEditor.originalInput && resourceDiffEditor.modifiedInput) {
+					const originalResourceEditor = resourceDiffEditor.originalInput as IResourceEditorInput;
+					if (URI.isUri(originalResourceEditor.resource)) {
+						resources.set(originalResourceEditor.resource, true);
 					}
 
-					const rightResourceEditor = resourceDiffEditor.rightEditor as IResourceEditorInput;
-					if (URI.isUri(rightResourceEditor.resource)) {
-						resources.set(rightResourceEditor.resource, true);
+					const modifiedResourceEditor = resourceDiffEditor.modifiedInput as IResourceEditorInput;
+					if (URI.isUri(modifiedResourceEditor.resource)) {
+						resources.set(modifiedResourceEditor.resource, true);
 					}
 				}
 
@@ -958,15 +958,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		const resourceDiffInput = input as IResourceDiffEditorInput;
-		if (resourceDiffInput.leftEditor && resourceDiffInput.rightEditor) {
-			const leftInput = this.createEditorInput({ ...resourceDiffInput.leftEditor, forceFile: resourceDiffInput.forceFile });
-			const rightInput = this.createEditorInput({ ...resourceDiffInput.rightEditor, forceFile: resourceDiffInput.forceFile });
+		if (resourceDiffInput.originalInput && resourceDiffInput.modifiedInput) {
+			const originalInput = this.createEditorInput({ ...resourceDiffInput.originalInput, forceFile: resourceDiffInput.forceFile });
+			const modifiedInput = this.createEditorInput({ ...resourceDiffInput.modifiedInput, forceFile: resourceDiffInput.forceFile });
 
 			return this.instantiationService.createInstance(DiffEditorInput,
 				resourceDiffInput.label,
 				resourceDiffInput.description,
-				leftInput,
-				rightInput,
+				originalInput,
+				modifiedInput,
 				undefined
 			);
 		}

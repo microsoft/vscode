@@ -282,7 +282,10 @@ suite('EditorService', () => {
 		const [part, service, accessor] = await createEditorService();
 
 		const input = { resource: URI.parse('my://resource-openEditors') };
-		const otherInput: IResourceDiffEditorInput = { leftEditor: { resource: URI.parse('my://resource2-openEditors') }, rightEditor: { resource: URI.parse('my://resource3-openEditors') } };
+		const otherInput: IResourceDiffEditorInput = {
+			originalInput: { resource: URI.parse('my://resource2-openEditors') },
+			modifiedInput: { resource: URI.parse('my://resource3-openEditors') }
+		};
 
 		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
 
@@ -297,8 +300,8 @@ suite('EditorService', () => {
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 3);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.leftEditor.resource?.toString()), true);
-			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.rightEditor.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.originalInput.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.modifiedInput.resource?.toString()), true);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
 		}
@@ -453,13 +456,13 @@ suite('EditorService', () => {
 
 		// Untyped Input (diff)
 		const resourceDiffInput = {
-			leftEditor: { resource: toResource.call(this, '/primary.html') },
-			rightEditor: { resource: toResource.call(this, '/secondary.html') }
+			originalInput: { resource: toResource.call(this, '/primary.html') },
+			modifiedInput: { resource: toResource.call(this, '/secondary.html') }
 		};
 		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
-		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.leftEditor.resource.toString());
-		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.rightEditor.resource.toString());
+		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
+		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
 	});
 
 	test('delegate', function (done) {

@@ -291,12 +291,12 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly leftEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly originalInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly rightEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
 export const enum Verbosity {
