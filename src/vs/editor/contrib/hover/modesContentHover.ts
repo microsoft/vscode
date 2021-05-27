@@ -30,15 +30,6 @@ import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverP
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 
-export class HoverTriggerLocation {
-
-	constructor(
-		public readonly range: Range
-	) {
-	}
-
-}
-
 export interface IHoverPart {
 	readonly owner: IEditorHoverParticipant;
 	readonly range: Range;
@@ -285,7 +276,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return this._hover.containerDomNode;
 	}
 
-	public checkTrigger(mouseEvent: IEditorMouseEvent): HoverTriggerLocation | null {
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
 		let targetType = mouseEvent.target.type;
 
 		if (targetType === MouseTargetType.CONTENT_EMPTY) {
@@ -297,22 +288,22 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			}
 		}
 
-		if (targetType === MouseTargetType.CONTENT_TEXT) {
-			if (mouseEvent.target.range) {
-				// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-				// Check if mouse is hovering on color decorator
-				const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-					&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-				const showAtRange = (
-					hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
-						? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
-						: mouseEvent.target.range
-				);
-				return new HoverTriggerLocation(showAtRange);
-			}
+		if (targetType !== MouseTargetType.CONTENT_TEXT || !mouseEvent.target.range) {
+			return false;
 		}
 
-		return null;
+		// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+		// Check if mouse is hovering on color decorator
+		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+			&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+		const showAtRange = (
+			hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+				? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+				: mouseEvent.target.range
+		);
+
+		this.startShowingAt(showAtRange, HoverStartMode.Delayed, false);
+		return true;
 	}
 
 	public showAt(position: Position, range: Range | null, focus: boolean): void {

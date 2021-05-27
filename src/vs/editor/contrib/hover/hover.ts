@@ -170,23 +170,18 @@ export class ModesHoverController implements IEditorContribution {
 		}
 
 		const contentWidget = this._getOrCreateContentWidget();
-		const contentHoverTrigger = contentWidget.checkTrigger(mouseEvent);
-		if (contentHoverTrigger) {
+		if (contentWidget.maybeShowAt(mouseEvent)) {
 			this._glyphWidget?.hide();
-			contentWidget.startShowingAt(contentHoverTrigger.range, HoverStartMode.Delayed, false);
 			return;
 		}
 
-		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
+		if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN && mouseEvent.target.position) {
 			this._contentWidget?.hide();
-
-			if (mouseEvent.target.position) {
-				if (!this._glyphWidget) {
-					this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
-				}
-				this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
-				return;
+			if (!this._glyphWidget) {
+				this._glyphWidget = new ModesGlyphHoverWidget(this._editor, this._modeService, this._openerService);
 			}
+			this._glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
+			return;
 		}
 
 		this._hideWidgets();
