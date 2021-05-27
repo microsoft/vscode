@@ -685,6 +685,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container .monaco-toolbar .action-label, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container .monaco-toolbar .action-label {
 				padding: 0px !important;
 				justify-content: center;
+				border-radius: 4px;
 			}`);
 
 			styleSheets.push(`
@@ -692,7 +693,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			.monaco-workbench .notebookOverlay .cell-list-top-cell-toolbar-container, .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-bottom-toolbar-container {
 				align-items: flex-start;
 				justify-content: left;
-				margin: 0 16px 0 8px;
+				margin: 0 16px 0 ${8 + codeCellLeftMargin}px;
 			}`);
 
 			styleSheets.push(`
@@ -1386,7 +1387,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
 			let offset = 0;
-			const offsetUpdateRequests: { id: string, top: number }[] = [];
+			const offsetUpdateRequests: { id: string, top: number; }[] = [];
 			const scrollBottom = Math.max(this._dimension?.height ?? 0, 1080);
 			for (const cell of viewModel.viewCells) {
 				if (cell.cellKind === CellKind.Markup) {
@@ -1450,7 +1451,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		if (this._list) {
 			state.scrollPosition = { left: this._list.scrollLeft, top: this._list.scrollTop };
-			const cellHeights: { [key: number]: number } = {};
+			const cellHeights: { [key: number]: number; } = {};
 			for (let i = 0; i < this.viewModel!.length; i++) {
 				const elm = this.viewModel!.cellAt(i) as CellViewModel;
 				if (elm.cellKind === CellKind.Code) {
@@ -1476,7 +1477,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		// Save contribution view states
-		const contributionsState: { [key: string]: unknown } = {};
+		const contributionsState: { [key: string]: unknown; } = {};
 		for (const [id, contribution] of this._contributions) {
 			if (typeof contribution.saveViewState === 'function') {
 				contributionsState[id] = contribution.saveViewState();
@@ -2463,7 +2464,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		this._webview.removeInsets(removedItems);
 
-		const markdownUpdateItems: { id: string, top: number }[] = [];
+		const markdownUpdateItems: { id: string, top: number; }[] = [];
 		for (const cellId of this._webview.markdownPreviewMapping.keys()) {
 			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 			if (cell) {
@@ -2503,21 +2504,21 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void {
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
 			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void {
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
 			this._dndController?.explicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void {
+	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkdownCellViewModel) {
 			this._dndController?.explicitDrop(cell, event);
@@ -2573,7 +2574,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		super.dispose();
 	}
 
-	toJSON(): { notebookUri: URI | undefined } {
+	toJSON(): { notebookUri: URI | undefined; } {
 		return {
 			notebookUri: this.viewModel?.uri,
 		};
