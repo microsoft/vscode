@@ -1169,6 +1169,7 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
 	let errors: any[] = [];
+	console.log('im in here');
 	return through(function (this: ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		let resource = path.basename(xlf.relative, '.xlf');
