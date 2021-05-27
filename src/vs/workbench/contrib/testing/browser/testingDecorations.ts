@@ -293,6 +293,7 @@ class RunTestDecoration extends Disposable implements ITestDecoration {
 		this.editorDecoration = {
 			range: firstLineRange(range),
 			options: {
+				description: 'run-test-decoration',
 				isWholeLine: true,
 				hoverMessage,
 				glyphMarginClassName,
@@ -392,7 +393,7 @@ class TestMessageDecoration implements ITestDecoration {
 	) {
 		const { severity = TestMessageSeverity.Error, message } = testMessage;
 		const colorTheme = themeService.getColorTheme();
-		editorService.registerDecorationType(this.decorationId, {
+		editorService.registerDecorationType('test-message-decoration', this.decorationId, {
 			after: {
 				contentText: renderStringAsPlaintext(message),
 				color: `${colorTheme.getColor(testMessageSeverityColors[severity].decorationForeground)}`,

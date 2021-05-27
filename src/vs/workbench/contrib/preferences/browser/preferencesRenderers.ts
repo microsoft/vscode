@@ -1201,6 +1201,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+		description: 'dim-configuration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration'
 	});

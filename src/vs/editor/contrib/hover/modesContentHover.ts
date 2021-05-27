@@ -540,6 +540,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
 }

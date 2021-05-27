@@ -212,7 +212,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		this.toDispose = [];
 		this.registerListeners();
 		this.updateConfigurationWidgetVisibility();
-		this.codeEditorService.registerDecorationType(INLINE_VALUE_DECORATION_KEY, {});
+		this.codeEditorService.registerDecorationType('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, {});
 		this.exceptionWidgetVisible = CONTEXT_EXCEPTION_WIDGET_VISIBLE.bindTo(contextKeyService);
 		this.toggleExceptionWidget();
 	}
@@ -715,7 +715,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			allDecorations = decorationsPerScope.reduce((previous, current) => previous.concat(current), []);
 		}
 
-		this.editor.setDecorations(INLINE_VALUE_DECORATION_KEY, allDecorations);
+		this.editor.setDecorations('debug-inline-value-decoration', INLINE_VALUE_DECORATION_KEY, allDecorations);
 	}
 
 	dispose(): void {

@@ -285,7 +285,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 				(this.cachedCompletions || []).map(c => c.decorationId),
 				(result.items).map(i => ({
 					range: i.range,
-					options: {},
+					options: {
+						description: 'inline-completion-tracking-range'
+					},
 				}))
 			);
 

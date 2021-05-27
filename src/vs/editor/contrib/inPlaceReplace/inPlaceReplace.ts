@@ -31,6 +31,7 @@ class InPlaceReplaceController implements IEditorContribution {
 	}
 
 	private static readonly DECORATION = ModelDecorationOptions.register({
+		description: 'in-place-replace',
 		className: 'valueSetReplacement'
 	});
 
