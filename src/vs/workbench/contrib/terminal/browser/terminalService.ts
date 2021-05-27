@@ -1007,30 +1007,26 @@ export class TerminalService implements ITerminalService {
 				return instance;
 			}
 		} else { // setDefault
-			if ('command' in value.profile) {
+			if ('command' in value.profile || 'id' in value.profile) {
 				return; // Should never happen
 			}
 
-			// Set the default profile
-			if ('id' in value.profile) {
-				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.title, ConfigurationTarget.USER);
-			} else {
-				// Add the profile to settings if necessary
-				if (value.profile.isAutoDetected) {
-					const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
-					if (typeof profilesConfig === 'object') {
-						const newProfile: ITerminalProfileObject = {
-							path: value.profile.path
-						};
-						if (value.profile.args) {
-							newProfile.args = value.profile.args;
-						}
-						(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+			// Add the profile to settings if necessary
+			if (value.profile.isAutoDetected) {
+				const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
+				if (typeof profilesConfig === 'object') {
+					const newProfile: ITerminalProfileObject = {
+						path: value.profile.path
+					};
+					if (value.profile.args) {
+						newProfile.args = value.profile.args;
 					}
-					await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
 				}
-				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
+				await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
 			}
+			// Set the default profile
+			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
 		return undefined;
 	}
