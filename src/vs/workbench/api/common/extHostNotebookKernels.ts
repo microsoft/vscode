@@ -26,7 +26,7 @@ interface IKernelData {
 	extensionId: ExtensionIdentifier,
 	controller: vscode.NotebookController;
 	onDidChangeSelection: Emitter<{ selected: boolean; notebook: vscode.NotebookDocument; }>;
-	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any }>;
+	onDidReceiveMessage: Emitter<{ editor: vscode.NotebookEditor, message: any; }>;
 	associatedNotebooks: ResourceMap<boolean>;
 }
 
@@ -66,8 +66,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		let isDisposed = false;
 		const commandDisposables = new DisposableStore();
 
-		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument }>();
-		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any }>();
+		const onDidChangeSelection = new Emitter<{ selected: boolean, notebook: vscode.NotebookDocument; }>();
+		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor, message: any; }>();
 
 		const data: INotebookKernelDto2 = {
 			id: `${extension.identifier.value}/${id}`,
@@ -80,7 +80,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		//
 		let _executeHandler: vscode.NotebookExecuteHandler = handler ?? _defaultExecutHandler;
-		let _interruptHandler: vscode.NotebookInterruptHandler | undefined;
+		let _interruptHandler: ((this: vscode.NotebookController, notebook: vscode.NotebookDocument) => void | Thenable<void>) | undefined;
 
 		// todo@jrieken the selector needs to be massaged
 		this._proxy.$addKernel(handle, data).catch(err => {
