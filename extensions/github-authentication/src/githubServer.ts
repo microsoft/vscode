@@ -50,7 +50,7 @@ export class GitHubServer {
 	// TODO@joaomoreno TODO@RMacfarlane
 	private async isNoCorsEnvironment(): Promise<boolean> {
 		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
-		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
+		return (uri.scheme === 'https' && /^vscode\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
 	}
 
 	public async login(scopes: string): Promise<string> {
