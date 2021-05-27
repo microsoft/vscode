@@ -11,6 +11,7 @@ let fs = require("fs");
 let path = require("path");
 
 let gulp = require('gulp');
+let debug = require('gulp-debug');
 let vfs = require("vinyl-fs");
 let rimraf = require('rimraf');
 let minimist = require('minimist');
@@ -62,6 +63,7 @@ function update(options) {
 		console.log(`Importing translations for ${languageId} form '${location}' to '${translationDataFolder}' ...`);
 		let translationPaths = [];
 		gulp.src(path.join(location, '**', '*.xlf'), { silent: false })
+			.pipe(debug({ title: 'got this:' }))
 			.pipe(i18n.prepareI18nPackFiles(i18n.externalExtensionsWithTranslations, translationPaths, languageId === 'ps'))
 			.on('error', (error) => {
 				console.log(`Error occurred while importing translations:`);
