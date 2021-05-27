@@ -71,7 +71,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	public setActive(active: boolean) {
 		this.active = active;
 		if (active) {
-			this.session?.scheduleUpdate();
+			this.session?.scheduleAutomaticUpdate();
 		}
 	}
 
@@ -120,7 +120,12 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 }
 
 class CachedInlineCompletion {
-	public readonly semanticId: string = JSON.stringify(this.inlineCompletion);
+	public readonly semanticId: string = JSON.stringify({
+		text: this.inlineCompletion.text,
+		startLine: this.inlineCompletion.range.startLineNumber,
+		startColumn: this.inlineCompletion.range.startColumn,
+		command: this.inlineCompletion.command
+	});
 	public lastRange: Range;
 
 	constructor(
@@ -134,8 +139,9 @@ class CachedInlineCompletion {
 class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
-	private updatePromise: CancelablePromise<LiveInlineCompletions> | undefined = undefined;
+	private updatePromise: CancelablePromise<void> | undefined = undefined;
 	private cachedCompletions: CachedInlineCompletion[] | undefined = undefined;
+	private fetchMoreContext = false;
 	private cachedCompletionsSource: LiveInlineCompletions | undefined = undefined;
 
 	private updateSoon = this._register(new RunOnceScheduler(() => this.update(), 50));
@@ -149,7 +155,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	) {
 		super(editor);
 		this._register(toDisposable(() => {
-			this.clearGhostTextPromise();
+			this.clearUpdatePromise();
 			this.clearCache();
 		}));
 
@@ -189,10 +195,10 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}));
 
 		this._register(this.editor.onDidChangeModelContent((e) => {
-			this.updateSoon.schedule();
+			this.scheduleAutomaticUpdate();
 		}));
 
-		this.updateSoon.schedule();
+		this.scheduleAutomaticUpdate();
 	}
 
 	//#region Selection
@@ -200,24 +206,37 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	// We use a semantic id to track the selection even if the cache changes.
 	private currentlySelectedCompletionId: string | undefined = undefined;
 
-	private getIndexOfCurrentSelection(): number {
+	private fixAndGetIndexOfCurrentSelection(): number {
 		if (!this.currentlySelectedCompletionId || !this.cachedCompletions) {
 			return 0;
 		}
+		if (this.cachedCompletions.length === 0) {
+			// don't reset the selection in this case
+			return 0;
+		}
 
-		return this.cachedCompletions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+		const idx = this.cachedCompletions.findIndex(v => v.semanticId === this.currentlySelectedCompletionId);
+		if (idx === -1) {
+			// Reset the selection so that the selection does not jump back when it appears again
+			this.currentlySelectedCompletionId = undefined;
+			return 0;
+		}
+		return idx;
 	}
 
 	private get currentCachedCompletion(): CachedInlineCompletion | undefined {
 		if (!this.cachedCompletions) {
 			return undefined;
 		}
-		return this.cachedCompletions[this.getIndexOfCurrentSelection()];
+		return this.cachedCompletions[this.fixAndGetIndexOfCurrentSelection()];
 	}
 
-	public showNextInlineCompletion(): void {
+	public async showNextInlineCompletion(): Promise<void> {
+		await this.ensureUpdateWithExplicitContext();
+
+		this.fetchMoreContext = true;
 		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
-			const newIdx = (this.getIndexOfCurrentSelection() + 1) % this.cachedCompletions.length;
+			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + 1) % this.cachedCompletions.length;
 			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
 		} else {
 			this.currentlySelectedCompletionId = undefined;
@@ -225,14 +244,30 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		this.onDidChangeEmitter.fire();
 	}
 
-	public showPreviousInlineCompletion(): void {
+	public async showPreviousInlineCompletion(): Promise<void> {
+		await this.ensureUpdateWithExplicitContext();
+
 		if (this.cachedCompletions && this.cachedCompletions.length > 0) {
-			const newIdx = (this.getIndexOfCurrentSelection() + this.cachedCompletions.length - 1) % this.cachedCompletions.length;
+			const newIdx = (this.fixAndGetIndexOfCurrentSelection() + this.cachedCompletions.length - 1) % this.cachedCompletions.length;
 			this.currentlySelectedCompletionId = this.cachedCompletions[newIdx].semanticId;
 		} else {
 			this.currentlySelectedCompletionId = undefined;
 		}
 		this.onDidChangeEmitter.fire();
+	}
+
+	private async ensureUpdateWithExplicitContext(): Promise<void> {
+		if (this.fetchMoreContext) {
+			if (this.updatePromise) {
+				await this.updatePromise;
+			}
+		} else {
+			if (this.updatePromise) {
+				this.clearUpdatePromise();
+			}
+			this.fetchMoreContext = true;
+			await this.update();
+		}
 	}
 
 	//#endregion
@@ -261,25 +296,35 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		return this.editor.getPosition().lineNumber === this.triggerPosition.lineNumber;
 	}
 
-	public scheduleUpdate(): void {
+	public scheduleAutomaticUpdate(): void {
+		this.fetchMoreContext = false;
 		this.updateSoon.schedule();
 	}
 
-	private update(): void {
+	private async update(): Promise<void> {
 		if (!this.shouldUpdate()) {
 			return;
 		}
 
 		const position = this.editor.getPosition();
-		this.clearGhostTextPromise();
-		this.updatePromise = createCancelablePromise(token =>
-			provideInlineCompletions(position,
-				this.editor.getModel(),
-				{ triggerKind: InlineCompletionTriggerKind.Automatic },
-				token
-			)
-		);
-		this.updatePromise.then((result) => {
+		this.clearUpdatePromise();
+		this.updatePromise = createCancelablePromise(async token => {
+			let result;
+			try {
+				result = await provideInlineCompletions(position,
+					this.editor.getModel(),
+					{ triggerKind: this.fetchMoreContext ? InlineCompletionTriggerKind.Explicit : InlineCompletionTriggerKind.Automatic },
+					token
+				);
+			} catch (e) {
+				onUnexpectedError(e);
+				return;
+			}
+
+			if (token.isCancellationRequested) {
+				return;
+			}
+
 			this.cachedCompletions = [];
 			const decorationIds = this.editor.deltaDecorations(
 				(this.cachedCompletions || []).map(c => c.decorationId),
@@ -295,7 +340,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.cachedCompletionsSource = result;
 			this.cachedCompletions = result.items.map((item, idx) => new CachedInlineCompletion(item, decorationIds[idx]));
 			this.onDidChangeEmitter.fire();
-		}, onUnexpectedError);
+
+			this.updatePromise = undefined;
+		});
+
+		await this.updatePromise;
 	}
 
 	private clearCache(): void {
@@ -312,7 +361,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
-	private clearGhostTextPromise(): void {
+	private clearUpdatePromise(): void {
 		if (this.updatePromise) {
 			this.updatePromise.cancel();
 			this.updatePromise = undefined;
