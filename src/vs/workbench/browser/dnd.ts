@@ -300,27 +300,27 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 
 		// Fill in some properties if they are not there already by accessing
-		// some well known things, such as text files or untitled contents.
+		// some well known things from the text file universe.
 		// This is not ideal for custom editors, but those have a chance to
 		// provide everything from the `asResourceEditorInput` method.
 		{
 			const resource = editor.resource;
-			const textModel = resource ? resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource) : undefined;
-			if (textModel) {
+			const textFileModel = resource ? textFileService.files.get(resource) : undefined;
+			if (textFileModel) {
 
 				// mode
 				if (typeof editor.mode !== 'string') {
-					editor.mode = textModel.getMode();
+					editor.mode = textFileModel.getMode();
 				}
 
 				// encoding
 				if (typeof editor.encoding !== 'string') {
-					editor.encoding = textModel.getEncoding();
+					editor.encoding = textFileModel.getEncoding();
 				}
 
 				// contents (only if dirty)
-				if (typeof editor.contents !== 'string' && textModel.isDirty()) {
-					editor.contents = textModel.textEditorModel.getValue();
+				if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+					editor.contents = textFileModel.textEditorModel.getValue();
 				}
 			}
 

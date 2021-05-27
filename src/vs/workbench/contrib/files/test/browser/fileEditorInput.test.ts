@@ -57,6 +57,9 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(input.getDescription());
 		assert.ok(input.getTitle(Verbosity.SHORT));
 
+		const untypedInput = input.asResourceEditorInput(0);
+		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
+
 		assert.strictEqual('file.js', input.getName());
 
 		assert.strictEqual(toResource.call(this, '/foo/bar/file.js').fsPath, input.resource.fsPath);

@@ -10,7 +10,9 @@ import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from '
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, toLocalResource } from 'vs/base/common/resources';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -30,7 +32,9 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(model.resource, undefined, editorService, textFileService, labelService, fileService);
 
@@ -117,10 +121,11 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override asResourceEditorInput(group: GroupIdentifier): IUntitledTextResourceEditorInput {
 		return {
-			resource: this.model.hasAssociatedFilePath ? this.model.resource : undefined,
+			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : undefined,
 			forceUntitled: true,
 			encoding: this.getEncoding(),
 			mode: this.getMode(),
+			contents: this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined,
 			options: {
 				viewState: this.getViewStateFor(group)
 			}
