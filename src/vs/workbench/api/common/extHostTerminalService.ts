@@ -598,8 +598,11 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
-		// TODO: Use cancellation token
-		const options = await this._profileProviders.get(id)?.provideProfileOptions(new CancellationTokenSource().token);
+		const token = new CancellationTokenSource().token;
+		const options = await this._profileProviders.get(id)?.provideProfileOptions(token);
+		if (token.isCancellationRequested) {
+			return;
+		}
 		if (!options) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}

@@ -224,6 +224,11 @@ export class TerminalViewPane extends ViewPane {
 			dropdownActions.push(new MenuItemAction({ id: contributed.command, title: contributed.title, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, this._contextKeyService, this._commandService));
 		}
 
+		for (const contributed of this._terminalContributionService.terminalProfiles) {
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title, undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.id, false)));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title, undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.id, true)));
+		}
+
 		if (dropdownActions.length > 0) {
 			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
 			dropdownActions.push(new Separator());

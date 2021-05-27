@@ -971,13 +971,7 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this._extensionService.activateByEvent(`onTerminalProfile:${value.profile.id}`);
-				const profileProvider = this._profileProviders.get(value.profile.id);
-				if (!profileProvider) {
-					this._notificationService.error(`No terminal profile provider registered for id "${value.profile.id}"`);
-					return;
-				}
-				await profileProvider.createContributedTerminalProfile(!!(keyMods?.alt && activeInstance));
+				await this.createContributedTerminalProfile(value.profile.id, !!(keyMods?.alt && activeInstance));
 				// TODO: Pass in cwd here? cwd should probably still be inherited
 				// if (keyMods?.alt && activeInstance) {
 				// 	// create split, only valid if there's an active instance
@@ -1025,6 +1019,16 @@ export class TerminalService implements ITerminalService {
 			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
 		return undefined;
+	}
+
+	async createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void> {
+		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
+		const profileProvider = this._profileProviders.get(id);
+		if (!profileProvider) {
+			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
+			return;
+		}
+		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

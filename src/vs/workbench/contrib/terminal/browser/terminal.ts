@@ -141,6 +141,8 @@ export interface ITerminalService {
 	 */
 	createTerminal(profile: ITerminalProfile): ITerminalInstance;
 
+	createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void>;
+
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
