@@ -541,7 +541,7 @@ export interface IEditorInput extends IDisposable {
 	 *
 	 * May return `undefined` if a untyped representatin is not supported.
 	 */
-	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined;
+	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined;
 
 	/**
 	 * Returns if the other object matches this input.

@@ -375,9 +375,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): ITextResourceEditorInput | undefined {
+	override asResourceEditorInput(group: GroupIdentifier): ITextResourceEditorInput {
 		return {
 			resource: this.preferredResource,
+			forceFile: true,
 			encoding: this.getEncoding(),
 			mode: this.getMode(),
 			options: {

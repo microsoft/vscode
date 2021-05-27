@@ -418,8 +418,8 @@ export class NativeFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
-		const editors = extractEditorsDropData(source, true);
-		const resolvedFiles = await this.fileService.resolveAll(editors.map(editor => ({ resource: editor.resource })));
+		const files = coalesce(extractEditorsDropData(source, true).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
 			return;
@@ -462,13 +462,13 @@ export class NativeFileImport {
 
 			// Copy resources
 			if (choice === buttons.length - 2) {
-				return this.importResources(target, editors.map(editor => editor.resource), token);
+				return this.importResources(target, files, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, editors.map(editor => editor.resource), token);
+			return this.importResources(target, files, token);
 		}
 	}
 

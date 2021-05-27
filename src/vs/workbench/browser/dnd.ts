@@ -11,7 +11,7 @@ import { IWindowOpenable } from 'vs/platform/windows/common/windows';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
@@ -48,12 +48,13 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles'
 };
 
-interface IDraggedTextResourceEditorInput extends ITextResourceEditorInput {
+interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
+	resource?: URI;
 	isExternal?: boolean;
 }
 
-export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Array<IDraggedTextResourceEditorInput> {
-	const editors: Array<IDraggedTextResourceEditorInput> = [];
+export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Array<IDraggedResourceEditorInput> {
+	const editors: Array<IDraggedResourceEditorInput> = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
@@ -150,7 +151,7 @@ export class ResourcesDropHandler {
 		await this.hostService.focus();
 
 		// Check for workspace file being dropped if we are allowed to do so
-		const externalLocalFiles = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => file.resource);
+		const externalLocalFiles = coalesce(editors.filter(editor => editor.isExternal && editor.resource?.scheme === Schemas.file).map(editor => editor.resource));
 		if (this.options.allowWorkspaceOpen) {
 			if (externalLocalFiles.length > 0) {
 				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(externalLocalFiles);
@@ -280,12 +281,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 
-	const draggedEditors: IDraggedTextResourceEditorInput[] = [];
+	const draggedEditors: IDraggedResourceEditorInput[] = [];
 
 	for (const resourceOrEditor of resourcesOrEditors) {
 
 		// Extract resource editor from provided object or URI
-		let editor: ITextResourceEditorInput | undefined = undefined;
+		let editor: IDraggedResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
 			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
 		} else if (URI.isUri(resourceOrEditor)) {
@@ -304,7 +305,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// provide everything from the `asResourceEditorInput` method.
 		{
 			const resource = editor.resource;
-			const textModel = resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource);
+			const textModel = resource ? resource.scheme === Schemas.untitled ? textFileService.untitled.get(resource) : textFileService.files.get(resource) : undefined;
 			if (textModel) {
 
 				// mode
