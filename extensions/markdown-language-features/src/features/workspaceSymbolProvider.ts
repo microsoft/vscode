@@ -34,33 +34,16 @@ class VSCodeWorkspaceMarkdownDocumentProvider extends Disposable implements Work
 	 */
 	async getAllMarkdownDocuments(): Promise<SkinnyTextDocument[]> {
 		const maxConcurrent = 20;
-		const ignoreList: (string | vscode.RelativePattern)[] = ['**/node_modules/**'];
 		const docList: SkinnyTextDocument[] = [];
+		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
 
-		let isDone = false;
-		while (!isDone) {
-			await new Promise(async (resolve) => {
-				const resources = await vscode.workspace.findFiles('**/*.md', `{${ignoreList.join(',')}}`, maxConcurrent);
-				if (resources.length < maxConcurrent) {
-					isDone = true;
-				}
-
-				const docs = await Promise.all(resources.map(doc => {
-					// Convert path to be relative from the workspace
-					let path = doc.fsPath;
-					for (const folder of vscode.workspace.workspaceFolders || []) {
-						path = path.replace(folder.uri.fsPath + '/', '');
-					}
-					ignoreList.push(path);
-					return this.getMarkdownDocument(doc);
-				}));
-				docs.forEach((doc) => {
-					if (doc) {
-						docList.push(doc);
-					}
-				});
-				resolve(null);
-			});
+		// add 1 in case of any remaining files,
+		// ex (10 % 3) = 3, needs 1 more loop to complete
+		for (let i = 0; i < resources.length % maxConcurrent + 1; i++) {
+			const resourceBatch = resources.slice(i * maxConcurrent, (i + 1) * maxConcurrent);
+			(await Promise.all(resourceBatch.map(async doc => {
+				return await this.getMarkdownDocument(doc);
+			}))).filter((doc) => !!doc);
 		}
 		return docList;
 	}
