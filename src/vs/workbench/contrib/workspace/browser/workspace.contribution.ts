@@ -44,7 +44,6 @@ import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
-import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
@@ -626,7 +625,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
-				default: verifyMicrosoftInternalDomain(product.msftInternalDomains || []),
+				default: true,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
 				scope: ConfigurationScope.APPLICATION,
