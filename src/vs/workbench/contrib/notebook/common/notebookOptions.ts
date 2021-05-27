@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, NotebookCellEditorOptionsCustomizations, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -58,6 +58,7 @@ export interface NotebookLayoutConfiguration {
 	dragAndDropEnabled: boolean;
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
+	editorOptionsCustomizations: any | undefined;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -75,6 +76,7 @@ interface NotebookOptionsChangeEvent {
 	consolidatedOutputButton?: boolean;
 	dragAndDropEnabled?: boolean;
 	fontSize?: boolean;
+	editorOptionsCustomizations?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -118,6 +120,7 @@ export class NotebookOptions {
 		const showFoldingControls = this._computeShowFoldingControlsOption();
 		// const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(compactView, insertToolbarPosition, insertToolbarAlignment);
 		const fontSize = this.configurationService.getValue<number>('editor.fontSize');
+		const editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
 
 		this._disposables = [];
 		this._layoutConfiguration = {
@@ -147,7 +150,8 @@ export class NotebookOptions {
 			insertToolbarPosition,
 			insertToolbarAlignment,
 			showFoldingControls,
-			fontSize
+			fontSize,
+			editorOptionsCustomizations
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -176,6 +180,7 @@ export class NotebookOptions {
 		const showFoldingControls = e.affectsConfiguration(ShowFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(DragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
+		const editorOptionsCustomizations = e.affectsConfiguration(NotebookCellEditorOptionsCustomizations);
 
 		if (
 			!cellStatusBarVisibility
@@ -190,7 +195,8 @@ export class NotebookOptions {
 			&& !consolidatedOutputButton
 			&& !showFoldingControls
 			&& !dragAndDropEnabled
-			&& !fontSize) {
+			&& !fontSize
+			&& !editorOptionsCustomizations) {
 			return;
 		}
 
@@ -252,6 +258,10 @@ export class NotebookOptions {
 			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		}
 
+		if (editorOptionsCustomizations) {
+			configuration.editorOptionsCustomizations = this.configurationService.getValue(NotebookCellEditorOptionsCustomizations);
+		}
+
 		this._layoutConfiguration = Object.freeze(configuration);
 
 		// trigger event
@@ -268,7 +278,8 @@ export class NotebookOptions {
 			showFoldingControls,
 			consolidatedOutputButton,
 			dragAndDropEnabled,
-			fontSize: fontSize
+			fontSize,
+			editorOptionsCustomizations
 		});
 	}
 

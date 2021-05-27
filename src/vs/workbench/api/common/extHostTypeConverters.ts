@@ -1534,30 +1534,15 @@ export namespace NotebookCellData {
 
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
-		let value: unknown;
-		let valueBytes: number[] | undefined;
-		if (item.data instanceof Uint8Array) {
-			//todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
-			valueBytes = Array.from(item.data);
-		} else {
-			value = item.value;
-		}
 		return {
 			metadata: item.metadata,
 			mime: item.mime,
-			value,
-			valueBytes,
+			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		let value: Uint8Array | any;
-		if (Array.isArray(item.valueBytes)) {
-			value = new Uint8Array(item.valueBytes);
-		} else {
-			value = item.value;
-		}
-		return new types.NotebookCellOutputItem(value, item.mime, item.metadata);
+		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime, item.metadata);
 	}
 }
 
@@ -1684,18 +1669,15 @@ export namespace NotebookDocumentContentOptions {
 	}
 }
 
-export namespace NotebookKernelPreload {
-	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
+export namespace NotebookRendererScript {
+	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: string[] } {
 		return {
 			uri: preload.uri,
-			// todo@connor4312: the conditional here can be removed after a migration period
-			provides: typeof preload.provides === 'string'
-				? [preload.provides]
-				: preload.provides ?? []
+			provides: preload.provides
 		};
 	}
-	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
-		return new types.NotebookKernelPreload(URI.revive(preload.uri), preload.provides);
+	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookRendererScript {
+		return new types.NotebookRendererScript(URI.revive(preload.uri), preload.provides);
 	}
 }
 

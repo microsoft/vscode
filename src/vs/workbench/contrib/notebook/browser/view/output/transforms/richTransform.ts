@@ -6,7 +6,6 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { dirname } from 'vs/base/common/resources';
-import { isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
@@ -109,14 +108,7 @@ class JSONRendererContrib extends CodeRendererContrib {
 	}
 
 	override render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement): IRenderOutput {
-		const str = items.map(item => {
-			if (isArray(item.valueBytes)) {
-				return getStringValue(item);
-			} else {
-				return JSON.stringify(item.value, null, '\t');
-			}
-		}).join('');
-
+		const str = items.map(getStringValue).join('');
 		return this._render(output, container, str, 'jsonc');
 	}
 }
@@ -167,57 +159,6 @@ class StderrRendererContrib extends StreamRendererContrib {
 		const result = super.render(output, items, container, notebookUri);
 		container.classList.add('error');
 		return result;
-	}
-}
-
-/** @deprecated */
-class ErrorRendererContrib extends Disposable implements IOutputRendererContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['application/x.notebook.error-traceback'];
-	}
-
-	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-		@IThemeService private readonly themeService: IThemeService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput {
-		const linkDetector = this.instantiationService.createInstance(LinkDetector);
-		items.forEach(item => {
-			const data: any = item.value;
-			const header = document.createElement('div');
-			const headerMessage = data.ename && data.evalue
-				? `${data.ename}: ${data.evalue}`
-				: data.ename || data.evalue;
-			if (headerMessage) {
-				header.innerText = headerMessage;
-				container.appendChild(header);
-			}
-			const traceback = document.createElement('pre');
-			traceback.classList.add('traceback');
-			if (data.traceback) {
-				for (let j = 0; j < data.traceback.length; j++) {
-					traceback.appendChild(handleANSIOutput(data.traceback[j], linkDetector, this.themeService, undefined));
-				}
-			}
-			container.appendChild(traceback);
-			container.classList.add('error');
-			return { type: RenderOutputType.Mainframe };
-
-		});
-
-		return { type: RenderOutputType.Mainframe };
-	}
-
-	_render() {
 	}
 }
 
@@ -381,17 +322,10 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 
 		for (let item of items) {
 
-			let src: string;
-			if (Array.isArray(item.valueBytes)) {
-				const bytes = new Uint8Array(item.valueBytes);
-				const blob = new Blob([bytes], { type: item.mime });
-				src = URL.createObjectURL(blob);
-				disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
-			} else {
-				// OLD
-				const imagedata = item.value;
-				src = `data:${item.mime};base64,${imagedata}`;
-			}
+			const bytes = new Uint8Array(item.valueBytes);
+			const blob = new Blob([bytes], { type: item.mime });
+			const src = URL.createObjectURL(blob);
+			disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
 
 			const image = document.createElement('img');
 			image.src = src;
@@ -414,17 +348,11 @@ OutputRendererRegistry.registerOutputTransform(CodeRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
-OutputRendererRegistry.registerOutputTransform(ErrorRendererContrib);
 
 // --- utils ---
 function getStringValue(item: IOutputItemDto): string {
-	if (Array.isArray(item.valueBytes)) {
-		// todo@jrieken NOT proper, should be VSBuffer
-		return new TextDecoder().decode(new Uint8Array(item.valueBytes));
-	} else {
-		// "old" world
-		return Array.isArray(item.value) ? item.value.join('') : String(item.value);
-	}
+	// todo@jrieken NOT proper, should be VSBuffer
+	return new TextDecoder().decode(new Uint8Array(item.valueBytes));
 }
 
 function getOutputSimpleEditorOptions(): IEditorConstructionOptions {

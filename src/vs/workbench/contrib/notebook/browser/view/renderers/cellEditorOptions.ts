@@ -47,41 +47,50 @@ export class CellEditorOptions extends Disposable {
 	private readonly _onDidChange = new Emitter<IEditorOptions>();
 	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
 
-	constructor(readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, language: string) {
+	constructor(readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
-				this._value = computeEditorOptions();
+				this._value = this._computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
 		}));
 
 		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.editorTopPadding) {
-				this._value = computeEditorOptions();
+			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations) {
+				this._value = this._computeEditorOptions();
 				this._onDidChange.fire(this.value);
 			}
 		}));
 
-		const computeEditorOptions = () => {
-			const editorPadding = this.notebookOptions.computeEditorPadding();
-			const renderLiNumbers = configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
-			const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
-			const editorOptions = deepClone(configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
-			const computed = {
-				...editorOptions,
-				...CellEditorOptions.fixedEditorOptions,
-				...{ padding: editorPadding, lineNumbers },
-			};
+		this._value = this._computeEditorOptions();
+	}
 
-			if (!computed.folding) {
-				computed.lineDecorationsWidth = 16;
+	private _computeEditorOptions() {
+		const editorPadding = this.notebookOptions.computeEditorPadding();
+		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
+		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
+		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
+		const editorOptionsOverrideRaw = this.notebookOptions.getLayoutConfiguration().editorOptionsCustomizations ?? {};
+		let editorOptionsOverride: { [key: string]: any } = {};
+		for (let key in editorOptionsOverrideRaw) {
+			if (key.indexOf('editor.') === 0) {
+				editorOptionsOverride[key.substr(7)] = editorOptionsOverrideRaw[key];
 			}
-
-			return computed;
+		}
+		const computed = {
+			...editorOptions,
+			...CellEditorOptions.fixedEditorOptions,
+			... { lineNumbers },
+			...editorOptionsOverride,
+			...{ padding: editorPadding }
 		};
 
-		this._value = computeEditorOptions();
+		if (!computed.folding) {
+			computed.lineDecorationsWidth = 16;
+		}
+
+		return computed;
 	}
 
 	override dispose(): void {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace, equals } from 'vs/base/common/arrays';
+import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
@@ -3112,7 +3112,8 @@ export class NotebookCellOutputItem {
 		if (!obj) {
 			return false;
 		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
 	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
@@ -3148,18 +3149,11 @@ export class NotebookCellOutputItem {
 		return NotebookCellOutputItem.text(rawStr, mime, metadata);
 	}
 
-	/** @deprecated */
-	public value: Uint8Array | unknown; // JSON'able
-
 	constructor(
 		public data: Uint8Array,
 		public mime: string,
 		public metadata?: { [key: string]: any }
 	) {
-		if (!(data instanceof Uint8Array)) {
-			this.value = data;
-		}
-
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {
 			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
@@ -3251,14 +3245,15 @@ export enum NotebookControllerAffinity {
 	Preferred = 2
 }
 
-export class NotebookKernelPreload {
-	public readonly provides: string[];
+export class NotebookRendererScript {
+
+	public provides: string[];
 
 	constructor(
-		public readonly uri: vscode.Uri,
+		public uri: vscode.Uri,
 		provides: string | string[] = []
 	) {
-		this.provides = typeof provides === 'string' ? [provides] : provides;
+		this.provides = asArray(provides);
 	}
 }
 

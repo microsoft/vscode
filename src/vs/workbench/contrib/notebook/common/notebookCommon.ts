@@ -173,8 +173,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly value: unknown;
-	readonly valueBytes?: number[];
+	readonly valueBytes: number[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -603,7 +602,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -922,6 +920,7 @@ export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
 export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
 export const ShowFoldingControls = 'notebook.showFoldingControls';
 export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
+export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

@@ -1316,11 +1316,6 @@ declare module 'vscode' {
 		 */
 		data: Uint8Array;
 
-		/**
-		 * @deprecated
-		 */
-		value: unknown;
-
 		//todo@API
 		metadata?: { [key: string]: any };
 
@@ -1508,31 +1503,25 @@ declare module 'vscode' {
 		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
-	export interface NotebookInterruptHandler {
-		/**
-		 * @param notebook The notebook for which the interrupt handler is being called.
-		 */
-		(this: NotebookController, notebook: NotebookDocument): void | Thenable<void>;
-	}
-
 	export enum NotebookControllerAffinity {
 		Default = 1,
 		Preferred = 2
 	}
 
-	// todo@API this is called Controller
-	export class NotebookKernelPreload {
+
+	export class NotebookRendererScript {
+
 		/**
 		 * APIs that the preload provides to the renderer. These are matched
 		 * against the `dependencies` and `optionalDependencies` arrays in the
 		 * notebook renderer contribution point.
 		 */
-		readonly provides: string[];
+		provides: string[];
 
 		/**
 		 * URI for the file to preload
 		 */
-		readonly uri: Uri;
+		uri: Uri;
 
 		/**
 		 * @param uri URI for the file to preload
@@ -1562,31 +1551,53 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
-	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecutionTask
+	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecution
 	/**
-	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
-	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
+	 * A NotebookCellExecution is how the kernel modifies a notebook cell as it is executing. When
+	 * {@link notebook.createNotebookCellExecution `createNotebookCellExecution`} is called, the cell
 	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
 	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
 	 * modified with the methods on the run task.
 	 *
-	 * All outputs methods operate on this NotebookCellExecutionTask's cell by default. They optionally take
+	 * All outputs methods operate on this NotebookCellExecution's cell by default. They optionally take
 	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
 	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
 	 * all resolve once the output edit has been applied.
 	 */
-	export interface NotebookCellExecutionTask {
-		readonly document: NotebookDocument;
+	export interface NotebookCellExecution {
+
+		/**
+		 * The {@link NotebookCell cell} for which this execution has been created.
+		 */
 		readonly cell: NotebookCell;
+
+		/**
+		 * A cancellation token which will be triggered when the cell execution is canceled
+		 * from the UI.
+		 *
+		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
+		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
+		 */
 		readonly token: CancellationToken;
 
-		start(context?: NotebookCellExecuteStartContext): void;
+		//todo@API remove? use cell.notebook instead?
+		readonly document: NotebookDocument;
+
+		/**
+		 * Set and unset the order of this cell execution.
+		 */
 		executionOrder: number | undefined;
+
+		// todo@API inline context object?
+		start(context?: NotebookCellExecuteStartContext): void;
+		// todo@API inline context object?
 		end(result?: NotebookCellExecuteEndContext): void;
 
+		// todo@API use object instead of index? FF
 		clearOutput(cellIndex?: number): Thenable<void>;
 		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
 		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		// todo@API use object instead of index?
 		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
@@ -1647,16 +1658,23 @@ declare module 'vscode' {
 
 		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
-		 * Run Selection etc.
+		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
 		executeHandler: NotebookExecuteHandler;
 
 		/**
-		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
-		 * [`NotebookCellExecutionTask#token`](NotebookCellExecutionTask#token)) and should only be used when
-		 * execution-level cancellation is supported
+		 * Optional interrupt handler.
+		 *
+		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
+		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
+		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
+		 * running. For those cases the {@link NotebookInterruptHandler interrupt handler} exists - it can be thought of as the
+		 * equivalent of `SIGINT` or `Control+C` in terminals.
+		 *
+		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
+		 * only be used when tokens cannot be supported.
 		 */
-		interruptHandler?: NotebookInterruptHandler
+		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
 		 * Dispose and free associated resources.
@@ -1689,13 +1707,10 @@ declare module 'vscode' {
 		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
-		// todo@API rename to NotebookCellExecution
-		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
 
-		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
-		// ipc
-		readonly preloads: NotebookKernelPreload[];
+		readonly rendererScripts: NotebookRendererScript[];
 
 		/**
 		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
@@ -1840,9 +1855,9 @@ declare module 'vscode' {
 		 * @param viewType A notebook view type for which this controller is for.
 		 * @param label The label of the controller
 		 * @param handler
-		 * @param preloads
+		 * @param rendererScripts
 		 */
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
 		// todo@API what is this used for?
 		// todo@API qualify cell, ...NotebookCell...
