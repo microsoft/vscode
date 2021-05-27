@@ -114,6 +114,7 @@ export interface ITerminalProfileResolverService {
 	// TODO: Remove when workspace trust is enabled
 	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
 	getSafeConfigValueFullKey(key: string): unknown | undefined;
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
