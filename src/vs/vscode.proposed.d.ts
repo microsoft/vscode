@@ -1503,13 +1503,6 @@ declare module 'vscode' {
 		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
-	export interface NotebookInterruptHandler {
-		/**
-		 * @param notebook The notebook for which the interrupt handler is being called.
-		 */
-		(this: NotebookController, notebook: NotebookDocument): void | Thenable<void>;
-	}
-
 	export enum NotebookControllerAffinity {
 		Default = 1,
 		Preferred = 2
@@ -1665,16 +1658,23 @@ declare module 'vscode' {
 
 		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
-		 * Run Selection etc.
+		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
 		executeHandler: NotebookExecuteHandler;
 
 		/**
-		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
-		 * [`NotebookCellExecution#token`](NotebookCellExecution#token)) and should only be used when
-		 * execution-level cancellation is supported
+		 * Optional interrupt handler.
+		 *
+		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
+		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
+		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
+		 * running. For those cases the {@link NotebookInterruptHandler interrupt handler} exists - it can be thought of as the
+		 * equivalent of `SIGINT` or `Control+C` in terminals.
+		 *
+		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
+		 * only be used when tokens cannot be supported.
 		 */
-		interruptHandler?: NotebookInterruptHandler
+		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
 		 * Dispose and free associated resources.
