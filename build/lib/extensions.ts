@@ -420,7 +420,7 @@ const esbuildMediaScripts = [
 	'notebook-markdown-extensions/esbuild.js',
 ];
 
-async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
+export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
 	const webpack = require('webpack') as typeof import('webpack');
 
 	const webpackConfigs: webpack.Configuration[] = [];
