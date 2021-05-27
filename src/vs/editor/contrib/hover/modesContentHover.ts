@@ -6,7 +6,7 @@
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -28,6 +28,7 @@ import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParti
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 
 export interface IHoverPart {
 	readonly owner: IEditorHoverParticipant;
@@ -275,7 +276,48 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return this._hover.containerDomNode;
 	}
 
-	public showAt(position: Position, range: Range | null, focus: boolean): void {
+	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const targetType = mouseEvent.target.type;
+		if (targetType === MouseTargetType.CONTENT_TEXT) {
+			return true;
+		}
+
+		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
+				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		if (!this._shouldShowAt(mouseEvent)) {
+			return false;
+		}
+
+		if (!mouseEvent.target.range) {
+			return false;
+		}
+
+		// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+		// Check if mouse is hovering on color decorator
+		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+			&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+		const showAtRange = (
+			hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+				? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+				: mouseEvent.target.range
+		);
+
+		this.startShowingAt(showAtRange, HoverStartMode.Delayed, false);
+		return true;
+	}
+
+	private _showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -479,9 +521,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this.showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
 			this._updateContents(fragment);
 		}
@@ -498,6 +540,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
 }

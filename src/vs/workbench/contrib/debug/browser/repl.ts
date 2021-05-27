@@ -135,7 +135,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 		this.multiSessionRepl.set(this.isMultiSessionView);
 
-		codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
 		this.registerListeners();
 	}
 
@@ -674,7 +674,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations(DECORATION_KEY, decorations);
+		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
 	}
 
 	override saveState(): void {

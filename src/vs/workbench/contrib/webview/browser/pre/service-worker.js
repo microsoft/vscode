@@ -9,7 +9,7 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 1;
+const VERSION = 2;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
@@ -262,7 +262,7 @@ async function processResourceRequest(event, requestUrl) {
 		parentClient.postMessage({
 			channel: 'load-resource',
 			id: requestId,
-			path: decodeURIComponent(requestUrl.pathname),
+			path: requestUrl.pathname,
 			scheme,
 			authority,
 			query: requestUrl.search.replace(/^\?/, ''),

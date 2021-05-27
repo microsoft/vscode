@@ -10,6 +10,13 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
+export const enum TerminalSettingPrefix {
+	Shell = 'terminal.integrated.shell.',
+	ShellArgs = 'terminal.integrated.shellArgs.',
+	DefaultProfile = 'terminal.integrated.defaultProfile.',
+	Profiles = 'terminal.integrated.profiles.'
+}
+
 export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
 	ShellMacOs = 'terminal.integrated.shell.osx',

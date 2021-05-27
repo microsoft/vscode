@@ -163,7 +163,7 @@ export class GhostTextWidget extends Disposable {
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
-			this._codeEditorService.registerDecorationType(this.codeEditorDecorationTypeKey, {
+			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
 				after: {
 					// TODO: escape?
 					contentText: renderData.lines[0],
