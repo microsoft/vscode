@@ -58,7 +58,7 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _activeGroupIndex: number;
 	private _activeInstanceIndex: number;
-	private _profileProviders: Map<string, ITerminalProfileProvider> = new Map();
+	private readonly _profileProviders: Map<string, ITerminalProfileProvider> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -352,16 +352,21 @@ export class TerminalService implements ITerminalService {
 	@throttle(2000)
 	private async _refreshAvailableProfiles(): Promise<void> {
 		const result = await this._detectProfiles();
-		if (!equals(result, this._availableProfiles)) {
+		const profilesChanged = !equals(result, this._availableProfiles);
+		if (profilesChanged) {
 			this._availableProfiles = result;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier.open();
-			const env = await this._remoteAgentService.getEnvironment();
-			registerTerminalDefaultProfileConfiguration({
-				os: env?.os || OS,
-				profiles: this._availableProfiles
-			});
+			await this._refreshPlatformConfig();
 		}
+	}
+
+	private async _refreshPlatformConfig() {
+		const env = await this._remoteAgentService.getEnvironment();
+		registerTerminalDefaultProfileConfiguration({
+			os: env?.os || OS,
+			profiles: this._availableProfiles!
+		});
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
@@ -933,17 +938,12 @@ export class TerminalService implements ITerminalService {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles', "profiles") });
 			quickPickItems.push(...configProfiles.map(e => this._createProfileQuickPickItem(e)));
 		}
-		// Add contributed profiles, these cannot be defaults
+
+		// Add contributed profiles
 		if (type === 'createInstance') {
-			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.contributed', "contributed") });
-			for (const contributed of this._terminalContributionService.terminalTypes) {
-				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-				quickPickItems.push({
-					label: `$(${icon.id}) ${contributed.title}`,
-					profile: contributed
-				});
+			if (this._terminalContributionService.terminalProfiles.length > 0 || this._terminalContributionService.terminalTypes.length > 0) {
+				quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.contributed', "contributed") });
 			}
-			console.log('this._terminalContributionService.terminalProfiles', this._terminalContributionService.terminalProfiles);
 			for (const contributed of this._terminalContributionService.terminalProfiles) {
 				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
 				quickPickItems.push({
@@ -951,7 +951,19 @@ export class TerminalService implements ITerminalService {
 					profile: contributed
 				});
 			}
+
+			// Add contributed types (legacy), these cannot be defaults
+			if (type === 'createInstance') {
+				for (const contributed of this._terminalContributionService.terminalTypes) {
+					const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
+					quickPickItems.push({
+						label: `$(${icon.id}) ${contributed.title}`,
+						profile: contributed
+					});
+				}
+			}
 		}
+
 		if (autoDetectedProfiles.length > 0) {
 			quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.detected', "detected") });
 			quickPickItems.push(...autoDetectedProfiles.map(e => this._createProfileQuickPickItem(e)));
@@ -998,25 +1010,27 @@ export class TerminalService implements ITerminalService {
 			if ('command' in value.profile) {
 				return; // Should never happen
 			}
-			if ('id' in value.profile) {
-				return; // Should never happen
-			}
-			// Add the profile to settings if necessary
-			if (value.profile.isAutoDetected) {
-				const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
-				if (typeof profilesConfig === 'object') {
-					const newProfile: ITerminalProfileObject = {
-						path: value.profile.path
-					};
-					if (value.profile.args) {
-						newProfile.args = value.profile.args;
-					}
-					(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
-				}
-				await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
-			}
+
 			// Set the default profile
-			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
+			if ('id' in value.profile) {
+				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.title, ConfigurationTarget.USER);
+			} else {
+				// Add the profile to settings if necessary
+				if (value.profile.isAutoDetected) {
+					const profilesConfig = await this._configurationService.getValue(`terminal.integrated.profiles.${platformKey}`);
+					if (typeof profilesConfig === 'object') {
+						const newProfile: ITerminalProfileObject = {
+							path: value.profile.path
+						};
+						if (value.profile.args) {
+							newProfile.args = value.profile.args;
+						}
+						(profilesConfig as { [key: string]: ITerminalProfileObject })[value.profile.profileName] = newProfile;
+					}
+					await this._configurationService.updateValue(`terminal.integrated.profiles.${platformKey}`, profilesConfig, ConfigurationTarget.USER);
+				}
+				await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
+			}
 		}
 		return undefined;
 	}

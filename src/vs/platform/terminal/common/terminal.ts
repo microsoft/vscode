@@ -569,6 +569,11 @@ export interface ITerminalProfile {
 	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
+export interface ITerminalContributedProfile {
+	id: string;
+	icon?: string;
+}
+
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
 	/**
 	 * indicate that xterm must receive these exact dimensions, even if they overflow the ui!
