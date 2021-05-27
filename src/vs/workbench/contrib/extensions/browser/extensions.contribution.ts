@@ -379,6 +379,8 @@ interface IExtensionActionOptions extends IAction2Options {
 
 class ExtensionsContributions extends Disposable implements IWorkbenchContribution {
 
+	private tasExperimentService?: ITASExperimentService;
+
 	constructor(
 		@IExtensionManagementServerService private readonly extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
@@ -389,7 +391,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
-		@optional(ITASExperimentService) private readonly tasExperimentService: ITASExperimentService,
+		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -505,7 +507,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				when: CONTEXT_HAS_GALLERY
 			},
 			run: async () => {
-				const recommended = await this.tasExperimentService.getTreatment<boolean>('recommendedLanguages');
+				const recommended = await this.tasExperimentService?.getTreatment<boolean>('recommendedLanguages');
 				runAction(this.instantiationService.createInstance(SearchExtensionsAction, recommended ? '@recommended:languages ' : '@category:"programming languages" @sort:installs '));
 			}
 		});
