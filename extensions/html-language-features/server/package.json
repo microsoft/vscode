@@ -9,11 +9,11 @@
   },
   "main": "./out/node/htmlServerMain",
   "dependencies": {
-    "vscode-css-languageservice": "^5.0.0",
-    "vscode-html-languageservice": "^4.0.0",
+    "vscode-css-languageservice": "^5.1.0",
+    "vscode-html-languageservice": "^4.0.1",
     "vscode-languageserver": "^7.0.0",
     "vscode-nls": "^5.0.0",
-    "vscode-uri": "^2.1.2"
+    "vscode-uri": "^3.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",

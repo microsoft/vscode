@@ -26,6 +26,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { mergeSort } from 'vs/base/common/arrays';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
+import { Promises } from 'vs/base/common/async';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -106,7 +107,7 @@ export class ReplaceService implements IReplaceService {
 		const edits = this.createEdits(arg, resource);
 		await this.bulkEditorService.apply(edits, { progress });
 
-		return Promise.all(edits.map(e => this.textFileService.files.get(e.resource)?.save()));
+		return Promises.settled(edits.map(async e => this.textFileService.files.get(e.resource)?.save()));
 	}
 
 	async openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): Promise<any> {

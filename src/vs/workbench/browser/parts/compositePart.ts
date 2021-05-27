@@ -96,7 +96,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
 
 		// Check if composite already visible and just focus in that case
-		if (this.activeComposite && this.activeComposite.getId() === id) {
+		if (this.activeComposite?.getId() === id) {
 			if (focus) {
 				this.activeComposite.focus();
 			}
@@ -137,7 +137,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Check if composite already visible and just focus in that case
-		if (this.activeComposite && this.activeComposite.getId() === composite.getId()) {
+		if (this.activeComposite?.getId() === composite.getId()) {
 			if (focus) {
 				composite.focus();
 			}
@@ -290,7 +290,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Active Composite
-		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
+		if (this.activeComposite?.getId() === compositeId) {
 			// Actions
 			const actionsBinding = this.collectCompositeActions(this.activeComposite);
 			this.mapActionsBindingToComposite.set(this.activeComposite.getId(), actionsBinding);
@@ -484,7 +484,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	}
 
 	protected removeComposite(compositeId: string): boolean {
-		if (this.activeComposite && this.activeComposite.getId() === compositeId) {
+		if (this.activeComposite?.getId() === compositeId) {
 			return false; // do not remove active composite
 		}
 

@@ -78,6 +78,16 @@ function hasExpandedRootChild(tree: WorkbenchCompressibleAsyncDataTree<ExplorerI
 	return false;
 }
 
+const identityProvider = {
+	getId: (stat: ExplorerItem) => {
+		if (stat instanceof NewExplorerItem) {
+			return `new:${stat.resource}`;
+		}
+
+		return stat.resource;
+	}
+};
+
 export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], respectMultiSelection: boolean,
 	compressedNavigationControllerProvider: { getCompressedNavigationController(stat: ExplorerItem): ICompressedNavigationController | undefined }): ExplorerItem[] {
 
@@ -370,15 +380,7 @@ export class ExplorerView extends ViewPane {
 			this.instantiationService.createInstance(ExplorerDataSource), {
 			compressionEnabled: isCompressionEnabled(),
 			accessibilityProvider: this.renderer,
-			identityProvider: {
-				getId: (stat: ExplorerItem) => {
-					if (stat instanceof NewExplorerItem) {
-						return `new:${stat.resource}`;
-					}
-
-					return stat.resource;
-				}
-			},
+			identityProvider,
 			keyboardNavigationLabelProvider: {
 				getKeyboardNavigationLabel: (stat: ExplorerItem) => {
 					if (this.explorerService.isEditable(stat)) {
@@ -582,7 +584,9 @@ export class ExplorerView extends ViewPane {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive);
+		return this.tree.updateChildren(toRefresh, recursive, false, {
+			diffIdentityProvider: identityProvider
+		});
 	}
 
 	focusNeighbourIfItemFocused(item: ExplorerItem): void {

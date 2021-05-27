@@ -12,7 +12,7 @@ import { assertType } from 'vs/base/common/types';
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
 	const actual = JSON.parse(raw);
-	assert.deepEqual(actual, expected);
+	assert.deepStrictEqual(actual, expected);
 }
 
 suite('ExtHostTypes', function () {
@@ -20,14 +20,14 @@ suite('ExtHostTypes', function () {
 	test('URI, toJSON', function () {
 
 		let uri = URI.parse('file:///path/test.file');
-		assert.deepEqual(uri.toJSON(), {
+		assert.deepStrictEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file'
 		});
 
 		assert.ok(uri.fsPath);
-		assert.deepEqual(uri.toJSON(), {
+		assert.deepStrictEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
@@ -36,7 +36,7 @@ suite('ExtHostTypes', function () {
 		});
 
 		assert.ok(uri.toString());
-		assert.deepEqual(uri.toJSON(), {
+		assert.deepStrictEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
@@ -54,13 +54,13 @@ suite('ExtHostTypes', function () {
 			return 12;
 		});
 		d.dispose();
-		assert.equal(count, 1);
+		assert.strictEqual(count, 1);
 
 		d.dispose();
-		assert.equal(count, 1);
+		assert.strictEqual(count, 1);
 
 		types.Disposable.from(undefined!, { dispose() { count += 1; } }).dispose();
-		assert.equal(count, 2);
+		assert.strictEqual(count, 2);
 
 
 		assert.throws(() => {
@@ -83,8 +83,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => (pos as any).line = 12);
 
 		let { line, character } = pos.toJSON();
-		assert.equal(line, 0);
-		assert.equal(character, 0);
+		assert.strictEqual(line, 0);
+		assert.strictEqual(character, 0);
 	});
 
 	test('Position, toJSON', function () {
@@ -120,11 +120,11 @@ suite('ExtHostTypes', function () {
 		let p2 = new types.Position(1, 2);
 		let p3 = new types.Position(0, 4);
 
-		assert.equal(p1.compareTo(p1), 0);
-		assert.equal(p2.compareTo(p1), -1);
-		assert.equal(p1.compareTo(p2), 1);
-		assert.equal(p2.compareTo(p3), 1);
-		assert.equal(p1.compareTo(p3), 1);
+		assert.strictEqual(p1.compareTo(p1), 0);
+		assert.strictEqual(p2.compareTo(p1), -1);
+		assert.strictEqual(p1.compareTo(p2), 1);
+		assert.strictEqual(p2.compareTo(p3), 1);
+		assert.strictEqual(p1.compareTo(p3), 1);
 	});
 
 	test('Position, translate', function () {
@@ -138,24 +138,24 @@ suite('ExtHostTypes', function () {
 		assert.ok(p1.translate(undefined) === p1);
 
 		let res = p1.translate(-1);
-		assert.equal(res.line, 0);
-		assert.equal(res.character, 3);
+		assert.strictEqual(res.line, 0);
+		assert.strictEqual(res.character, 3);
 
 		res = p1.translate({ lineDelta: -1 });
-		assert.equal(res.line, 0);
-		assert.equal(res.character, 3);
+		assert.strictEqual(res.line, 0);
+		assert.strictEqual(res.character, 3);
 
 		res = p1.translate(undefined, -1);
-		assert.equal(res.line, 1);
-		assert.equal(res.character, 2);
+		assert.strictEqual(res.line, 1);
+		assert.strictEqual(res.character, 2);
 
 		res = p1.translate({ characterDelta: -1 });
-		assert.equal(res.line, 1);
-		assert.equal(res.character, 2);
+		assert.strictEqual(res.line, 1);
+		assert.strictEqual(res.character, 2);
 
 		res = p1.translate(11);
-		assert.equal(res.line, 12);
-		assert.equal(res.character, 3);
+		assert.strictEqual(res.line, 12);
+		assert.strictEqual(res.character, 3);
 
 		assert.throws(() => p1.translate(null!));
 		assert.throws(() => p1.translate(null!, null!));
@@ -178,8 +178,8 @@ suite('ExtHostTypes', function () {
 		assert.ok(p1.with({ line: 1, character: 3 }) === p1);
 
 		let p2 = p1.with({ line: 0, character: 11 });
-		assert.equal(p2.line, 0);
-		assert.equal(p2.character, 11);
+		assert.strictEqual(p2.line, 0);
+		assert.strictEqual(p2.character, 11);
 
 		assert.throws(() => p1.with(null!));
 		assert.throws(() => p1.with(-9));
@@ -210,12 +210,12 @@ suite('ExtHostTypes', function () {
 	test('Range, sorting', function () {
 		// sorts start/end
 		let range = new types.Range(1, 0, 0, 0);
-		assert.equal(range.start.line, 0);
-		assert.equal(range.end.line, 1);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.end.line, 1);
 
 		range = new types.Range(0, 0, 1, 0);
-		assert.equal(range.start.line, 0);
-		assert.equal(range.end.line, 1);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.end.line, 1);
 	});
 
 	test('Range, isEmpty|isSingleLine', function () {
@@ -254,26 +254,26 @@ suite('ExtHostTypes', function () {
 		let res: types.Range;
 
 		res = range.intersection(range)!;
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
-		assert.equal(res.end.line, 2);
-		assert.equal(res.end.character, 11);
+		assert.strictEqual(res.start.line, 1);
+		assert.strictEqual(res.start.character, 1);
+		assert.strictEqual(res.end.line, 2);
+		assert.strictEqual(res.end.character, 11);
 
 		res = range.intersection(new types.Range(2, 12, 4, 0))!;
-		assert.equal(res, undefined);
+		assert.strictEqual(res, undefined);
 
 		res = range.intersection(new types.Range(0, 0, 1, 0))!;
-		assert.equal(res, undefined);
+		assert.strictEqual(res, undefined);
 
 		res = range.intersection(new types.Range(0, 0, 1, 1))!;
 		assert.ok(res.isEmpty);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
+		assert.strictEqual(res.start.line, 1);
+		assert.strictEqual(res.start.character, 1);
 
 		res = range.intersection(new types.Range(2, 11, 61, 1))!;
 		assert.ok(res.isEmpty);
-		assert.equal(res.start.line, 2);
-		assert.equal(res.start.character, 11);
+		assert.strictEqual(res.start.line, 2);
+		assert.strictEqual(res.start.character, 11);
 
 		assert.throws(() => range.intersection(null!));
 		assert.throws(() => range.intersection(undefined!));
@@ -286,14 +286,14 @@ suite('ExtHostTypes', function () {
 		let res: types.Range;
 		res = ran1.union(new types.Range(2, 2, 9, 9));
 		assert.ok(res.start === ran1.start);
-		assert.equal(res.end.line, 9);
-		assert.equal(res.end.character, 9);
+		assert.strictEqual(res.end.line, 9);
+		assert.strictEqual(res.end.character, 9);
 
 		ran1 = new types.Range(2, 1, 5, 3);
 		res = ran1.union(new types.Range(1, 0, 4, 2));
 		assert.ok(res.end === ran1.end);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 0);
+		assert.strictEqual(res.start.line, 1);
+		assert.strictEqual(res.start.character, 0);
 	});
 
 	test('Range, with', function () {
@@ -311,22 +311,22 @@ suite('ExtHostTypes', function () {
 		assert.ok(range.with({ end: new types.Position(2, 11) }) === range);
 
 		let res = range.with(undefined, new types.Position(9, 8));
-		assert.equal(res.end.line, 9);
-		assert.equal(res.end.character, 8);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
+		assert.strictEqual(res.end.line, 9);
+		assert.strictEqual(res.end.character, 8);
+		assert.strictEqual(res.start.line, 1);
+		assert.strictEqual(res.start.character, 1);
 
 		res = range.with({ end: new types.Position(9, 8) });
-		assert.equal(res.end.line, 9);
-		assert.equal(res.end.character, 8);
-		assert.equal(res.start.line, 1);
-		assert.equal(res.start.character, 1);
+		assert.strictEqual(res.end.line, 9);
+		assert.strictEqual(res.end.character, 8);
+		assert.strictEqual(res.start.line, 1);
+		assert.strictEqual(res.start.character, 1);
 
 		res = range.with({ end: new types.Position(9, 8), start: new types.Position(2, 3) });
-		assert.equal(res.end.line, 9);
-		assert.equal(res.end.character, 8);
-		assert.equal(res.start.line, 2);
-		assert.equal(res.start.character, 3);
+		assert.strictEqual(res.end.line, 9);
+		assert.strictEqual(res.end.character, 8);
+		assert.strictEqual(res.start.line, 2);
+		assert.strictEqual(res.start.character, 3);
 
 		assert.throws(() => range.with(null!));
 		assert.throws(() => range.with(undefined, null!));
@@ -336,14 +336,14 @@ suite('ExtHostTypes', function () {
 
 		let range = new types.Range(1, 1, 2, 11);
 		let edit = new types.TextEdit(range, undefined!);
-		assert.equal(edit.newText, '');
+		assert.strictEqual(edit.newText, '');
 		assertToJSON(edit, { range: [{ line: 1, character: 1 }, { line: 2, character: 11 }], newText: '' });
 
 		edit = new types.TextEdit(range, null!);
-		assert.equal(edit.newText, '');
+		assert.strictEqual(edit.newText, '');
 
 		edit = new types.TextEdit(range, '');
-		assert.equal(edit.newText, '');
+		assert.strictEqual(edit.newText, '');
 	});
 
 	test('WorkspaceEdit', () => {
@@ -356,13 +356,13 @@ suite('ExtHostTypes', function () {
 
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
-		assert.equal(edit.size, 1);
+		assert.strictEqual(edit.size, 1);
 		assertToJSON(edit, [[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
-		assert.equal(edit.size, 2);
+		assert.strictEqual(edit.size, 2);
 		assertToJSON(edit, [
 			[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
 			[b.toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
@@ -370,10 +370,10 @@ suite('ExtHostTypes', function () {
 
 		edit.set(b, undefined!);
 		assert.ok(!edit.has(b));
-		assert.equal(edit.size, 1);
+		assert.strictEqual(edit.size, 1);
 
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
-		assert.equal(edit.get(b).length, 1);
+		assert.strictEqual(edit.get(b).length, 1);
 	});
 
 	test('WorkspaceEdit - keep order of text and file changes', function () {
@@ -385,21 +385,21 @@ suite('ExtHostTypes', function () {
 		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
 
 		const all = edit._allEntries();
-		assert.equal(all.length, 4);
+		assert.strictEqual(all.length, 4);
 
 		const [first, second, third, fourth] = all;
 		assertType(first._type === types.FileEditType.Text);
-		assert.equal(first.uri.toString(), 'foo:a');
+		assert.strictEqual(first.uri.toString(), 'foo:a');
 
 		assertType(second._type === types.FileEditType.File);
-		assert.equal(second.from!.toString(), 'foo:a');
-		assert.equal(second.to!.toString(), 'foo:b');
+		assert.strictEqual(second.from!.toString(), 'foo:a');
+		assert.strictEqual(second.to!.toString(), 'foo:b');
 
 		assertType(third._type === types.FileEditType.Text);
-		assert.equal(third.uri.toString(), 'foo:a');
+		assert.strictEqual(third.uri.toString(), 'foo:a');
 
 		assertType(fourth._type === types.FileEditType.Text);
-		assert.equal(fourth.uri.toString(), 'foo:b');
+		assert.strictEqual(fourth.uri.toString(), 'foo:b');
 	});
 
 	test('WorkspaceEdit - two edits for one resource', function () {
@@ -408,13 +408,13 @@ suite('ExtHostTypes', function () {
 		edit.insert(uri, new types.Position(0, 0), 'Hello');
 		edit.insert(uri, new types.Position(0, 0), 'Foo');
 
-		assert.equal(edit._allEntries().length, 2);
+		assert.strictEqual(edit._allEntries().length, 2);
 		let [first, second] = edit._allEntries();
 
 		assertType(first._type === types.FileEditType.Text);
 		assertType(second._type === types.FileEditType.Text);
-		assert.equal(first.edit.newText, 'Hello');
-		assert.equal(second.edit.newText, 'Foo');
+		assert.strictEqual(first.edit.newText, 'Hello');
+		assert.strictEqual(second.edit.newText, 'Foo');
 	});
 
 	test('DocumentLink', () => {
@@ -463,7 +463,7 @@ suite('ExtHostTypes', function () {
 
 		let info = new types.SymbolInformation('foo', types.SymbolKind.Array, new types.Range(1, 1, 2, 3));
 		assert.ok(info.location instanceof types.Location);
-		assert.equal(info.location.uri, undefined);
+		assert.strictEqual(info.location.uri, undefined);
 	});
 
 	test('SnippetString, builder-methods', function () {
@@ -471,78 +471,78 @@ suite('ExtHostTypes', function () {
 		let string: types.SnippetString;
 
 		string = new types.SnippetString();
-		assert.equal(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
+		assert.strictEqual(string.appendText('I need $ and $').value, 'I need \\$ and \\$');
 
 		string = new types.SnippetString();
-		assert.equal(string.appendText('I need \\$').value, 'I need \\\\\\$');
+		assert.strictEqual(string.appendText('I need \\$').value, 'I need \\\\\\$');
 
 		string = new types.SnippetString();
 		string.appendPlaceholder('fo$o}');
-		assert.equal(string.value, '${1:fo\\$o\\}}');
+		assert.strictEqual(string.value, '${1:fo\\$o\\}}');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendTabstop(0).appendText('bar');
-		assert.equal(string.value, 'foo$0bar');
+		assert.strictEqual(string.value, 'foo$0bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendTabstop().appendText('bar');
-		assert.equal(string.value, 'foo$1bar');
+		assert.strictEqual(string.value, 'foo$1bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendTabstop(42).appendText('bar');
-		assert.equal(string.value, 'foo$42bar');
+		assert.strictEqual(string.value, 'foo$42bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendText('bar');
-		assert.equal(string.value, 'foo${1:farboo}bar');
+		assert.strictEqual(string.value, 'foo${1:farboo}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('far$boo').appendText('bar');
-		assert.equal(string.value, 'foo${1:far\\$boo}bar');
+		assert.strictEqual(string.value, 'foo${1:far\\$boo}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder(b => b.appendText('abc').appendPlaceholder('nested')).appendText('bar');
-		assert.equal(string.value, 'foo${1:abc${2:nested}}bar');
+		assert.strictEqual(string.value, 'foo${1:abc${2:nested}}bar');
 
 		string = new types.SnippetString();
 		string.appendVariable('foo');
-		assert.equal(string.value, '${foo}');
+		assert.strictEqual(string.value, '${foo}');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendVariable('TM_SELECTED_TEXT').appendText('bar');
-		assert.equal(string.value, 'foo${TM_SELECTED_TEXT}bar');
+		assert.strictEqual(string.value, 'foo${TM_SELECTED_TEXT}bar');
 
 		string = new types.SnippetString();
 		string.appendVariable('BAR', b => b.appendPlaceholder('ops'));
-		assert.equal(string.value, '${BAR:${1:ops}}');
+		assert.strictEqual(string.value, '${BAR:${1:ops}}');
 
 		string = new types.SnippetString();
 		string.appendVariable('BAR', b => { });
-		assert.equal(string.value, '${BAR}');
+		assert.strictEqual(string.value, '${BAR}');
 
 		string = new types.SnippetString();
 		string.appendChoice(['b', 'a', 'r']);
-		assert.equal(string.value, '${1|b,a,r|}');
+		assert.strictEqual(string.value, '${1|b,a,r|}');
 
 		string = new types.SnippetString();
 		string.appendChoice(['b,1', 'a,2', 'r,3']);
-		assert.equal(string.value, '${1|b\\,1,a\\,2,r\\,3|}');
+		assert.strictEqual(string.value, '${1|b\\,1,a\\,2,r\\,3|}');
 
 		string = new types.SnippetString();
 		string.appendChoice(['b', 'a', 'r'], 0);
-		assert.equal(string.value, '${0|b,a,r|}');
+		assert.strictEqual(string.value, '${0|b,a,r|}');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', 'boo']).appendText('bar');
-		assert.equal(string.value, 'foo${1|far,boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendChoice(['far', '$boo']).appendText('bar');
-		assert.equal(string.value, 'foo${1|far,\\$boo|}bar');
+		assert.strictEqual(string.value, 'foo${1|far,\\$boo|}bar');
 
 		string = new types.SnippetString();
 		string.appendText('foo').appendPlaceholder('farboo').appendChoice(['far', 'boo']).appendText('bar');
-		assert.equal(string.value, 'foo${1:farboo}${2|far,boo|}bar');
+		assert.strictEqual(string.value, 'foo${1:farboo}${2|far,boo|}bar');
 	});
 
 	test('instanceof doesn\'t work for FileSystemError #49386', function () {
@@ -584,7 +584,7 @@ suite('ExtHostTypes', function () {
 		builder.push(1, 0, 5, 1, 1);
 		builder.push(1, 10, 4, 2, 2);
 		builder.push(2, 2, 3, 2, 2);
-		assert.deepEqual(toArr(builder.build().data), [
+		assert.deepStrictEqual(toArr(builder.build().data), [
 			1, 0, 5, 1, 1,
 			0, 10, 4, 2, 2,
 			1, 2, 3, 2, 2
@@ -596,7 +596,7 @@ suite('ExtHostTypes', function () {
 		builder.push(1, 0, 5, 1);
 		builder.push(1, 10, 4, 2);
 		builder.push(2, 2, 3, 2);
-		assert.deepEqual(toArr(builder.build().data), [
+		assert.deepStrictEqual(toArr(builder.build().data), [
 			1, 0, 5, 1, 0,
 			0, 10, 4, 2, 0,
 			1, 2, 3, 2, 0
@@ -609,7 +609,7 @@ suite('ExtHostTypes', function () {
 		builder.push(2, 10, 1, 2, 2);
 		builder.push(2, 15, 2, 3, 3);
 		builder.push(1, 0, 4, 4, 4);
-		assert.deepEqual(toArr(builder.build().data), [
+		assert.deepStrictEqual(toArr(builder.build().data), [
 			1, 0, 4, 4, 4,
 			1, 0, 5, 1, 1,
 			0, 10, 1, 2, 2,
@@ -621,7 +621,7 @@ suite('ExtHostTypes', function () {
 		const builder = new types.SemanticTokensBuilder();
 		builder.push(2, 10, 5, 1, 1);
 		builder.push(2, 2, 4, 2, 2);
-		assert.deepEqual(toArr(builder.build().data), [
+		assert.deepStrictEqual(toArr(builder.build().data), [
 			2, 2, 4, 2, 2,
 			0, 8, 5, 1, 1
 		]);
@@ -636,7 +636,7 @@ suite('ExtHostTypes', function () {
 		builder.push(new types.Range(1, 0, 1, 5), 'bType');
 		builder.push(new types.Range(2, 0, 2, 4), 'cType', ['mod0', 'mod5']);
 		builder.push(new types.Range(3, 0, 3, 3), 'dType', ['mod2', 'mod4']);
-		assert.deepEqual(toArr(builder.build().data), [
+		assert.deepStrictEqual(toArr(builder.build().data), [
 			1, 0, 5, 1, 0,
 			1, 0, 4, 2, 1 | (1 << 5),
 			1, 0, 3, 3, (1 << 2) | (1 << 4)
@@ -645,7 +645,7 @@ suite('ExtHostTypes', function () {
 
 	test('Markdown codeblock rendering is swapped #111604', function () {
 		const md = new types.MarkdownString().appendCodeblock('<img src=0 onerror="alert(1)">', 'html');
-		assert.deepEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
+		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
 });

@@ -110,14 +110,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 
 		modelService.createModel('farboo', null);
 
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		const [delta] = deltas;
 
-		assert.equal(delta.addedDocuments!.length, 1);
-		assert.equal(delta.removedDocuments, undefined);
-		assert.equal(delta.addedEditors, undefined);
-		assert.equal(delta.removedEditors, undefined);
-		assert.equal(delta.newActiveEditor, null);
+		assert.strictEqual(delta.addedDocuments!.length, 1);
+		assert.strictEqual(delta.removedDocuments, undefined);
+		assert.strictEqual(delta.addedEditors, undefined);
+		assert.strictEqual(delta.removedEditors, undefined);
+		assert.strictEqual(delta.newActiveEditor, undefined);
 	});
 
 	test('ignore huge model', function () {
@@ -126,13 +126,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const model = modelService.createModel(hugeModelString, null);
 		assert.ok(model.isTooLargeForSyncing());
 
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		const [delta] = deltas;
-		assert.equal(delta.newActiveEditor, null);
-		assert.equal(delta.addedDocuments, undefined);
-		assert.equal(delta.removedDocuments, undefined);
-		assert.equal(delta.addedEditors, undefined);
-		assert.equal(delta.removedEditors, undefined);
+		assert.strictEqual(delta.newActiveEditor, null);
+		assert.strictEqual(delta.addedDocuments, undefined);
+		assert.strictEqual(delta.removedDocuments, undefined);
+		assert.strictEqual(delta.addedEditors, undefined);
+		assert.strictEqual(delta.removedEditors, undefined);
 	});
 
 	test('ignore simple widget model', function () {
@@ -141,13 +141,13 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const model = modelService.createModel('test', null, undefined, true);
 		assert.ok(model.isForSimpleWidget);
 
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		const [delta] = deltas;
-		assert.equal(delta.newActiveEditor, null);
-		assert.equal(delta.addedDocuments, undefined);
-		assert.equal(delta.removedDocuments, undefined);
-		assert.equal(delta.addedEditors, undefined);
-		assert.equal(delta.removedEditors, undefined);
+		assert.strictEqual(delta.newActiveEditor, null);
+		assert.strictEqual(delta.addedDocuments, undefined);
+		assert.strictEqual(delta.removedDocuments, undefined);
+		assert.strictEqual(delta.addedEditors, undefined);
+		assert.strictEqual(delta.removedEditors, undefined);
 	});
 
 	test('ignore huge model from editor', function () {
@@ -156,22 +156,22 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const model = modelService.createModel(hugeModelString, null);
 		const editor = myCreateTestCodeEditor(model);
 
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		deltas.length = 0;
-		assert.equal(deltas.length, 0);
+		assert.strictEqual(deltas.length, 0);
 
 		editor.dispose();
 	});
 
 	test('ignore editor w/o model', () => {
 		const editor = myCreateTestCodeEditor(undefined);
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		const [delta] = deltas;
-		assert.equal(delta.newActiveEditor, null);
-		assert.equal(delta.addedDocuments, undefined);
-		assert.equal(delta.removedDocuments, undefined);
-		assert.equal(delta.addedEditors, undefined);
-		assert.equal(delta.removedEditors, undefined);
+		assert.strictEqual(delta.newActiveEditor, null);
+		assert.strictEqual(delta.addedDocuments, undefined);
+		assert.strictEqual(delta.removedDocuments, undefined);
+		assert.strictEqual(delta.addedEditors, undefined);
+		assert.strictEqual(delta.removedEditors, undefined);
 
 		editor.dispose();
 	});
@@ -182,19 +182,19 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const model = modelService.createModel('farboo', null);
 		const editor = myCreateTestCodeEditor(model);
 
-		assert.equal(deltas.length, 2);
+		assert.strictEqual(deltas.length, 2);
 		const [first, second] = deltas;
-		assert.equal(first.addedDocuments!.length, 1);
-		assert.equal(first.newActiveEditor, null);
-		assert.equal(first.removedDocuments, undefined);
-		assert.equal(first.addedEditors, undefined);
-		assert.equal(first.removedEditors, undefined);
+		assert.strictEqual(first.addedDocuments!.length, 1);
+		assert.strictEqual(first.newActiveEditor, undefined);
+		assert.strictEqual(first.removedDocuments, undefined);
+		assert.strictEqual(first.addedEditors, undefined);
+		assert.strictEqual(first.removedEditors, undefined);
 
-		assert.equal(second.addedEditors!.length, 1);
-		assert.equal(second.addedDocuments, undefined);
-		assert.equal(second.removedDocuments, undefined);
-		assert.equal(second.removedEditors, undefined);
-		assert.equal(second.newActiveEditor, undefined);
+		assert.strictEqual(second.addedEditors!.length, 1);
+		assert.strictEqual(second.addedDocuments, undefined);
+		assert.strictEqual(second.removedDocuments, undefined);
+		assert.strictEqual(second.removedEditors, undefined);
+		assert.strictEqual(second.newActiveEditor, undefined);
 
 		editor.dispose();
 	});
@@ -208,14 +208,14 @@ suite('MainThreadDocumentsAndEditors', () => {
 		deltas.length = 0;
 
 		modelService.destroyModel(model.uri);
-		assert.equal(deltas.length, 1);
+		assert.strictEqual(deltas.length, 1);
 		const [first] = deltas;
 
-		assert.equal(first.newActiveEditor, null);
-		assert.equal(first.removedEditors!.length, 1);
-		assert.equal(first.removedDocuments!.length, 1);
-		assert.equal(first.addedDocuments, undefined);
-		assert.equal(first.addedEditors, undefined);
+		assert.strictEqual(first.newActiveEditor, undefined);
+		assert.strictEqual(first.removedEditors!.length, 1);
+		assert.strictEqual(first.removedDocuments!.length, 1);
+		assert.strictEqual(first.addedDocuments, undefined);
+		assert.strictEqual(first.addedEditors, undefined);
 
 		editor.dispose();
 	});

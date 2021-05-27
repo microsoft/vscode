@@ -33,11 +33,33 @@ registerAction2(class extends Action2 {
 			title: { value: nls.localize('notebookActions.selectKernel', "Select Notebook Kernel"), original: 'Select Notebook Kernel' },
 			precondition: NOTEBOOK_IS_ACTIVE_EDITOR,
 			icon: selectKernelIcon,
-			f1: true
+			f1: true,
+			description: {
+				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
+				args: [
+					{
+						name: 'kernelInfo',
+						description: 'The kernel info',
+						schema: {
+							'type': 'object',
+							'required': ['id', 'extension'],
+							'properties': {
+								'id': {
+									'type': 'string'
+								},
+								'extension': {
+									'type': 'string'
+								}
+							}
+						}
+					}
+				]
+			},
+
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { id: string }): Promise<void> {
+	async run(accessor: ServicesAccessor, context?: { id: string, extension: string }): Promise<void> {
 		const editorService = accessor.get<IEditorService>(IEditorService);
 		const quickInputService = accessor.get<IQuickInputService>(IQuickInputService);
 		const configurationService = accessor.get<IConfigurationService>(IConfigurationService);
@@ -64,9 +86,11 @@ registerAction2(class extends Action2 {
 		const tokenSource = new CancellationTokenSource();
 		const availableKernels = await editor.beginComputeContributedKernels();
 
-		if (availableKernels.length && availableKernels.find(kernel => kernel.id === context?.id)) {
-			const selectedKernel = availableKernels.find(kernel => kernel.id === context?.id);
+		const selectedKernel = availableKernels.length ? availableKernels.find(
+			kernel => kernel.id && context?.id && kernel.id === context?.id && kernel.extension.value === context?.extension
+		) : undefined;
 
+		if (selectedKernel) {
 			editor.activeKernel = selectedKernel!;
 			return selectedKernel!.resolve(editor.uri!, editor.getId(), tokenSource.token);
 		} else {
@@ -75,13 +99,13 @@ registerAction2(class extends Action2 {
 
 		const picks: QuickPickInput<IQuickPickItem & { run(): void; kernelProviderId?: string; }>[] = [...availableKernels].map((a) => {
 			return {
-				id: a.id,
+				id: a.friendlyId,
 				label: a.label,
-				picked: a.id === activeKernel?.id,
+				picked: a.friendlyId === activeKernel?.friendlyId,
 				description:
 					a.description
 						? a.description
-						: a.extension.value + (a.id === activeKernel?.id
+						: a.extension.value + (a.friendlyId === activeKernel?.friendlyId
 							? nls.localize('currentActiveKernel', " (Currently Active)")
 							: ''),
 				detail: a.detail,

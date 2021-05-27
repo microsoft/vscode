@@ -1,0 +1,3511 @@
+[
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.at-rule.import.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.begin.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "mystyle.css",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.end.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " url",
+		"t": "source.css.less meta.at-rule.import.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.at-rule.import.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.begin.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "mystyle.css",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.end.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.at-rule.import.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less punctuation.definition.keyword.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": "import",
+		"t": "source.css.less meta.at-rule.import.css keyword.control.at-rule.import.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " url",
+		"t": "source.css.less meta.at-rule.import.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.at-rule.import.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.begin.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "bluish.css",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": "\"",
+		"t": "source.css.less meta.at-rule.import.css string.quoted.double.css punctuation.definition.string.end.css",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string: #A31515",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string: #A31515",
+			"hc_black": "string: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.at-rule.import.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " projection",
+		"t": "source.css.less meta.at-rule.import.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.at-rule.import.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " tv",
+		"t": "source.css.less meta.at-rule.import.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.at-rule.import.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#f938ab",
+		"t": "source.css.less constant.other.rgb-value.css",
+		"r": {
+			"dark_plus": "constant.other.rgb-value: #CE9178",
+			"light_plus": "constant.other.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.rgb-value: #0451A5",
+			"hc_black": "constant.other.rgb-value: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".box-shadow",
+		"t": "source.css.less entity.other.attribute-name.class.mixin.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.mixin.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.mixin.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.mixin.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "when",
+		"t": "source.css.less keyword.control.logical.operator.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "iscolor",
+		"t": "source.css.less support.function.type-checking.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "))",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-radius",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "c",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".box-shadow",
+		"t": "source.css.less entity.other.attribute-name.class.mixin.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.mixin.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.mixin.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.mixin.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "50",
+		"t": "source.css.less constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less constant.numeric.css keyword.other.unit.percentage.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "when",
+		"t": "source.css.less keyword.control.logical.operator.less",
+		"r": {
+			"dark_plus": "keyword.control: #C586C0",
+			"light_plus": "keyword.control: #AF00DB",
+			"dark_vs": "keyword.control: #569CD6",
+			"light_vs": "keyword.control: #0000FF",
+			"hc_black": "keyword.control: #C586C0"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "isnumber",
+		"t": "source.css.less support.function.type-checking.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "))",
+		"t": "source.css.less meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".box-shadow",
+		"t": "source.css.less meta.property-list.css entity.other.attribute-name.class.mixin.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.mixin.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.mixin.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.mixin.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "style",
+		"t": "source.css.less meta.property-list.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "rgba",
+		"t": "source.css.less meta.property-list.css meta.function.color.css support.function.misc.css",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.section.function.begin.bracket.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.css meta.function.color.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " @",
+		"t": "source.css.less meta.property-list.css meta.function.color.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "alpha",
+		"t": "source.css.less meta.property-list.css meta.function.color.css support.constant.property-value.css",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.function.color.css punctuation.section.function.end.bracket.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".",
+		"t": "source.css.less entity.other.attribute-name.class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "box",
+		"t": "source.css.less entity.other.attribute-name.class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "saturate",
+		"t": "source.css.less meta.property-list.css meta.property-value.css support.function.any-method.builtin.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.property-value.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "5",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-color",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "lighten",
+		"t": "source.css.less meta.property-list.css meta.property-value.css support.constant.property-value.css",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.property-value.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "30",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "div",
+		"t": "source.css.less meta.property-list.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ".box-shadow",
+		"t": "source.css.less meta.property-list.css meta.property-list.css entity.other.attribute-name.class.mixin.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.mixin.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.mixin.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.mixin.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.mixin.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "((",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "0",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "5",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css keyword.other.unit.px.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "30",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.css meta.property-list.css constant.numeric.css keyword.other.unit.percentage.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": "header",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "h1",
+		"t": "source.css.less meta.property-list.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "font-size",
+		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "26",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "font-weight",
+		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "bold",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "p",
+		"t": "source.css.less meta.property-list.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "font-size",
+		"t": "source.css.less meta.property-list.css meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "12",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "a",
+		"t": "source.css.less meta.property-list.css meta.property-list.css entity.name.tag.css",
+		"r": {
+			"dark_plus": "entity.name.tag.css: #D7BA7D",
+			"light_plus": "entity.name.tag: #800000",
+			"dark_vs": "entity.name.tag.css: #D7BA7D",
+			"light_vs": "entity.name.tag: #800000",
+			"hc_black": "entity.name.tag.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "text-decoration",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "none",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-value.css support.constant.property-value.css",
+		"r": {
+			"dark_plus": "support.constant.property-value: #CE9178",
+			"light_plus": "support.constant.property-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "support.constant.property-value: #0451A5",
+			"hc_black": "support.constant.property-value: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "&",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css entity.other.attribute-name.parent-selector.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.parent-selector.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.parent-selector.css: #800000",
+			"dark_vs": "entity.other.attribute-name.parent-selector.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.parent-selector.css: #800000",
+			"hc_black": "entity.other.attribute-name.parent-selector.css: #D7BA7D"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": "hover",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css entity.other.attribute-name.pseudo-class.css",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
+			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-width",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.px.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css meta.property-list.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "1",
+		"t": "source.css.less constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "px",
+		"t": "source.css.less constant.numeric.css keyword.other.unit.px.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#111",
+		"t": "source.css.less constant.other.rgb-value.css",
+		"r": {
+			"dark_plus": "constant.other.rgb-value: #CE9178",
+			"light_plus": "constant.other.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.rgb-value: #0451A5",
+			"hc_black": "constant.other.rgb-value: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "red",
+		"t": "source.css.less variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "        ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#842210",
+		"t": "source.css.less constant.other.rgb-value.css",
+		"r": {
+			"dark_plus": "constant.other.rgb-value: #CE9178",
+			"light_plus": "constant.other.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.rgb-value: #0451A5",
+			"hc_black": "constant.other.rgb-value: #CE9178"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": "header",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.operator.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "3",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-left",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-right",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "the-border",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "*",
+		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.operator.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "2",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id punctuation.definition.entity.css",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": "footer",
+		"t": "source.css.less meta.selector.css entity.other.attribute-name.id",
+		"r": {
+			"dark_plus": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_plus": "source.css.less entity.other.attribute-name.id: #800000",
+			"dark_vs": "source.css.less entity.other.attribute-name.id: #D7BA7D",
+			"light_vs": "source.css.less entity.other.attribute-name.id: #800000",
+			"hc_black": "source.css.less entity.other.attribute-name.id: #D7BA7D"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "{",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "color",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "base-color",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "+",
+		"t": "source.css.less meta.property-list.css meta.property-value.css keyword.operator.less",
+		"r": {
+			"dark_plus": "keyword.operator: #D4D4D4",
+			"light_plus": "keyword.operator: #000000",
+			"dark_vs": "keyword.operator: #D4D4D4",
+			"light_vs": "keyword.operator: #000000",
+			"hc_black": "keyword.operator: #D4D4D4"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "#003300",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.other.rgb-value.css",
+		"r": {
+			"dark_plus": "constant.other.rgb-value: #CE9178",
+			"light_plus": "constant.other.rgb-value: #0451A5",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "constant.other.rgb-value: #0451A5",
+			"hc_black": "constant.other.rgb-value: #CE9178"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "\t",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "border-color",
+		"t": "source.css.less meta.property-list.css support.type.property-name.css",
+		"r": {
+			"dark_plus": "support.type.property-name: #9CDCFE",
+			"light_plus": "support.type.property-name: #FF0000",
+			"dark_vs": "support.type.property-name: #9CDCFE",
+			"light_vs": "support.type.property-name: #FF0000",
+			"hc_black": "support.type.property-name: #D4D4D4"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.css.less meta.property-list.css punctuation.separator.key-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "desaturate",
+		"t": "source.css.less meta.property-list.css meta.property-value.css support.function.any-method.builtin.less",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": "(",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "@",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less punctuation.definition.variable.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": "red",
+		"t": "source.css.less meta.property-list.css meta.property-value.css variable.other.less",
+		"r": {
+			"dark_plus": "variable.other.less: #9CDCFE",
+			"light_plus": "variable.other.less: #FF0000",
+			"dark_vs": "variable.other.less: #9CDCFE",
+			"light_vs": "variable.other.less: #FF0000",
+			"hc_black": "variable.other.less: #D4D4D4"
+		}
+	},
+	{
+		"c": ",",
+		"t": "source.css.less meta.property-list.css meta.property-value.css punctuation.separator.list.comma.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
+		"t": "source.css.less meta.property-list.css meta.property-value.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "10",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css",
+		"r": {
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #098658",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #098658",
+			"hc_black": "constant.numeric: #B5CEA8"
+		}
+	},
+	{
+		"c": "%",
+		"t": "source.css.less meta.property-list.css meta.property-value.css constant.numeric.css keyword.other.unit.percentage.css",
+		"r": {
+			"dark_plus": "keyword.other.unit: #B5CEA8",
+			"light_plus": "keyword.other.unit: #098658",
+			"dark_vs": "keyword.other.unit: #B5CEA8",
+			"light_vs": "keyword.other.unit: #098658",
+			"hc_black": "keyword.other.unit: #B5CEA8"
+		}
+	},
+	{
+		"c": ")",
+		"t": "source.css.less meta.property-list.css meta.property-value.css meta.brace.round.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": ";",
+		"t": "source.css.less meta.property-list.css punctuation.terminator.rule.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "}",
+		"t": "source.css.less meta.property-list.css punctuation.section.property-list.end.bracket.curly.css",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	}
+]

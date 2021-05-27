@@ -13,10 +13,14 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { ITextAreaWrapper, ITypeData, TextAreaState } from 'vs/editor/browser/controller/textAreaState';
+import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
+
+export namespace TextAreaSyntethicEvents {
+	export const Tap = '-monaco-textarea-synthetic-tap';
+}
 
 export interface ICompositionData {
 	data: string;
@@ -96,7 +100,7 @@ export class InMemoryClipboardMetadataManager {
 }
 
 export interface ICompositionStartEvent {
-	moveOneCharacterLeft: boolean;
+	revealDeltaColumns: number;
 }
 
 /**
@@ -147,6 +151,7 @@ export class TextAreaInput extends Disposable {
 	private readonly _host: ITextAreaInputHost;
 	private readonly _textArea: TextAreaWrapper;
 	private readonly _asyncTriggerCut: RunOnceScheduler;
+	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
 
 	private _textAreaState: TextAreaState;
 	private _selectionChangeListener: IDisposable | null;
@@ -160,6 +165,7 @@ export class TextAreaInput extends Disposable {
 		this._host = host;
 		this._textArea = this._register(new TextAreaWrapper(textArea));
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
+		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
 
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
@@ -193,12 +199,15 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionstart', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionstart]`, e);
+			}
+
 			if (this._isDoingComposition) {
 				return;
 			}
 			this._isDoingComposition = true;
 
-			let moveOneCharacterLeft = false;
 			if (
 				platform.isMacintosh
 				&& lastKeyDown
@@ -206,14 +215,12 @@ export class TextAreaInput extends Disposable {
 				&& this._textAreaState.selectionStart === this._textAreaState.selectionEnd
 				&& this._textAreaState.selectionStart > 0
 				&& this._textAreaState.value.substr(this._textAreaState.selectionStart - 1, 1) === e.data
+				&& (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft')
 			) {
 				// Handling long press case on macOS + arrow key => pretend the character was selected
-				if (lastKeyDown.code === 'ArrowRight' || lastKeyDown.code === 'ArrowLeft') {
-					moveOneCharacterLeft = true;
+				if (_debugComposition) {
+					console.log(`[compositionstart] Handling long press case on macOS + arrow key`, e);
 				}
-			}
-
-			if (moveOneCharacterLeft) {
 				this._textAreaState = new TextAreaState(
 					this._textAreaState.value,
 					this._textAreaState.selectionStart - 1,
@@ -221,12 +228,19 @@ export class TextAreaInput extends Disposable {
 					this._textAreaState.selectionStartPosition ? new Position(this._textAreaState.selectionStartPosition.lineNumber, this._textAreaState.selectionStartPosition.column - 1) : null,
 					this._textAreaState.selectionEndPosition
 				);
-			} else if (!browser.isEdge) {
-				// In IE we cannot set .value when handling 'compositionstart' because the entire composition will get canceled.
-				this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
+				this._onCompositionStart.fire({ revealDeltaColumns: -1 });
+				return;
 			}
 
-			this._onCompositionStart.fire({ moveOneCharacterLeft });
+			if (browser.isAndroid) {
+				// when tapping on the editor, Android enters composition mode to edit the current word
+				// so we cannot clear the textarea on Android and we must pretend the current word was selected
+				this._onCompositionStart.fire({ revealDeltaColumns: -this._textAreaState.selectionStart });
+				return;
+			}
+
+			this._setAndWriteTextAreaState('compositionstart', TextAreaState.EMPTY);
+			this._onCompositionStart.fire({ revealDeltaColumns: 0 });
 		}));
 
 		/**
@@ -238,6 +252,12 @@ export class TextAreaInput extends Disposable {
 			return [newState, TextAreaState.deduceInput(oldState, newState, couldBeEmojiInput)];
 		};
 
+		const deduceAndroidCompositionInput = (): [TextAreaState, ITypeData] => {
+			const oldState = this._textAreaState;
+			const newState = TextAreaState.readFromTextArea(this._textArea);
+			return [newState, TextAreaState.deduceAndroidCompositionInput(oldState, newState)];
+		};
+
 		/**
 		 * Deduce the composition input from a string.
 		 */
@@ -246,32 +266,28 @@ export class TextAreaInput extends Disposable {
 			const newState = TextAreaState.selectedText(text);
 			const typeInput: ITypeData = {
 				text: newState.value,
-				replaceCharCnt: oldState.selectionEnd - oldState.selectionStart
+				replacePrevCharCnt: oldState.selectionEnd - oldState.selectionStart,
+				replaceNextCharCnt: 0,
+				positionDelta: 0
 			};
 			return [newState, typeInput];
 		};
 
-		const compositionDataInValid = (locale: string): boolean => {
-			// https://github.com/microsoft/monaco-editor/issues/339
-			// Multi-part Japanese compositions reset cursor in Edge/IE, Chinese and Korean IME don't have this issue.
-			// The reason that we can't use this path for all CJK IME is IE and Edge behave differently when handling Korean IME,
-			// which breaks this path of code.
-			if (browser.isEdge && locale === 'ja') {
-				return true;
-			}
-
-			return false;
-		};
-
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionupdate', (e: CompositionEvent) => {
-			if (compositionDataInValid(e.locale)) {
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
+			if (_debugComposition) {
+				console.log(`[compositionupdate]`, e);
+			}
+			if (browser.isAndroid) {
+				// On Android, the data sent with the composition update event is unusable.
+				// For example, if the cursor is in the middle of a word like Mic|osoft
+				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
+				// This is not really usable because it doesn't tell us where the edit began and where it ended.
+				const [newState, typeInput] = deduceAndroidCompositionInput();
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
 				this._onCompositionUpdate.fire(e);
 				return;
 			}
-
 			const [newState, typeInput] = deduceComposition(e.data || '');
 			this._textAreaState = newState;
 			this._onType.fire(typeInput);
@@ -279,35 +295,38 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'compositionend', (e: CompositionEvent) => {
+			if (_debugComposition) {
+				console.log(`[compositionend]`, e);
+			}
 			// https://github.com/microsoft/monaco-editor/issues/1663
 			// On iOS 13.2, Chinese system IME randomly trigger an additional compositionend event with empty data
 			if (!this._isDoingComposition) {
 				return;
 			}
-			if (compositionDataInValid(e.locale)) {
-				// https://github.com/microsoft/monaco-editor/issues/339
-				const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/false);
+			this._isDoingComposition = false;
+
+			if (browser.isAndroid) {
+				// On Android, the data sent with the composition update event is unusable.
+				// For example, if the cursor is in the middle of a word like Mic|osoft
+				// and Microsoft is chosen from the keyboard's suggestions, the e.data will contain "Microsoft".
+				// This is not really usable because it doesn't tell us where the edit began and where it ended.
+				const [newState, typeInput] = deduceAndroidCompositionInput();
 				this._textAreaState = newState;
 				this._onType.fire(typeInput);
-			} else {
-				const [newState, typeInput] = deduceComposition(e.data || '');
-				this._textAreaState = newState;
-				this._onType.fire(typeInput);
-			}
-
-			// Due to
-			// isEdgeOrIE (where the textarea was not cleared initially)
-			// and isChrome (the textarea is not updated correctly when composition ends)
-			// and isFirefox (the textare ais not updated correctly after inserting emojis)
-			// we cannot assume the text at the end consists only of the composited text
-			if (browser.isEdge || browser.isChrome || browser.isFirefox) {
-				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
-			}
-
-			if (!this._isDoingComposition) {
+				this._onCompositionEnd.fire();
 				return;
 			}
-			this._isDoingComposition = false;
+
+			const [newState, typeInput] = deduceComposition(e.data || '');
+			this._textAreaState = newState;
+			this._onType.fire(typeInput);
+
+			// isChrome: the textarea is not updated correctly when composition ends
+			// isFirefox: the textarea is not updated correctly after inserting emojis
+			// => we cannot assume the text at the end consists only of the composited text
+			if (browser.isChrome || browser.isFirefox) {
+				this._textAreaState = TextAreaState.readFromTextArea(this._textArea);
+			}
 
 			this._onCompositionEnd.fire();
 		}));
@@ -322,18 +341,18 @@ export class TextAreaInput extends Disposable {
 			}
 
 			const [newState, typeInput] = deduceInputFromTextAreaValue(/*couldBeEmojiInput*/platform.isMacintosh);
-			if (typeInput.replaceCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
+			if (typeInput.replacePrevCharCnt === 0 && typeInput.text.length === 1 && strings.isHighSurrogate(typeInput.text.charCodeAt(0))) {
 				// Ignore invalid input but keep it around for next time
 				return;
 			}
 
 			this._textAreaState = newState;
 			if (this._nextCommand === ReadFromTextArea.Type) {
-				if (typeInput.text !== '') {
+				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
 					this._onType.fire(typeInput);
 				}
 			} else {
-				if (typeInput.text !== '' || typeInput.replaceCharCnt !== 0) {
+				if (typeInput.text !== '' || typeInput.replacePrevCharCnt !== 0) {
 					this._firePaste(typeInput.text, null);
 				}
 				this._nextCommand = ReadFromTextArea.Type;
@@ -375,7 +394,15 @@ export class TextAreaInput extends Disposable {
 		}));
 
 		this._register(dom.addDisposableListener(textArea.domNode, 'focus', () => {
+			const hadFocus = this._hasFocus;
+
 			this._setHasFocus(true);
+
+			if (browser.isSafari && !hadFocus && this._hasFocus) {
+				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
+				// Safari will always move the selection at offset 0 in the textarea
+				this._asyncFocusGainWriteScreenReaderContent.schedule();
+			}
 		}));
 		this._register(dom.addDisposableListener(textArea.domNode, 'blur', () => {
 			if (this._isDoingComposition) {
@@ -393,6 +420,21 @@ export class TextAreaInput extends Disposable {
 				this._onCompositionEnd.fire();
 			}
 			this._setHasFocus(false);
+		}));
+		this._register(dom.addDisposableListener(textArea.domNode, TextAreaSyntethicEvents.Tap, () => {
+			if (browser.isAndroid && this._isDoingComposition) {
+				// on Android, tapping does not cancel the current composition, so the
+				// textarea is stuck showing the old composition
+
+				// Clear the flag to be able to write to the textarea
+				this._isDoingComposition = false;
+
+				// Clear the textarea to avoid an unwanted cursor type
+				this.writeScreenReaderContent('tapWithoutCompositionEnd');
+
+				// Fire artificial composition end
+				this._onCompositionEnd.fire();
+			}
 		}));
 	}
 
@@ -527,13 +569,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		if (this._hasFocus) {
-			if (browser.isEdge) {
-				// Edge has a bug where setting the selection range while the focus event
-				// is dispatching doesn't work. To reproduce, "tab into" the editor.
-				this._setAndWriteTextAreaState('focusgain', TextAreaState.EMPTY);
-			} else {
-				this.writeScreenReaderContent('focusgain');
-			}
+			this.writeScreenReaderContent('focusgain');
 		}
 
 		if (this._hasFocus) {

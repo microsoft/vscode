@@ -25,7 +25,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
 
-
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
 	readonly _serviceBrand: undefined;
@@ -68,7 +67,7 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		return new SignService();
 	}
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 
 		if (args.kind === 'integrated') {
 
@@ -116,13 +115,21 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			const command = prepareCommand(shell, args.args, cwdForPrepareCommand, args.env);
 			terminal.sendText(command, true);
 
+			// Mark terminal as unused when its session ends, see #112055
+			const sessionListener = this.onDidTerminateDebugSession(s => {
+				if (s.id === sessionId) {
+					this._integratedTerminalInstances.free(terminal!);
+					sessionListener.dispose();
+				}
+			});
+
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
 
 			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
-		return super.$runInTerminal(args);
+		return super.$runInTerminal(args, sessionId);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
@@ -139,17 +146,15 @@ class DebugTerminalCollection {
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
 
 	public async checkout(config: string) {
-		const entries = [...this._terminalInstances.keys()];
-		const promises = entries.map((terminal) => createCancelablePromise(async ct => {
-			const pid = await terminal.processId;
-			if (await hasChildProcesses(pid)) {
+		const entries = [...this._terminalInstances.entries()];
+		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
+			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
 				return null;
 			}
 
 			// important: date check and map operations must be synchronous
 			const now = Date.now();
-			const termInfo = this._terminalInstances.get(terminal);
-			if (!termInfo || termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
+			if (termInfo.lastUsedAt + DebugTerminalCollection.minUseDelay > now || ct.isCancellationRequested) {
 				return null;
 			}
 
@@ -166,6 +171,13 @@ class DebugTerminalCollection {
 
 	public insert(terminal: vscode.Terminal, termConfig: string) {
 		this._terminalInstances.set(terminal, { lastUsedAt: Date.now(), config: termConfig });
+	}
+
+	public free(terminal: vscode.Terminal) {
+		const info = this._terminalInstances.get(terminal);
+		if (info) {
+			info.lastUsedAt = -1;
+		}
 	}
 
 	public onTerminalClosed(terminal: vscode.Terminal) {

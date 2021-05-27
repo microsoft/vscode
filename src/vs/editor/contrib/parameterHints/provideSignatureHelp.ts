@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { first } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
@@ -20,19 +19,26 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(
+export async function provideSignatureHelp(
 	model: ITextModel,
 	position: Position,
 	context: modes.SignatureHelpContext,
 	token: CancellationToken
-): Promise<modes.SignatureHelpResult | null | undefined> {
+): Promise<modes.SignatureHelpResult | undefined> {
 
 	const supports = modes.SignatureHelpProviderRegistry.ordered(model);
 
-	return first(supports.map(support => () => {
-		return Promise.resolve(support.provideSignatureHelp(model, position, token, context))
-			.catch<modes.SignatureHelpResult | undefined>(e => onUnexpectedExternalError(e));
-	}));
+	for (const support of supports) {
+		try {
+			const result = await support.provideSignatureHelp(model, position, token, context);
+			if (result) {
+				return result;
+			}
+		} catch (err) {
+			onUnexpectedExternalError(err);
+		}
+	}
+	return undefined;
 }
 
 CommandsRegistry.registerCommand('_executeSignatureHelpProvider', async (accessor, ...args: [URI, IPosition, string?]) => {

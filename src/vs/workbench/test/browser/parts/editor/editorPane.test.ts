@@ -7,25 +7,25 @@ import * as assert from 'assert';
 import { EditorPane, EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput, EditorOptions, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import * as Platform from 'vs/platform/registry/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupView, TestEditorGroupsService, registerTestResourceEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { URI } from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
-import { dispose } from 'vs/base/common/lifecycle';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { extUri } from 'vs/base/common/resources';
 
 const NullThemeService = new TestThemeService();
 
-let EditorRegistry: IEditorRegistry = Platform.Registry.as(Extensions.Editors);
-let EditorInputRegistry: IEditorInputFactoryRegistry = Platform.Registry.as(EditorExtensions.EditorInputFactories);
+let EditorRegistry: IEditorRegistry = Registry.as(Extensions.Editors);
+let EditorInputRegistry: IEditorInputFactoryRegistry = Registry.as(EditorExtensions.EditorInputFactories);
 
 export class MyEditor extends EditorPane {
 
@@ -111,7 +111,7 @@ suite('Workbench EditorPane', () => {
 		const group = new TestEditorGroupView(1);
 		e.setVisible(true, group);
 		assert(e.isVisible());
-		assert.equal(e.group, group);
+		assert.strictEqual(e.group, group);
 		input.onDispose(() => {
 			assert(false);
 		});
@@ -139,8 +139,8 @@ suite('Workbench EditorPane', () => {
 		const dispose1 = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyInput)]);
 		const dispose2 = EditorRegistry.registerEditor(d2, [new SyncDescriptor(MyInput), new SyncDescriptor(MyOtherInput)]);
 
-		assert.equal(EditorRegistry.getEditors().length, oldEditorsCnt + 2);
-		assert.equal((<any>EditorRegistry).getEditorInputs().length, oldInputCnt + 3);
+		assert.strictEqual(EditorRegistry.getEditors().length, oldEditorsCnt + 2);
+		assert.strictEqual((<any>EditorRegistry).getEditorInputs().length, oldInputCnt + 3);
 
 		assert.strictEqual(EditorRegistry.getEditor(new MyInput()), d2);
 		assert.strictEqual(EditorRegistry.getEditor(new MyOtherInput()), d2);
@@ -155,7 +155,10 @@ suite('Workbench EditorPane', () => {
 	test('Editor Lookup favors specific class over superclass (match on specific class)', function () {
 		let d1 = EditorDescriptor.create(MyEditor, 'id1', 'name');
 
-		const disposable = EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceEditorInput)]);
+		const disposables = new DisposableStore();
+
+		disposables.add(registerTestResourceEditor());
+		disposables.add(EditorRegistry.registerEditor(d1, [new SyncDescriptor(MyResourceEditorInput)]));
 
 		let inst = workbenchInstantiationService();
 
@@ -165,14 +168,20 @@ suite('Workbench EditorPane', () => {
 		const otherEditor = EditorRegistry.getEditor(inst.createInstance(ResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
-		disposable.dispose();
+		disposables.dispose();
 	});
 
 	test('Editor Lookup favors specific class over superclass (match on super class)', function () {
 		let inst = workbenchInstantiationService();
 
+		const disposables = new DisposableStore();
+
+		disposables.add(registerTestResourceEditor());
 		const editor = EditorRegistry.getEditor(inst.createInstance(MyResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
+
+		disposables.dispose();
 	});
 
 	test('Editor Input Factory', function () {
@@ -209,12 +218,12 @@ suite('Workbench EditorPane', () => {
 		memento.saveEditorState(testGroup0, URI.file('/A'), { line: 3 });
 		res = memento.loadEditorState(testGroup0, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res!.line, 3);
+		assert.strictEqual(res!.line, 3);
 
 		memento.saveEditorState(testGroup1, URI.file('/A'), { line: 5 });
 		res = memento.loadEditorState(testGroup1, URI.file('/A'));
 		assert.ok(res);
-		assert.equal(res!.line, 5);
+		assert.strictEqual(res!.line, 5);
 
 		// Ensure capped at 3 elements
 		memento.saveEditorState(testGroup0, URI.file('/B'), { line: 1 });
@@ -276,15 +285,15 @@ suite('Workbench EditorPane', () => {
 		assert.ok(!res);
 
 		res = memento.loadEditorState(testGroup0, URI.file('/some/folder/file-moved.txt'));
-		assert.equal(res?.line, 1);
+		assert.strictEqual(res?.line, 1);
 
 		memento.moveEditorState(URI.file('/some/folder'), URI.file('/some/folder-moved'), extUri);
 
 		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-moved.txt'));
-		assert.equal(res?.line, 1);
+		assert.strictEqual(res?.line, 1);
 
 		res = memento.loadEditorState(testGroup0, URI.file('/some/folder-moved/file-2.txt'));
-		assert.equal(res?.line, 2);
+		assert.strictEqual(res?.line, 2);
 	});
 
 	test('EditoMemento - use with editor input', function () {
@@ -299,7 +308,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -317,7 +326,7 @@ suite('Workbench EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.equal(res!.line, 3);
+		assert.strictEqual(res!.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();
@@ -337,7 +346,7 @@ suite('Workbench EditorPane', () => {
 				super();
 			}
 			getTypeId() { return 'testEditorInputForMementoTest'; }
-			resolve(): Promise<IEditorModel> { return Promise.resolve(null!); }
+			async resolve(): Promise<IEditorModel | null> { return null; }
 
 			matches(other: TestEditorInput): boolean {
 				return other && this.id === other.id && other instanceof TestEditorInput;
@@ -355,7 +364,7 @@ suite('Workbench EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputA.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputA);
 		assert.ok(res);
-		assert.equal(res!.line, 3);
+		assert.strictEqual(res!.line, 3);
 
 		// State not yet removed when input gets disposed
 		// because we used resource
@@ -371,7 +380,7 @@ suite('Workbench EditorPane', () => {
 		memento.saveEditorState(testGroup0, testInputB.resource, { line: 3 });
 		res = memento.loadEditorState(testGroup0, testInputB);
 		assert.ok(res);
-		assert.equal(res!.line, 3);
+		assert.strictEqual(res!.line, 3);
 
 		memento.clearEditorStateOnDispose(testInputB.resource, testInputB);
 

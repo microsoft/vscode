@@ -260,8 +260,6 @@ export const editorHintBorder = registerColor('editorHint.border', { dark: null,
 
 export const sashHoverBorder = registerColor('sash.hoverBorder', { dark: null, light: null, hc: null }, nls.localize('sashActiveBorder', "Border color of active sashes."));
 
-export const editorInlineHintForeground = registerColor('editorInlineHint.foreground', { dark: '#A7A6A5', light: '#A7A6A5', hc: null }, nls.localize('editorInlineHintForeground', 'Foreground color of inline hints'));
-export const editorInlineHintBackground = registerColor('editorInlineHint.background', { dark: '#3A3A3A', light: '#3A3A3A', hc: null }, nls.localize('editorInlineHintBackground', 'Background color of inline hints'));
 /**
  * Editor background color.
  * Because of bug https://monacotools.visualstudio.com/DefaultCollection/Monaco/_workitems/edit/13254
@@ -333,6 +331,12 @@ export const editorHoverStatusBarBackground = registerColor('editorHoverWidget.s
  * Editor link colors
  */
 export const editorActiveLinkForeground = registerColor('editorLink.activeForeground', { dark: '#4E94CE', light: Color.blue, hc: Color.cyan }, nls.localize('activeLinkForeground', 'Color of active links.'));
+
+/**
+ * Inline hints
+ */
+export const editorInlineHintForeground = registerColor('editorInlineHint.foreground', { dark: editorWidgetBackground, light: editorWidgetForeground, hc: editorWidgetBackground }, nls.localize('editorInlineHintForeground', 'Foreground color of inline hints'));
+export const editorInlineHintBackground = registerColor('editorInlineHint.background', { dark: editorWidgetForeground, light: editorWidgetBackground, hc: editorWidgetForeground }, nls.localize('editorInlineHintBackground', 'Background color of inline hints'));
 
 /**
  * Editor lighbulb icon colors

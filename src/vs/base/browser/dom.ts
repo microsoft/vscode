@@ -284,7 +284,7 @@ export function modify(callback: () => void): IDisposable {
 }
 
 /**
- * Add a throttled listener. `handler` is fired at most every 16ms or with the next animation frame (if browser supports it).
+ * Add a throttled listener. `handler` is fired at most every 8.33333ms or with the next animation frame (if browser supports it).
  */
 export interface IEventMerger<R, E> {
 	(lastEvent: R | null, currentEvent: E): R;
@@ -295,7 +295,7 @@ export interface DOMEvent {
 	stopPropagation(): void;
 }
 
-const MINIMUM_TIME_MS = 16;
+const MINIMUM_TIME_MS = 8;
 const DEFAULT_EVENT_MERGER: IEventMerger<DOMEvent, DOMEvent> = function (lastEvent: DOMEvent | null, currentEvent: DOMEvent) {
 	return currentEvent;
 };
@@ -841,7 +841,7 @@ export const EventType = {
 	MOUSE_OUT: 'mouseout',
 	MOUSE_ENTER: 'mouseenter',
 	MOUSE_LEAVE: 'mouseleave',
-	MOUSE_WHEEL: browser.isEdge ? 'mousewheel' : 'wheel',
+	MOUSE_WHEEL: browser.isEdgeLegacy ? 'mousewheel' : 'wheel',
 	POINTER_UP: 'pointerup',
 	POINTER_DOWN: 'pointerdown',
 	POINTER_MOVE: 'pointermove',
@@ -1194,7 +1194,7 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (browser.isElectron || browser.isEdgeWebView) {
+	if (browser.isElectron || browser.isEdgeLegacyWebView) {
 		// In VSCode, window.open() always returns null...
 		// The same is true for a WebView (see https://github.com/microsoft/monaco-editor/issues/628)
 		// Also call directly window.open in sandboxed Electron (see https://github.com/microsoft/monaco-editor/issues/2220)
@@ -1228,6 +1228,10 @@ export function asCSSUrl(uri: URI): string {
 		return `url('')`;
 	}
 	return `url('${FileAccess.asBrowserUri(uri).toString(true).replace(/'/g, '%27')}')`;
+}
+
+export function asCSSPropertyValue(value: string) {
+	return `'${value.replace(/'/g, '%27')}'`;
 }
 
 export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void {
@@ -1434,7 +1438,7 @@ export namespace WebFileSystemAccess {
 	}
 
 	export function supported(obj: any & Window): obj is FileSystemAccess {
-		const candidate = obj as FileSystemAccess;
+		const candidate = obj as FileSystemAccess | undefined;
 		if (typeof candidate?.showDirectoryPicker === 'function') {
 			return true;
 		}
@@ -1472,7 +1476,13 @@ export class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 		};
 
 		this._subscriptions.add(domEvent(document.body, 'keydown', true)(e => {
+
 			const event = new StandardKeyboardEvent(e);
+			// If Alt-key keydown event is repeated, ignore it #112347
+			// Only known to be necessary for Alt-Key at the moment #115810
+			if (event.keyCode === KeyCode.Alt && e.repeat) {
+				return;
+			}
 
 			if (e.altKey && !this._keyStatus.altKey) {
 				this._keyStatus.lastKeyPressed = 'alt';

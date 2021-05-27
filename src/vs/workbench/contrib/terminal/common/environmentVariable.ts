@@ -48,8 +48,10 @@ export interface IMergedEnvironmentVariableCollection {
 
 	/**
 	 * Applies this collection to a process environment.
+	 * @param variableResolver An optional function to use to resolve variables within the
+	 * environment values.
 	 */
-	applyToProcessEnvironment(env: IProcessEnvironment): void;
+	applyToProcessEnvironment(env: IProcessEnvironment, variableResolver?: (str: string) => string): void;
 
 	/**
 	 * Generates a diff of this connection against another. Returns undefined if the collections are

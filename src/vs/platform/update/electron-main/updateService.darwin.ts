@@ -15,6 +15,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 import { IRequestService } from 'vs/platform/request/common/request';
+import product from 'vs/platform/product/common/product';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
@@ -56,7 +57,12 @@ export class DarwinUpdateService extends AbstractUpdateService {
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		const assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
+		let assetID: string;
+		if (!product.darwinUniversalAssetId) {
+			assetID = process.arch === 'x64' ? 'darwin' : 'darwin-arm64';
+		} else {
+			assetID = product.darwinUniversalAssetId;
+		}
 		const url = createUpdateURL(assetID, quality);
 		try {
 			electron.autoUpdater.setFeedURL({ url });

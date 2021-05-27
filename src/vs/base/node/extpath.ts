@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import { rtrim } from 'vs/base/common/strings';
 import { sep, join, normalize, dirname, basename } from 'vs/base/common/path';
 import { readdirSync } from 'vs/base/node/pfs';
-import { promisify } from 'util';
 
 /**
  * Copied from: https://github.com/microsoft/vscode-node-debug/blob/master/src/node/pathUtilities.ts#L83
@@ -53,7 +52,7 @@ export function realcaseSync(path: string): string | null {
 
 export async function realpath(path: string): Promise<string> {
 	try {
-		return await promisify(fs.realpath)(path);
+		return await fs.promises.realpath(path);
 	} catch (error) {
 
 		// We hit an error calling fs.realpath(). Since fs.realpath() is doing some path normalization
@@ -63,7 +62,7 @@ export async function realpath(path: string): Promise<string> {
 		// to not resolve links but to simply see if the path is read accessible or not.
 		const normalizedPath = normalizePath(path);
 
-		await promisify(fs.access)(normalizedPath, fs.constants.R_OK);
+		await fs.promises.access(normalizedPath, fs.constants.R_OK);
 
 		return normalizedPath;
 	}

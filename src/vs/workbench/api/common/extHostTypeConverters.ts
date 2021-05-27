@@ -1021,20 +1021,20 @@ export namespace InlineHint {
 		return {
 			text: hint.text,
 			range: Range.from(hint.range),
-			hoverMessage: hint.hoverMessage,
+			description: hint.description && MarkdownString.fromStrict(hint.description),
 			whitespaceBefore: hint.whitespaceBefore,
 			whitespaceAfter: hint.whitespaceAfter
 		};
 	}
 
 	export function to(hint: modes.InlineHint): vscode.InlineHint {
-		return {
-			text: hint.text,
-			range: Range.to(hint.range),
-			hoverMessage: hint.hoverMessage,
-			whitespaceBefore: hint.whitespaceBefore,
-			whitespaceAfter: hint.whitespaceAfter
-		};
+		return new types.InlineHint(
+			hint.text,
+			Range.to(hint.range),
+			htmlContent.isMarkdownString(hint.description) ? MarkdownString.to(hint.description) : hint.description,
+			hint.whitespaceBefore,
+			hint.whitespaceAfter
+		);
 	}
 }
 
@@ -1412,8 +1412,9 @@ export namespace TestState {
 
 
 export namespace TestItem {
-	export function from(item: vscode.TestItem): ITestItem {
+	export function from(item: vscode.TestItem, parentExtId?: string): ITestItem {
 		return {
+			extId: item.id ?? (parentExtId ? `${parentExtId}\0${item.label}` : item.label),
 			label: item.label,
 			location: item.location ? location.from(item.location) : undefined,
 			debuggable: item.debuggable ?? false,
@@ -1423,8 +1424,9 @@ export namespace TestItem {
 		};
 	}
 
-	export function to(item: ITestItem): vscode.TestItem {
+	export function toShallow(item: ITestItem): Omit<vscode.RequiredTestItem, 'children'> {
 		return {
+			id: item.extId,
 			label: item.label,
 			location: item.location && location.to({
 				range: item.location.range,

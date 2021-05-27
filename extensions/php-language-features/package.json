@@ -1,87 +1,91 @@
 {
-	"name": "php-language-features",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
-	"icon": "icons/logo.png",
-	"engines": {
-		"vscode": "0.10.x"
-	},
-	"activationEvents": [
-		"onLanguage:php"
-	],
-	"main": "./out/phpMain",
-	"categories": [
-		"Programming Languages"
-	],
-	"contributes": {
-		"configuration": {
-			"title": "%configuration.title%",
-			"type": "object",
-			"order": 20,
-			"properties": {
-				"php.suggest.basic": {
-					"type": "boolean",
-					"default": true,
-					"description": "%configuration.suggest.basic%"
-				},
-				"php.validate.enable": {
-					"type": "boolean",
-					"default": true,
-					"description": "%configuration.validate.enable%"
-				},
-				"php.validate.executablePath": {
-					"type": [
-						"string",
-						"null"
-					],
-					"default": null,
-					"description": "%configuration.validate.executablePath%",
-					"scope": "machine-overridable"
-				},
-				"php.validate.run": {
-					"type": "string",
-					"enum": [
-						"onSave",
-						"onType"
-					],
-					"default": "onSave",
-					"description": "%configuration.validate.run%"
-				}
-			}
-		},
-		"jsonValidation": [
-			{
-				"fileMatch": "composer.json",
-				"url": "https://getcomposer.org/schema.json"
-			}
-		],
-		"commands": [
-			{
-				"title": "%command.untrustValidationExecutable%",
-				"category": "%commands.categroy.php%",
-				"command": "php.untrustValidationExecutable"
-			}
-		],
-		"menus": {
-			"commandPalette": [
-				{
-					"command": "php.untrustValidationExecutable",
-					"when": "php.untrustValidationExecutableContext"
-				}
-			]
-		}
-	},
-	"scripts": {
-		"compile": "npx gulp compile-extension:php-language-features",
-		"watch": "npx gulp watch-extension:php-language-features"
-	},
-	"dependencies": {
-		"vscode-nls": "^4.0.0"
-	},
-	"devDependencies": {
-		"@types/node": "^12.19.9"
-	}
+  "name": "php-language-features",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "icon": "icons/logo.png",
+  "engines": {
+    "vscode": "0.10.x"
+  },
+  "activationEvents": [
+    "onLanguage:php"
+  ],
+  "main": "./out/phpMain",
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "configuration": {
+      "title": "%configuration.title%",
+      "type": "object",
+      "order": 20,
+      "properties": {
+        "php.suggest.basic": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.suggest.basic%"
+        },
+        "php.validate.enable": {
+          "type": "boolean",
+          "default": true,
+          "description": "%configuration.validate.enable%"
+        },
+        "php.validate.executablePath": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null,
+          "description": "%configuration.validate.executablePath%",
+          "scope": "machine-overridable"
+        },
+        "php.validate.run": {
+          "type": "string",
+          "enum": [
+            "onSave",
+            "onType"
+          ],
+          "default": "onSave",
+          "description": "%configuration.validate.run%"
+        }
+      }
+    },
+    "jsonValidation": [
+      {
+        "fileMatch": "composer.json",
+        "url": "https://getcomposer.org/schema.json"
+      }
+    ],
+    "commands": [
+      {
+        "title": "%command.untrustValidationExecutable%",
+        "category": "%commands.categroy.php%",
+        "command": "php.untrustValidationExecutable"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "php.untrustValidationExecutable",
+          "when": "php.untrustValidationExecutableContext"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "npx gulp compile-extension:php-language-features",
+    "watch": "npx gulp watch-extension:php-language-features"
+  },
+  "dependencies": {
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

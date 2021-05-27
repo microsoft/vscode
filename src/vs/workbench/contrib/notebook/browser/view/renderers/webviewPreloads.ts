@@ -50,11 +50,22 @@ function webviewPreloads() {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
 					handleBlobUrlClick(node.href, node.download);
+				} else if (node.href.startsWith('data:')) {
+					handleDataUrl(node.href, node.download);
 				}
 				event.preventDefault();
 				break;
 			}
 		}
+	};
+
+	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
+		vscode.postMessage({
+			__vscode_notebook_message: true,
+			type: 'clicked-data-url',
+			data,
+			downloadName
+		});
 	};
 
 	const handleBlobUrlClick = async (url: string, downloadName: string) => {
@@ -63,13 +74,7 @@ function webviewPreloads() {
 			const blob = await response.blob();
 			const reader = new FileReader();
 			reader.addEventListener('load', () => {
-				const data = reader.result;
-				vscode.postMessage({
-					__vscode_notebook_message: true,
-					type: 'clicked-data-url',
-					data,
-					downloadName
-				});
+				handleDataUrl(reader.result, downloadName);
 			});
 			reader.readAsDataURL(blob);
 		} catch (e) {

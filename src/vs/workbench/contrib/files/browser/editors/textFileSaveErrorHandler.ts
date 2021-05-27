@@ -68,8 +68,8 @@ export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHa
 	}
 
 	private registerListeners(): void {
-		this._register(this.textFileService.files.onDidSave(e => this.onFileSavedOrReverted(e.model.resource)));
-		this._register(this.textFileService.files.onDidRevert(m => this.onFileSavedOrReverted(m.resource)));
+		this._register(this.textFileService.files.onDidSave(event => this.onFileSavedOrReverted(event.model.resource)));
+		this._register(this.textFileService.files.onDidRevert(model => this.onFileSavedOrReverted(model.resource)));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
@@ -248,14 +248,14 @@ class ResolveSaveConflictAction extends Action {
 			await TextFileContentProvider.open(resource, CONFLICT_RESOLUTION_SCHEME, editorLabel, this.editorService, { pinned: true });
 
 			// Show additional help how to resolve the save conflict
-			const actions: INotificationActions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
+			const actions = { primary: [this.instantiationService.createInstance(ResolveConflictLearnMoreAction)] };
 			const handle = this.notificationService.notify({
 				severity: Severity.Info,
 				message: conflictEditorHelp,
 				actions,
 				neverShowAgain: { id: LEARN_MORE_DIRTY_WRITE_IGNORE_KEY, isSecondary: true }
 			});
-			Event.once(handle.onDidClose)(() => dispose(actions.primary!));
+			Event.once(handle.onDidClose)(() => dispose(actions.primary));
 			pendingResolveSaveConflictMessages.push(handle);
 		}
 	}
@@ -272,7 +272,7 @@ class SaveElevatedAction extends Action {
 
 	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			this.model.save({
+			await this.model.save({
 				writeElevated: true,
 				overwriteReadonly: this.triedToMakeWriteable,
 				reason: SaveReason.EXPLICIT
@@ -291,7 +291,7 @@ class OverwriteReadonlyAction extends Action {
 
 	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ overwriteReadonly: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ overwriteReadonly: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }
@@ -306,7 +306,7 @@ class SaveIgnoreModifiedSinceAction extends Action {
 
 	async run(): Promise<void> {
 		if (!this.model.isDisposed()) {
-			this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
+			await this.model.save({ ignoreModifiedSince: true, reason: SaveReason.EXPLICIT });
 		}
 	}
 }

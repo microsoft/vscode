@@ -187,7 +187,10 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		this._openerService.open(url, { allowTunneling: !!(this._processManager && this._processManager.remoteAuthority) });
+		this._openerService.open(url, {
+			allowTunneling: !!(this._processManager && this._processManager.remoteAuthority),
+			allowContributedOpeners: true,
+		});
 	}
 
 	private async _handleProtocolLink(link: string): Promise<void> {
@@ -233,9 +236,9 @@ export class TerminalLinkManager extends DisposableStore {
 
 		let fallbackLabel: string;
 		if (this._tunnelService.canTunnel(URI.parse(uri))) {
-			fallbackLabel = nls.localize('followForwardedLink', "Follow Link using Forwarded Port");
+			fallbackLabel = nls.localize('followForwardedLink', "Follow link using forwarded port");
 		} else {
-			fallbackLabel = nls.localize('followLink', "Follow Link");
+			fallbackLabel = nls.localize('followLink', "Follow link");
 		}
 
 		const markdown = new MarkdownString('', true);

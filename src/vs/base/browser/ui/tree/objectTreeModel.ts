@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
-import { IndexTreeModel, IIndexTreeModelOptions, IList } from 'vs/base/browser/ui/tree/indexTreeModel';
+import { IndexTreeModel, IIndexTreeModelOptions, IList, IIndexTreeModelSpliceOptions } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { Event } from 'vs/base/common/event';
 import { ITreeModel, ITreeNode, ITreeElement, ITreeSorter, ICollapseStateChangeEvent, ITreeModelSpliceEvent, TreeError } from 'vs/base/browser/ui/tree/tree';
 import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
@@ -13,9 +13,12 @@ import { mergeSort } from 'vs/base/common/arrays';
 export type ITreeNodeCallback<T, TFilterData> = (node: ITreeNode<T, TFilterData>) => void;
 
 export interface IObjectTreeModel<T extends NonNullable<any>, TFilterData extends NonNullable<any> = void> extends ITreeModel<T | null, TFilterData, T | null> {
-	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined): void;
+	setChildren(element: T | null, children: Iterable<ITreeElement<T>> | undefined, options?: IObjectTreeModelSetChildrenOptions<T, TFilterData>): void;
 	resort(element?: T | null, recursive?: boolean): void;
 	updateElementHeight(element: T, height: number): void;
+}
+
+export interface IObjectTreeModelSetChildrenOptions<T, TFilterData> extends IIndexTreeModelSpliceOptions<T, TFilterData> {
 }
 
 export interface IObjectTreeModelOptions<T, TFilterData> extends IIndexTreeModelOptions<T, TFilterData> {
@@ -63,23 +66,21 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 	setChildren(
 		element: T | null,
 		children: Iterable<ITreeElement<T>> = Iterable.empty(),
-		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
-		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData> = {},
 	): void {
 		const location = this.getElementLocation(element);
-		this._setChildren(location, this.preserveCollapseState(children), onDidCreateNode, onDidDeleteNode);
+		this._setChildren(location, this.preserveCollapseState(children), options);
 	}
 
 	private _setChildren(
 		location: number[],
 		children: Iterable<ITreeElement<T>> = Iterable.empty(),
-		onDidCreateNode?: ITreeNodeCallback<T, TFilterData>,
-		onDidDeleteNode?: ITreeNodeCallback<T, TFilterData>
+		options: IObjectTreeModelSetChildrenOptions<T, TFilterData>,
 	): void {
 		const insertedElements = new Set<T | null>();
 		const insertedElementIds = new Set<string>();
 
-		const _onDidCreateNode = (node: ITreeNode<T | null, TFilterData>) => {
+		const onDidCreateNode = (node: ITreeNode<T | null, TFilterData>) => {
 			if (node.element === null) {
 				return;
 			}
@@ -95,12 +96,10 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 				this.nodesByIdentity.set(id, tnode);
 			}
 
-			if (onDidCreateNode) {
-				onDidCreateNode(tnode);
-			}
+			options.onDidCreateNode?.(tnode);
 		};
 
-		const _onDidDeleteNode = (node: ITreeNode<T | null, TFilterData>) => {
+		const onDidDeleteNode = (node: ITreeNode<T | null, TFilterData>) => {
 			if (node.element === null) {
 				return;
 			}
@@ -118,17 +117,14 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 				}
 			}
 
-			if (onDidDeleteNode) {
-				onDidDeleteNode(tnode);
-			}
+			options.onDidDeleteNode?.(tnode);
 		};
 
 		this.model.splice(
 			[...location, 0],
 			Number.MAX_VALUE,
 			children,
-			_onDidCreateNode,
-			_onDidDeleteNode
+			{ ...options, onDidCreateNode, onDidDeleteNode }
 		);
 	}
 
@@ -182,7 +178,7 @@ export class ObjectTreeModel<T extends NonNullable<any>, TFilterData extends Non
 		const location = this.getElementLocation(element);
 		const node = this.model.getNode(location);
 
-		this._setChildren(location, this.resortChildren(node, recursive));
+		this._setChildren(location, this.resortChildren(node, recursive), {});
 	}
 
 	private resortChildren(node: ITreeNode<T | null, TFilterData>, recursive: boolean, first = true): Iterable<ITreeElement<T>> {

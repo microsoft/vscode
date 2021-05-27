@@ -34,7 +34,8 @@ export function setup() {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		it('dismisses result & checks for correct result number', async function () {
+		// https://github.com/microsoft/vscode/issues/115244
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');
@@ -45,7 +46,6 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.search.searchFor('body');
-			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
 			await app.workbench.search.replaceFileMatch('app.js');
 			await app.workbench.search.waitForResultText('12 results in 4 files');

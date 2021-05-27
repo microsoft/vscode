@@ -918,7 +918,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					// Remove from History
 					case 1:
 						if (!URI.isUri(resourceOrEditor)) {
-							this.historyService.remove(resourceOrEditor);
+							this.historyService.removeFromHistory(resourceOrEditor);
 
 							return TriggerAction.REMOVE_ITEM;
 						}

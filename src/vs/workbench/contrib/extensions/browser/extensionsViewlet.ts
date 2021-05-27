@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/extensionsViewlet';
 import { localize } from 'vs/nls';
-import { timeout, Delayer } from 'vs/base/common/async';
+import { timeout, Delayer, Promises } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
@@ -788,7 +788,7 @@ export class MaliciousExtensionChecker implements IWorkbenchContribution {
 					.filter(e => maliciousSet.has(e.identifier.id));
 
 				if (maliciousExtensions.length) {
-					return Promise.all(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
+					return Promises.settled(maliciousExtensions.map(e => this.extensionsManagementService.uninstall(e).then(() => {
 						this.notificationService.prompt(
 							Severity.Warning,
 							localize('malicious warning', "We have uninstalled '{0}' which was reported to be problematic.", e.identifier.id),

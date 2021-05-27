@@ -50,8 +50,18 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 			// workbench window will communicate directly
 			await this.whenReady();
 
+			// connect to the shared process window
 			const port = await this.connect();
 
+			// Check back if the requesting window meanwhile closed
+			// Since shared process is delayed on startup there is
+			// a chance that the window close before the shared process
+			// was ready for a connection.
+			if (e.sender.isDestroyed()) {
+				return port.close();
+			}
+
+			// send the port back to the requesting window
 			e.sender.postMessage('vscode:createSharedProcessMessageChannelResult', nonce, [port]);
 		});
 	}
@@ -63,7 +73,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		}
 
 		// Signal exit to shared process when shutting down
-		window.webContents.send('vscode:electron-main->shared-process=exit');
+		if (!window.isDestroyed() && !window.webContents.isDestroyed()) {
+			window.webContents.send('vscode:electron-main->shared-process=exit');
+		}
 
 		// Shut the shared process down when we are quitting
 		//
@@ -190,9 +202,9 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 		this.window.on('close', this.windowCloseListener);
 
 		// Crashes & Unrsponsive & Failed to load
-		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`[VS Code]: sharedProcess crashed (detail: ${details?.reason})`));
-		this.window.on('unresponsive', () => this.logService.error('[VS Code]: detected unresponsive sharedProcess window'));
-		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('[VS Code]: fail to load sharedProcess window, ', errorDescription));
+		this.window.webContents.on('render-process-gone', (event, details) => this.logService.error(`SharedProcess: crashed (detail: ${details?.reason})`));
+		this.window.on('unresponsive', () => this.logService.error('SharedProcess: detected unresponsive window'));
+		this.window.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.logService.warn('SharedProcess: failed to load window, ', errorDescription));
 	}
 
 	spawn(userEnv: NodeJS.ProcessEnv): void {

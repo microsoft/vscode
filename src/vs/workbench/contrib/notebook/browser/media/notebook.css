@@ -184,11 +184,11 @@
 .monaco-workbench .notebookOverlay .output .multi-mimetype-output {
 	position: absolute;
 	top: 4px;
-	left: -26px;
+	left: -30px;
 	width: 16px;
 	height: 16px;
 	cursor: pointer;
-	padding: 4px;
+	padding: 6px;
 }
 
 .monaco-workbench .notebookOverlay .output pre {
@@ -252,15 +252,17 @@
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part {
+	position: relative;
 	box-sizing: border-box;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .cell-collapsed-part .codicon {
-	margin-top: 4px;
-	position: relative;
-	left: -23px;
+	position: absolute;
+	padding: 2px 6px;
+	left: -30px;
+	bottom: 0;
 	cursor: pointer;
-	z-index: 27; /* Over drag handle */
+	z-index: 29; /* Over drag handle and bottom cell toolbar */
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.collapsed .notebook-folding-indicator,
@@ -424,6 +426,10 @@
 	margin-left: 18px;
 	width: 18px;
 	margin-right: 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-statusbar-container .cell-status-left > div:first-child {
+	margin-left: 18px;
 }
 
 .monaco-workbench .notebookOverlay .cell-statusbar-container .codicon {
@@ -871,4 +877,19 @@
 
 .cell-contributed-items.cell-contributed-items-left {
 	margin-left: 4px;
+}
+
+.monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar {
+	width: 10px;               /* width of the entire scrollbar */
+	height: 10px;
+}
+
+.monaco-workbench .notebookOverlay .output-plaintext::-webkit-scrollbar-thumb {
+	height: 10px;
+	width: 10px;
+}
+
+.monaco-workbench .notebookOverlay .output .output-plaintext {
+	margin: 4px 0;
+	overflow-x: auto;
 }

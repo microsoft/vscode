@@ -47,6 +47,9 @@ export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEdit
 export const NOTEBOOK_EDITOR_RUNNABLE = new RawContextKey<boolean>('notebookRunnable', true);
 export const NOTEBOOK_EDITOR_EXECUTING_NOTEBOOK = new RawContextKey<boolean>('notebookExecuting', false);
 
+// Diff Editor Keys
+export const IN_NOTEBOOK_TEXT_DIFF_EDITOR = new RawContextKey<boolean>('isInNotebookTextDiffEditor', false);
+
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
 export const NOTEBOOK_CELL_TYPE = new RawContextKey<string>('notebookCellType', undefined); // code, markdown
@@ -348,6 +351,7 @@ export interface INotebookEditor extends IEditor, ICommonNotebookEditor {
 	getOverflowContainerDomNode(): HTMLElement;
 	getInnerWebview(): Webview | undefined;
 	getSelectionHandles(): number[];
+	getSelectionViewModels(): ICellViewModel[];
 
 	/**
 	 * Focus the notebook editor cell list

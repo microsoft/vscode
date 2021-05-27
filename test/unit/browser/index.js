@@ -131,6 +131,19 @@ const testModules = (async function () {
 	})
 })();
 
+function consoleLogFn(msg) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
+}
 
 async function runTestsInBrowser(testModules, browserType) {
 	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
@@ -149,7 +162,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	page.on('console', async msg => {
-		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
 	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));

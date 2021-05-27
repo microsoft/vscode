@@ -32,6 +32,12 @@ export class Extensions extends Viewlet {
 		await this.code.waitAndClick(SEARCH_BOX);
 		await this.code.waitForActiveElement(SEARCH_BOX);
 		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
+		await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
+	}
+
+	async openExtension(id: string): Promise<any> {
+		await this.searchForExtension(id);
+		await this.code.waitAndClick(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`);
 	}
 
 	async installExtension(id: string, waitUntilEnabled: boolean): Promise<void> {

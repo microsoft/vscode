@@ -21,6 +21,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Promises } from 'vs/base/common/async';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -82,7 +83,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const manifest = await this.galleryService.getManifest(compatible, CancellationToken.None);
 		if (manifest) {
 			const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(manifest, CancellationToken.None);
-			await Promise.all(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
+			await Promises.settled(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
 		}
 		return this.downloadAndInstall(extension, installed);
 	}
@@ -97,7 +98,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
 		const installed = await this.localExtensionManagementService.getInstalled();
 		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
-		await Promise.all(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
+		await Promises.settled(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
 	}
 
 	private async getAllUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {

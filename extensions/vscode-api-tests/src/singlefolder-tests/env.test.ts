@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import { env, extensions, ExtensionKind, UIKind, Uri } from 'vscode';
+import { assertNoRpc } from '../utils';
 
 suite('vscode API - env', () => {
+
+	teardown(assertNoRpc);
 
 	test('env is set', function () {
 		assert.equal(typeof env.language, 'string');

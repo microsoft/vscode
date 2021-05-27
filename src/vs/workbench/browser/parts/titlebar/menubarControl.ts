@@ -8,7 +8,7 @@ import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction, Action, SubmenuAction, Separator, toAction } from 'vs/base/common/actions';
+import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
@@ -709,7 +709,14 @@ export class CustomMenubarControl extends MenubarControl {
 				const webNavigationActions: IAction[] = [];
 				const href = this.environmentService.options?.homeIndicator?.href;
 				if (href) {
-					webNavigationActions.push(toAction({ id: 'goHome', label: nls.localize('goHome', "Go Home"), run: () => window.location.href = href }));
+					webNavigationActions.push(new Action('goHome', nls.localize('goHome', "Go Home"), undefined, true,
+						async (event?: MouseEvent) => {
+							if ((!isMacintosh && event?.ctrlKey) || (isMacintosh && event?.metaKey)) {
+								window.open(href, '_blank');
+							} else {
+								window.location.href = href;
+							}
+						}));
 				}
 
 				const otherActions = this.getWebNavigationMenuItemActions().map(action => {

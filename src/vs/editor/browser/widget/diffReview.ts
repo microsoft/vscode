@@ -80,6 +80,8 @@ const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls
 
 export class DiffReview extends Disposable {
 
+	private static _ttPolicy = window.trustedTypes?.createPolicy('diffReview', { createHTML: value => value });
+
 	private readonly _diffEditor: DiffEditorWidget;
 	private _isVisible: boolean;
 	public readonly shadow: FastDomNode<HTMLElement>;
@@ -734,14 +736,18 @@ export class DiffReview extends Disposable {
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = originalModel.getLineContent(originalLine);
 			}
 

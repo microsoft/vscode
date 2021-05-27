@@ -7,8 +7,11 @@ import 'mocha';
 import * as assert from 'assert';
 import { join } from 'path';
 import { commands, workspace, window, Uri, Range, Position, ViewColumn } from 'vscode';
+import { assertNoRpc } from '../utils';
 
 suite('vscode API - commands', () => {
+
+	teardown(assertNoRpc);
 
 	test('getCommands', function (done) {
 

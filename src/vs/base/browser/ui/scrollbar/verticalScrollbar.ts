@@ -38,8 +38,8 @@ export class VerticalScrollbar extends AbstractScrollbar {
 		});
 
 		if (options.verticalHasArrows) {
-			let arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
-			let scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
+			const arrowDelta = (options.arrowSize - ARROW_IMG_SIZE) / 2;
+			const scrollbarDelta = (options.verticalScrollbarSize - ARROW_IMG_SIZE) / 2;
 
 			this._createArrow({
 				className: 'scra',

@@ -36,7 +36,7 @@ export interface IOutlineCreator<P extends IEditorPane, E> {
 }
 
 export interface IBreadcrumbsDataSource<E> {
-	getBreadcrumbElements(): Iterable<E>;
+	getBreadcrumbElements(): readonly E[];
 }
 
 export interface IOutlineComparator<E> {

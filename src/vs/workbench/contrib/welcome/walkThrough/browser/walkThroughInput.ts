@@ -5,7 +5,7 @@
 
 import { EditorInput, EditorModel, ITextEditorModel } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
-import { IReference } from 'vs/base/common/lifecycle';
+import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as marked from 'vs/base/common/marked/marked';
 import { Schemas } from 'vs/base/common/network';
@@ -42,7 +42,7 @@ export interface WalkThroughInputOptions {
 	readonly description?: string;
 	readonly resource: URI;
 	readonly telemetryFrom: string;
-	readonly onReady?: (container: HTMLElement) => void;
+	readonly onReady?: (container: HTMLElement, contentDisposables: DisposableStore) => void;
 	readonly layout?: (dimension: Dimension) => void;
 }
 

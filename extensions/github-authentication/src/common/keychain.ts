@@ -34,7 +34,7 @@ export class Keychain {
 	constructor(private context: vscode.ExtensionContext) { }
 	async setToken(token: string): Promise<void> {
 		try {
-			return await this.context.secrets.set(SERVICE_ID, token);
+			return await this.context.secrets.store(SERVICE_ID, token);
 		} catch (e) {
 			// Ignore
 			Logger.error(`Setting token failed: ${e}`);

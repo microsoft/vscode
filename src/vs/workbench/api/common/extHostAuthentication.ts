@@ -83,45 +83,8 @@ export class ExtHostAuthentication implements ExtHostAuthenticationShape {
 
 	private async _getSession(requestingExtension: IExtensionDescription, extensionId: string, providerId: string, scopes: string[], options: vscode.AuthenticationGetSessionOptions = {}): Promise<vscode.AuthenticationSession | undefined> {
 		await this._proxy.$ensureProvider(providerId);
-		const providerData = this._authenticationProviders.get(providerId);
 		const extensionName = requestingExtension.displayName || requestingExtension.name;
-
-		if (!providerData) {
-			return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
-		}
-
-		const orderedScopes = scopes.sort().join(' ');
-		const sessions = (await providerData.provider.getSessions()).filter(session => session.scopes.slice().sort().join(' ') === orderedScopes);
-
-		let session: vscode.AuthenticationSession | undefined = undefined;
-		if (sessions.length) {
-			if (!providerData.options.supportsMultipleAccounts) {
-				session = sessions[0];
-				const allowed = await this._proxy.$getSessionsPrompt(providerId, session.account.label, providerData.label, extensionId, extensionName);
-				if (!allowed) {
-					throw new Error('User did not consent to login.');
-				}
-			} else {
-				// On renderer side, confirm consent, ask user to choose between accounts if multiple sessions are valid
-				const selected = await this._proxy.$selectSession(providerId, providerData.label, extensionId, extensionName, sessions, scopes, !!options.clearSessionPreference);
-				session = sessions.find(session => session.id === selected.id);
-			}
-
-		} else {
-			if (options.createIfNone) {
-				const isAllowed = await this._proxy.$loginPrompt(providerData.label, extensionName);
-				if (!isAllowed) {
-					throw new Error('User did not consent to login.');
-				}
-
-				session = await providerData.provider.login(scopes);
-				await this._proxy.$setTrustedExtensionAndAccountPreference(providerId, session.account.label, extensionId, extensionName, session.id);
-			} else {
-				await this._proxy.$requestNewSession(providerId, scopes, extensionId, extensionName);
-			}
-		}
-
-		return session;
+		return this._proxy.$getSession(providerId, scopes, extensionId, extensionName, options);
 	}
 
 	async logout(providerId: string, sessionId: string): Promise<void> {

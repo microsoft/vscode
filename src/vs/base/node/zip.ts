@@ -5,10 +5,10 @@
 
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
-import { createWriteStream, WriteStream } from 'fs';
+import { promises, createWriteStream, WriteStream } from 'fs';
 import { Readable } from 'stream';
 import { Sequencer, createCancelablePromise } from 'vs/base/common/async';
-import { mkdirp, rimraf } from 'vs/base/node/pfs';
+import { rimraf } from 'vs/base/node/pfs';
 import { open as _openZip, Entry, ZipFile } from 'yauzl';
 import * as yazl from 'yazl';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -86,7 +86,7 @@ function extractEntry(stream: Readable, fileName: string, mode: number, targetPa
 		}
 	});
 
-	return Promise.resolve(mkdirp(targetDirName)).then(() => new Promise<void>((c, e) => {
+	return Promise.resolve(promises.mkdir(targetDirName, { recursive: true })).then(() => new Promise<void>((c, e) => {
 		if (token.isCancellationRequested) {
 			return;
 		}
@@ -149,7 +149,7 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, tok
 			// directory file names end with '/'
 			if (/\/$/.test(fileName)) {
 				const targetFileName = path.join(targetPath, fileName);
-				last = createCancelablePromise(token => mkdirp(targetFileName).then(() => readNextEntry(token)).then(undefined, e));
+				last = createCancelablePromise(token => promises.mkdir(targetFileName, { recursive: true }).then(() => readNextEntry(token)).then(undefined, e));
 				return;
 			}
 

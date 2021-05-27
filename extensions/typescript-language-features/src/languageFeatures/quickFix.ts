@@ -370,19 +370,19 @@ const fixAllErrorCodes = new Map<number, number>([
 	[2345, 2339],
 ]);
 
-const preferredFixes = new Map<string, { readonly value: number, readonly thereCanOnlyBeOne?: boolean }>([
-	[fixNames.annotateWithTypeFromJSDoc, { value: 1 }],
-	[fixNames.constructorForDerivedNeedSuperCall, { value: 1 }],
-	[fixNames.extendsInterfaceBecomesImplements, { value: 1 }],
-	[fixNames.awaitInSyncFunction, { value: 1 }],
-	[fixNames.classIncorrectlyImplementsInterface, { value: 3 }],
-	[fixNames.classDoesntImplementInheritedAbstractMember, { value: 3 }],
-	[fixNames.unreachableCode, { value: 1 }],
-	[fixNames.unusedIdentifier, { value: 1 }],
-	[fixNames.forgottenThisPropertyAccess, { value: 1 }],
-	[fixNames.spelling, { value: 2 }],
-	[fixNames.addMissingAwait, { value: 1 }],
-	[fixNames.fixImport, { value: 0, thereCanOnlyBeOne: true }],
+const preferredFixes = new Map<string, { readonly priority: number, readonly thereCanOnlyBeOne?: boolean }>([
+	[fixNames.annotateWithTypeFromJSDoc, { priority: 2 }],
+	[fixNames.constructorForDerivedNeedSuperCall, { priority: 2 }],
+	[fixNames.extendsInterfaceBecomesImplements, { priority: 2 }],
+	[fixNames.awaitInSyncFunction, { priority: 2 }],
+	[fixNames.classIncorrectlyImplementsInterface, { priority: 3 }],
+	[fixNames.classDoesntImplementInheritedAbstractMember, { priority: 3 }],
+	[fixNames.unreachableCode, { priority: 2 }],
+	[fixNames.unusedIdentifier, { priority: 2 }],
+	[fixNames.forgottenThisPropertyAccess, { priority: 2 }],
+	[fixNames.spelling, { priority: 0 }],
+	[fixNames.addMissingAwait, { priority: 2 }],
+	[fixNames.fixImport, { priority: 1, thereCanOnlyBeOne: true }],
 ]);
 
 function isPreferredFix(
@@ -408,9 +408,9 @@ function isPreferredFix(
 		}
 
 		const otherFixPriority = preferredFixes.get(otherAction.tsAction.fixName);
-		if (!otherFixPriority || otherFixPriority.value < fixPriority.value) {
+		if (!otherFixPriority || otherFixPriority.priority < fixPriority.priority) {
 			return true;
-		} else if (otherFixPriority.value > fixPriority.value) {
+		} else if (otherFixPriority.priority > fixPriority.priority) {
 			return false;
 		}
 

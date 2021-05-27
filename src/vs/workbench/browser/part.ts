@@ -159,7 +159,7 @@ class PartLayout {
 
 		// Title Size: Width (Fill), Height (Variable)
 		let titleSize: Dimension;
-		if (this.options && this.options.hasTitle) {
+		if (this.options.hasTitle) {
 			titleSize = new Dimension(width, Math.min(height, PartLayout.TITLE_HEIGHT));
 		} else {
 			titleSize = Dimension.None;

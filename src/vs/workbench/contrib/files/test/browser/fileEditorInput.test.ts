@@ -19,8 +19,10 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { FileEditorInputFactory } from 'vs/workbench/contrib/files/browser/files';
 
 suite('Files - FileEditorInput', () => {
+
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
@@ -102,28 +104,28 @@ suite('Files - FileEditorInput', () => {
 		const preferredResource = toResource.call(this, '/foo/bar/UPDATEFILE.js');
 
 		const inputWithoutPreferredResource = createFileInput(resource);
-		assert.equal(inputWithoutPreferredResource.resource.toString(), resource.toString());
-		assert.equal(inputWithoutPreferredResource.preferredResource.toString(), resource.toString());
+		assert.strictEqual(inputWithoutPreferredResource.resource.toString(), resource.toString());
+		assert.strictEqual(inputWithoutPreferredResource.preferredResource.toString(), resource.toString());
 
 		const inputWithPreferredResource = createFileInput(resource, preferredResource);
 
-		assert.equal(inputWithPreferredResource.resource.toString(), resource.toString());
-		assert.equal(inputWithPreferredResource.preferredResource.toString(), preferredResource.toString());
+		assert.strictEqual(inputWithPreferredResource.resource.toString(), resource.toString());
+		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), preferredResource.toString());
 
 		let didChangeLabel = false;
 		const listener = inputWithPreferredResource.onDidChangeLabel(e => {
 			didChangeLabel = true;
 		});
 
-		assert.equal(inputWithPreferredResource.getName(), 'UPDATEFILE.js');
+		assert.strictEqual(inputWithPreferredResource.getName(), 'UPDATEFILE.js');
 
 		const otherPreferredResource = toResource.call(this, '/FOO/BAR/updateFILE.js');
 		inputWithPreferredResource.setPreferredResource(otherPreferredResource);
 
-		assert.equal(inputWithPreferredResource.resource.toString(), resource.toString());
-		assert.equal(inputWithPreferredResource.preferredResource.toString(), otherPreferredResource.toString());
-		assert.equal(inputWithPreferredResource.getName(), 'updateFILE.js');
-		assert.equal(didChangeLabel, true);
+		assert.strictEqual(inputWithPreferredResource.resource.toString(), resource.toString());
+		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), otherPreferredResource.toString());
+		assert.strictEqual(inputWithPreferredResource.getName(), 'updateFILE.js');
+		assert.strictEqual(didChangeLabel, true);
 
 		listener.dispose();
 	});
@@ -135,20 +137,20 @@ suite('Files - FileEditorInput', () => {
 		});
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, mode);
-		assert.equal(input.getPreferredMode(), mode);
+		assert.strictEqual(input.getPreferredMode(), mode);
 
 		const model = await input.resolve() as TextFileEditorModel;
-		assert.equal(model.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model.textEditorModel!.getModeId(), mode);
 
 		input.setMode('text');
-		assert.equal(input.getPreferredMode(), 'text');
-		assert.equal(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
+		assert.strictEqual(input.getPreferredMode(), 'text');
+		assert.strictEqual(model.textEditorModel!.getModeId(), PLAINTEXT_MODE_ID);
 
 		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
 		input2.setPreferredMode(mode);
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
-		assert.equal(model2.textEditorModel!.getModeId(), mode);
+		assert.strictEqual(model2.textEditorModel!.getModeId(), mode);
 	});
 
 	test('matches', function () {
@@ -169,10 +171,10 @@ suite('Files - FileEditorInput', () => {
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
 		input.setEncoding('utf16', EncodingMode.Encode);
-		assert.equal(input.getEncoding(), 'utf16');
+		assert.strictEqual(input.getEncoding(), 'utf16');
 
 		const resolved = await input.resolve() as TextFileEditorModel;
-		assert.equal(input.getEncoding(), resolved.getEncoding());
+		assert.strictEqual(input.getEncoding(), resolved.getEncoding());
 		resolved.dispose();
 	});
 
@@ -237,7 +239,7 @@ suite('Files - FileEditorInput', () => {
 		const model = await accessor.textFileService.files.resolve(input.resource);
 		model.textEditorModel?.setValue('hello world');
 
-		assert.equal(listenerCount, 1);
+		assert.strictEqual(listenerCount, 1);
 		assert.ok(input.isDirty());
 
 		input.dispose();
@@ -264,12 +266,14 @@ suite('Files - FileEditorInput', () => {
 
 		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
 
+		const disposable = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('workbench.editors.files.fileEditorInput', FileEditorInputFactory);
+
 		const factory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getEditorInputFactory(input.getTypeId());
 		if (!factory) {
 			assert.fail('File Editor Input Factory missing');
 		}
 
-		assert.equal(factory.canSerialize(input), true);
+		assert.strictEqual(factory.canSerialize(input), true);
 
 		const inputSerialized = factory.serialize(input);
 		if (!inputSerialized) {
@@ -277,7 +281,7 @@ suite('Files - FileEditorInput', () => {
 		}
 
 		const inputDeserialized = factory.deserialize(instantiationService, inputSerialized);
-		assert.equal(input.matches(inputDeserialized), true);
+		assert.strictEqual(input.matches(inputDeserialized), true);
 
 		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
 		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);
@@ -288,8 +292,10 @@ suite('Files - FileEditorInput', () => {
 		}
 
 		const inputWithPreferredResourceDeserialized = factory.deserialize(instantiationService, inputWithPreferredResourceSerialized) as FileEditorInput;
-		assert.equal(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
-		assert.equal(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+		assert.strictEqual(inputWithPreferredResource.resource.toString(), inputWithPreferredResourceDeserialized.resource.toString());
+		assert.strictEqual(inputWithPreferredResource.preferredResource.toString(), inputWithPreferredResourceDeserialized.preferredResource.toString());
+
+		disposable.dispose();
 	});
 
 	test('preferred name/description', async function () {
@@ -302,16 +308,16 @@ suite('Files - FileEditorInput', () => {
 			didChangeLabelCounter++;
 		});
 
-		assert.equal(customFileInput.getName(), 'My Name');
-		assert.equal(customFileInput.getDescription(), 'My Description');
+		assert.strictEqual(customFileInput.getName(), 'My Name');
+		assert.strictEqual(customFileInput.getDescription(), 'My Description');
 
 		customFileInput.setPreferredName('My Name 2');
 		customFileInput.setPreferredDescription('My Description 2');
 
-		assert.equal(customFileInput.getName(), 'My Name 2');
-		assert.equal(customFileInput.getDescription(), 'My Description 2');
+		assert.strictEqual(customFileInput.getName(), 'My Name 2');
+		assert.strictEqual(customFileInput.getDescription(), 'My Description 2');
 
-		assert.equal(didChangeLabelCounter, 2);
+		assert.strictEqual(didChangeLabelCounter, 2);
 
 		customFileInput.dispose();
 
@@ -323,16 +329,16 @@ suite('Files - FileEditorInput', () => {
 			didChangeLabelCounter++;
 		});
 
-		assert.notEqual(fileInput.getName(), 'My Name');
-		assert.notEqual(fileInput.getDescription(), 'My Description');
+		assert.notStrictEqual(fileInput.getName(), 'My Name');
+		assert.notStrictEqual(fileInput.getDescription(), 'My Description');
 
 		fileInput.setPreferredName('My Name 2');
 		fileInput.setPreferredDescription('My Description 2');
 
-		assert.notEqual(fileInput.getName(), 'My Name 2');
-		assert.notEqual(fileInput.getDescription(), 'My Description 2');
+		assert.notStrictEqual(fileInput.getName(), 'My Name 2');
+		assert.notStrictEqual(fileInput.getDescription(), 'My Description 2');
 
-		assert.equal(didChangeLabelCounter, 0);
+		assert.strictEqual(didChangeLabelCounter, 0);
 
 		fileInput.dispose();
 	});

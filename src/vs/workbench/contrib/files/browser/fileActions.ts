@@ -392,7 +392,7 @@ export function incrementFileName(name: string, isFolder: boolean, incrementalNa
 
 	// file => file1
 	// file1 => file2
-	let noExtensionRegex = RegExp('(.*)(\d*)$');
+	let noExtensionRegex = RegExp('(.*)(\\d*)$');
 	if (!isFolder && lastIndexOfDot === -1 && name.match(noExtensionRegex)) {
 		return name.replace(noExtensionRegex, (match, g1?, g2?) => {
 			let number = parseInt(g2);

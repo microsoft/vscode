@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8" standalone="no" ?>
+<WorkFine>
+  <NoColorWithNonLatinCharacters_АБВ NextTagnotWork="something" Поле="tagnotwork">
+     <WorkFine/>
+     <Error_АБВГД/>
+  </NoColorWithNonLatinCharacters_АБВ>
+</WorkFine>

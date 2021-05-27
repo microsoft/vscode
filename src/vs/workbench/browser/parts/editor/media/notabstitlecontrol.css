@@ -82,6 +82,11 @@
 	display: none; /* hides chevrons when no tabs visible */
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .breadcrumbs-control .monaco-icon-label::before {
+	height: 18px;
+	padding-right: 2px;
+}
+
 /* Editor Actions Toolbar (via title actions) */
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .title-actions {

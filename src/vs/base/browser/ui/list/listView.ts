@@ -64,6 +64,7 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly mouseSupport?: boolean;
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
 	readonly transformOptimization?: boolean;
+	readonly alwaysConsumeMouseWheel?: boolean;
 }
 
 const DefaultOptions = {
@@ -80,7 +81,8 @@ const DefaultOptions = {
 		drop() { }
 	},
 	horizontalScrolling: false,
-	transformOptimization: true
+	transformOptimization: true,
+	alwaysConsumeMouseWheel: true,
 };
 
 export class ElementsDragAndDropData<T, TContext = void> implements IDragAndDropData {
@@ -327,6 +329,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 		this.scrollable = new Scrollable(getOrDefault(options, o => o.smoothScrolling, false) ? 125 : 0, cb => scheduleAtNextAnimationFrame(cb));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
+			alwaysConsumeMouseWheel: getOrDefault(options, o => o.alwaysConsumeMouseWheel, DefaultOptions.alwaysConsumeMouseWheel),
 			horizontal: ScrollbarVisibility.Auto,
 			vertical: getOrDefault(options, o => o.verticalScrollMode, DefaultOptions.verticalScrollMode),
 			useShadows: getOrDefault(options, o => o.useShadows, DefaultOptions.useShadows),
@@ -510,9 +513,19 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 				const item = this.items[i];
 				const rows = rowsToDispose.get(item.templateId);
 				const rowData = rows?.pop();
-				const row = rowData && rowData[0]; // try to reuse a row
 
-				this.insertItemInDOM(i, beforeElement, row);
+				if (!rowData) {
+					this.insertItemInDOM(i, beforeElement);
+				} else {
+					const [row, element, index, size] = rowData;
+					const renderer = this.renderers.get(item.templateId);
+
+					if (renderer && renderer.disposeElement) {
+						renderer.disposeElement(element, index, row.templateData, size);
+					}
+
+					this.insertItemInDOM(i, beforeElement, row);
+				}
 			}
 		}
 

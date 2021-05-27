@@ -15,17 +15,13 @@ export class StateElement<T extends ITestTreeElement> implements ITestTreeElemen
 	public computedState = this.state;
 
 	public get treeId() {
-		return `state:${this.state}`;
+		return `sestate:${this.state}`;
 	}
 
 	public readonly depth = 0;
 	public readonly label = testStateNames[this.state];
 	public readonly parentItem = null;
 	public readonly children = new Set<T>();
-
-	getChildren(): Iterable<T> {
-		return this.children;
-	}
 
 	public get runnable() {
 		return Iterable.concatNested(Iterable.map(this.children, c => c.runnable));

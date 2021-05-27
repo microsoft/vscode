@@ -68,7 +68,7 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
-	return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+	return LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100);
 }
 
 /**

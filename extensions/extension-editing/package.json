@@ -1,64 +1,71 @@
 {
-	"name": "extension-editing",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
-	"engines": {
-		"vscode": "^1.4.0"
-	},
-	"activationEvents": [
-		"onLanguage:json",
-		"onLanguage:markdown",
-		"onLanguage:typescript"
-	],
-	"main": "./out/extensionEditingMain",
-	"browser": "./dist/browser/extensionEditingBrowserMain",
-	"scripts": {
-		"compile": "gulp compile-extension:extension-editing",
-		"watch": "gulp watch-extension:extension-editing"
-	},
-	"dependencies": {
-		"jsonc-parser": "^2.2.1",
-		"markdown-it": "^8.3.1",
-		"parse5": "^3.0.2",
-		"vscode-nls": "^4.1.1"
-	},
-	"contributes": {
-		"jsonValidation": [
-			{
-				"fileMatch": "package.json",
-				"url": "vscode://schemas/vscode-extensions"
-			},
-			{
-				"fileMatch": "*language-configuration.json",
-				"url": "vscode://schemas/language-configuration"
-			},
-			{
-				"fileMatch": ["*icon-theme.json", "!*product-icon-theme.json"],
-				"url": "vscode://schemas/icon-theme"
-			},
-			{
-				"fileMatch": "*product-icon-theme.json",
-				"url": "vscode://schemas/product-icon-theme"
-			},
-			{
-				"fileMatch": "*color-theme.json",
-				"url": "vscode://schemas/color-theme"
-			}
-		],
-		"languages": [
-			{
-				"id": "ignore",
-				"filenames": [
-					".vscodeignore"
-				]
-			}
-		]
-	},
-	"devDependencies": {
-		"@types/markdown-it": "0.0.2",
-		"@types/node": "^12.19.9"
-	}
+  "name": "extension-editing",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.4.0"
+  },
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:markdown",
+    "onLanguage:typescript"
+  ],
+  "main": "./out/extensionEditingMain",
+  "browser": "./dist/browser/extensionEditingBrowserMain",
+  "scripts": {
+    "compile": "gulp compile-extension:extension-editing",
+    "watch": "gulp watch-extension:extension-editing"
+  },
+  "dependencies": {
+    "jsonc-parser": "^2.2.1",
+    "markdown-it": "^8.3.1",
+    "parse5": "^3.0.2",
+    "vscode-nls": "^4.1.1"
+  },
+  "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "vscode://schemas/vscode-extensions"
+      },
+      {
+        "fileMatch": "*language-configuration.json",
+        "url": "vscode://schemas/language-configuration"
+      },
+      {
+        "fileMatch": [
+          "*icon-theme.json",
+          "!*product-icon-theme.json"
+        ],
+        "url": "vscode://schemas/icon-theme"
+      },
+      {
+        "fileMatch": "*product-icon-theme.json",
+        "url": "vscode://schemas/product-icon-theme"
+      },
+      {
+        "fileMatch": "*color-theme.json",
+        "url": "vscode://schemas/color-theme"
+      }
+    ],
+    "languages": [
+      {
+        "id": "ignore",
+        "filenames": [
+          ".vscodeignore"
+        ]
+      }
+    ]
+  },
+  "devDependencies": {
+    "@types/markdown-it": "0.0.2",
+    "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

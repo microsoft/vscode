@@ -37,7 +37,7 @@ function withWebview(accessor: ServicesAccessor, f: (webviewe: ElectronWebviewBa
 	return false;
 }
 
-const PRIORITY = 100;
+const PRIORITY = 105;
 
 UndoCommand.addImplementation(PRIORITY, accessor => {
 	return withWebview(accessor, webview => webview.undo());

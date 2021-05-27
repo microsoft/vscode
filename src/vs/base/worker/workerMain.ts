@@ -5,10 +5,14 @@
 
 (function () {
 
-	let MonacoEnvironment = (<any>self).MonacoEnvironment;
-	let monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
+	const MonacoEnvironment = (<any>self).MonacoEnvironment;
+	const monacoBaseUrl = MonacoEnvironment && MonacoEnvironment.baseUrl ? MonacoEnvironment.baseUrl : '../../../';
 
-	const trustedTypesPolicy = self.trustedTypes?.createPolicy('amdLoader', { createScriptURL: value => value });
+	const trustedTypesPolicy = (
+		typeof self.trustedTypes?.createPolicy === 'function'
+			? self.trustedTypes?.createPolicy('amdLoader', { createScriptURL: value => value })
+			: undefined
+	);
 
 	if (typeof (<any>self).define !== 'function' || !(<any>self).define.amd) {
 		let loaderSrc: string | TrustedScriptURL = monacoBaseUrl + 'vs/loader.js';

@@ -67,6 +67,22 @@ export class NativeResolvedKeybinding extends BaseResolvedKeybinding<ScanCodeBin
 	protected _getDispatchPart(keybinding: ScanCodeBinding): string | null {
 		return this._mapper.getDispatchStrForScanCodeBinding(keybinding);
 	}
+
+	protected _getSingleModifierDispatchPart(keybinding: ScanCodeBinding): string | null {
+		if ((keybinding.scanCode === ScanCode.ControlLeft || keybinding.scanCode === ScanCode.ControlRight) && !keybinding.shiftKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'ctrl';
+		}
+		if ((keybinding.scanCode === ScanCode.AltLeft || keybinding.scanCode === ScanCode.AltRight) && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.metaKey) {
+			return 'alt';
+		}
+		if ((keybinding.scanCode === ScanCode.ShiftLeft || keybinding.scanCode === ScanCode.ShiftRight) && !keybinding.ctrlKey && !keybinding.altKey && !keybinding.metaKey) {
+			return 'shift';
+		}
+		if ((keybinding.scanCode === ScanCode.MetaLeft || keybinding.scanCode === ScanCode.MetaRight) && !keybinding.ctrlKey && !keybinding.shiftKey && !keybinding.altKey) {
+			return 'meta';
+		}
+		return null;
+	}
 }
 
 interface IScanCodeMapping {

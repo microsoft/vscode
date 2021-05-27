@@ -9,6 +9,7 @@ import { ITelemetryService, ITelemetryInfo, ITelemetryData } from 'vs/platform/t
 import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { safeStringify } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
+import { Promises } from 'vs/base/common/async';
 
 export const NullTelemetryService = new class implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
@@ -47,7 +48,7 @@ export interface ITelemetryAppender {
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
 	return {
 		log: (e, d) => appenders.forEach(a => a.log(e, d)),
-		flush: () => Promise.all(appenders.map(a => a.flush()))
+		flush: () => Promises.settled(appenders.map(a => a.flush()))
 	};
 }
 

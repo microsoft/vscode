@@ -498,7 +498,7 @@ export class RevertAndCloseEditorAction extends Action {
 				await this.editorService.revert({ editor, groupId: group.id }, { soft: true });
 			}
 
-			group.closeEditor(editor);
+			return group.closeEditor(editor);
 		}
 	}
 }
@@ -572,7 +572,7 @@ abstract class BaseCloseAllAction extends Action {
 		// Otherwise ask for combined confirmation and make sure
 		// to bring each dirty editor to the front so that the user
 		// can review if the files should be changed or not.
-		await Promise.all(this.groupsToClose.map(async groupToClose => {
+		await Promise.all(this.groupsToClose.map(groupToClose => {
 			for (const editor of groupToClose.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE, { excludeSticky: this.excludeSticky })) {
 				if (editor.isDirty() && !editor.isSaving() /* ignore editors that are being saved */) {
 					return groupToClose.openEditor(editor);

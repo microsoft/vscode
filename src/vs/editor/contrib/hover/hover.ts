@@ -139,7 +139,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
 		let targetType = mouseEvent.target.type;
 
-		if (this._isMouseDown && this._hoverClicked && this._contentWidget?.isColorPickerVisible()) {
+		if (this._isMouseDown && this._hoverClicked) {
 			return;
 		}
 
@@ -219,6 +219,7 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
+		this._hoverClicked = false;
 		this._glyphWidget?.hide();
 		this._contentWidget?.hide();
 	}

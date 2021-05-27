@@ -172,6 +172,24 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		this.setDecorationsScheduler.schedule();
 	}
 
+	/**
+	 * Returns context menu actions at the line number if breakpoints can be
+	 * set. This is used by the {@link TestingDecorations} to allow breakpoint
+	 * setting on lines where breakpoint "run" actions are present.
+	 */
+	public getContextMenuActionsAtPosition(lineNumber: number, model: ITextModel) {
+		if (!this.debugService.getAdapterManager().hasDebuggers()) {
+			return [];
+		}
+
+		if (!this.debugService.canSetBreakpointsIn(model)) {
+			return [];
+		}
+
+		const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber, uri: model.uri });
+		return this.getContextMenuActions(breakpoints, model.uri, lineNumber);
+	}
+
 	private registerListeners(): void {
 		this.toDispose.push(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!this.debugService.getAdapterManager().hasDebuggers()) {
@@ -376,7 +394,8 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		const decorations = this.editor.getLineDecorations(line);
 		if (decorations) {
 			for (const { options } of decorations) {
-				if (options.glyphMarginClassName && options.glyphMarginClassName.indexOf('codicon-') === -1) {
+				const clz = options.glyphMarginClassName;
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-'))) {
 					return false;
 				}
 			}

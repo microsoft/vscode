@@ -45,10 +45,13 @@
 }
 
 .monaco-hover hr {
+	box-sizing: border-box;
+	border-left: 0px;
+	border-right: 0px;
 	margin-top: 4px;
 	margin-bottom: -4px;
-	margin-left: -10px;
-	margin-right: -10px;
+	margin-left: -8px;
+	margin-right: -8px;
 	height: 1px;
 }
 

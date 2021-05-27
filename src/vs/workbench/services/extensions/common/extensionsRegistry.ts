@@ -301,6 +301,11 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{
+						label: 'onOpenExternalUri',
+						body: 'onOpenExternalUri',
+						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+					},
+					{
 						label: 'onCustomEditor',
 						body: 'onCustomEditor:${9:viewType}',
 						description: nls.localize('vscode.extension.activationEvents.onCustomEditor', 'An activation event emitted whenever the specified custom editor becomes visible.'),

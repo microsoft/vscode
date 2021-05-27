@@ -6,7 +6,7 @@
 /* eslint-disable code-no-standalone-editor */
 /* eslint-disable code-import-patterns */
 
-import { ConsoleLogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, LogService } from 'vs/platform/log/common/log';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { URI } from 'vs/base/common/uri';
 import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
@@ -173,7 +173,7 @@ export class SimpleWorkspaceService implements IWorkspaceContextService {
 
 	getWorkspaceFolder(resource: URI): IWorkspaceFolder | null { return resource && resource.scheme === workspaceResource.scheme ? this.workspace.folders[0] : null; }
 	isInsideWorkspace(resource: URI): boolean { return resource && resource.scheme === workspaceResource.scheme; }
-	isCurrentWorkspace(workspaceIdentifier: ISingleFolderWorkspaceIdentifier | IWorkspaceIdentifier): boolean { return true; }
+	isCurrentWorkspace(workspaceIdOrFolder: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | URI): boolean { return true; }
 }
 
 //#endregion
@@ -197,7 +197,13 @@ export class SimpleConfigurationService extends BaseSimpleConfigurationService i
 
 //#region Logger
 
-export class SimpleLogService extends ConsoleLogService { }
+export class SimpleLogService extends LogService {
+
+	constructor() {
+		super(new ConsoleLogger());
+	}
+
+}
 
 export class SimpleSignService implements ISignService {
 

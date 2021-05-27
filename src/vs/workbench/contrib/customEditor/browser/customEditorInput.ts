@@ -20,7 +20,6 @@ import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/c
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
@@ -47,7 +46,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		@ILabelService private readonly labelService: ILabelService,
 		@ICustomEditorService private readonly customEditorService: ICustomEditorService,
 		@IFileDialogService private readonly fileDialogService: IFileDialogService,
-		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IUndoRedoService private readonly undoRedoService: IUndoRedoService,
 	) {
@@ -116,22 +114,6 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			return !!this._defaultDirtyState;
 		}
 		return this._modelRef.object.isDirty();
-	}
-
-	public isSaving(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never saving automatically
-		}
-
-		if (!this.isDirty()) {
-			return false; // the editor needs to be dirty for being saved
-		}
-
-		if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
-		return false;
 	}
 
 	public async save(groupId: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {

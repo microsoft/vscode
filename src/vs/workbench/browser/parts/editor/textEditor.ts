@@ -233,7 +233,6 @@ export abstract class BaseTextEditor extends EditorPane implements ITextEditorPa
 		return undefined;
 	}
 
-
 	protected saveTextEditorViewState(resource: URI, cleanUpOnDispose?: IEditorInput): void {
 		const editorViewState = this.retrieveTextEditorViewState(resource);
 		if (!editorViewState || !this.group) {

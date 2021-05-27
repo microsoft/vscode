@@ -45,7 +45,7 @@ class TestingConfig implements IDisposable {
 	}
 
 	public get diagnostics() {
-		return this.section.get(Constants.EnableDiagnosticsConfig, true);
+		return this.section.get(Constants.EnableDiagnosticsConfig, false);
 	}
 
 	public get isEnabled() {

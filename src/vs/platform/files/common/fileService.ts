@@ -13,9 +13,9 @@ import { IExtUri, extUri, extUriIgnorePathCase, isAbsolutePath } from 'vs/base/c
 import { TernarySearchTree } from 'vs/base/common/map';
 import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
-import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, bufferToStream, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
-import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream } from 'vs/base/common/stream';
-import { Queue } from 'vs/base/common/async';
+import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
+import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, IReadableStreamObservable, observe } from 'vs/base/common/stream';
+import { Promises, Queue } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
@@ -91,7 +91,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// If the provider is not yet there, make sure to join on the listeners assuming
 		// that it takes a bit longer to register the file system provider.
-		await Promise.all(joiners);
+		await Promises.settled(joiners);
 	}
 
 	canHandleResource(resource: URI): boolean {
@@ -239,7 +239,7 @@ export class FileService extends Disposable implements IFileService {
 		if (fileStat.isDirectory && recurse(fileStat, siblings)) {
 			try {
 				const entries = await provider.readdir(resource);
-				const resolvedEntries = await Promise.all(entries.map(async ([name, type]) => {
+				const resolvedEntries = await Promises.settled(entries.map(async ([name, type]) => {
 					try {
 						const childResource = providerExtUri.joinPath(resource, name);
 						const childStat = resolveMetadata ? await provider.stat(childResource) : { type };
@@ -269,7 +269,7 @@ export class FileService extends Disposable implements IFileService {
 	async resolveAll(toResolve: { resource: URI, options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]>;
 	async resolveAll(toResolve: { resource: URI, options: IResolveMetadataFileOptions; }[]): Promise<IResolveFileResultWithMetadata[]>;
 	async resolveAll(toResolve: { resource: URI; options?: IResolveFileOptions; }[]): Promise<IResolveFileResult[]> {
-		return Promise.all(toResolve.map(async entry => {
+		return Promises.settled(toResolve.map(async entry => {
 			try {
 				return { stat: await this.doResolveFile(entry.resource, entry.options), success: true };
 			} catch (error) {
@@ -454,6 +454,8 @@ export class FileService extends Disposable implements IFileService {
 			throw error;
 		});
 
+		let fileStreamObserver: IReadableStreamObservable | undefined = undefined;
+
 		try {
 
 			// if the etag is provided, we await the result of the validation
@@ -464,30 +466,41 @@ export class FileService extends Disposable implements IFileService {
 				await statPromise;
 			}
 
-			let fileStreamPromise: Promise<VSBufferReadableStream>;
+			let fileStream: VSBufferReadableStream | undefined = undefined;
 
 			// read unbuffered (only if either preferred, or the provider has no buffered read capability)
 			if (!(hasOpenReadWriteCloseCapability(provider) || hasFileReadStreamCapability(provider)) || (hasReadWriteCapability(provider) && options?.preferUnbuffered)) {
-				fileStreamPromise = this.readFileUnbuffered(provider, resource, options);
+				fileStream = this.readFileUnbuffered(provider, resource, options);
 			}
 
 			// read streamed (always prefer over primitive buffered read)
 			else if (hasFileReadStreamCapability(provider)) {
-				fileStreamPromise = Promise.resolve(this.readFileStreamed(provider, resource, cancellableSource.token, options));
+				fileStream = this.readFileStreamed(provider, resource, cancellableSource.token, options);
 			}
 
 			// read buffered
 			else {
-				fileStreamPromise = Promise.resolve(this.readFileBuffered(provider, resource, cancellableSource.token, options));
+				fileStream = this.readFileBuffered(provider, resource, cancellableSource.token, options);
 			}
 
-			const [fileStat, fileStream] = await Promise.all([statPromise, fileStreamPromise]);
+			// observe the stream for the error case below
+			fileStreamObserver = observe(fileStream);
+
+			const fileStat = await statPromise;
 
 			return {
 				...fileStat,
 				value: fileStream
 			};
 		} catch (error) {
+
+			// Await the stream to finish so that we exit this method
+			// in a consistent state with file handles closed
+			// (https://github.com/microsoft/vscode/issues/114024)
+			if (fileStreamObserver) {
+				await fileStreamObserver.errorOrEnd();
+			}
+
 			throw new FileOperationError(localize('err.read', "Unable to read file '{0}' ({1})", this.resourceForError(resource), ensureFileSystemProviderError(error).toString()), toFileOperationResult(error), options);
 		}
 	}
@@ -513,23 +526,36 @@ export class FileService extends Disposable implements IFileService {
 		return stream;
 	}
 
-	private async readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): Promise<VSBufferReadableStream> {
-		let buffer = await provider.readFile(resource);
+	private readFileUnbuffered(provider: IFileSystemProviderWithFileReadWriteCapability, resource: URI, options?: IReadFileOptions): VSBufferReadableStream {
+		const stream = newWriteableStream<VSBuffer>(data => VSBuffer.concat(data));
 
-		// respect position option
-		if (options && typeof options.position === 'number') {
-			buffer = buffer.slice(options.position);
-		}
+		// Read the file into the stream async but do not wait for
+		// this to complete because streams work via events
+		(async () => {
+			try {
+				let buffer = await provider.readFile(resource);
 
-		// respect length option
-		if (options && typeof options.length === 'number') {
-			buffer = buffer.slice(0, options.length);
-		}
+				// respect position option
+				if (options && typeof options.position === 'number') {
+					buffer = buffer.slice(options.position);
+				}
 
-		// Throw if file is too large to load
-		this.validateReadFileLimits(resource, buffer.byteLength, options);
+				// respect length option
+				if (options && typeof options.length === 'number') {
+					buffer = buffer.slice(0, options.length);
+				}
 
-		return bufferToStream(VSBuffer.wrap(buffer));
+				// Throw if file is too large to load
+				this.validateReadFileLimits(resource, buffer.byteLength, options);
+
+				// End stream with data
+				stream.end(VSBuffer.wrap(buffer));
+			} catch (err) {
+				stream.error(err);
+			}
+		})();
+
+		return stream;
 	}
 
 	private async validateReadFile(resource: URI, options?: IReadFileOptions): Promise<IFileStatWithMetadata> {
@@ -675,7 +701,6 @@ export class FileService extends Disposable implements IFileService {
 			// across providers: copy to target & delete at source
 			else {
 				await this.doMoveCopy(sourceProvider, source, targetProvider, target, 'copy', overwrite);
-
 				await this.del(source, { recursive: true });
 
 				return 'copy';
@@ -713,7 +738,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// create children in target
 		if (Array.isArray(sourceFolder.children)) {
-			await Promise.all(sourceFolder.children.map(async sourceChild => {
+			await Promises.settled(sourceFolder.children.map(async sourceChild => {
 				const targetChild = this.getExtUri(targetProvider).providerExtUri.joinPath(targetFolder, sourceChild.name);
 				if (sourceChild.isDirectory) {
 					return this.doCopyFolder(sourceProvider, await this.resolve(sourceChild.resource), targetProvider, targetChild);
@@ -1145,7 +1170,7 @@ export class FileService extends Disposable implements IFileService {
 		} catch (error) {
 			throw ensureFileSystemProviderError(error);
 		} finally {
-			await Promise.all([
+			await Promises.settled([
 				typeof sourceHandle === 'number' ? sourceProvider.close(sourceHandle) : Promise.resolve(),
 				typeof targetHandle === 'number' ? targetProvider.close(targetHandle) : Promise.resolve(),
 			]);

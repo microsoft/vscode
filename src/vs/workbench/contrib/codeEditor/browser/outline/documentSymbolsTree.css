@@ -20,11 +20,6 @@
 	color: var(--outline-element-color);
 }
 
-.monaco-list .outline-element .monaco-icon-label-container .monaco-highlighted-label,
-.monaco-list .outline-element .monaco-icon-label-container .label-description {
-	white-space: nowrap;
-}
-
 .monaco-breadcrumbs .outline-element .outline-element-decoration,
 .monaco-list .outline-element .outline-element-decoration {
 	opacity: 0.75;

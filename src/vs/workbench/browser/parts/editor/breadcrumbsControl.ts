@@ -251,12 +251,13 @@ export class BreadcrumbsControl {
 
 		// honor diff editors and such
 		const uri = EditorResourceAccessor.getCanonicalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		const wasHidden = this.isHidden();
 
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			// cleanup and return when there is no input or when
 			// we cannot handle this input
 			this._ckBreadcrumbsPossible.set(false);
-			if (!this.isHidden()) {
+			if (!wasHidden) {
 				this.hide();
 				return true;
 			} else {
@@ -315,7 +316,7 @@ export class BreadcrumbsControl {
 			}
 		});
 
-		return true;
+		return wasHidden !== this.isHidden();
 	}
 
 	private _onFocusEvent(event: IBreadcrumbsItemEvent): void {

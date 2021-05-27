@@ -136,6 +136,8 @@ export interface IExtensionContributions {
 
 export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
+export type ExtensionWorkspaceTrustRequirement = false | 'onStart' | 'onDemand';
+
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
 	return thing
 		&& typeof thing === 'object'
@@ -162,8 +164,8 @@ export const EXTENSION_CATEGORIES = [
 	'Programming Languages',
 	'SCM Providers',
 	'Snippets',
-	'Themes',
 	'Testing',
+	'Themes',
 	'Visualization',
 	'Other',
 ];
@@ -190,6 +192,7 @@ export interface IExtensionManifest {
 	readonly enableProposedApi?: boolean;
 	readonly api?: string;
 	readonly scripts?: { [key: string]: string; };
+	readonly requiresWorkspaceTrust?: ExtensionWorkspaceTrustRequirement;
 }
 
 export const enum ExtensionType {

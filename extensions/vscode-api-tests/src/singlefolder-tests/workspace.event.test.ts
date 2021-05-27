@@ -5,16 +5,15 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, withLogDisabled } from '../utils';
+import { assertNoRpc, createRandomFile, disposeAll, withLogDisabled } from '../utils';
 
 suite('vscode API - workspace events', () => {
 
 	const disposables: vscode.Disposable[] = [];
 
 	teardown(() => {
-		for (const dispo of disposables) {
-			dispo.dispose();
-		}
+		assertNoRpc();
+		disposeAll(disposables);
 		disposables.length = 0;
 	});
 

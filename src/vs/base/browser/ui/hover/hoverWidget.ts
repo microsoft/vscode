@@ -28,7 +28,7 @@ export class HoverWidget extends Disposable {
 		this.contentsDomNode.className = 'monaco-hover-content';
 
 		this._scrollbar = this._register(new DomScrollableElement(this.contentsDomNode, {
-			alwaysConsumeMouseWheel: true
+			consumeMouseWheelIfScrollbarIsNeeded: true
 		}));
 		this.containerDomNode.appendChild(this._scrollbar.getDomNode());
 	}

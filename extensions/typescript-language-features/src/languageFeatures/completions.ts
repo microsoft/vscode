@@ -45,6 +45,11 @@ interface CompletionContext {
 	readonly useFuzzyWordRangeLogic: boolean,
 }
 
+type ResolvedCompletionItem = {
+	readonly edits?: readonly vscode.TextEdit[];
+	readonly commands: readonly vscode.Command[];
+};
+
 class MyCompletionItem extends vscode.CompletionItem {
 
 	public readonly useCodeSnippet: boolean;
@@ -133,6 +138,192 @@ class MyCompletionItem extends vscode.CompletionItem {
 		}
 
 		this.resolveRange();
+	}
+
+	private _resolvedPromise?: {
+		readonly requestToken: vscode.CancellationTokenSource;
+		readonly promise: Promise<ResolvedCompletionItem | undefined>;
+		waiting: number;
+	};
+
+	public async resolveCompletionItem(
+		client: ITypeScriptServiceClient,
+		token: vscode.CancellationToken,
+	): Promise<ResolvedCompletionItem | undefined> {
+		token.onCancellationRequested(() => {
+			if (this._resolvedPromise && --this._resolvedPromise.waiting <= 0) {
+				// Give a little extra time for another caller to come in
+				setTimeout(() => {
+					if (this._resolvedPromise && this._resolvedPromise.waiting <= 0) {
+						this._resolvedPromise.requestToken.cancel();
+					}
+				}, 300);
+			}
+		});
+
+		if (this._resolvedPromise) {
+			++this._resolvedPromise.waiting;
+			return this._resolvedPromise.promise;
+		}
+
+		const requestToken = new vscode.CancellationTokenSource();
+
+		const promise = (async (): Promise<ResolvedCompletionItem | undefined> => {
+			const filepath = client.toOpenedFilePath(this.document);
+			if (!filepath) {
+				return undefined;
+			}
+
+			const args: Proto.CompletionDetailsRequestArgs = {
+				...typeConverters.Position.toFileLocationRequestArgs(filepath, this.position),
+				entryNames: [
+					this.tsEntry.source ? { name: this.tsEntry.name, source: this.tsEntry.source } : this.tsEntry.name
+				]
+			};
+			const response = await client.interruptGetErr(() => client.execute('completionEntryDetails', args, requestToken.token));
+			if (response.type !== 'response' || !response.body || !response.body.length) {
+				return undefined;
+			}
+
+			const detail = response.body[0];
+
+			if (!this.detail && detail.displayParts.length) {
+				this.detail = Previewer.plain(detail.displayParts);
+			}
+			this.documentation = this.getDocumentation(detail, this);
+
+			const codeAction = this.getCodeActions(detail, filepath);
+			const commands: vscode.Command[] = [{
+				command: CompletionAcceptedCommand.ID,
+				title: '',
+				arguments: [this]
+			}];
+			if (codeAction.command) {
+				commands.push(codeAction.command);
+			}
+			const additionalTextEdits = codeAction.additionalTextEdits;
+
+			if (this.useCodeSnippet) {
+				const shouldCompleteFunction = await this.isValidFunctionCompletionContext(client, filepath, this.position, this.document, token);
+				if (shouldCompleteFunction) {
+					const { snippet, parameterCount } = snippetForFunctionCall(this, detail.displayParts);
+					this.insertText = snippet;
+					if (parameterCount > 0) {
+						//Fix for https://github.com/microsoft/vscode/issues/104059
+						//Don't show parameter hints if "editor.parameterHints.enabled": false
+						if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
+							commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
+						}
+					}
+				}
+			}
+
+			return { commands, edits: additionalTextEdits };
+		})();
+
+		this._resolvedPromise = {
+			promise,
+			requestToken,
+			waiting: 1,
+		};
+
+		return this._resolvedPromise.promise;
+	}
+
+	private getDocumentation(
+		detail: Proto.CompletionEntryDetails,
+		item: MyCompletionItem
+	): vscode.MarkdownString | undefined {
+		const documentation = new vscode.MarkdownString();
+		if (detail.source) {
+			const importPath = `'${Previewer.plain(detail.source)}'`;
+			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
+			item.detail = `${autoImportLabel}\n${item.detail}`;
+		}
+		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
+
+		return documentation.value.length ? documentation : undefined;
+	}
+
+	private async isValidFunctionCompletionContext(
+		client: ITypeScriptServiceClient,
+		filepath: string,
+		position: vscode.Position,
+		document: vscode.TextDocument,
+		token: vscode.CancellationToken
+	): Promise<boolean> {
+		// Workaround for https://github.com/microsoft/TypeScript/issues/12677
+		// Don't complete function calls inside of destructive assignments or imports
+		try {
+			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
+			const response = await client.execute('quickinfo', args, token);
+			if (response.type === 'response' && response.body) {
+				switch (response.body.kind) {
+					case 'var':
+					case 'let':
+					case 'const':
+					case 'alias':
+						return false;
+				}
+			}
+		} catch {
+			// Noop
+		}
+
+		// Don't complete function call if there is already something that looks like a function call
+		// https://github.com/microsoft/vscode/issues/18131
+		const after = document.lineAt(position.line).text.slice(position.character);
+		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
+	}
+
+	private getCodeActions(
+		detail: Proto.CompletionEntryDetails,
+		filepath: string
+	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
+		if (!detail.codeActions || !detail.codeActions.length) {
+			return {};
+		}
+
+		// Try to extract out the additionalTextEdits for the current file.
+		// Also check if we still have to apply other workspace edits and commands
+		// using a vscode command
+		const additionalTextEdits: vscode.TextEdit[] = [];
+		let hasRemainingCommandsOrEdits = false;
+		for (const tsAction of detail.codeActions) {
+			if (tsAction.commands) {
+				hasRemainingCommandsOrEdits = true;
+			}
+
+			// Apply all edits in the current file using `additionalTextEdits`
+			if (tsAction.changes) {
+				for (const change of tsAction.changes) {
+					if (change.fileName === filepath) {
+						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
+					} else {
+						hasRemainingCommandsOrEdits = true;
+					}
+				}
+			}
+		}
+
+		let command: vscode.Command | undefined = undefined;
+		if (hasRemainingCommandsOrEdits) {
+			// Create command that applies all edits not in the current file.
+			command = {
+				title: '',
+				command: ApplyCompletionCodeActionCommand.ID,
+				arguments: [filepath, detail.codeActions.map((x): Proto.CodeAction => ({
+					commands: x.commands,
+					description: x.description,
+					changes: x.changes.filter(x => x.fileName !== filepath)
+				}))]
+			};
+		}
+
+		return {
+			command,
+			additionalTextEdits: additionalTextEdits.length ? additionalTextEdits : undefined
+		};
 	}
 
 	private getRangeFromReplacementSpan(tsEntry: Proto.CompletionEntry, completionContext: CompletionContext, position: vscode.Position) {
@@ -358,6 +549,39 @@ class CompletionAcceptedCommand implements Command {
 	}
 }
 
+/**
+ * Command fired when an completion item needs to be applied
+ */
+class ApplyCompletionCommand implements Command {
+	public static readonly ID = '_typescript.applyCompletionCommand';
+	public readonly id = ApplyCompletionCommand.ID;
+
+	public constructor(
+		private readonly client: ITypeScriptServiceClient,
+	) { }
+
+	public async execute(item: MyCompletionItem) {
+		const resolved = await item.resolveCompletionItem(this.client, nulToken);
+		if (!resolved) {
+			return;
+		}
+
+		const { edits, commands } = resolved;
+
+		if (edits) {
+			const workspaceEdit = new vscode.WorkspaceEdit();
+			for (const edit of edits) {
+				workspaceEdit.replace(item.document.uri, edit.range, edit.newText);
+			}
+			await vscode.workspace.applyEdit(workspaceEdit);
+		}
+
+		for (const command of commands) {
+			await vscode.commands.executeCommand(command.command, ...(command.arguments ?? []));
+		}
+	}
+}
+
 class ApplyCompletionCodeActionCommand implements Command {
 	public static readonly ID = '_typescript.applyCompletionCodeAction';
 	public readonly id = ApplyCompletionCodeActionCommand.ID;
@@ -434,6 +658,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
 		commandManager.register(new CompositeCommand());
 		commandManager.register(new CompletionAcceptedCommand(onCompletionAccepted, this.telemetryReporter));
+		commandManager.register(new ApplyCompletionCommand(this.client));
 	}
 
 	public async provideCompletionItems(
@@ -535,7 +760,13 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		const items: MyCompletionItem[] = [];
 		for (const entry of entries) {
 			if (!shouldExcludeCompletionEntry(entry, completionConfiguration)) {
-				items.push(new MyCompletionItem(position, document, entry, completionContext, metadata));
+				const item = new MyCompletionItem(position, document, entry, completionContext, metadata);
+				item.command = {
+					command: ApplyCompletionCommand.ID,
+					title: '',
+					arguments: [item]
+				};
+				items.push(item);
 				includesPackageJsonImport = !!entry.isPackageJsonImport;
 			}
 		}
@@ -597,119 +828,8 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		item: MyCompletionItem,
 		token: vscode.CancellationToken
 	): Promise<MyCompletionItem | undefined> {
-		const filepath = this.client.toOpenedFilePath(item.document);
-		if (!filepath) {
-			return undefined;
-		}
-
-		const args: Proto.CompletionDetailsRequestArgs = {
-			...typeConverters.Position.toFileLocationRequestArgs(filepath, item.position),
-			entryNames: [
-				item.tsEntry.source ? { name: item.tsEntry.name, source: item.tsEntry.source } : item.tsEntry.name
-			]
-		};
-
-		const response = await this.client.interruptGetErr(() => this.client.execute('completionEntryDetails', args, token));
-		if (response.type !== 'response' || !response.body || !response.body.length) {
-			return item;
-		}
-
-		const detail = response.body[0];
-
-		if (!item.detail && detail.displayParts.length) {
-			item.detail = Previewer.plain(detail.displayParts);
-		}
-		item.documentation = this.getDocumentation(detail, item);
-
-		const codeAction = this.getCodeActions(detail, filepath);
-		const commands: vscode.Command[] = [{
-			command: CompletionAcceptedCommand.ID,
-			title: '',
-			arguments: [item]
-		}];
-		if (codeAction.command) {
-			commands.push(codeAction.command);
-		}
-		item.additionalTextEdits = codeAction.additionalTextEdits;
-
-		if (item.useCodeSnippet) {
-			const shouldCompleteFunction = await this.isValidFunctionCompletionContext(filepath, item.position, item.document, token);
-			if (shouldCompleteFunction) {
-				const { snippet, parameterCount } = snippetForFunctionCall(item, detail.displayParts);
-				item.insertText = snippet;
-				if (parameterCount > 0) {
-					//Fix for https://github.com/microsoft/vscode/issues/104059
-					//Don't show parameter hints if "editor.parameterHints.enabled": false
-					if (vscode.workspace.getConfiguration('editor.parameterHints').get('enabled')) {
-						commands.push({ title: 'triggerParameterHints', command: 'editor.action.triggerParameterHints' });
-					}
-				}
-			}
-		}
-
-		if (commands.length) {
-			if (commands.length === 1) {
-				item.command = commands[0];
-			} else {
-				item.command = {
-					command: CompositeCommand.ID,
-					title: '',
-					arguments: commands
-				};
-			}
-		}
-
+		await item.resolveCompletionItem(this.client, token);
 		return item;
-	}
-
-	private getCodeActions(
-		detail: Proto.CompletionEntryDetails,
-		filepath: string
-	): { command?: vscode.Command, additionalTextEdits?: vscode.TextEdit[] } {
-		if (!detail.codeActions || !detail.codeActions.length) {
-			return {};
-		}
-
-		// Try to extract out the additionalTextEdits for the current file.
-		// Also check if we still have to apply other workspace edits and commands
-		// using a vscode command
-		const additionalTextEdits: vscode.TextEdit[] = [];
-		let hasReaminingCommandsOrEdits = false;
-		for (const tsAction of detail.codeActions) {
-			if (tsAction.commands) {
-				hasReaminingCommandsOrEdits = true;
-			}
-
-			// Apply all edits in the current file using `additionalTextEdits`
-			if (tsAction.changes) {
-				for (const change of tsAction.changes) {
-					if (change.fileName === filepath) {
-						additionalTextEdits.push(...change.textChanges.map(typeConverters.TextEdit.fromCodeEdit));
-					} else {
-						hasReaminingCommandsOrEdits = true;
-					}
-				}
-			}
-		}
-
-		let command: vscode.Command | undefined = undefined;
-		if (hasReaminingCommandsOrEdits) {
-			// Create command that applies all edits not in the current file.
-			command = {
-				title: '',
-				command: ApplyCompletionCodeActionCommand.ID,
-				arguments: [filepath, detail.codeActions.map((x): Proto.CodeAction => ({
-					commands: x.commands,
-					description: x.description,
-					changes: x.changes.filter(x => x.fileName !== filepath)
-				}))]
-			};
-		}
-
-		return {
-			command,
-			additionalTextEdits: additionalTextEdits.length ? additionalTextEdits : undefined
-		};
 	}
 
 	private isInValidCommitCharacterContext(
@@ -740,7 +860,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
 				// make sure we are in something that looks like the start of an import
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+				if (!/\b(from|import)\s*["']$/.test(pre) && !/\b(import|require)\(['"]$/.test(pre)) {
 					return false;
 				}
 			}
@@ -748,7 +868,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if (context.triggerCharacter === '/') {
 				// make sure we are in something that looks like an import path
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+				if (!/\b(from|import)\s*["'][^'"]*$/.test(pre) && !/\b(import|require)\(['"][^'"]*$/.test(pre)) {
 					return false;
 				}
 			}
@@ -756,7 +876,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 			if (context.triggerCharacter === '@') {
 				// make sure we are in something that looks like the start of a jsdoc comment
 				const pre = line.text.slice(0, position.character);
-				if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+				if (!/^\s*\*[ ]?@/.test(pre) && !/\/\*\*+[ ]?@/.test(pre)) {
 					return false;
 				}
 			}
@@ -767,51 +887,6 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider<
 		}
 
 		return true;
-	}
-
-	private getDocumentation(
-		detail: Proto.CompletionEntryDetails,
-		item: MyCompletionItem
-	): vscode.MarkdownString | undefined {
-		const documentation = new vscode.MarkdownString();
-		if (detail.source) {
-			const importPath = `'${Previewer.plain(detail.source)}'`;
-			const autoImportLabel = localize('autoImportLabel', 'Auto import from {0}', importPath);
-			item.detail = `${autoImportLabel}\n${item.detail}`;
-		}
-		Previewer.addMarkdownDocumentation(documentation, detail.documentation, detail.tags);
-
-		return documentation.value.length ? documentation : undefined;
-	}
-
-	private async isValidFunctionCompletionContext(
-		filepath: string,
-		position: vscode.Position,
-		document: vscode.TextDocument,
-		token: vscode.CancellationToken
-	): Promise<boolean> {
-		// Workaround for https://github.com/microsoft/TypeScript/issues/12677
-		// Don't complete function calls inside of destructive assignments or imports
-		try {
-			const args: Proto.FileLocationRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
-			const response = await this.client.execute('quickinfo', args, token);
-			if (response.type === 'response' && response.body) {
-				switch (response.body.kind) {
-					case 'var':
-					case 'let':
-					case 'const':
-					case 'alias':
-						return false;
-				}
-			}
-		} catch {
-			// Noop
-		}
-
-		// Don't complete function call if there is already something that looks like a function call
-		// https://github.com/microsoft/vscode/issues/18131
-		const after = document.lineAt(position.line).text.slice(position.character);
-		return after.match(/^[a-z_$0-9]*\s*\(/gi) === null;
 	}
 }
 

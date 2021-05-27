@@ -341,7 +341,10 @@ export namespace TaskFilterDTO {
 
 class TaskExecutionImpl implements vscode.TaskExecution {
 
-	constructor(private readonly _tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
+	readonly #tasks: ExtHostTaskBase;
+
+	constructor(tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
+		this.#tasks = tasks;
 	}
 
 	public get task(): vscode.Task {
@@ -349,7 +352,7 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 	}
 
 	public terminate(): void {
-		this._tasks.terminateTask(this);
+		this.#tasks.terminateTask(this);
 	}
 
 	public fireDidStartProcess(value: tasks.TaskProcessStartedDTO): void {

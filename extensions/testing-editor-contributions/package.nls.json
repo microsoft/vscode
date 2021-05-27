@@ -7,7 +7,7 @@
 
 	"tooltip.run": "Run {0}",
 	"tooltip.debug": "Debug {0}",
-	"tooltip.runState": "{0}/{0} Tests Passed",
+	"tooltip.runState": "{0}/{1} Tests Passed",
 	"tooltip.runStateWithDuration": "{0}/{1} Tests Passed in {2}",
 
 	"state.failed": "Failed",

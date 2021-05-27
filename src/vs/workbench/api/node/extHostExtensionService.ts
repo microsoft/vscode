@@ -23,7 +23,7 @@ class NodeModuleRequireInterceptor extends RequireInterceptor {
 		const that = this;
 		const node_module = <any>require.__$__nodeRequire('module');
 		const original = node_module._load;
-		node_module._load = function load(request: string, parent: { filename: string; }, isMain: any) {
+		node_module._load = function load(request: string, parent: { filename: string; }, isMain: boolean) {
 			for (let alternativeModuleName of that._alternatives) {
 				let alternative = alternativeModuleName(request);
 				if (alternative) {

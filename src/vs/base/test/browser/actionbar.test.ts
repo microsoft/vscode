@@ -33,28 +33,28 @@ suite('Actionbar', () => {
 		let a2 = new Action('a2');
 
 		actionbar.push(a1);
-		assert.equal(actionbar.hasAction(a1), true);
-		assert.equal(actionbar.hasAction(a2), false);
+		assert.strictEqual(actionbar.hasAction(a1), true);
+		assert.strictEqual(actionbar.hasAction(a2), false);
 
 		actionbar.pull(0);
-		assert.equal(actionbar.hasAction(a1), false);
+		assert.strictEqual(actionbar.hasAction(a1), false);
 
 		actionbar.push(a1, { index: 1 });
 		actionbar.push(a2, { index: 0 });
-		assert.equal(actionbar.hasAction(a1), true);
-		assert.equal(actionbar.hasAction(a2), true);
+		assert.strictEqual(actionbar.hasAction(a1), true);
+		assert.strictEqual(actionbar.hasAction(a2), true);
 
 		actionbar.pull(0);
-		assert.equal(actionbar.hasAction(a1), true);
-		assert.equal(actionbar.hasAction(a2), false);
+		assert.strictEqual(actionbar.hasAction(a1), true);
+		assert.strictEqual(actionbar.hasAction(a2), false);
 
 		actionbar.pull(0);
-		assert.equal(actionbar.hasAction(a1), false);
-		assert.equal(actionbar.hasAction(a2), false);
+		assert.strictEqual(actionbar.hasAction(a1), false);
+		assert.strictEqual(actionbar.hasAction(a2), false);
 
 		actionbar.push(a1);
-		assert.equal(actionbar.hasAction(a1), true);
+		assert.strictEqual(actionbar.hasAction(a1), true);
 		actionbar.clear();
-		assert.equal(actionbar.hasAction(a1), false);
+		assert.strictEqual(actionbar.hasAction(a1), false);
 	});
 });

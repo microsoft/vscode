@@ -23,13 +23,13 @@ suite('MainThreadDocumentContentProviders', function () {
 		let providers = new MainThreadDocumentContentProviders(new TestRPCProtocol(), null!, null!,
 			new class extends mock<IModelService>() {
 				getModel(_uri: URI) {
-					assert.equal(uri.toString(), _uri.toString());
+					assert.strictEqual(uri.toString(), _uri.toString());
 					return model;
 				}
 			},
 			new class extends mock<IEditorWorkerService>() {
 				computeMoreMinimalEdits(_uri: URI, data: TextEdit[] | undefined) {
-					assert.equal(model.getValue(), '1');
+					assert.strictEqual(model.getValue(), '1');
 					return Promise.resolve(data);
 				}
 			},

@@ -40,18 +40,15 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
-		if (!owner || owner === 'codicon/') {
-			return { id: name };
-		}
-		return { id: owner + name };
+		let [, name] = match;
+		return { id: name };
 	}
 
 	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {

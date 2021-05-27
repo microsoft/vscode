@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
@@ -25,7 +26,7 @@ import {
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getMaliciousExtensionsSet, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, ExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
-import { createCancelablePromise, CancelablePromise } from 'vs/base/common/async';
+import { createCancelablePromise, CancelablePromise, Promises } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as semver from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
@@ -130,7 +131,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		const collectFilesFromDirectory = async (dir: string): Promise<string[]> => {
 			let entries = await pfs.readdir(dir);
 			entries = entries.map(e => path.join(dir, e));
-			const stats = await Promise.all(entries.map(e => pfs.stat(e)));
+			const stats = await Promise.all(entries.map(e => fs.promises.stat(e)));
 			let promise: Promise<string[]> = Promise.resolve([]);
 			stats.forEach((stat, index) => {
 				const entry = entries[index];
@@ -459,7 +460,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				const galleryResult = await this.galleryService.query({ names, pageSize: dependenciesAndPackExtensions.length }, CancellationToken.None);
 				const extensionsToInstall = galleryResult.firstPage;
 				try {
-					await Promise.all(extensionsToInstall.map(e => this.installFromGallery(e, options)));
+					await Promises.settled(extensionsToInstall.map(e => this.installFromGallery(e, options)));
 				} catch (error) {
 					try { await this.rollback(extensionsToInstall); } catch (e) { /* ignore */ }
 					throw error;
@@ -471,7 +472,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	private async rollback(extensions: IGalleryExtension[]): Promise<void> {
 		const installed = await this.getInstalled(ExtensionType.User);
 		const extensionsToUninstall = installed.filter(local => extensions.some(galleryExtension => new ExtensionIdentifierWithVersion(local.identifier, local.manifest.version).equals(new ExtensionIdentifierWithVersion(galleryExtension.identifier, galleryExtension.version)))); // Check with version because we want to rollback the exact version
-		await Promise.all(extensionsToUninstall.map(local => this.uninstall(local)));
+		await Promises.settled(extensionsToUninstall.map(local => this.uninstall(local)));
 	}
 
 	async uninstall(extension: ILocalExtension, options: UninstallOptions = {}): Promise<void> {
@@ -555,7 +556,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				this.checkForDependents(e, extensionsToUninstall, installed, extension);
 			}
 		}
-		await Promise.all([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]);
+		await Promises.settled([this.uninstallExtension(extension), ...otherExtensionsToUninstall.map(d => this.doUninstall(d))]);
 	}
 
 	private checkForDependents(extension: ILocalExtension, extensionsToUninstall: ILocalExtension[], installed: ILocalExtension[], extensionToUninstall: ILocalExtension): void {

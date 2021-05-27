@@ -6,14 +6,14 @@
 import { Schemas } from 'vs/base/common/network';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
-import { CustomEditorInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
+import { customEditorInputFactory, CustomEditorInputFactory } from 'vs/workbench/contrib/customEditor/browser/customEditorInputFactory';
 import { ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { WebviewEditor } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditor';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { CustomEditorInput } from './customEditorInput';
 import { CustomEditorContribution, CustomEditorService } from './customEditors';
 
@@ -38,4 +38,4 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 		CustomEditorInputFactory);
 
 Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories)
-	.registerCustomEditorInputFactory(Schemas.vscodeCustomEditor, CustomEditorInputFactory);
+	.registerCustomEditorInputFactory(Schemas.vscodeCustomEditor, customEditorInputFactory);

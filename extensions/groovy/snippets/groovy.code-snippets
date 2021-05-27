@@ -1,0 +1,226 @@
+{
+	"replace(dir: …, includes: …, token: …, value: …)": {
+		"prefix": "replace",
+		"body": "replace(dir:\"${1:dirName}\", includes:\"${2:*.*}\", token:\"${3:tokenName}\", value:\"\\${${4:value}}\")$0",
+		"description": "Replace(...)"
+	},
+	"Doc Block": {
+		"prefix": "doc",
+		"body": [
+			"/**",
+			" * $0",
+			" */"
+		],
+		"description": "Doc block comment"
+	},
+	"key: \"value\" (Hash Pair)": {
+		"prefix": "key",
+		"body": "${1:key}: ${2:\"${3:value}\"}"
+	},
+	"Thread.start { … }": {
+		"prefix": "thread",
+		"body": [
+			"Thread.start {",
+			"\t$0",
+			"}"
+		],
+		"description": "Thread.start { ... }"
+	},
+	"Thread.startDaemon { … }": {
+		"prefix": "thread",
+		"body": [
+			"Thread.startDaemon {",
+			"\t$0",
+			"}"
+		],
+		"description": "Thread.startDaemon { ... }"
+	},
+	"case … break": {
+		"prefix": "case",
+		"body": [
+			"case ${1:CASE_NAME}:",
+			"\t$2",
+			"break$0"
+		],
+		"description": "case ... break"
+	},
+	"instance … (Singleton)": {
+		"prefix": "instance",
+		"body": [
+			"private static $1 instance",
+			"",
+			"static $1 getInstance(${2:args}) { ",
+			"\tif (!instance) instance = new $1(${2:args})",
+			"\treturn instance",
+			"}"
+		],
+		"description": "Singleton instance + Getter"
+	},
+	"class … extends GroovyTestCase { … }": {
+		"prefix": "tc",
+		"body": [
+			"class $1 extends GroovyTestCase {",
+			"",
+			"\t$0",
+			"}"
+		],
+		"description": "GroovyTestCase class"
+	},
+	"copy(file: …, tofile: …) ": {
+		"prefix": "copy",
+		"body": "copy(file:\"${1:sourceFile}\", tofile:\"${2:targetFile}\")",
+		"description": "Copy file"
+	},
+	"copy(todir: …) { fileset(dir: …) { include … exclude }": {
+		"prefix": "copy",
+		"body": [
+			"copy(todir:\"${1:targetDir}\") {",
+			"\tfileset(dir:\"${2:sourceDir}\") {",
+			"\t\tinclude(name:\"${3:includeName}\")",
+			"\t\texclude(name:\"${4:excludeName}\")",
+			"\t}",
+			"}"
+		],
+		"description": "Copy fileset todir w/ include/exclude"
+	},
+	"copy(todir: …) { fileset:dir …) }": {
+		"prefix": "copy",
+		"body": [
+			"copy(todir:\"${1:targetDir}\") {",
+			"\tfileset(dir:\"${2:sourceDir}\")",
+			"}"
+		],
+		"description": "Copy fileset todir"
+	},
+	"closure = { … } ": {
+		"prefix": "cv",
+		"body": [
+			"def ${1:closureName} = { ${2:args} ->",
+			"\t$0",
+			"}"
+		],
+		"description": "Closure block"
+	},
+	"for(… in …) { … }": {
+		"prefix": "forin",
+		"body": [
+			"for (${1:element} in ${2:collection}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "For-loop"
+	},
+	"mkdir(dir: …)": {
+		"prefix": "mkdir",
+		"body": "mkdir(dir:\"${1:dirName}\")",
+		"description": "mkdir"
+	},
+	"print": {
+		"prefix": "p",
+		"body": "print $0",
+		"description": "print"
+	},
+	"println ": {
+		"prefix": "pl",
+		"body": "println $0",
+		"description": "println"
+	},
+	"runAfter() { … }": {
+		"prefix": "runa",
+		"body": [
+			"runAfter(${1:delay}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "runAfter()  { ... }"
+	},
+	"setUp() { … }": {
+		"prefix": "setup",
+		"body": [
+			"void setUp() {",
+			"\t$0",
+			"}"
+		],
+		"description": "setup() { ... }"
+	},
+	"sleep(secs) { … // on interrupt do }": {
+		"prefix": "sleep",
+		"body": [
+			"sleep(${1:secs}) {",
+			"\t${2:// on interrupt do}",
+			"}"
+		],
+		"description": "sleep with interrupt"
+	},
+	"sleep(secs)": {
+		"prefix": "sleep",
+		"body": "sleep(${1:secs})",
+		"description": "sleep"
+	},
+	"sort { … }": {
+		"prefix": "sort",
+		"body": [
+			"sort { ",
+			"\t$0",
+			"}"
+		],
+		"description": "sort"
+	},
+	"static main() { … }": {
+		"prefix": "main",
+		"body": [
+			"static main(args) {",
+			"\t$0",
+			"}"
+		],
+		"description": "main method"
+	},
+	"switch … case": {
+		"prefix": "switch",
+		"body": [
+			"switch(${1:value}) {",
+			"\tcase ${2:CASE}:",
+			"\t\t$3",
+			"\tbreak$0",
+			"}"
+		],
+		"description": "Switch-Case block"
+	},
+	"switch … case … default": {
+		"prefix": "switch",
+		"body": [
+			"switch(${1:value}) {",
+			"\tcase ${3:CASE}:",
+			"\t\t$4",
+			"\tbreak$0",
+			"\tdefault:",
+			"\t\t$2",
+			"\tbreak",
+			"}"
+		],
+		"description": "Switch-Case-Default block"
+	},
+	"tearDown() { … }": {
+		"prefix": "tear",
+		"body": [
+			"void tearDown() {",
+			"\t$0",
+			"}"
+		],
+		"description": "tearDown() { ... }"
+	},
+	"test()": {
+		"prefix": "t",
+		"body": [
+			"void test$1() {",
+			"\t$0",
+			"}"
+		],
+		"description": "test method"
+	},
+	"var": {
+		"prefix": "v",
+		"body": "${1:def} ${2:var}${3: = ${0:null}}",
+		"description": "var"
+	}
+}

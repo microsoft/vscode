@@ -108,17 +108,17 @@ export class DebugService implements IDebugService {
 		this.adapterManager = this.instantiationService.createInstance(AdapterManager);
 		this.configurationManager = this.instantiationService.createInstance(ConfigurationManager, this.adapterManager);
 		this.toDispose.push(this.configurationManager);
+		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 
 		contextKeyService.bufferChangeEvents(() => {
 			this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 			this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);
 			this.inDebugMode = CONTEXT_IN_DEBUG_MODE.bindTo(contextKeyService);
 			this.debugUx = CONTEXT_DEBUG_UX.bindTo(contextKeyService);
-			this.debugUx.set((this.adapterManager.hasDebuggers() && !!this.configurationManager.selectedConfiguration.name) ? 'default' : 'simple');
+			this.debugUx.set(this.debugStorage.loadDebugUxState());
 			this.breakpointsExist = CONTEXT_BREAKPOINTS_EXIST.bindTo(contextKeyService);
 		});
 
-		this.debugStorage = this.instantiationService.createInstance(DebugStorage);
 		this.model = this.instantiationService.createInstance(DebugModel, this.debugStorage);
 		this.telemetry = this.instantiationService.createInstance(DebugTelemetry, this.model);
 		const setBreakpointsExistContext = () => this.breakpointsExist.set(!!(this.model.getBreakpoints().length || this.model.getDataBreakpoints().length || this.model.getFunctionBreakpoints().length));
@@ -154,7 +154,9 @@ export class DebugService implements IDebugService {
 			this.onStateChange();
 		}));
 		this.toDispose.push(Event.any(this.adapterManager.onDidRegisterDebugger, this.configurationManager.onDidSelectConfiguration)(() => {
-			this.debugUx.set(!!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple');
+			const debugUxValue = !!(this.state !== State.Inactive || (this.configurationManager.selectedConfiguration.name && this.adapterManager.hasDebuggers())) ? 'default' : 'simple';
+			this.debugUx.set(debugUxValue);
+			this.debugStorage.storeDebugUxState(debugUxValue);
 		}));
 		this.toDispose.push(this.model.onDidChangeCallStack(() => {
 			const numberOfSessions = this.model.getSessions().filter(s => !s.parentSession).length;
@@ -240,7 +242,9 @@ export class DebugService implements IDebugService {
 				this.debugState.set(getStateLabel(state));
 				this.inDebugMode.set(state !== State.Inactive);
 				// Only show the simple ux if debug is not yet started and if no launch.json exists
-				this.debugUx.set(((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple');
+				const debugUxValue = ((state !== State.Inactive && state !== State.Initializing) || (this.adapterManager.hasDebuggers() && this.configurationManager.selectedConfiguration.name)) ? 'default' : 'simple';
+				this.debugUx.set(debugUxValue);
+				this.debugStorage.storeDebugUxState(debugUxValue);
 			});
 			this.previousState = state;
 			this._onDidChangeState.fire(state);
@@ -926,6 +930,11 @@ export class DebugService implements IDebugService {
 		this.model.removeDataBreakpoints(id);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendDataBreakpoints();
+	}
+
+	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
+		this.model.setExceptionBreakpoints(data);
+		this.debugStorage.storeBreakpoints(this.model);
 	}
 
 	async setExceptionBreakpointCondition(exceptionBreakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void> {

@@ -23,12 +23,13 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { isWeb } from 'vs/base/common/platform';
-import { Barrier } from 'vs/base/common/async';
+import { Barrier, Promises } from 'vs/base/common/async';
 import { IExtensionGalleryService, IExtensionManagementService, IGlobalExtensionEnablementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionService, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { mark } from 'vs/base/common/performance';
+import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 
 export const IUserDataInitializationService = createDecorator<IUserDataInitializationService>('IUserDataInitializationService');
 export interface IUserDataInitializationService {
@@ -148,7 +149,7 @@ export class UserDataInitializationService implements IUserDataInitializationSer
 			return;
 		}
 
-		await Promise.all(syncResources.map(async syncResource => {
+		await Promises.settled(syncResources.map(async syncResource => {
 			try {
 				if (this.initialized.includes(syncResource)) {
 					this.logService.info(`${getSyncAreaLabel(syncResource)} initialized already.`);
@@ -191,11 +192,12 @@ class WorkbenchExtensionsInitializer extends ExtensionsInitializer {
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IGlobalExtensionEnablementService extensionEnablementService: IGlobalExtensionEnablementService,
 		@IStorageService storageService: IStorageService,
+		@IIgnoredExtensionsManagementService ignoredExtensionsManagementService: IIgnoredExtensionsManagementService,
 		@IFileService fileService: IFileService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IUserDataSyncLogService logService: IUserDataSyncLogService,
 	) {
-		super(extensionManagementService, galleryService, extensionEnablementService, storageService, fileService, environmentService, logService);
+		super(extensionManagementService, galleryService, extensionEnablementService, storageService, ignoredExtensionsManagementService, fileService, environmentService, logService);
 	}
 
 	protected async initializeRemoteExtensions(remoteExtensions: ISyncExtension[]): Promise<ILocalExtension[]> {

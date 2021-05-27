@@ -239,7 +239,7 @@ export class SymbolsQuickAccessProvider extends PickerQuickAccessProvider<ISymbo
 
 		// Open HTTP(s) links with opener service
 		if (symbolToOpen.location.uri.scheme === Schemas.http || symbolToOpen.location.uri.scheme === Schemas.https) {
-			await this.openerService.open(symbolToOpen.location.uri, { fromUserGesture: true });
+			await this.openerService.open(symbolToOpen.location.uri, { fromUserGesture: true, allowContributedOpeners: true });
 		}
 
 		// Otherwise open as editor

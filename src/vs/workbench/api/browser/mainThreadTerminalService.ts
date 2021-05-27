@@ -360,7 +360,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $sendResolvedLaunchConfig(terminalId: number, shellLaunchConfig: IShellLaunchConfig): void {
 		const instance = this._terminalService.getInstanceFromId(terminalId);
 		if (instance) {
-			this._getTerminalProcess(terminalId).emitResolvedShellLaunchConfig(shellLaunchConfig);
+			this._getTerminalProcess(terminalId)?.emitResolvedShellLaunchConfig(shellLaunchConfig);
 		}
 	}
 
@@ -373,7 +373,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			sw.stop();
 			sum += sw.elapsed();
 		}
-		this._getTerminalProcess(terminalId).emitLatency(sum / COUNT);
+		this._getTerminalProcess(terminalId)?.emitLatency(sum / COUNT);
 	}
 
 	private _isPrimaryExtHost(): boolean {
@@ -398,10 +398,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy {
+	private _getTerminalProcess(terminalId: number): ITerminalProcessExtHostProxy | undefined {
 		const terminal = this._terminalProcessProxies.get(terminalId);
 		if (!terminal) {
-			throw new Error(`Unknown terminal: ${terminalId}`);
+			this._logService.error(`Unknown terminal: ${terminalId}`);
+			return undefined;
 		}
 		return terminal;
 	}

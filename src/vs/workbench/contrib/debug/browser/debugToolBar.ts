@@ -24,8 +24,8 @@ import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegi
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { createAndFillInActionBarActions, MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction, SubmenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, IMenuService, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, ContextKeyExpression, ContextKeyExpr, ContextKeyEqualsExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
@@ -79,13 +79,8 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			actionViewItemProvider: (action: IAction) => {
 				if (action.id === FOCUS_SESSION_ID) {
 					return this.instantiationService.createInstance(FocusSessionActionViewItem, action, undefined);
-				} else if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
 				}
-
-				return undefined;
+				return createActionViewItem(this.instantiationService, action);
 			}
 		}));
 

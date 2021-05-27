@@ -7,11 +7,10 @@ import 'vs/css!./media/debug.contribution';
 import 'vs/css!./media/debugHover';
 import * as nls from 'vs/nls';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { SyncActionDescriptor, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionRegistryExtensions, CATEGORIES } from 'vs/workbench/common/actions';
 import { BreakpointsView } from 'vs/workbench/contrib/debug/browser/breakpointsView';
 import { CallStackView } from 'vs/workbench/contrib/debug/browser/callStackView';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
@@ -37,7 +36,7 @@ import { VariablesView, SET_VARIABLE_ID, COPY_VALUE_ID, BREAK_WHEN_VALUE_CHANGES
 import { Repl } from 'vs/workbench/contrib/debug/browser/repl';
 import { DebugContentProvider } from 'vs/workbench/contrib/debug/common/debugContentProvider';
 import { WelcomeView } from 'vs/workbench/contrib/debug/browser/welcomeView';
-import { DebugViewPaneContainer, OpenDebugViewletAction, OPEN_REPL_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugViewlet';
+import { DebugViewPaneContainer } from 'vs/workbench/contrib/debug/browser/debugViewlet';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CallStackEditorContribution } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { BreakpointEditorContribution } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
@@ -52,7 +51,6 @@ import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debu
 import { FileAccess } from 'vs/base/common/network';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 
-const registry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionRegistryExtensions.WorkbenchActions);
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerWorkbenchContributions();
 registerColors();
@@ -191,16 +189,6 @@ function registerCommandsAndActions(): void {
 }
 
 function registerDebugMenu(): void {
-	// View menu
-
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
-		group: '3_views',
-		command: {
-			id: VIEWLET_ID,
-			title: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
-		},
-		order: 4
-	});
 
 	// Debug menu
 
@@ -341,14 +329,12 @@ function registerDebugPanel(): void {
 
 	const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: DEBUG_PANEL_ID,
-		name: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
+		title: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'debugPanel' }, 'Debug Console'),
 		icon: icons.debugConsoleViewIcon,
 		ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [DEBUG_PANEL_ID, { mergeViewWithContainerWhenSingleView: true, donotShowContainerTitleWhenMergedWithContainer: true }]),
 		storageId: DEBUG_PANEL_ID,
-		focusCommand: { id: OPEN_REPL_COMMAND_ID },
-		order: 2,
-		hideIfEmpty: true
-	}, ViewContainerLocation.Panel);
+		hideIfEmpty: true,
+	}, ViewContainerLocation.Panel, { donotRegisterOpenCommand: true });
 
 	Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).registerViews([{
 		id: REPL_VIEW_ID,
@@ -358,6 +344,12 @@ function registerDebugPanel(): void {
 		canMoveView: true,
 		when: CONTEXT_DEBUGGERS_AVAILABLE,
 		ctorDescriptor: new SyncDescriptor(Repl),
+		openCommandActionDescriptor: {
+			id: 'workbench.debug.action.toggleRepl',
+			mnemonicTitle: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"),
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_Y },
+			order: 2
+		}
 	}], VIEW_CONTAINER);
 }
 
@@ -365,13 +357,18 @@ function registerDebugPanel(): void {
 function registerDebugView(): void {
 	const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 		id: VIEWLET_ID,
-		name: nls.localize('run', "Run"),
+		title: nls.localize('run and debug', "Run and Debug"),
+		openCommandActionDescriptor: {
+			id: VIEWLET_ID,
+			mnemonicTitle: nls.localize({ key: 'miViewRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D },
+			order: 3
+		},
 		ctorDescriptor: new SyncDescriptor(DebugViewPaneContainer),
 		icon: icons.runViewIcon,
 		alwaysUseContainerInfo: true,
-		order: 2
+		order: 3,
 	}, ViewContainerLocation.Sidebar);
-	registry.registerWorkbenchAction(SyncActionDescriptor.from(OpenDebugViewletAction, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_D }), 'View: Show Run and Debug', CATEGORIES.View.value);
 
 	// Register default debug views
 	const viewsRegistry = Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry);
@@ -457,6 +454,11 @@ function registerConfiguration(): void {
 			'debug.console.historySuggestions': {
 				type: 'boolean',
 				description: nls.localize('debug.console.historySuggestions', "Controls if the debug console should suggest previously typed input."),
+				default: true
+			},
+			'debug.console.collapseIdenticalLines': {
+				type: 'boolean',
+				description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the debug console should collapse identical lines and show a number of occurrences with a badge."),
 				default: true
 			},
 			'launch': {

@@ -27,7 +27,7 @@ suite('Debug - DebugSession telemetry', () => {
 
 		const telemetryService = telemetry as Partial<ITelemetryService> as ITelemetryService;
 		session = new DebugSession(generateUuid(), undefined!, undefined!, model, undefined, undefined!, telemetryService, undefined!, undefined!, undefined!, undefined!, undefined!, undefined!, NullOpenerService, undefined!, undefined!, mockUriIdentityService);
-		session.initializeForTest(new RawDebugSession(adapter, undefined!, undefined!, telemetryService, undefined!, undefined!, undefined!));
+		session.initializeForTest(new RawDebugSession(adapter, undefined!, '', undefined!, telemetryService, undefined!, undefined!, undefined!));
 	});
 
 	test('does not send telemetry when opted out', async () => {

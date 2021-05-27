@@ -101,28 +101,28 @@ suite('ExtHostMessageService', function () {
 	test('propagte handle on select', async function () {
 
 		let service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
-			assert.equal(notification.actions!.primary!.length, 1);
+			assert.strictEqual(notification.actions!.primary!.length, 1);
 			platform.setImmediate(() => notification.actions!.primary![0].run());
 		}), emptyCommandService, emptyDialogService);
 
 		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
-		assert.equal(handle, 42);
+		assert.strictEqual(handle, 42);
 	});
 
 	suite('modal', () => {
 		test('calls dialog service', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity: Severity, message: string, buttons: string[]) {
-					assert.equal(severity, 1);
-					assert.equal(message, 'h');
-					assert.equal(buttons.length, 2);
-					assert.equal(buttons[1], 'Cancel');
+					assert.strictEqual(severity, 1);
+					assert.strictEqual(message, 'h');
+					assert.strictEqual(buttons.length, 2);
+					assert.strictEqual(buttons[1], 'Cancel');
 					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
-			assert.equal(handle, 42);
+			assert.strictEqual(handle, 42);
 		});
 
 		test('returns undefined when cancelled', async () => {
@@ -133,19 +133,19 @@ suite('ExtHostMessageService', function () {
 			} as IDialogService);
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]);
-			assert.equal(handle, undefined);
+			assert.strictEqual(handle, undefined);
 		});
 
 		test('hides Cancel button when not needed', async () => {
 			const service = new MainThreadMessageService(null!, emptyNotificationService, emptyCommandService, new class extends mock<IDialogService>() {
 				show(severity: Severity, message: string, buttons: string[]) {
-					assert.equal(buttons.length, 1);
+					assert.strictEqual(buttons.length, 1);
 					return Promise.resolve({ choice: 0 });
 				}
 			} as IDialogService);
 
 			const handle = await service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);
-			assert.equal(handle, 42);
+			assert.strictEqual(handle, 42);
 		});
 	});
 });

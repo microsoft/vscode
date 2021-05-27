@@ -879,7 +879,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('basic sibling clause', async () => {
-			mockPFS.readdir = (_path: string) => {
+			mockPFS.readdir = (_path: string): any => {
 				if (_path === rootFolderA.fsPath) {
 					return Promise.resolve([
 						'file1.js',
@@ -922,7 +922,7 @@ suite('ExtHostSearch', () => {
 		});
 
 		test('multiroot sibling clause', async () => {
-			mockPFS.readdir = (_path: string) => {
+			mockPFS.readdir = (_path: string): any => {
 				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
 					return Promise.resolve([
 						'fileA.scss',

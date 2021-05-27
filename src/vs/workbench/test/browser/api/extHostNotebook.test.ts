@@ -62,7 +62,7 @@ suite('NotebookCell#Document', function () {
 				versionId: 0,
 				cells: [{
 					handle: 0,
-					uri: CellUri.generate(notebookUri, 'test', 0),
+					uri: CellUri.generate(notebookUri, 0),
 					source: ['### Heading'],
 					eol: '\n',
 					language: 'markdown',
@@ -70,7 +70,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}, {
 					handle: 1,
-					uri: CellUri.generate(notebookUri, 'test', 1),
+					uri: CellUri.generate(notebookUri, 1),
 					source: ['console.log("aaa")', 'console.log("bbb")'],
 					eol: '\n',
 					language: 'javascript',
@@ -104,14 +104,14 @@ suite('NotebookCell#Document', function () {
 		const d1 = extHostDocuments.getDocument(c1.uri);
 
 		assert.ok(d1);
-		assert.equal(d1.languageId, c1.language);
-		assert.equal(d1.version, 1);
+		assert.strictEqual(d1.languageId, c1.language);
+		assert.strictEqual(d1.version, 1);
 		assert.ok(d1.notebook === notebook.notebookDocument);
 
 		const d2 = extHostDocuments.getDocument(c2.uri);
 		assert.ok(d2);
-		assert.equal(d2.languageId, c2.language);
-		assert.equal(d2.version, 1);
+		assert.strictEqual(d2.languageId, c2.language);
+		assert.strictEqual(d2.version, 1);
 		assert.ok(d2.notebook === notebook.notebookDocument);
 	});
 
@@ -167,7 +167,7 @@ suite('NotebookCell#Document', function () {
 					kind: NotebookCellsChangeType.ModelChange,
 					changes: [[0, 0, [{
 						handle: 2,
-						uri: CellUri.generate(notebookUri, 'test', 2),
+						uri: CellUri.generate(notebookUri, 2),
 						source: ['Hello', 'World', 'Hello World!'],
 						eol: '\n',
 						language: 'test',
@@ -175,7 +175,7 @@ suite('NotebookCell#Document', function () {
 						outputs: [],
 					}, {
 						handle: 3,
-						uri: CellUri.generate(notebookUri, 'test', 3),
+						uri: CellUri.generate(notebookUri, 3),
 						source: ['Hallo', 'Welt', 'Hallo Welt!'],
 						eol: '\n',
 						language: 'test',
@@ -197,7 +197,7 @@ suite('NotebookCell#Document', function () {
 		for (let cell of notebook.notebookDocument.cells) {
 			const doc = extHostDocuments.getDocument(cell.uri);
 			assert.ok(doc);
-			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
 			docs.push(doc);
 			addData.push({
 				EOL: '\n',
@@ -218,7 +218,7 @@ suite('NotebookCell#Document', function () {
 		// notebook is still open -> cell documents stay open
 		for (let cell of notebook.notebookDocument.cells) {
 			assert.ok(extHostDocuments.getDocument(cell.uri));
-			assert.equal(extHostDocuments.getDocument(cell.uri).isClosed, false);
+			assert.strictEqual(extHostDocuments.getDocument(cell.uri).isClosed, false);
 		}
 
 		// close notebook -> docs are closed
@@ -227,13 +227,13 @@ suite('NotebookCell#Document', function () {
 			assert.throws(() => extHostDocuments.getDocument(cell.uri));
 		}
 		for (let doc of docs) {
-			assert.equal(doc.isClosed, true);
+			assert.strictEqual(doc.isClosed, true);
 		}
 	});
 
 	test('cell document goes when cell is removed', async function () {
 
-		assert.equal(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 		const [cell1, cell2] = notebook.notebookDocument.cells;
 
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
@@ -246,25 +246,25 @@ suite('NotebookCell#Document', function () {
 			]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1);
-		assert.equal(cell1.document.isClosed, true); // ref still alive!
-		assert.equal(cell2.document.isClosed, false);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(cell1.document.isClosed, true); // ref still alive!
+		assert.strictEqual(cell2.document.isClosed, false);
 
 		assert.throws(() => extHostDocuments.getDocument(cell1.uri));
 	});
 
 	test('cell document knows notebook', function () {
 		for (let cells of notebook.notebookDocument.cells) {
-			assert.equal(cells.document.notebook === notebook.notebookDocument, true);
+			assert.strictEqual(cells.document.notebook === notebook.notebookDocument, true);
 		}
 	});
 
 	test('cell#index', function () {
 
-		assert.equal(notebook.notebookDocument.cells.length, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 2);
 		const [first, second] = notebook.notebookDocument.cells;
-		assert.equal(first.index, 0);
-		assert.equal(second.index, 1);
+		assert.strictEqual(first.index, 0);
+		assert.strictEqual(second.index, 1);
 
 		// remove first cell
 		extHostNotebooks.$acceptModelChanged(notebook.uri, {
@@ -275,8 +275,8 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 1);
-		assert.equal(second.index, 0);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 1);
+		assert.strictEqual(second.index, 0);
 
 		extHostNotebooks.$acceptModelChanged(notebookUri, {
 			versionId: notebook.notebookDocument.version + 1,
@@ -284,7 +284,7 @@ suite('NotebookCell#Document', function () {
 				kind: NotebookCellsChangeType.ModelChange,
 				changes: [[0, 0, [{
 					handle: 2,
-					uri: CellUri.generate(notebookUri, 'test', 2),
+					uri: CellUri.generate(notebookUri, 2),
 					source: ['Hello', 'World', 'Hello World!'],
 					eol: '\n',
 					language: 'test',
@@ -292,7 +292,7 @@ suite('NotebookCell#Document', function () {
 					outputs: [],
 				}, {
 					handle: 3,
-					uri: CellUri.generate(notebookUri, 'test', 3),
+					uri: CellUri.generate(notebookUri, 3),
 					source: ['Hallo', 'Welt', 'Hallo Welt!'],
 					eol: '\n',
 					language: 'test',
@@ -302,7 +302,7 @@ suite('NotebookCell#Document', function () {
 			}]
 		}, false);
 
-		assert.equal(notebook.notebookDocument.cells.length, 3);
-		assert.equal(second.index, 2);
+		assert.strictEqual(notebook.notebookDocument.cells.length, 3);
+		assert.strictEqual(second.index, 2);
 	});
 });

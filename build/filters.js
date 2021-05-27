@@ -44,6 +44,7 @@ module.exports.indentationFilter = [
 	'!src/vs/base/node/cpuUsage.sh',
 	'!test/unit/assert.js',
 	'!resources/linux/snap/electron-launch',
+	'!build/ext.js',
 
 	// except specific folders
 	'!test/automation/out/**',
@@ -143,7 +144,7 @@ module.exports.tsHygieneFilter = [
 	'!**/fixtures/**',
 	'!**/typings/**',
 	'!**/node_modules/**',
-	'!extensions/typescript-basics/test/colorize-fixtures/**',
+	'!extensions/**/colorize-fixtures/**',
 	'!extensions/vscode-api-tests/testWorkspace/**',
 	'!extensions/vscode-api-tests/testWorkspace2/**',
 	'!extensions/**/*.test.ts',

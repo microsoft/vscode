@@ -60,6 +60,8 @@ export namespace Schemas {
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
 
+	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
+
 	export const vscodeSettings = 'vscode-settings';
 
 	export const webviewPanel = 'webview-panel';

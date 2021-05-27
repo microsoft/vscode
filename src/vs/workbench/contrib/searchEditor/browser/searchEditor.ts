@@ -38,7 +38,7 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
 import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
+import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -67,7 +67,7 @@ export class SearchEditor extends BaseTextEditor {
 	private searchResultEditor!: CodeEditorWidget;
 	private queryEditorContainer!: HTMLElement;
 	private dimension?: DOM.Dimension;
-	private inputPatternIncludes!: PatternInputWidget;
+	private inputPatternIncludes!: IncludePatternInputWidget;
 	private inputPatternExcludes!: ExcludePatternInputWidget;
 	private includesExcludesContainer!: HTMLElement;
 	private toggleQueryDetailsButton!: HTMLElement;
@@ -168,10 +168,11 @@ export class SearchEditor extends BaseTextEditor {
 		const folderIncludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.includes'));
 		const filesToIncludeTitle = localize('searchScope.includes', "files to include");
 		DOM.append(folderIncludesList, DOM.$('h4', undefined, filesToIncludeTitle));
-		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(PatternInputWidget, folderIncludesList, this.contextViewService, {
+		this.inputPatternIncludes = this._register(this.instantiationService.createInstance(IncludePatternInputWidget, folderIncludesList, this.contextViewService, {
 			ariaLabel: localize('label.includes', 'Search Include Patterns'),
 		}));
 		this.inputPatternIncludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
+		this._register(this.inputPatternIncludes.onChangeSearchInEditorsBox(() => this.triggerSearch()));
 
 		// // Excludes
 		const excludesList = DOM.append(this.includesExcludesContainer, DOM.$('.file-types.excludes'));
@@ -181,7 +182,7 @@ export class SearchEditor extends BaseTextEditor {
 			ariaLabel: localize('label.excludes', 'Search Exclude Patterns'),
 		}));
 		this.inputPatternExcludes.onSubmit(triggeredOnType => this.triggerSearch({ resetCursor: false, delay: triggeredOnType ? this.searchConfig.searchOnTypeDebouncePeriod : 0 }));
-		this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch());
+		this._register(this.inputPatternExcludes.onChangeIgnoreBox(() => this.triggerSearch()));
 
 		[this.queryEditorWidget.searchInput, this.inputPatternIncludes, this.inputPatternExcludes].map(input =>
 			this._register(attachInputBoxStyler(input, this.themeService, { inputBorder: searchEditorTextInputBorder })));
@@ -449,6 +450,7 @@ export class SearchEditor extends BaseTextEditor {
 			isRegexp: this.queryEditorWidget.searchInput.getRegex(),
 			matchWholeWord: this.queryEditorWidget.searchInput.getWholeWords(),
 			useExcludeSettingsAndIgnoreFiles: this.inputPatternExcludes.useExcludesAndIgnoreFiles(),
+			onlyOpenEditors: this.inputPatternIncludes.onlySearchInOpenEditors(),
 			showIncludesExcludes: this.showingIncludesExcludes
 		};
 	}
@@ -483,6 +485,7 @@ export class SearchEditor extends BaseTextEditor {
 			disregardExcludeSettings: !config.useExcludeSettingsAndIgnoreFiles || undefined,
 			excludePattern: config.filesToExclude,
 			includePattern: config.filesToInclude,
+			onlyOpenEditors: config.onlyOpenEditors,
 			previewOptions: {
 				matchLines: 1,
 				charsPerLine: 1000
@@ -575,6 +578,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (config.contextLines !== undefined) { this.queryEditorWidget.setContextLines(config.contextLines); }
 		if (config.filesToExclude !== undefined) { this.inputPatternExcludes.setValue(config.filesToExclude); }
 		if (config.filesToInclude !== undefined) { this.inputPatternIncludes.setValue(config.filesToInclude); }
+		if (config.onlyOpenEditors !== undefined) { this.inputPatternIncludes.setOnlySearchInOpenEditors(config.onlyOpenEditors); }
 		if (config.useExcludeSettingsAndIgnoreFiles !== undefined) { this.inputPatternExcludes.setUseExcludesAndIgnoreFiles(config.useExcludeSettingsAndIgnoreFiles); }
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
 	}

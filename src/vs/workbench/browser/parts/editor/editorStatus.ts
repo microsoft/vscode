@@ -753,7 +753,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private onColumnSelectionModeChange(editorWidget: ICodeEditor | undefined): void {
 		const info: StateDelta = { type: 'columnSelectionMode', columnSelectionMode: false };
 
-		if (editorWidget && editorWidget.getOption(EditorOption.columnSelection)) {
+		if (editorWidget?.getOption(EditorOption.columnSelection)) {
 			info.columnSelectionMode = true;
 		}
 

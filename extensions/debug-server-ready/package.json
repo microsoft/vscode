@@ -1,143 +1,149 @@
 {
-	"name": "debug-server-ready",
-	"displayName": "%displayName%",
-	"description": "%description%",
-	"version": "1.0.0",
-	"publisher": "vscode",
-	"license": "MIT",
-	"engines": {
-		"vscode": "^1.32.0"
-	},
-	"activationEvents": [
-		"onDebugResolve"
-	],
-	"enableProposedApi": true,
-	"main": "./out/extension",
-	"scripts": {
-		"compile": "gulp compile-extension:debug-server-ready",
-		"watch": "gulp watch-extension:debug-server-ready"
-	},
-	"contributes": {
-		"debuggers": [
-			{
-				"type": "*",
-				"configurationAttributes": {
-					"launch": {
-						"properties": {
-							"serverReadyAction": {
-								"oneOf": [
-									{
-										"type": "object",
-										"additionalProperties": false,
-										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
-										"default": {
-											"action": "openExternally"
-										},
-										"properties": {
-											"action": {
-												"type": "string",
-												"enum": [
-													"openExternally"
-												],
-												"enumDescriptions": [
-													"%debug.server.ready.action.openExternally.description%"
-												],
-												"markdownDescription": "%debug.server.ready.action.description%",
-												"default": "openExternally"
-											},
-											"pattern": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.pattern.description%",
-												"default": "listening on port ([0-9]+)"
-											},
-											"uriFormat": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.uriFormat.description%",
-												"default": "http://localhost:%s"
-											}
-										}
-									},
-									{
-										"type": "object",
-										"additionalProperties": false,
-										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
-										"default": {
-											"action": "openExternally"
-										},
-										"properties": {
-											"action": {
-												"type": "string",
-												"enum": [
-													"debugWithChrome"
-												],
-												"enumDescriptions": [
-													"%debug.server.ready.action.debugWithChrome.description%"
-												],
-												"markdownDescription": "%debug.server.ready.action.description%",
-												"default": "openExternally"
-											},
-											"pattern": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.pattern.description%",
-												"default": "listening on port ([0-9]+)"
-											},
-											"uriFormat": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.uriFormat.description%",
-												"default": "http://localhost:%s"
-											},
-											"webRoot": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.webRoot.description%",
-												"default": "${workspaceFolder}"
-											}
-										}
-									},
-									{
-										"type": "object",
-										"additionalProperties": false,
-										"markdownDescription": "%debug.server.ready.serverReadyAction.description%",
-										"default": {
+  "name": "debug-server-ready",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.32.0"
+  },
+  "activationEvents": [
+    "onDebugResolve"
+  ],
+  "enableProposedApi": true,
+  "main": "./out/extension",
+  "scripts": {
+    "compile": "gulp compile-extension:debug-server-ready",
+    "watch": "gulp watch-extension:debug-server-ready"
+  },
+  "contributes": {
+    "debuggers": [
+      {
+        "type": "*",
+        "configurationAttributes": {
+          "launch": {
+            "properties": {
+              "serverReadyAction": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+                    "default": {
+                      "action": "openExternally"
+                    },
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "openExternally"
+                        ],
+                        "enumDescriptions": [
+                          "%debug.server.ready.action.openExternally.description%"
+                        ],
+                        "markdownDescription": "%debug.server.ready.action.description%",
+                        "default": "openExternally"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.pattern.description%",
+                        "default": "listening on port ([0-9]+)"
+                      },
+                      "uriFormat": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.uriFormat.description%",
+                        "default": "http://localhost:%s"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+                    "default": {
+                      "action": "openExternally"
+                    },
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "debugWithChrome"
+                        ],
+                        "enumDescriptions": [
+                          "%debug.server.ready.action.debugWithChrome.description%"
+                        ],
+                        "markdownDescription": "%debug.server.ready.action.description%",
+                        "default": "openExternally"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.pattern.description%",
+                        "default": "listening on port ([0-9]+)"
+                      },
+                      "uriFormat": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.uriFormat.description%",
+                        "default": "http://localhost:%s"
+                      },
+                      "webRoot": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.webRoot.description%",
+                        "default": "${workspaceFolder}"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "markdownDescription": "%debug.server.ready.serverReadyAction.description%",
+                    "default": {
                       "action": "startDebugging",
                       "name": "<launch browser config name>"
                     },
-                    "required": ["name"],
-										"properties": {
-											"action": {
-												"type": "string",
-												"enum": [
-													"startDebugging"
-												],
-												"enumDescriptions": [
-													"%debug.server.ready.action.startDebugging.description%"
-												],
-												"markdownDescription": "%debug.server.ready.action.description%",
-												"default": "startDebugging"
-											},
-											"pattern": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.pattern.description%",
-												"default": "listening on port ([0-9]+)"
-											},
-											"name": {
-												"type": "string",
-												"markdownDescription": "%debug.server.ready.debugConfigName.description%",
-												"default": "Launch Browser"
-											}
-										}
-									}
-								]
-							}
-						}
-					}
-				}
-			}
-		]
-	},
-	"dependencies": {
-		"vscode-nls": "^4.0.0"
-	},
-	"devDependencies": {
-		"@types/node": "^12.19.9"
-	}
+                    "required": [
+                      "name"
+                    ],
+                    "properties": {
+                      "action": {
+                        "type": "string",
+                        "enum": [
+                          "startDebugging"
+                        ],
+                        "enumDescriptions": [
+                          "%debug.server.ready.action.startDebugging.description%"
+                        ],
+                        "markdownDescription": "%debug.server.ready.action.description%",
+                        "default": "startDebugging"
+                      },
+                      "pattern": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.pattern.description%",
+                        "default": "listening on port ([0-9]+)"
+                      },
+                      "name": {
+                        "type": "string",
+                        "markdownDescription": "%debug.server.ready.debugConfigName.description%",
+                        "default": "Launch Browser"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-nls": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^12.19.9"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
 }

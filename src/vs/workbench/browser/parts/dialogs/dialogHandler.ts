@@ -87,7 +87,7 @@ export class BrowserDialogHandler implements IDialogHandler {
 				type,
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
 					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved && resolved.commandId) {
+					if (resolved?.commandId) {
 						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}

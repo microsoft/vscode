@@ -26,8 +26,8 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
-import { MenuEntryActionViewItem, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -228,17 +228,10 @@ abstract class AbstractCellRenderer {
 		const toolbar = new ToolBar(container, this.contextMenuService, {
 			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
 			actionViewItemProvider: action => {
-				if (action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-				} else if (action instanceof SubmenuItemAction) {
-					return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-				}
-
 				if (action.id === VerticalSeparator.ID) {
 					return new VerticalSeparatorViewItem(undefined, action);
 				}
-
-				return undefined;
+				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
 		});
@@ -568,7 +561,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 class EditorTextRenderer {
 
-	private _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+	private static _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
 		createHTML(input) { return input; }
 	});
 
@@ -622,9 +615,7 @@ class EditorTextRenderer {
 			}
 		}
 
-		return this._ttPolicy
-			? this._ttPolicy.createHTML(result)
-			: result;
+		return EditorTextRenderer._ttPolicy?.createHTML(result) ?? result;
 	}
 
 	private getDefaultColorMap(): string[] {

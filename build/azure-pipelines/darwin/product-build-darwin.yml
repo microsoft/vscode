@@ -14,11 +14,13 @@ steps:
       artifact: Compilation
       path: $(Build.ArtifactStagingDirectory)
     displayName: Download compilation output
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
       tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
     displayName: Extract compilation output
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -110,10 +112,21 @@ steps:
       export SDKROOT=/Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX11.0.sdk
       ls /Applications/Xcode_12.2.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/
       yarn electron-rebuild
+      # remove once https://github.com/prebuild/prebuild-install/pull/140 is merged and found in keytar
       cd ./node_modules/keytar
       node-gyp rebuild
     displayName: Rebuild native modules for ARM64
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'arm64'))
+
+  - download: current
+    artifact: vscode-darwin-x64
+    displayName: Download x64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - download: current
+    artifact: vscode-darwin-arm64
+    displayName: Download arm64 artifact
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -125,6 +138,7 @@ steps:
       VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
         yarn gulp vscode-darwin-$(VSCODE_ARCH)-min-ci
     displayName: Build
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'))
 
   - script: |
       set -e
@@ -137,9 +151,18 @@ steps:
 
   - script: |
       set -e
-      yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
+      unzip $(Pipeline.Workspace)/vscode-darwin-x64/VSCode-darwin-x64.zip -d $(agent.builddirectory)/vscode-x64
+      unzip $(Pipeline.Workspace)/vscode-darwin-arm64/VSCode-darwin-arm64.zip -d $(agent.builddirectory)/vscode-arm64
+      DEBUG=* node build/darwin/create-universal-app.js
+    displayName: Create Universal App
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'universal'))
+
+  - script: |
+      set -e
+      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
+        yarn npm-run-all -lp "electron $(VSCODE_ARCH)" "playwright-install"
     displayName: Download Electron and Playwright
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'universal'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
       set -e
@@ -184,7 +207,7 @@ steps:
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
-    timeoutInMinutes: 5
+    timeoutInMinutes: 10
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -219,6 +242,16 @@ steps:
       yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
+    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
+      APP_ROOT=$(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)
+      APP_NAME="`ls $APP_ROOT | head -n 1`"
+      VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-darwin" \
+      yarn smoketest-no-compile --build "$APP_ROOT/$APP_NAME" --remote
+    timeoutInMinutes: 5
+    displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
@@ -319,7 +352,7 @@ steps:
       APP_NAME="`ls $APP_ROOT | head -n 1`"
       "$APP_ROOT/$APP_NAME/Contents/Resources/app/bin/code" --export-default-configuration=.build
     displayName: Verify start after signing (export configuration)
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), ne(variables['VSCODE_PUBLISH'], 'false'))
+    condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - script: |
       set -e

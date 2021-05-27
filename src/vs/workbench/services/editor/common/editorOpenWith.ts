@@ -111,54 +111,59 @@ export async function openEditorWith(
 		return picked.item.handler.open(input, openOptions, targetGroup, OpenEditorContext.NEW_EDITOR)?.override;
 	}
 
-	const picked = await new Promise<PickedResult | undefined>(resolve => {
-		picker.onDidAccept(e => {
-			if (picker.selectedItems.length === 1) {
-				const result: PickedResult = {
-					item: picker.selectedItems[0],
-					keyMods: picker.keyMods,
-					openInBackground: e.inBackground
-				};
+	let picked: PickedResult | undefined;
+	try {
+		picked = await new Promise<PickedResult | undefined>(resolve => {
+			picker.onDidAccept(e => {
+				if (picker.selectedItems.length === 1) {
+					const result: PickedResult = {
+						item: picker.selectedItems[0],
+						keyMods: picker.keyMods,
+						openInBackground: e.inBackground
+					};
 
-				if (e.inBackground) {
-					openEditor(result);
-				} else {
-					resolve(result);
-				}
-			} else {
-				resolve(undefined);
-			}
-		});
-
-		picker.onDidTriggerItemButton(e => {
-			const pick = e.item;
-			const id = pick.id;
-			resolve({ item: pick, openInBackground: false }); // open the view
-			picker.dispose();
-
-			// And persist the setting
-			if (pick && id) {
-				const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
-				const currentAssociations = [...configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
-
-				// First try updating existing association
-				for (let i = 0; i < currentAssociations.length; ++i) {
-					const existing = currentAssociations[i];
-					if (existing.filenamePattern === newAssociation.filenamePattern) {
-						currentAssociations.splice(i, 1, newAssociation);
-						configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
-						return;
+					if (e.inBackground) {
+						openEditor(result);
+					} else {
+						resolve(result);
 					}
+				} else {
+					resolve(undefined);
 				}
+			});
 
-				// Otherwise, create a new one
-				currentAssociations.unshift(newAssociation);
-				configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
-			}
+			picker.onDidTriggerItemButton(e => {
+				const pick = e.item;
+				const id = pick.id;
+				resolve({ item: pick, openInBackground: false }); // open the view
+				picker.dispose();
+
+				// And persist the setting
+				if (pick && id) {
+					const newAssociation: CustomEditorAssociation = { viewType: id, filenamePattern: '*' + resourceExt };
+					const currentAssociations = [...configurationService.getValue<CustomEditorsAssociations>(customEditorsAssociationsSettingId)];
+
+					// First try updating existing association
+					for (let i = 0; i < currentAssociations.length; ++i) {
+						const existing = currentAssociations[i];
+						if (existing.filenamePattern === newAssociation.filenamePattern) {
+							currentAssociations.splice(i, 1, newAssociation);
+							configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+							return;
+						}
+					}
+
+					// Otherwise, create a new one
+					currentAssociations.unshift(newAssociation);
+					configurationService.updateValue(customEditorsAssociationsSettingId, currentAssociations);
+				}
+			});
+
+			picker.show();
 		});
-
-		picker.show();
-	});
+	} finally {
+		picker.dispose();
+	}
 
 	if (!picked) {
 		return undefined;

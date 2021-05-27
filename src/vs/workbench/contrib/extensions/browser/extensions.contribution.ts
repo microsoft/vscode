@@ -64,11 +64,11 @@ import { clearSearchResultsIcon, configureRecommendedIcon, extensionsViewIcon, f
 import { EXTENSION_CATEGORIES } from 'vs/platform/extensions/common/extensions';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { isArray } from 'vs/base/common/types';
-import { ShowViewletAction } from 'vs/workbench/browser/viewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Query } from 'vs/workbench/contrib/extensions/common/extensionQuery';
+import { Promises } from 'vs/base/common/async';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -101,12 +101,18 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(
 	{
 		id: VIEWLET_ID,
-		name: localize('extensions', "Extensions"),
+		title: localize('extensions', "Extensions"),
+		openCommandActionDescriptor: {
+			id: VIEWLET_ID,
+			mnemonicTitle: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
+			keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X },
+			order: 4,
+		},
 		ctorDescriptor: new SyncDescriptor(ExtensionsViewPaneContainer),
 		icon: extensionsViewIcon,
 		order: 4,
 		rejectAddedViews: true,
-		alwaysUseContainerInfo: true
+		alwaysUseContainerInfo: true,
 	}, ViewContainerLocation.Sidebar);
 
 
@@ -371,36 +377,27 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 
 	// Global actions
 	private registerGlobalActions(): void {
-		this.registerExtensionAction({
-			id: VIEWLET_ID,
-			title: { value: localize('toggleExtensionsViewlet', "Show Extensions"), original: 'Show Extensions' },
-			category: CATEGORIES.View,
-			menu: [{
-				id: MenuId.CommandPalette,
-			}, {
-				id: MenuId.MenubarPreferencesMenu,
+		this._register(MenuRegistry.appendMenuItems([{
+			id: MenuId.MenubarPreferencesMenu,
+			item: {
+				command: {
+					id: VIEWLET_ID,
+					title: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions")
+				},
 				group: '1_settings',
 				order: 3
-			}, {
-				id: MenuId.MenubarViewMenu,
-				group: '3_views',
-				order: 5
-			}, {
-				id: MenuId.GlobalActivity,
+			}
+		}, {
+			id: MenuId.GlobalActivity,
+			item: {
+				command: {
+					id: VIEWLET_ID,
+					title: localize('showExtensions', "Extensions")
+				},
 				group: '2_configuration',
 				order: 3
-			}],
-			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_X,
-				weight: KeybindingWeight.WorkbenchContrib
-			},
-			menuTitles: {
-				[MenuId.MenubarPreferencesMenu.id]: localize({ key: 'miPreferencesExtensions', comment: ['&& denotes a mnemonic'] }, "&&Extensions"),
-				[MenuId.MenubarViewMenu.id]: localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions"),
-				[MenuId.GlobalActivity.id]: localize('showExtensions', "Extensions"),
-			},
-			run: () => runAction(this.instantiationService.createInstance(ShowViewletAction, VIEWLET_ID, 'Show Extensions', VIEWLET_ID))
-		});
+			}
+		}]));
 
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.installExtensions',
@@ -410,7 +407,9 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				id: MenuId.CommandPalette,
 				when: ContextKeyAndExpr.create([CONTEXT_HAS_GALLERY, ContextKeyOrExpr.create([CONTEXT_HAS_LOCAL_SERVER, CONTEXT_HAS_REMOTE_SERVER, CONTEXT_HAS_WEB_SERVER])])
 			},
-			run: () => runAction(this.instantiationService.createInstance(ShowViewletAction, VIEWLET_ID, 'Install Extensions', VIEWLET_ID))
+			run: async (accessor: ServicesAccessor) => {
+				accessor.get(IViewsService).openViewContainer(VIEWLET_ID);
+			}
 		});
 
 		this.registerExtensionAction({
@@ -665,7 +664,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const notificationService = accessor.get(INotificationService);
 
 				const extensions = Array.isArray(resources) ? resources : [resources];
-				await Promise.all(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
+				await Promises.settled(extensions.map(async (vsix) => await extensionsWorkbenchService.install(vsix)))
 					.then(async (extensions) => {
 						for (const extension of extensions) {
 							const requireReload = !(extension.local && extensionService.canAddExtension(toExtensionDescription(extension.local)));
@@ -678,8 +677,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 							notificationService.prompt(
 								Severity.Info,
 								message,
-								actions,
-								{ sticky: true }
+								actions
 							);
 						}
 					});

@@ -31,6 +31,9 @@ import { StandaloneCodeEditorNLS } from 'vs/editor/common/standaloneStrings';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standaloneThemeServiceImpl';
+import { IModelService } from 'vs/editor/common/services/modelService';
+import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
+import { URI } from 'vs/base/common/uri';
 
 /**
  * Description of an action contribution
@@ -364,7 +367,9 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibilityService accessibilityService: IAccessibilityService
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IModelService modelService: IModelService,
+		@IModeService modeService: IModeService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, false);
@@ -384,7 +389,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 
 		let model: ITextModel | null;
 		if (typeof _model === 'undefined') {
-			model = (<any>self).monaco.editor.createModel(options.value || '', options.language || 'text/plain');
+			model = createTextModel(modelService, modeService, options.value || '', options.language || 'text/plain', undefined);
 			this._ownsModel = true;
 		} else {
 			model = _model;
@@ -506,4 +511,27 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 	public addAction(descriptor: IActionDescriptor): IDisposable {
 		return this.getModifiedEditor().addAction(descriptor);
 	}
+}
+
+/**
+ * @internal
+ */
+export function createTextModel(modelService: IModelService, modeService: IModeService, value: string, language: string | undefined, uri: URI | undefined): ITextModel {
+	value = value || '';
+	if (!language) {
+		const firstLF = value.indexOf('\n');
+		let firstLine = value;
+		if (firstLF !== -1) {
+			firstLine = value.substring(0, firstLF);
+		}
+		return doCreateModel(modelService, value, modeService.createByFilepathOrFirstLine(uri || null, firstLine), uri);
+	}
+	return doCreateModel(modelService, value, modeService.create(language), uri);
+}
+
+/**
+ * @internal
+ */
+function doCreateModel(modelService: IModelService, value: string, languageSelection: ILanguageSelection, uri: URI | undefined): ITextModel {
+	return modelService.createModel(value, languageSelection, uri);
 }

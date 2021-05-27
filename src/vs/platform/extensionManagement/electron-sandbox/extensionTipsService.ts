@@ -21,6 +21,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionRecommendationNotificationService, RecommendationsNotificationResult, RecommendationSource } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
 import { localize } from 'vs/nls';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { Event } from 'vs/base/common/event';
+import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 
 type ExeExtensionRecommendationsClassification = {
 	extensionId: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -52,6 +54,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IStorageService private readonly storageService: IStorageService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IExtensionRecommendationNotificationService private readonly extensionRecommendationNotificationService: IExtensionRecommendationNotificationService,
 		@IFileService fileService: IFileService,
 		@IProductService productService: IProductService,
@@ -172,6 +175,11 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 					case RecommendationsNotificationResult.Ignored:
 						this.highImportanceTipsByExe.delete(exeName);
 						break;
+					case RecommendationsNotificationResult.IncompatibleWindow:
+						// Recommended in incompatible window. Schedule the prompt after active window change
+						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
+						this._register(onActiveWindowChange(() => this.promptHighImportanceExeBasedTip()));
+						break;
 					case RecommendationsNotificationResult.TooMany:
 						// Too many notifications. Schedule the prompt after one hour
 						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
@@ -215,6 +223,12 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 						// Ignored: Remove from the cache and prompt next recommendation
 						this.mediumImportanceTipsByExe.delete(exeName);
 						this.promptMediumImportanceExeBasedTip();
+						break;
+
+					case RecommendationsNotificationResult.IncompatibleWindow:
+						// Recommended in incompatible window. Schedule the prompt after active window change
+						const onActiveWindowChange = Event.once(Event.latch(Event.any(this.nativeHostService.onDidOpenWindow, this.nativeHostService.onDidFocusWindow)));
+						this._register(onActiveWindowChange(() => this.promptMediumImportanceExeBasedTip()));
 						break;
 
 					case RecommendationsNotificationResult.TooMany:

@@ -23,6 +23,19 @@
 	margin: 0;
 }
 
+/*
+In certain cases, the default positioning of the aria container (left: -999em) can cause scrollbars to appear.
+So here we try to avoid that by using a different technique. See https://stackoverflow.com/a/26032207
+*/
+.monaco-aria-container {
+	position: absolute !important;
+	height: 1px;
+	width: 1px;
+	left: inherit !important;
+	overflow: hidden;
+	clip: rect(1px, 1px, 1px, 1px);
+}
+
 /* The hc-black theme is already high contrast optimized */
 .monaco-editor.hc-black {
 	-ms-high-contrast-adjust: none;

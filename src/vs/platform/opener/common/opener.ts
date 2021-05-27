@@ -32,7 +32,11 @@ export type OpenInternalOptions = {
 	readonly fromUserGesture?: boolean;
 };
 
-export type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = {
+	readonly openExternal?: boolean;
+	readonly allowTunneling?: boolean;
+	readonly allowContributedOpeners?: boolean | string;
+};
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
@@ -47,7 +51,7 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string, ctx: { sourceUri: URI }, token: CancellationToken): Promise<boolean>;
+	openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
 	dispose?(): void;
 }
 

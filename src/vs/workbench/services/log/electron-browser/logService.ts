@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DelegatedLogService, ILogService, ConsoleLogInMainService, ConsoleLogService, MultiplexLogService } from 'vs/platform/log/common/log';
+import { LogService, ILogService, ConsoleLogger, MultiplexLogService, ILogger, AdapterLogger } from 'vs/platform/log/common/log';
 import { BufferLogService } from 'vs/platform/log/common/bufferLog';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
-import { SpdLogService } from 'vs/platform/log/node/spdlogService';
+import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-export class NativeLogService extends DelegatedLogService {
+export class NativeLogService extends LogService {
 
 	private readonly bufferSpdLogService: BufferLogService | undefined;
 	private readonly windowId: number;
@@ -27,10 +27,10 @@ export class NativeLogService extends DelegatedLogService {
 		let bufferSpdLogService: BufferLogService | undefined;
 
 		// Extension development test CLI: forward everything to main side
-		const loggers: ILogService[] = [];
+		const loggers: ILogger[] = [];
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {
 			loggers.push(
-				disposables.add(new ConsoleLogInMainService(loggerClient, environmentService.configuration.logLevel))
+				disposables.add(new AdapterLogger({ log: (type, args) => loggerClient.consoleLog(type, args) }, environmentService.configuration.logLevel))
 			);
 		}
 
@@ -38,7 +38,7 @@ export class NativeLogService extends DelegatedLogService {
 		else {
 			bufferSpdLogService = disposables.add(new BufferLogService(environmentService.configuration.logLevel));
 			loggers.push(
-				disposables.add(new ConsoleLogService(environmentService.configuration.logLevel)),
+				disposables.add(new ConsoleLogger(environmentService.configuration.logLevel)),
 				bufferSpdLogService
 			);
 		}
@@ -56,7 +56,7 @@ export class NativeLogService extends DelegatedLogService {
 
 	init(): void {
 		if (this.bufferSpdLogService) {
-			this.bufferSpdLogService.logger = this._register(new SpdLogService(`renderer${this.windowId}`, this.environmentService.logsPath, this.getLevel()));
+			this.bufferSpdLogService.logger = this._register(new SpdLogLogger(`renderer${this.windowId}`, this.environmentService.logsPath, this.getLevel()));
 			this.trace('Created Spdlogger');
 		}
 	}

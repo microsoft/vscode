@@ -61,7 +61,7 @@ export class ReplFilter implements ITreeFilter<IReplElement> {
 		let includeQueryPresent = false;
 		let includeQueryMatched = false;
 
-		const text = element.toString();
+		const text = element.toString(true);
 
 		for (let { type, query } of this._parsedQueries) {
 			if (type === 'exclude' && ReplFilter.matchQuery(query, text)) {

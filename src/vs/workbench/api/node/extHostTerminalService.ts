@@ -60,7 +60,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), { name, shellPath, shellArgs }, name);
 		this._terminals.push(terminal);
 		terminal.create(shellPath, shellArgs);
-		return terminal;
+		return terminal.value;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions, isFeatureTerminal?: boolean): vscode.Terminal {
@@ -75,7 +75,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 			withNullAsUndefined(options.strictEnv),
 			withNullAsUndefined(options.hideFromUser),
 			withNullAsUndefined(isFeatureTerminal));
-		return terminal;
+		return terminal.value;
 	}
 
 	public getDefaultShell(useAutomationShell: boolean, configProvider: ExtHostConfigProvider): string {
@@ -201,10 +201,11 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 
 		const envFromConfig = this._apiInspectConfigToPlain(configProvider.getConfiguration('terminal.integrated').inspect<ITerminalEnvironment>(`env.${platformKey}`));
 		const baseEnv = terminalConfig.get<boolean>('inheritEnv', true) ? process.env as platform.IProcessEnvironment : await this._getNonInheritedEnv();
+		const variableResolver = terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver);
 		const env = terminalEnvironment.createTerminalEnvironment(
 			shellLaunchConfig,
 			envFromConfig,
-			terminalEnvironment.createVariableResolver(lastActiveWorkspace, this._variableResolver),
+			variableResolver,
 			isWorkspaceShellAllowed,
 			this._extHostInitDataService.version,
 			terminalConfig.get<'auto' | 'off' | 'on'>('detectLocale', 'auto'),
@@ -214,7 +215,7 @@ export class ExtHostTerminalService extends BaseExtHostTerminalService {
 		// Apply extension environment variable collections to the environment
 		if (!shellLaunchConfig.strictEnv) {
 			const mergedCollection = new MergedEnvironmentVariableCollection(this._environmentVariableCollections);
-			mergedCollection.applyToProcessEnvironment(env);
+			mergedCollection.applyToProcessEnvironment(env, variableResolver);
 		}
 
 		this._proxy.$sendResolvedLaunchConfig(id, shellLaunchConfig);

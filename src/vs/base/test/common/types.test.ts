@@ -178,15 +178,15 @@ suite('Types', () => {
 		assert.throws(() => types.assertAllDefined(true, undefined));
 		assert.throws(() => types.assertAllDefined(undefined, false));
 
-		assert.equal(types.assertIsDefined(true), true);
-		assert.equal(types.assertIsDefined(false), false);
-		assert.equal(types.assertIsDefined('Hello'), 'Hello');
-		assert.equal(types.assertIsDefined(''), '');
+		assert.strictEqual(types.assertIsDefined(true), true);
+		assert.strictEqual(types.assertIsDefined(false), false);
+		assert.strictEqual(types.assertIsDefined('Hello'), 'Hello');
+		assert.strictEqual(types.assertIsDefined(''), '');
 
 		const res = types.assertAllDefined(1, true, 'Hello');
-		assert.equal(res[0], 1);
-		assert.equal(res[1], true);
-		assert.equal(res[2], 'Hello');
+		assert.strictEqual(res[0], 1);
+		assert.strictEqual(res[1], true);
+		assert.strictEqual(res[2], 'Hello');
 	});
 
 	test('validateConstraints', () => {

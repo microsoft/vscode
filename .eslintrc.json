@@ -5,7 +5,10 @@
 		"ecmaVersion": 6,
 		"sourceType": "module"
 	},
-	"plugins": ["@typescript-eslint", "jsdoc"],
+	"plugins": [
+		"@typescript-eslint",
+		"jsdoc"
+	],
 	"rules": {
 		"constructor-super": "warn",
 		"curly": "warn",
@@ -43,7 +46,9 @@
 			"warn",
 			{
 				"selector": "class",
-				"format": ["PascalCase"]
+				"format": [
+					"PascalCase"
+				]
 			}
 		],
 		"code-no-unused-expressions": [
@@ -60,11 +65,26 @@
 			"warn",
 			{
 				"common": [],
-				"node": ["common"],
-				"browser": ["common"],
-				"electron-sandbox": ["common", "browser"],
-				"electron-browser": ["common", "browser", "node", "electron-sandbox"],
-				"electron-main": ["common", "node"]
+				"node": [
+					"common"
+				],
+				"browser": [
+					"common"
+				],
+				"electron-sandbox": [
+					"common",
+					"browser"
+				],
+				"electron-browser": [
+					"common",
+					"browser",
+					"node",
+					"electron-sandbox"
+				],
+				"electron-main": [
+					"common",
+					"node"
+				]
 			}
 		],
 		"code-import-patterns": [
@@ -74,7 +94,10 @@
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			{
 				"target": "**/vs/base/common/**",
-				"restrictions": ["vs/nls", "**/vs/base/common/**"]
+				"restrictions": [
+					"vs/nls",
+					"**/vs/base/common/**"
+				]
 			},
 			{
 				"target": "**/vs/base/test/common/**",
@@ -432,7 +455,11 @@
 			},
 			{
 				"target": "**/vs/workbench/api/worker/**",
-				"restrictions": ["vscode", "vs/nls", "**/vs/**/{common,worker}/**"]
+				"restrictions": [
+					"vscode",
+					"vs/nls",
+					"**/vs/**/{common,worker}/**"
+				]
 			},
 			{
 				"target": "**/vs/workbench/electron-sandbox/**",
@@ -878,7 +905,13 @@
 			},
 			{
 				"target": "**/api/**.test.ts",
-				"restrictions": ["**/vs/**", "assert", "sinon", "crypto", "vscode"]
+				"restrictions": [
+					"**/vs/**",
+					"assert",
+					"sinon",
+					"crypto",
+					"vscode"
+				]
 			},
 			{
 				"target": "**/{node,electron-browser,electron-main}/**/*.test.ts",
@@ -903,28 +936,47 @@
 			},
 			{
 				"target": "**/**.test.ts",
-				"restrictions": ["**/vs/**", "assert", "sinon", "crypto", "xterm*"]
+				"restrictions": [
+					"**/vs/**",
+					"assert",
+					"sinon",
+					"crypto",
+					"xterm*"
+				]
 			},
 			{
 				"target": "**/test/**",
-				"restrictions": ["**/vs/**", "assert", "sinon", "crypto", "xterm*"]
+				"restrictions": [
+					"**/vs/**",
+					"assert",
+					"sinon",
+					"crypto",
+					"xterm*"
+				]
 			}
 		]
 	},
 	"overrides": [
 		{
-			"files": ["*.js"],
+			"files": [
+				"*.js"
+			],
 			"rules": {
 				"jsdoc/no-types": "off"
 			}
 		},
 		{
-			"files": ["**/vscode.d.ts", "**/vscode.proposed.d.ts"],
+			"files": [
+				"**/vscode.d.ts",
+				"**/vscode.proposed.d.ts"
+			],
 			"rules": {
 				"vscode-dts-create-func": "warn",
 				"vscode-dts-literal-or-types": "warn",
 				"vscode-dts-interface-naming": "warn",
 				"vscode-dts-cancellation": "warn",
+				"vscode-dts-use-thenable": "warn",
+				"vscode-dts-region-comments": "warn",
 				"vscode-dts-provider-naming": [
 					"warn",
 					{
@@ -940,7 +992,10 @@
 				"vscode-dts-event-naming": [
 					"warn",
 					{
-						"allowed": ["onCancellationRequested", "event"],
+						"allowed": [
+							"onCancellationRequested",
+							"event"
+						],
 						"verbs": [
 							"accept",
 							"change",

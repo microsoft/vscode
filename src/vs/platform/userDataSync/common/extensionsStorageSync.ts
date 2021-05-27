@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
@@ -32,7 +33,7 @@ export class ExtensionsStorageSyncService extends Disposable implements IExtensi
 	declare readonly _serviceBrand: undefined;
 
 	private static toKey(extension: IExtensionIdWithVersion): string {
-		return `extensionKeys/${extension.id}@${extension.version}`;
+		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
 	}
 
 	private static fromKey(key: string): IExtensionIdWithVersion | undefined {

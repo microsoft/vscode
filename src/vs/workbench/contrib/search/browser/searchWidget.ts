@@ -338,7 +338,7 @@ export class SearchWidget extends Widget {
 			const useGlobalFindBuffer = this.searchConfiguration.globalFindClipboard;
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = await this.clipboardServce.readFindText();
-				if (this.previousGlobalFindBufferValue !== globalBufferText) {
+				if (globalBufferText && this.previousGlobalFindBufferValue !== globalBufferText) {
 					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
 					this.searchInput.select();

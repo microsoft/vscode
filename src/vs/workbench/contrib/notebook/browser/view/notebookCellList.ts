@@ -368,7 +368,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const viewSelections = model.selectionHandles.map(handle => {
 				return model.getCellByHandle(handle);
 			}).filter(cell => !!cell).map(cell => this._getViewIndexUpperBound(cell!));
-			this.setFocus(viewSelections, undefined, true);
+			this.setSelection(viewSelections, undefined, true);
 		}));
 
 		const hiddenRanges = model.getHiddenRanges();
@@ -592,6 +592,18 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent, ignoreTextModelUpdate?: boolean): void {
+		// if (!indexes.length) {
+		// 	return;
+		// }
+
+		// if (this._viewModel && !ignoreTextModelUpdate) {
+		// 	this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
+		// }
+
+		super.setFocus(indexes, browserEvent);
+	}
+
+	setSelection(indexes: number[], browserEvent?: UIEvent | undefined, ignoreTextModelUpdate?: boolean) {
 		if (!indexes.length) {
 			return;
 		}
@@ -600,7 +612,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			this._viewModel.selectionHandles = indexes.map(index => this.element(index)).map(cell => cell.handle);
 		}
 
-		super.setFocus(indexes, browserEvent);
+		super.setSelection(indexes, browserEvent);
 	}
 
 	revealElementsInView(range: ICellRange) {

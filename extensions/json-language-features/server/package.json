@@ -14,9 +14,9 @@
   "dependencies": {
     "jsonc-parser": "^3.0.0",
     "request-light": "^0.4.0",
-    "vscode-json-languageservice": "^4.0.0",
+    "vscode-json-languageservice": "^4.0.2",
     "vscode-languageserver": "^7.0.0",
-    "vscode-uri": "^2.1.2"
+    "vscode-uri": "^3.0.2"
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",

@@ -292,6 +292,9 @@ export class InputBox extends Widget {
 
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
+			if (range.end === this.input.value.length) {
+				this.input.scrollLeft = this.input.scrollWidth;
+			}
 		}
 	}
 

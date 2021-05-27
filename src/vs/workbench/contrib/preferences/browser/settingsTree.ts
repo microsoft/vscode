@@ -86,6 +86,10 @@ function areAllPropertiesDefined(properties: string[], itemsToDisplay: IObjectDa
 }
 
 function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
+	if (schema.anyOf) {
+		return arrays.flatten(schema.anyOf.map(getEnumOptionsFromSchema));
+	}
+
 	const enumDescriptions = schema.enumDescriptions ?? [];
 
 	return (schema.enum ?? []).map((value, idx) => {
@@ -98,6 +102,14 @@ function getEnumOptionsFromSchema(schema: IJSONSchema): IObjectEnumOption[] {
 }
 
 function getObjectValueType(schema: IJSONSchema): ObjectValue['type'] {
+	if (schema.anyOf) {
+		const subTypes = schema.anyOf.map(getObjectValueType);
+		if (subTypes.some(type => type === 'enum')) {
+			return 'enum';
+		}
+		return 'string';
+	}
+
 	if (schema.type === 'boolean') {
 		return 'boolean';
 	} else if (schema.type === 'string' && isDefined(schema.enum) && schema.enum.length > 0) {
@@ -548,13 +560,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 		}));
 	}
 
-	renderTemplate(container: HTMLElement): any {
-		throw new Error('to override');
-	}
+	abstract renderTemplate(container: HTMLElement): any;
 
-	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void {
-		throw new Error('to override');
-	}
+	abstract renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: any): void;
 
 	protected createSyncIgnoredElement(container: HTMLElement): HTMLElement {
 		const syncIgnoredElement = DOM.append(container, $('span.setting-item-ignored'));

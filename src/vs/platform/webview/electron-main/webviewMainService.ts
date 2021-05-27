@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContents, webContents } from 'electron';
-import { VSBuffer } from 'vs/base/common/buffer';
+import { session, WebContents, webContents } from 'electron';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
 import { IRequestService } from 'vs/platform/request/common/request';
-import { IWebviewManagerService, RegisterWebviewMetadata, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { webviewPartitionId } from 'vs/platform/webview/common/resourceLoader';
+import { IWebviewManagerService, RegisterWebviewMetadata, WebviewManagerDidLoadResourceResponse, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewPortMappingProvider } from 'vs/platform/webview/electron-main/webviewPortMappingProvider';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
@@ -33,6 +33,15 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		super();
 		this.protocolProvider = this._register(new WebviewProtocolProvider(fileService, logService, requestService, windowsMainService));
 		this.portMappingProvider = this._register(new WebviewPortMappingProvider(tunnelService));
+
+		const sess = session.fromPartition(webviewPartitionId);
+		sess.setPermissionRequestHandler((webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback) => {
+			return callback(false);
+		});
+
+		sess.setPermissionCheckHandler((webContents, permission /* 'media' */) => {
+			return false;
+		});
 	}
 
 	public async registerWebview(id: string, windowId: number, metadata: RegisterWebviewMetadata): Promise<void> {
@@ -95,7 +104,7 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 		}
 	}
 
-	public async didLoadResource(requestId: number, content: VSBuffer | undefined): Promise<void> {
-		this.protocolProvider.didLoadResource(requestId, content);
+	public async didLoadResource(requestId: number, response: WebviewManagerDidLoadResourceResponse): Promise<void> {
+		this.protocolProvider.didLoadResource(requestId, response);
 	}
 }

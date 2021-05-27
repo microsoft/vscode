@@ -46,7 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
 		manager.show(url.toString(), showOptions);
 	}));
 
-	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, ['http', 'https'], {
+	context.subscriptions.push(vscode.window.registerExternalUriOpener(openerId, {
 		canOpenExternalUri(uri: vscode.Uri) {
 			const originalUri = new URL(uri.toString());
 			if (enabledHosts.has(originalUri.hostname)) {
@@ -63,6 +63,7 @@ export function activate(context: vscode.ExtensionContext) {
 			});
 		}
 	}, {
+		schemes: ['http', 'https'],
 		label: localize('openTitle', "Open in simple browser"),
 	}));
 }

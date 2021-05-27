@@ -62,5 +62,9 @@
     "@types/node": "^12.19.9",
     "@types/node-fetch": "^2.5.7",
     "@types/uuid": "8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

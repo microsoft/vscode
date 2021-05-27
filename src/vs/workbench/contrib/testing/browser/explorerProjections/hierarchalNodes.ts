@@ -7,7 +7,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 import { ITestTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/browser/testExplorerTree';
+import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 import { InternalTestItem, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -19,7 +19,7 @@ export class HierarchicalElement implements ITestTreeElement {
 	public readonly depth: number = this.parentItem.depth + 1;
 
 	public get treeId() {
-		return `test:${this.test.id}`;
+		return `hitest:${this.test.id}`;
 	}
 
 	public get label() {
@@ -50,10 +50,6 @@ export class HierarchicalElement implements ITestTreeElement {
 		this.test = { ...test, item: { ...test.item } }; // clone since we Object.assign updatese
 	}
 
-	public getChildren() {
-		return this.children;
-	}
-
 	public update(actual: InternalTestItem, addUpdated: (n: ITestTreeElement) => void) {
 		const stateChange = actual.item.state.runState !== this.state;
 		Object.assign(this.test, actual);
@@ -73,7 +69,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public computedState: TestRunState | undefined;
 
 	public get treeId() {
-		return `folder:${this.folder.index}`;
+		return `hifolder:${this.folder.index}`;
 	}
 
 	public get runnable() {
@@ -89,10 +85,6 @@ export class HierarchicalFolder implements ITestTreeElement {
 	public get label() {
 		return this.folder.name;
 	}
-
-	public getChildren() {
-		return this.children;
-	}
 }
 
 /**
@@ -101,7 +93,7 @@ export class HierarchicalFolder implements ITestTreeElement {
 export const getComputedState = (node: ITestTreeElement) => {
 	if (node.computedState === undefined) {
 		node.computedState = node.state ?? TestRunState.Unset;
-		for (const child of node.getChildren()) {
+		for (const child of node.children) {
 			node.computedState = maxPriority(node.computedState, getComputedState(child));
 		}
 	}

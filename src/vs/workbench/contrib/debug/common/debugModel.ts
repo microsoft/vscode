@@ -423,7 +423,9 @@ export class Thread implements IThread {
 	}
 
 	getTopStackFrame(): IStackFrame | undefined {
-		return this.getCallStack().find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
+		const callStack = this.getCallStack();
+		const firstAvailableStackFrame = callStack.find(sf => !!(sf && sf.source && sf.source.available && sf.source.presentationHint !== 'deemphasize'));
+		return firstAvailableStackFrame || (callStack.length > 0 ? callStack[0] : undefined);
 	}
 
 	get stateLabel(): string {

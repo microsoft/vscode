@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITextModel } from 'vs/editor/common/model';
 import { DocumentSemanticTokensProviderRegistry, DocumentSemanticTokensProvider, SemanticTokens, SemanticTokensEdits, SemanticTokensLegend, DocumentRangeSemanticTokensProviderRegistry, DocumentRangeSemanticTokensProvider } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { assertType } from 'vs/base/common/types';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { encodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
@@ -60,7 +60,8 @@ CommandsRegistry.registerCommand('_provideDocumentSemanticTokensLegend', async (
 
 	const provider = _getDocumentSemanticTokensProvider(model);
 	if (!provider) {
-		return undefined;
+		// there is no provider => fall back to a document range semantic tokens provider
+		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokensLegend', uri);
 	}
 
 	return provider.getLegend();
@@ -77,8 +78,8 @@ CommandsRegistry.registerCommand('_provideDocumentSemanticTokens', async (access
 
 	const r = getDocumentSemanticTokens(model, null, CancellationToken.None);
 	if (!r) {
-		// there is no provider
-		return undefined;
+		// there is no provider => fall back to a document range semantic tokens provider
+		return accessor.get(ICommandService).executeCommand('_provideDocumentRangeSemanticTokens', uri, model.getFullModelRange());
 	}
 
 	const { provider, request } = r;

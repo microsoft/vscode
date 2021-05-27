@@ -138,10 +138,10 @@ export class AdapterManager implements IAdapterManager {
 		return Promise.resolve(config);
 	}
 
-	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	runInTerminal(debugType: string, args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 		let factory = this.debugAdapterFactories.get(debugType);
 		if (factory) {
-			return factory.runInTerminal(args);
+			return factory.runInTerminal(args, sessionId);
 		}
 		return Promise.resolve(void 0);
 	}

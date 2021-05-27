@@ -143,8 +143,11 @@ export class StatefulMarkdownCell extends Disposable {
 				// active cell and no run status
 				if (this._activeCellRunPlaceholder === null) {
 					// const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID);
-					this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(getExecuteCellPlaceholder(this.viewCell));
-					this._register(this._activeCellRunPlaceholder);
+					const placeholder = getExecuteCellPlaceholder(this.viewCell);
+					if (!this.notebookCellStatusBarService.getEntries(this.viewCell.uri).find(entry => entry.text === placeholder.text && entry.command === placeholder.command)) {
+						this._activeCellRunPlaceholder = this.notebookCellStatusBarService.addEntry(placeholder);
+						this._register(this._activeCellRunPlaceholder);
+					}
 				}
 
 				return;
@@ -334,8 +337,9 @@ export class StatefulMarkdownCell extends Disposable {
 			}
 		);
 
-		this.viewCell.editorHeight = realContentHeight;
-		this.relayoutCell();
+		// LET the content size observer to handle it
+		// this.viewCell.editorHeight = realContentHeight;
+		// this.relayoutCell();
 	}
 
 	private relayoutCell(): void {

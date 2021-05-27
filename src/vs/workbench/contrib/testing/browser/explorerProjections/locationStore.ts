@@ -37,7 +37,7 @@ export class TestLocationStore<T extends { location?: ModeLocation, depth: numbe
 			const range = test.location?.range;
 			return range
 				&& new Position(range.startLineNumber, range.startColumn).isBeforeOrEqual(position)
-				&& position.isBefore(new Position(
+				&& position.isBeforeOrEqual(new Position(
 					range.endLineNumber ?? range.startLineNumber,
 					range.endColumn ?? range.startColumn,
 				));

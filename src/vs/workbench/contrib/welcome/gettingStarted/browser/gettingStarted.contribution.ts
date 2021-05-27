@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { GettingStartedInputFactory, GettingStartedPage, GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInputFactory, GettingStartedInput, getGettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as EditorInputExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -13,6 +13,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import product from 'vs/platform/product/common/product';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export * as icons from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 
@@ -34,7 +35,7 @@ registerAction2(class extends Action2 {
 	}
 
 	public run(accessor: ServicesAccessor) {
-		return accessor.get(IInstantiationService).createInstance(GettingStartedPage, {}).openEditor();
+		accessor.get(IEditorService).openEditor(accessor.get(IInstantiationService).invokeFunction(getGettingStartedInput, {}), {});
 	}
 });
 

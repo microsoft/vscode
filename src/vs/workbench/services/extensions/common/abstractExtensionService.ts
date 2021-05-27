@@ -420,7 +420,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onDidChangeExtensionsStatus.fire(this._registry.getAllExtensionDescriptions().map(e => e.identifier));
 	}
 
-	private _stopExtensionHosts(): void {
+	protected _stopExtensionHosts(): void {
 		let previouslyActivatedExtensionIds: ExtensionIdentifier[] = [];
 		this._extensionHostActiveExtensions.forEach((value) => {
 			previouslyActivatedExtensionIds.push(value);

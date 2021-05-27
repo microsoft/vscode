@@ -200,7 +200,7 @@ export class TabsTitleControl extends TitleControl {
 	}
 
 	private updateBreadcrumbsControl(): void {
-		if (this.breadcrumbsControl && this.breadcrumbsControl.update()) {
+		if (this.breadcrumbsControl?.update()) {
 			this.group.relayout(); // relayout when we have a breadcrumbs and when update changed its hidden-status
 		}
 	}
@@ -1402,22 +1402,34 @@ export class TabsTitleControl extends TitleControl {
 		if (this.accessor.partOptions.wrapTabs) {
 			const visibleTabsWidth = tabsContainer.offsetWidth;
 			const allTabsWidth = tabsContainer.scrollWidth;
+			const lastTabFitsWrapped = () => {
+				const lastTab = this.getLastTab();
+				if (!lastTab) {
+					return true; // no tab always fits
+				}
+
+				return lastTab.offsetWidth <= (dimensions.available.width - editorToolbarContainer.offsetWidth);
+			};
 
 			// If tabs wrap or should start to wrap (when width exceeds visible width)
 			// we must trigger `updateWrapping` to set the `last-tab-margin-right`
 			// accordingly based on the number of actions. The margin is important to
 			// properly position the last tab apart from the actions
-			if (tabsWrapMultiLine || allTabsWidth > visibleTabsWidth) {
+			//
+			// We already check here if the last tab would fit when wrapped given the
+			// editor toolbar will also show right next to it. This ensures we are not
+			// enabling wrapping only to disable it again in the code below (this fixes
+			// flickering issue https://github.com/microsoft/vscode/issues/115050)
+			if (tabsWrapMultiLine || (allTabsWidth > visibleTabsWidth && lastTabFitsWrapped())) {
 				updateTabsWrapping(true);
 			}
 
 			// Tabs wrap multiline: remove wrapping under certain size constraint conditions
 			if (tabsWrapMultiLine) {
-				const lastTab = this.getLastTab();
 				if (
 					(tabsContainer.offsetHeight > dimensions.available.height) ||											// if height exceeds available height
 					(allTabsWidth === visibleTabsWidth && tabsContainer.offsetHeight === TabsTitleControl.TAB_HEIGHT) ||	// if wrapping is not needed anymore
-					(lastTab && lastTab.offsetWidth > (dimensions.available.width - editorToolbarContainer.offsetWidth))	// if editor actions occupy too much space
+					(!lastTabFitsWrapped())																					// if last tab does not fit anymore
 				) {
 					updateTabsWrapping(false);
 				}

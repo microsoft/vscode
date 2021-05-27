@@ -318,7 +318,7 @@ registerAction2(class extends Action2 {
 		const instantiationService = accessor.get(IInstantiationService);
 		const searchView = getSearchView(viewsService);
 		if (searchView) {
-			await instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue());
+			await instantiationService.invokeFunction(createEditorFromSearchResult, searchView.searchResult, searchView.searchIncludePattern.getValue(), searchView.searchExcludePattern.getValue(), searchView.searchIncludePattern.onlySearchInOpenEditors());
 		}
 	}
 });
@@ -511,11 +511,10 @@ registerAction2(class extends Action2 {
 registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
-			id: SearchEditorConstants.OpenNewEditorCommandId,
-			title: localize('search.openNewEditor', "Open New Search Editor"),
+			id: 'search.action.openNewEditorFromView',
+			title: localize('search.openNewEditor', "Open New Search Editor from View"),
 			category,
 			icon: searchNewEditorIcon,
-			f1: true,
 			menu: [{
 				id: MenuId.ViewTitle,
 				group: 'navigation',

@@ -428,7 +428,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	async resolveFileStat(fileService: IFileService): Promise<void> {
-		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true });
+		this._fileStat = await fileService.resolve(this.resource, { resolveMetadata: true }).catch(() => undefined);
 	}
 
 	public get fileStat(): IFileStatWithMetadata | undefined {

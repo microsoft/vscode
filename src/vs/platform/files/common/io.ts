@@ -58,10 +58,11 @@ async function doReadFileIntoStream<T>(provider: IFileSystemProviderWithOpenRead
 	// open handle through provider
 	const handle = await provider.open(resource, { create: false });
 
-	// Check for cancellation
-	throwIfCancelled(token);
-
 	try {
+
+		// Check for cancellation
+		throwIfCancelled(token);
+
 		let totalBytesRead = 0;
 		let bytesRead = 0;
 		let allowedRemainingBytes = (options && typeof options.length === 'number') ? options.length : undefined;

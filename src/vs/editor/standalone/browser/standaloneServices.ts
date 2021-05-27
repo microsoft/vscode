@@ -32,7 +32,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
-import { ConsoleLogService, ILogService } from 'vs/platform/log/common/log';
+import { ConsoleLogger, ILogService, LogService } from 'vs/platform/log/common/log';
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -152,7 +152,7 @@ export module StaticServices {
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
-	export const logService = define(ILogService, () => new ConsoleLogService());
+	export const logService = define(ILogService, () => new LogService(new ConsoleLogger()));
 
 	export const undoRedoService = define(IUndoRedoService, (o) => new UndoRedoService(dialogService.get(o), notificationService.get(o)));
 

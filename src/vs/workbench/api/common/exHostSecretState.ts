@@ -25,7 +25,7 @@ export class ExtHostSecretState implements ExtHostSecretStateShape {
 		return this._proxy.$getPassword(extensionId, key);
 	}
 
-	set(extensionId: string, key: string, value: string): Promise<void> {
+	store(extensionId: string, key: string, value: string): Promise<void> {
 		return this._proxy.$setPassword(extensionId, key, value);
 	}
 

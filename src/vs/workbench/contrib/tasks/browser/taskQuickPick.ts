@@ -35,7 +35,7 @@ export interface TaskTwoLevelQuickPickEntry extends IQuickPickItem {
 
 const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks...");
 
-export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configration icon in the tasks selection list.'));
+export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
 const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
 
 export class TaskQuickPick extends Disposable {
@@ -182,24 +182,23 @@ export class TaskQuickPick extends Disposable {
 
 		picker.onDidTriggerItemButton(async (context) => {
 			let task = context.item.task;
-			if (task && !Types.isString(task) && context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
-				const key = task.getRecentlyUsedKey();
+			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
+				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
 				if (key) {
 					this.taskService.removeRecentlyUsedTask(key);
-					const indexToRemove = picker.items.indexOf(context.item);
-					if (indexToRemove >= 0) {
-						picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
-					}
 				}
-				return;
-			}
-
-			this.quickInputService.cancel();
-			if (ContributedTask.is(task)) {
-				this.taskService.customize(task, undefined, true);
-			} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-				if (!(await this.taskService.openConfig(task))) {
+				const indexToRemove = picker.items.indexOf(context.item);
+				if (indexToRemove >= 0) {
+					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
+				}
+			} else {
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
 					this.taskService.customize(task, undefined, true);
+				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
+					if (!(await this.taskService.openConfig(task))) {
+						this.taskService.customize(task, undefined, true);
+					}
 				}
 			}
 		});

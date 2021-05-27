@@ -2079,16 +2079,16 @@ suite('Editor Controller - Regression tests', () => {
 
 			// Typing sennsei in Japanese - Hiragana
 			viewModel.type('ｓ', 'keyboard');
-			viewModel.replacePreviousChar('せ', 1);
-			viewModel.replacePreviousChar('せｎ', 1);
-			viewModel.replacePreviousChar('せん', 2);
-			viewModel.replacePreviousChar('せんｓ', 2);
-			viewModel.replacePreviousChar('せんせ', 3);
-			viewModel.replacePreviousChar('せんせ', 3);
-			viewModel.replacePreviousChar('せんせい', 3);
-			viewModel.replacePreviousChar('せんせい', 4);
-			viewModel.replacePreviousChar('せんせい', 4);
-			viewModel.replacePreviousChar('せんせい', 4);
+			viewModel.compositionType('せ', 1, 0, 0);
+			viewModel.compositionType('せｎ', 1, 0, 0);
+			viewModel.compositionType('せん', 2, 0, 0);
+			viewModel.compositionType('せんｓ', 2, 0, 0);
+			viewModel.compositionType('せんせ', 3, 0, 0);
+			viewModel.compositionType('せんせ', 3, 0, 0);
+			viewModel.compositionType('せんせい', 3, 0, 0);
+			viewModel.compositionType('せんせい', 4, 0, 0);
+			viewModel.compositionType('せんせい', 4, 0, 0);
+			viewModel.compositionType('せんせい', 4, 0, 0);
 
 			assert.strictEqual(model.getLineContent(1), 'せんせい');
 			assertCursor(viewModel, new Position(1, 5));
@@ -2779,6 +2779,37 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.strictEqual(model.getLineContent(2), '');
 			assert.strictEqual(model.getLineContent(3), '    ');
 		});
+	});
+
+	test('issue #115033: indent and appendText', () => {
+		const mode = new class extends MockMode {
+			constructor() {
+				super(new LanguageIdentifier('onEnterMode', 3));
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					onEnterRules: [{
+						beforeText: /.*/,
+						action: {
+							indentAction: IndentAction.Indent,
+							appendText: 'x'
+						}
+					}]
+				}));
+			}
+		}();
+		usingCursor({
+			text: [
+				'text'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+		}, (editor, model, viewModel) => {
+
+			moveTo(editor, viewModel, 1, 5);
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), 'text');
+			assert.strictEqual(model.getLineContent(2), '    x');
+			assertCursor(viewModel, new Position(2, 6));
+		});
+		mode.dispose();
 	});
 
 	test('issue #6862: Editor removes auto inserted indentation when formatting on type', () => {
@@ -4035,6 +4066,47 @@ suite('Editor Controller - Indentation Rules', () => {
 				].join('\n')
 			);
 			assertCursor(viewModel, new Selection(8, 5, 8, 5));
+		});
+
+		model.dispose();
+		mode.dispose();
+	});
+
+	test('issue #115304: OnEnter broken for TS', () => {
+		class JSMode extends MockMode {
+			private static readonly _id = new LanguageIdentifier('indentRulesMode', 4);
+			constructor() {
+				super(JSMode._id);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					onEnterRules: javascriptOnEnterRules
+				}));
+			}
+		}
+
+		const mode = new JSMode();
+		const model = createTextModel(
+			[
+				'/** */',
+				'function f() {}',
+			].join('\n'),
+			undefined,
+			mode.getLanguageIdentifier()
+		);
+
+		withTestCodeEditor(null, { model: model, autoIndent: 'advanced' }, (editor, viewModel) => {
+			moveTo(editor, viewModel, 1, 4, false);
+			assertCursor(viewModel, new Selection(1, 4, 1, 4));
+
+			viewModel.type('\n', 'keyboard');
+			assert.strictEqual(model.getValue(),
+				[
+					'/**',
+					' * ',
+					' */',
+					'function f() {}',
+				].join('\n')
+			);
+			assertCursor(viewModel, new Selection(2, 4, 2, 4));
 		});
 
 		model.dispose();
@@ -5377,7 +5449,7 @@ suite('autoClosingPairs', () => {
 			// Typing ` + e on the mac US intl kb layout
 			viewModel.startComposition();
 			viewModel.type('`', 'keyboard');
-			viewModel.replacePreviousChar('è', 1, 'keyboard');
+			viewModel.compositionType('è', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), 'è');
@@ -5398,8 +5470,8 @@ suite('autoClosingPairs', () => {
 			// Typing ` + e on the mac US intl kb layout
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), '\'test\'');
@@ -5478,8 +5550,8 @@ suite('autoClosingPairs', () => {
 			viewModel.startComposition();
 			viewModel.type('`', 'keyboard');
 			moveDown(editor, viewModel, true);
-			viewModel.replacePreviousChar('`', 1, 'keyboard');
-			viewModel.replacePreviousChar('`', 1, 'keyboard');
+			viewModel.compositionType('`', 1, 0, 0, 'keyboard');
+			viewModel.compositionType('`', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), '`hello\nworld');
@@ -5503,14 +5575,14 @@ suite('autoClosingPairs', () => {
 			// Typing ' + space
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 			assert.strictEqual(model.getValue(), '\'\'');
 
 			// Typing one more ' + space
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 			assert.strictEqual(model.getValue(), '\'\'');
 
@@ -5519,7 +5591,7 @@ suite('autoClosingPairs', () => {
 			viewModel.setSelections('test', [new Selection(1, 5, 1, 5)]);
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), '\'abc\'');
@@ -5529,7 +5601,7 @@ suite('autoClosingPairs', () => {
 			viewModel.setSelections('test', [new Selection(1, 10, 1, 10)]);
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), '\'abc\'def \'\'');
@@ -5539,7 +5611,7 @@ suite('autoClosingPairs', () => {
 			viewModel.setSelections('test', [new Selection(1, 1, 1, 1)]);
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			// No auto closing if it's after a word.
@@ -5547,7 +5619,7 @@ suite('autoClosingPairs', () => {
 			viewModel.setSelections('test', [new Selection(1, 4, 1, 4)]);
 			viewModel.startComposition();
 			viewModel.type('\'', 'keyboard');
-			viewModel.replacePreviousChar('\'', 1, 'keyboard');
+			viewModel.compositionType('\'', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 
 			assert.strictEqual(model.getValue(), 'abc\'');
@@ -5568,7 +5640,7 @@ suite('autoClosingPairs', () => {
 			// Typing a + backspace
 			viewModel.startComposition();
 			viewModel.type('a', 'keyboard');
-			viewModel.replacePreviousChar('', 1, 'keyboard');
+			viewModel.compositionType('', 1, 0, 0, 'keyboard');
 			viewModel.endComposition('keyboard');
 			assert.strictEqual(model.getValue(), '{}');
 		});

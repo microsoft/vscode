@@ -1,0 +1,14 @@
+name: Prevent yarn.lock changes in PRs
+on: [pull_request]
+
+jobs:
+  main:
+    name: Prevent yarn.lock changes in PRs
+    runs-on: ubuntu-latest
+    steps:
+      - id: file_changes
+        uses: trilom/file-changes-action@v1.2.4
+      - name: Check for yarn.lock changes
+        run: |
+          cat $HOME/files.json | jq -e '.[] | test("yarn\\.lock$") | not' \
+            || (echo "Changes to yarn.lock files aren't allowed in PRs." && exit 1)

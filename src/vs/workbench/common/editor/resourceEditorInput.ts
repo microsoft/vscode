@@ -97,7 +97,7 @@ export class ResourceEditorInput extends AbstractTextResourceEditorInput impleme
 			ref.dispose();
 			this.modelReference = undefined;
 
-			throw new Error(`Unexpected model for ResourcEditorInput: ${this.resource}`);
+			throw new Error(`Unexpected model for ResourceEditorInput: ${this.resource}`);
 		}
 
 		this.cachedModel = model;

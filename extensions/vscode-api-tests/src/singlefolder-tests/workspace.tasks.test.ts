@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event } from 'vscode';
+import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
 // - Web https://github.com/microsoft/vscode/issues/90528
@@ -14,6 +15,7 @@ import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomEx
 		let disposables: Disposable[] = [];
 
 		teardown(() => {
+			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
 		});

@@ -139,7 +139,7 @@ export abstract class BaseBinaryResourceEditor extends EditorPane {
 		const [binaryContainer, scrollbar] = assertAllDefined(this.binaryContainer, this.scrollbar);
 		size(binaryContainer, dimension.width, dimension.height);
 		scrollbar.scanDomNode();
-		if (this.resourceViewerContext && this.resourceViewerContext.layout) {
+		if (typeof this.resourceViewerContext?.layout === 'function') {
 			this.resourceViewerContext.layout(dimension);
 		}
 	}

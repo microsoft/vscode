@@ -409,14 +409,14 @@ export class CategoryElementRenderer implements ITreeRenderer<CategoryElement, F
 		} else if (URI.isUri(metadata.iconPath)) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.toString(true)}")`);
-			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.toString(true)}")`);
+			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath));
+			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath));
 
 		} else if (metadata.iconPath) {
 			// background-image
 			template.icon.className = 'uri-icon';
-			template.icon.style.setProperty('--background-dark', `url("${metadata.iconPath.dark.toString(true)}")`);
-			template.icon.style.setProperty('--background-light', `url("${metadata.iconPath.light.toString(true)}")`);
+			template.icon.style.setProperty('--background-dark', dom.asCSSUrl(metadata.iconPath.dark));
+			template.icon.style.setProperty('--background-light', dom.asCSSUrl(metadata.iconPath.light));
 		}
 
 		template.label.setLabel(metadata.label, metadata.description, {
@@ -608,14 +608,14 @@ class TextEditElementTemplate {
 			} else if (URI.isUri(iconPath)) {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', `url("${iconPath.toString(true)}")`);
-				this._icon.style.setProperty('--background-light', `url("${iconPath.toString(true)}")`);
+				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath));
+				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath));
 
 			} else {
 				// background-image
 				this._icon.className = 'uri-icon';
-				this._icon.style.setProperty('--background-dark', `url("${iconPath.dark.toString(true)}")`);
-				this._icon.style.setProperty('--background-light', `url("${iconPath.light.toString(true)}")`);
+				this._icon.style.setProperty('--background-dark', dom.asCSSUrl(iconPath.dark));
+				this._icon.style.setProperty('--background-light', dom.asCSSUrl(iconPath.light));
 			}
 		}
 

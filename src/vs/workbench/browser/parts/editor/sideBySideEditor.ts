@@ -76,7 +76,7 @@ export class SideBySideEditor extends EditorPane {
 		this.secondaryEditorContainer = DOM.$('.secondary-editor-container');
 		this.splitview.addView({
 			element: this.secondaryEditorContainer,
-			layout: size => this.secondaryEditorPane && this.secondaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.secondaryEditorPane?.layout(new DOM.Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -85,7 +85,7 @@ export class SideBySideEditor extends EditorPane {
 		this.primaryEditorContainer = DOM.$('.primary-editor-container');
 		this.splitview.addView({
 			element: this.primaryEditorContainer,
-			layout: size => this.primaryEditorPane && this.primaryEditorPane.layout(new DOM.Dimension(size, this.dimension.height)),
+			layout: size => this.primaryEditorPane?.layout(new DOM.Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None

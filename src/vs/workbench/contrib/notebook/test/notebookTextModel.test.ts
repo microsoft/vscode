@@ -9,6 +9,7 @@ import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbe
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { assertType } from 'vs/base/common/types';
 
 suite('NotebookTextModel', () => {
 	const instantiationService = setupInstantiationService();
@@ -202,9 +203,46 @@ suite('NotebookTextModel', () => {
 					}]
 				}], true, undefined, () => undefined, undefined);
 
-				assert.equal(textModel.cells.length, 1);
-				assert.equal(textModel.cells[0].outputs.length, 1);
-				assert.equal(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs[0].outputKind, CellOutputKind.Rich);
+
+				// append
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					append: true,
+					outputs: [{
+						outputKind: CellOutputKind.Rich,
+						outputId: 'someId2',
+						data: { 'text/markdown': '_Hello2_' }
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 2);
+				let [first, second] = textModel.cells[0].outputs;
+				assertType(first.outputKind === CellOutputKind.Rich);
+				assertType(second.outputKind === CellOutputKind.Rich);
+				assert.strictEqual(first.outputId, 'someId');
+				assert.strictEqual(second.outputId, 'someId2');
+
+				// replace all
+				textModel.applyEdits(textModel.versionId, [{
+					index: 0,
+					editType: CellEditType.Output,
+					outputs: [{
+						outputKind: CellOutputKind.Rich,
+						outputId: 'someId3',
+						data: { 'text/plain': 'Last, replaced output' }
+					}]
+				}], true, undefined, () => undefined, undefined);
+
+				assert.strictEqual(textModel.cells.length, 1);
+				assert.strictEqual(textModel.cells[0].outputs.length, 1);
+				[first] = textModel.cells[0].outputs;
+				assertType(first.outputKind === CellOutputKind.Rich);
+				assert.strictEqual(first.outputId, 'someId3');
 			}
 		);
 	});

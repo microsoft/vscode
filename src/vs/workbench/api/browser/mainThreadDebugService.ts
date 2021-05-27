@@ -75,8 +75,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this._proxy.$runInTerminal(args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this._proxy.$runInTerminal(args, sessionId);
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)

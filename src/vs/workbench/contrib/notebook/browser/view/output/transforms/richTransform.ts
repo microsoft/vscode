@@ -20,6 +20,7 @@ import { dirname } from 'vs/base/common/resources';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ErrorTransform } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/errorTransform';
 
 class RichRenderer implements IOutputTransformContribution {
 	private _richMimeTypeRenderers = new Map<string, (output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
@@ -42,6 +43,7 @@ class RichRenderer implements IOutputTransformContribution {
 		this._richMimeTypeRenderers.set('image/jpeg', this.renderJPEG.bind(this));
 		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
 		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
+		this._richMimeTypeRenderers.set('application/x.notebook.error-traceback', this._renderErrorTraceback.bind(this));
 	}
 
 	render(output: IDisplayOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
@@ -209,9 +211,17 @@ class RichRenderer implements IOutputTransformContribution {
 	renderPlainText(output: IDisplayOutputViewModel, notebookUri: URI, container: HTMLElement): IRenderOutput {
 		const data = output.model.data['text/plain'];
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService, true);
+		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService);
 		container.appendChild(contentNode);
 
+		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	}
+
+	private _renderErrorTraceback(outputViewModel: IDisplayOutputViewModel, _notebookUri: URI, container: HTMLElement): IRenderOutput {
+		const output = outputViewModel.model.data['application/x.notebook.error-traceback'] as any;
+		const transform = new ErrorTransform(this.notebookEditor, this.themeService);
+		transform.render(output, container);
+		transform.dispose();
 		return { type: RenderOutputType.None, hasDynamicHeight: false };
 	}
 

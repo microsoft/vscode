@@ -7,9 +7,12 @@ import { localize } from 'vs/nls';
 import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
 
 export const enum Testing {
-	ViewletId = 'workbench.view.testing',
+	// marked as "extension" so that any existing test extensions are assigned to it.
+	ViewletId = 'workbench.view.extension.test',
 	ExplorerViewId = 'workbench.view.testing',
 	OutputPeekContributionId = 'editor.contrib.testingOutputPeek',
+	DecorationsContributionId = 'editor.contrib.testingDecorations',
+	FilterActionId = 'workbench.actions.treeView.testExplorer.filter',
 }
 
 export const enum TestExplorerViewMode {

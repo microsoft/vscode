@@ -5,9 +5,6 @@
 
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
-import { createHash } from 'crypto';
-import { exists, stat } from 'vs/base/node/pfs';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { mark } from 'vs/base/common/performance';
 import { Workbench } from 'vs/workbench/browser/workbench';
@@ -21,11 +18,10 @@ import { NativeWorkbenchEnvironmentService } from 'vs/workbench/services/environ
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { INativeWorkbenchConfiguration, INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { ISingleFolderWorkspaceIdentifier, IWorkspaceInitializationPayload, ISingleFolderWorkspaceInitializationPayload, reviveWorkspaceIdentifier, IWorkspaceIdentifier, IMultiFolderWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
+import { IWorkspaceInitializationPayload, reviveIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NativeStorageService } from 'vs/platform/storage/node/storageService';
 import { Schemas } from 'vs/base/common/network';
-import { sanitizeFilePath } from 'vs/base/common/extpath';
 import { GlobalStorageDatabaseChannelClient } from 'vs/platform/storage/node/storageIpc';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -83,14 +79,11 @@ class DesktopMain extends Disposable {
 	}
 
 	private reviveUris() {
-		if (this.configuration.folderUri) {
-			this.configuration.folderUri = URI.revive(this.configuration.folderUri);
-		}
 
-		if (this.configuration.workspace) {
-			this.configuration.workspace = reviveWorkspaceIdentifier(this.configuration.workspace);
-		}
+		// Workspace
+		this.configuration.workspace = reviveIdentifier(this.configuration.workspace);
 
+		// Files
 		const filesToWait = this.configuration.filesToWait;
 		const filesToWaitPaths = filesToWait?.paths;
 		[filesToWaitPaths, this.configuration.filesToOpenOrCreate, this.configuration.filesToDiff].forEach(paths => {
@@ -238,7 +231,7 @@ class DesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const payload = await this.resolveWorkspaceInitializationPayload();
+		const payload = this.resolveWorkspaceInitializationPayload();
 
 		const services = await Promise.all([
 			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
@@ -286,18 +279,8 @@ class DesktopMain extends Disposable {
 		return { serviceCollection, logService, storageService: services[1] };
 	}
 
-	private async resolveWorkspaceInitializationPayload(): Promise<IWorkspaceInitializationPayload> {
-		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined;
-
-		// Multi-root workspace
-		if (this.configuration.workspace) {
-			workspaceInitializationPayload = await this.resolveMultiFolderWorkspaceInitializationPayload(this.configuration.workspace);
-		}
-
-		// Single-folder workspace
-		else if (this.configuration.folderUri) {
-			workspaceInitializationPayload = await this.resolveSingleFolderWorkspaceInitializationPayload(this.configuration.folderUri);
-		}
+	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
 
 		// Fallback to empty workspace if we have no payload yet.
 		if (!workspaceInitializationPayload) {
@@ -314,61 +297,6 @@ class DesktopMain extends Disposable {
 		}
 
 		return workspaceInitializationPayload;
-	}
-
-	private async resolveMultiFolderWorkspaceInitializationPayload(workspace: IWorkspaceIdentifier): Promise<IMultiFolderWorkspaceInitializationPayload | undefined> {
-
-		// It is possible that the workspace file does not exist
-		// on disk anymore, so we return `undefined` in that case
-		// (https://github.com/microsoft/vscode/issues/110982)
-		if (workspace.configPath.scheme === Schemas.file && !await exists(workspace.configPath.fsPath)) {
-			return undefined;
-		}
-
-		return workspace;
-	}
-
-	private async resolveSingleFolderWorkspaceInitializationPayload(folderUri: ISingleFolderWorkspaceIdentifier): Promise<ISingleFolderWorkspaceInitializationPayload | undefined> {
-		try {
-			const folder = folderUri.scheme === Schemas.file
-				? URI.file(sanitizeFilePath(folderUri.fsPath, process.env['VSCODE_CWD'] || process.cwd())) // For local: ensure path is absolute
-				: folderUri;
-
-			return {
-				id: await this.createHash(folderUri),
-				folder
-			};
-		} catch (error) {
-			onUnexpectedError(error);
-		}
-
-		return;
-	}
-
-	private async createHash(resource: URI): Promise<string> {
-
-		// Return early the folder is not local
-		if (resource.scheme !== Schemas.file) {
-			return createHash('md5').update(resource.toString()).digest('hex');
-		}
-
-		const fileStat = await stat(resource.fsPath);
-		let ctime: number | undefined;
-		if (isLinux) {
-			ctime = fileStat.ino; // Linux: birthtime is ctime, so we cannot use it! We use the ino instead!
-		} else if (isMacintosh) {
-			ctime = fileStat.birthtime.getTime(); // macOS: birthtime is fine to use as is
-		} else if (isWindows) {
-			if (typeof fileStat.birthtimeMs === 'number') {
-				ctime = Math.floor(fileStat.birthtimeMs); // Windows: fix precision issue in node.js 8.x to get 7.x results (see https://github.com/nodejs/node/issues/19897)
-			} else {
-				ctime = fileStat.birthtime.getTime();
-			}
-		}
-
-		// we use the ctime as extra salt to the ID so that we catch the case of a folder getting
-		// deleted and recreated. in that case we do not want to carry over previous state
-		return createHash('md5').update(resource.fsPath).update(ctime ? String(ctime) : '').digest('hex');
 	}
 
 	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {

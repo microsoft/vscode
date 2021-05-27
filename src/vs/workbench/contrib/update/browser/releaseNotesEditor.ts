@@ -288,10 +288,16 @@ export class ReleaseNotesManager {
 					}
 
 					code {
+						font-family: "SF Mono", Monaco, Menlo, Consolas, "Ubuntu Mono", "Liberation Mono", "DejaVu Sans Mono", "Courier New", monospace;
+						font-size: 14px;
+						line-height: 19px;
+					}
+
+					pre code {
 						font-family: var(--vscode-editor-font-family);
 						font-weight: var(--vscode-editor-font-weight);
 						font-size: var(--vscode-editor-font-size);
-						line-height: 19px;
+						line-height: 1.5;
 					}
 
 					code > div {

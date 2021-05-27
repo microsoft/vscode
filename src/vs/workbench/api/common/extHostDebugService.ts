@@ -89,7 +89,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 	get onDidReceiveDebugSessionCustomEvent(): Event<vscode.DebugSessionCustomEvent> { return this._onDidReceiveDebugSessionCustomEvent.event; }
 
 	private _activeDebugConsole: ExtHostDebugConsole;
-	get activeDebugConsole(): ExtHostDebugConsole { return this._activeDebugConsole; }
+	get activeDebugConsole(): vscode.DebugConsole { return this._activeDebugConsole.value; }
 
 	private _breakpoints: Map<string, vscode.Breakpoint>;
 	private _breakpointEventsActive: boolean;
@@ -361,7 +361,7 @@ export abstract class ExtHostDebugServiceBase implements IExtHostDebugService, E
 
 	// RPC methods (ExtHostDebugServiceShape)
 
-	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -911,20 +911,20 @@ export class ExtHostDebugSession implements vscode.DebugSession {
 	}
 }
 
-export class ExtHostDebugConsole implements vscode.DebugConsole {
+export class ExtHostDebugConsole {
 
-	private _debugServiceProxy: MainThreadDebugServiceShape;
+	readonly value: vscode.DebugConsole;
 
 	constructor(proxy: MainThreadDebugServiceShape) {
-		this._debugServiceProxy = proxy;
-	}
 
-	append(value: string): void {
-		this._debugServiceProxy.$appendDebugConsole(value);
-	}
-
-	appendLine(value: string): void {
-		this.append(value + '\n');
+		this.value = Object.freeze({
+			append(value: string): void {
+				proxy.$appendDebugConsole(value);
+			},
+			appendLine(value: string): void {
+				this.append(value + '\n');
+			}
+		});
 	}
 }
 
@@ -944,6 +944,9 @@ export class ExtHostVariableResolverService extends AbstractVariableResolverServ
 			},
 			getConfigurationValue: (folderUri: URI | undefined, section: string): string | undefined => {
 				return configurationService.getConfiguration(undefined, folderUri).get<string>(section);
+			},
+			getAppRoot: (): string | undefined => {
+				return env ? env['VSCODE_CWD'] : undefined;
 			},
 			getExecPath: (): string | undefined => {
 				return env ? env['VSCODE_EXEC_PATH'] : undefined;

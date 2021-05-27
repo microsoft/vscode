@@ -13,9 +13,8 @@ export const defaultExternalUriOpenerId = 'default';
 
 export const externalUriOpenersSettingId = 'workbench.externalUriOpeners';
 
-export interface ExternalUriOpenerConfiguration {
-	readonly uri: string;
-	readonly id: string;
+export interface ExternalUriOpenersConfiguration {
+	readonly [uriGlob: string]: string;
 }
 
 const externalUriOpenerIdSchemaAddition: IJSONSchema = {
@@ -39,38 +38,27 @@ export const externalUriOpenersConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
 		[externalUriOpenersSettingId]: {
-			type: 'array',
+			type: 'object',
 			markdownDescription: nls.localize('externalUriOpeners', "Configure the opener to use for external uris (i.e. http, https)."),
-			items: {
-				type: 'object',
-				defaultSnippets: [{
-					body: {
-						'uri': '$1',
-						'id': '$2'
-					}
-				}],
-				required: ['uri', 'id'],
-				properties: {
-					'uri': {
-						type: 'string',
-						markdownDescription: nls.localize('externalUriOpeners.uri', "Uri pattern that the opener applies to. Example patterns: \n{0}", exampleUriPatterns),
-					},
-					'id': {
-						anyOf: [
-							{
-								type: 'string',
-								description: nls.localize('externalUriOpeners.id', "The id of the opener."),
-							},
-							{
-								type: 'string',
-								description: nls.localize('externalUriOpeners.id', "The id of the opener."),
-								enum: [defaultExternalUriOpenerId],
-								enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
-							},
-							externalUriOpenerIdSchemaAddition
-						]
-					}
+			defaultSnippets: [{
+				body: {
+					'example.com': '$1'
 				}
+			}],
+			additionalProperties: {
+				anyOf: [
+					{
+						type: 'string',
+						markdownDescription: nls.localize('externalUriOpeners.uri', "Map uri pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
+					},
+					{
+						type: 'string',
+						markdownDescription: nls.localize('externalUriOpeners.uri', "Map uri pattern to an opener id.\nExample patterns: \n{0}", exampleUriPatterns),
+						enum: [defaultExternalUriOpenerId],
+						enumDescriptions: [nls.localize('externalUriOpeners.defaultId', "Open using VS Code's standard opener.")],
+					},
+					externalUriOpenerIdSchemaAddition
+				]
 			}
 		}
 	}

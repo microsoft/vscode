@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { posix } from 'path';
+import { assertNoRpc } from '../utils';
 
 suite('vscode API - workspace-fs', () => {
 
@@ -14,6 +15,8 @@ suite('vscode API - workspace-fs', () => {
 	suiteSetup(function () {
 		root = vscode.workspace.workspaceFolders![0]!.uri;
 	});
+
+	teardown(assertNoRpc);
 
 	test('fs.stat', async function () {
 		const stat = await vscode.workspace.fs.stat(root);

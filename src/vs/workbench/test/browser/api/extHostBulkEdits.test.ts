@@ -47,17 +47,17 @@ suite('ExtHostBulkEdits.applyWorkspaceEdit', () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(resource, new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await bulkEdits.applyWorkspaceEdit(edit);
-		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);
-		assert.equal(first.modelVersionId, 1337);
+		assert.strictEqual(first.modelVersionId, 1337);
 	});
 
 	test('does not use version id if document is not available', async () => {
 		let edit = new extHostTypes.WorkspaceEdit();
 		edit.replace(URI.parse('foo:bar2'), new extHostTypes.Range(0, 0, 0, 0), 'hello');
 		await bulkEdits.applyWorkspaceEdit(edit);
-		assert.equal(workspaceResourceEdits.edits.length, 1);
+		assert.strictEqual(workspaceResourceEdits.edits.length, 1);
 		const [first] = workspaceResourceEdits.edits;
 		assertType(first._type === WorkspaceEditType.Text);
 		assert.ok(typeof first.modelVersionId === 'undefined');

@@ -9,7 +9,6 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { IReference } from 'vs/base/common/lifecycle';
@@ -69,9 +68,7 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFilesConfigurationService private readonly _filesConfigurationService: IFilesConfigurationService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		// @IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
@@ -97,22 +94,6 @@ export class NotebookDiffEditorInput extends EditorInput {
 	}
 
 	isReadonly() {
-		return false;
-	}
-
-	isSaving(): boolean {
-		if (this.isUntitled()) {
-			return false; // untitled is never saving automatically
-		}
-
-		if (!this.isDirty()) {
-			return false; // the editor needs to be dirty for being saved
-		}
-
-		if (this._filesConfigurationService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {
-			return true; // a short auto save is configured, treat this as being saved
-		}
-
 		return false;
 	}
 

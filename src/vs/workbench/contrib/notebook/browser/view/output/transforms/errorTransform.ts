@@ -10,9 +10,9 @@ import { ansiColorIdentifiers } from 'vs/workbench/contrib/terminal/common/termi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ICommonNotebookEditor, IErrorOutputViewModel, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
-class ErrorTransform implements IOutputTransformContribution {
+export class ErrorTransform implements IOutputTransformContribution {
 	constructor(
-		public editor: ICommonNotebookEditor,
+		_editor: ICommonNotebookEditor,
 		@IThemeService private readonly themeService: IThemeService
 	) {
 	}
