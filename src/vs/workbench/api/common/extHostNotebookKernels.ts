@@ -47,7 +47,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		this._proxy = _mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
-	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookKernelPreload[]): vscode.NotebookController {
+	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
 
 		for (let data of this._kernelData.values()) {
 			if (data.controller.id === id && ExtensionIdentifier.equals(extension.identifier, data.extensionId)) {
@@ -75,7 +75,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: label || extension.identifier.value,
-			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookKernelPreload.from) : []
+			preloads: preloads ? preloads.map(extHostTypeConverters.NotebookRendererScript.from) : []
 		};
 
 		//
@@ -147,8 +147,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				data.hasExecutionOrder = value;
 				_update();
 			},
-			get preloads() {
-				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookKernelPreload.to) : [];
+			get rendererScripts() {
+				return data.preloads ? data.preloads.map(extHostTypeConverters.NotebookRendererScript.to) : [];
 			},
 			get executeHandler() {
 				return _executeHandler;

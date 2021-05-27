@@ -1515,20 +1515,20 @@ declare module 'vscode' {
 		Preferred = 2
 	}
 
-	// todo@API rename to NotebookRendererScript
-	export class NotebookKernelPreload {
+
+	export class NotebookRendererScript {
 
 		/**
 		 * APIs that the preload provides to the renderer. These are matched
 		 * against the `dependencies` and `optionalDependencies` arrays in the
 		 * notebook renderer contribution point.
 		 */
-		readonly provides: string[];
+		provides: string[];
 
 		/**
 		 * URI for the file to preload
 		 */
-		readonly uri: Uri;
+		uri: Uri;
 
 		/**
 		 * @param uri URI for the file to preload
@@ -1707,13 +1707,10 @@ declare module 'vscode' {
 		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
-		// todo@API rename to NotebookCellExecution
 		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
 
-		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
-		// ipc
-		readonly preloads: NotebookKernelPreload[];
+		readonly rendererScripts: NotebookRendererScript[];
 
 		/**
 		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
@@ -1858,9 +1855,9 @@ declare module 'vscode' {
 		 * @param viewType A notebook view type for which this controller is for.
 		 * @param label The label of the controller
 		 * @param handler
-		 * @param preloads
+		 * @param rendererScripts
 		 */
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
 		// todo@API what is this used for?
 		// todo@API qualify cell, ...NotebookCell...

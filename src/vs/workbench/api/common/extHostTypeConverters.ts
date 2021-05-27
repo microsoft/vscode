@@ -1669,18 +1669,15 @@ export namespace NotebookDocumentContentOptions {
 	}
 }
 
-export namespace NotebookKernelPreload {
-	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
+export namespace NotebookRendererScript {
+	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: string[] } {
 		return {
 			uri: preload.uri,
-			// todo@connor4312: the conditional here can be removed after a migration period
-			provides: typeof preload.provides === 'string'
-				? [preload.provides]
-				: preload.provides ?? []
+			provides: preload.provides
 		};
 	}
-	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
-		return new types.NotebookKernelPreload(URI.revive(preload.uri), preload.provides);
+	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookRendererScript {
+		return new types.NotebookRendererScript(URI.revive(preload.uri), preload.provides);
 	}
 }
 
