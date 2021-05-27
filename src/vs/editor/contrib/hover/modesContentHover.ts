@@ -276,19 +276,30 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return this._hover.containerDomNode;
 	}
 
-	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		let targetType = mouseEvent.target.type;
+	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const targetType = mouseEvent.target.type;
+		if (targetType === MouseTargetType.CONTENT_TEXT) {
+			return true;
+		}
 
 		if (targetType === MouseTargetType.CONTENT_EMPTY) {
 			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
 			const data = <IEmptyContentData>mouseEvent.target.detail;
 			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
 				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
-				targetType = MouseTargetType.CONTENT_TEXT;
+				return true;
 			}
 		}
 
-		if (targetType !== MouseTargetType.CONTENT_TEXT || !mouseEvent.target.range) {
+		return false;
+	}
+
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		if (!this._shouldShowAt(mouseEvent)) {
+			return false;
+		}
+
+		if (!mouseEvent.target.range) {
 			return false;
 		}
 
@@ -306,7 +317,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return true;
 	}
 
-	public showAt(position: Position, range: Range | null, focus: boolean): void {
+	private _showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -510,9 +521,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this.showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
 			this._updateContents(fragment);
 		}
