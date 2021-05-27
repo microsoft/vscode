@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IRecentFile, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
+import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { normalize } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -30,6 +30,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
+
+//#region Editor / Resources DND
 
 export class DraggedEditorIdentifier {
 
@@ -82,10 +84,10 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 		}
 
 		// Check for native file transfer
-		if (e.dataTransfer && e.dataTransfer.files) {
+		if (e.dataTransfer?.files) {
 			for (let i = 0; i < e.dataTransfer.files.length; i++) {
 				const file = e.dataTransfer.files[i];
-				if (file?.path /* Electron only */ && !editors.some(editor => editor.resource.fsPath === file.path) /* prevent duplicates */) {
+				if (file?.path /* Electron only */) {
 					try {
 						editors.push({ resource: URI.file(file.path), isExternal: true });
 					} catch (error) {
@@ -100,11 +102,9 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 		if (rawCodeFiles) {
 			try {
 				const codeFiles: string[] = JSON.parse(rawCodeFiles);
-				codeFiles.forEach(codeFile => {
-					if (!editors.some(editor => editor.resource.fsPath === codeFile) /* prevent duplicates */) {
-						editors.push({ resource: URI.file(codeFile), isExternal: true });
-					}
-				});
+				for (const codeFile of codeFiles) {
+					editors.push({ resource: URI.file(codeFile), isExternal: true });
+				}
 			} catch (error) {
 				// Invalid transfer
 			}
@@ -124,8 +124,9 @@ export interface IResourcesDropHandlerOptions {
 }
 
 /**
- * Shared function across some components to handle drag & drop of resources. E.g. of folders and workspace files
- * to open them in the window instead of the editor or to handle dirty editors being dropped between instances of Code.
+ * Shared function across some components to handle drag & drop of resources.
+ * E.g. of folders and workspace files to open them in the window instead of
+ * the editor or to handle dirty editors being dropped between instances of Code.
  */
 export class ResourcesDropHandler {
 
@@ -149,8 +150,8 @@ export class ResourcesDropHandler {
 		await this.hostService.focus();
 
 		// Check for workspace file being dropped if we are allowed to do so
+		const externalLocalFiles = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => file.resource);
 		if (this.options.allowWorkspaceOpen) {
-			const externalLocalFiles = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => file.resource);
 			if (externalLocalFiles.length > 0) {
 				const isWorkspaceOpening = await this.handleWorkspaceFileDrop(externalLocalFiles);
 				if (isWorkspaceOpening) {
@@ -160,9 +161,8 @@ export class ResourcesDropHandler {
 		}
 
 		// Add external ones to recently open list unless dropped resource is a workspace
-		const recentFiles: IRecentFile[] = editors.filter(editor => editor.isExternal && editor.resource.scheme === Schemas.file).map(file => ({ fileUri: file.resource }));
-		if (recentFiles.length) {
-			this.workspacesService.addRecentlyOpened(recentFiles);
+		if (externalLocalFiles.length) {
+			this.workspacesService.addRecentlyOpened(externalLocalFiles.map(resource => ({ fileUri: resource })));
 		}
 
 		// Open in Editor
@@ -247,7 +247,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 
 		if (isEditorIdentifier(resourceOrEditor)) {
-			if (resourceOrEditor.editor.resource) {
+			if (URI.isUri(resourceOrEditor.editor.resource)) {
 				return { resource: resourceOrEditor.editor.resource };
 			}
 
@@ -259,7 +259,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, resources.map(({ resource }) => resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath)) : resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, resources.map(({ resource }) => resource.scheme === Schemas.file ?
+		normalize(normalizeDriveLetter(resource.fsPath)) :
+		resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
 	const firstFile = resources.find(resource => !resource.isDirectory);
@@ -349,6 +351,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(CodeDataTransfers.EDITORS, stringify(draggedEditors));
 	}
 }
+
+//#endregion
+
+//#region DND Utilities
 
 /**
  * A singleton to store transfer data during drag & drop operations that are only valid within the application.
@@ -472,6 +478,10 @@ export function containsDragType(event: DragEvent, ...dragTypesToFind: string[])
 
 	return false;
 }
+
+//#endregion
+
+//#region Composites DND
 
 export type Before2D = {
 	readonly verticallyBefore: boolean;
@@ -737,3 +747,5 @@ export function toggleDropEffect(dataTransfer: DataTransfer | null, dropEffect: 
 
 	dataTransfer.dropEffect = shouldHaveIt ? dropEffect : 'none';
 }
+
+//#endregion
