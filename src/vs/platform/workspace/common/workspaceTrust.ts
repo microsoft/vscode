@@ -33,6 +33,21 @@ export interface WorkspaceTrustRequestOptions {
 }
 
 export type WorkspaceTrustChangeEvent = Event<boolean>;
+
+export const IWorkspaceTrustStorageService = createDecorator<IWorkspaceTrustStorageService>('workspaceTrustStorageService');
+
+export interface IWorkspaceTrustStorageService {
+	_serviceBrand: undefined;
+
+	onDidChangeTrustedFolders: Event<void>;
+
+	isUriTrusted(uri: URI): Promise<{ isTrusted: boolean; matchedUri?: URI }>;
+	setUriTrusted(uris: URI[], isTrusted: boolean): Promise<void>;
+
+	getTrustedFolders(): URI[];
+	setTrustedFolders(uris: URI[]): Promise<void>;
+}
+
 export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
 export interface IWorkspaceTrustManagementService {
