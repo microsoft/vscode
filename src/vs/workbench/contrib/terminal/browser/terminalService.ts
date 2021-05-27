@@ -984,13 +984,6 @@ export class TerminalService implements ITerminalService {
 
 			if ('id' in value.profile) {
 				await this.createContributedTerminalProfile(value.profile.id, !!(keyMods?.alt && activeInstance));
-				// TODO: Pass in cwd here? cwd should probably still be inherited
-				// if (keyMods?.alt && activeInstance) {
-				// 	// create split, only valid if there's an active instance
-				// 	instance = this.splitInstance(activeInstance, slc);
-				// } else {
-				// 	instance = this.createTerminal(slc);
-				// }
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {

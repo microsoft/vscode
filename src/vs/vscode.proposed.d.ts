@@ -921,14 +921,16 @@ declare module 'vscode' {
 	export namespace window {
 		/**
 		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
 		 */
 		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
-		// TODO: id -> profileId, profileType?
 	}
 
 	export interface TerminalProfileProvider {
 		/**
 		 * Provide terminal profile options for the requested terminal.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 */
 		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
 	}

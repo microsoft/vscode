@@ -585,7 +585,6 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	}
 
 	public registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
-		console.log('registerProfileProvider', id);
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
 		}
@@ -607,12 +606,8 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 		if ('pty' in options) {
-			// TODO: Pass in split terminal option
 			this.createExtensionTerminal(options, { isSplitTerminal });
 		}
-		// if (options.iconPath) {
-		// 	checkProposedApiEnabled(extension);
-		// }
 		this.createTerminalFromOptions(options, { isSplitTerminal });
 	}
 
