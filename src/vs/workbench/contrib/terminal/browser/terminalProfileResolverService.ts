@@ -418,21 +418,17 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			os: this._primaryBackendOs!
 		}));
 		const profile = detectedProfile || fallbackProfile;
-		const args = typeof shellArgs === 'string' || Array.isArray(shellArgs) ? shellArgs : profile.args;
+		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
 		const createdProfile = {
 			profileName: profile.profileName,
 			path: profile.path,
 			args,
 			isDefault: true
 		};
-		return this._profilesMatch(createdProfile, detectedProfile) ? undefined : createdProfile;
-	}
-
-	private _profilesMatch(createdProfile: ITerminalProfile, detectedProfile?: ITerminalProfile): boolean {
-		if (!detectedProfile) {
-			return false;
+		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args)) {
+			return undefined;
 		}
-		return detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args);
+		return createdProfile;
 	}
 
 	private _argsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
