@@ -48,13 +48,13 @@ export const CodeDataTransfers = {
 	FILES: 'CodeFiles'
 };
 
-interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
+export interface IDraggedResourceEditorInput extends IBaseTextResourceEditorInput {
 	resource?: URI;
 	isExternal?: boolean;
 }
 
 export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Array<IDraggedResourceEditorInput> {
-	const editors: Array<IDraggedResourceEditorInput> = [];
+	const editors: IDraggedResourceEditorInput[] = [];
 	if (e.dataTransfer && e.dataTransfer.types.length > 0) {
 
 		// Check for window-to-window DND
@@ -76,7 +76,7 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
 					if (rawResourcesData) {
 						const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-						editors.push(...resourcesRaw.map(resourceRaw => ({ resource: URI.parse(resourceRaw), isExternal: false })));
+						editors.push(...resourcesRaw.map(resourceRaw => ({ resource: URI.parse(resourceRaw) })));
 					}
 				} catch (error) {
 					// Invalid transfer
@@ -242,7 +242,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	}
 
 	// Extract resources from URIs or Editors
-	const resources: IResourceStat[] = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -305,42 +305,44 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// provide everything from the `asResourceEditorInput` method.
 		{
 			const resource = editor.resource;
-			const textFileModel = resource ? textFileService.files.get(resource) : undefined;
-			if (textFileModel) {
+			if (resource) {
+				const textFileModel = textFileService.files.get(resource);
+				if (textFileModel) {
 
-				// mode
-				if (typeof editor.mode !== 'string') {
-					editor.mode = textFileModel.getMode();
+					// mode
+					if (typeof editor.mode !== 'string') {
+						editor.mode = textFileModel.getMode();
+					}
+
+					// encoding
+					if (typeof editor.encoding !== 'string') {
+						editor.encoding = textFileModel.getEncoding();
+					}
+
+					// contents (only if dirty)
+					if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+						editor.contents = textFileModel.textEditorModel.getValue();
+					}
 				}
 
-				// encoding
-				if (typeof editor.encoding !== 'string') {
-					editor.encoding = textFileModel.getEncoding();
-				}
-
-				// contents (only if dirty)
-				if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
-					editor.contents = textFileModel.textEditorModel.getValue();
-				}
-			}
-
-			// viewState
-			if (!editor.options?.viewState) {
-				editor.options = {
-					...editor.options,
-					viewState: (() => {
-						for (const textEditorControl of editorService.visibleTextEditorControls) {
-							if (isCodeEditor(textEditorControl)) {
-								const model = textEditorControl.getModel();
-								if (isEqual(model?.uri, resource)) {
-									return withNullAsUndefined(textEditorControl.saveViewState());
+				// viewState
+				if (!editor.options?.viewState) {
+					editor.options = {
+						...editor.options,
+						viewState: (() => {
+							for (const textEditorControl of editorService.visibleTextEditorControls) {
+								if (isCodeEditor(textEditorControl)) {
+									const model = textEditorControl.getModel();
+									if (isEqual(model?.uri, resource)) {
+										return withNullAsUndefined(textEditorControl.saveViewState());
+									}
 								}
 							}
-						}
 
-						return undefined;
-					})()
-				};
+							return undefined;
+						})()
+					};
+				}
 			}
 		}
 
