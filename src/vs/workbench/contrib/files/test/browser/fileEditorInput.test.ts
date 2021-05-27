@@ -163,6 +163,9 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
 		assert.strictEqual(input.isDirty(), true);
 
+		const untypedInput = input.asResourceEditorInput(0);
+		assert.strictEqual(untypedInput.contents, 'My contents');
+
 		input.setPreferredContents('Other contents');
 		await input.resolve();
 		assert.strictEqual(model.textEditorModel!.getValue(), 'Other contents');

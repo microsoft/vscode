@@ -139,6 +139,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 		if (originalResourceEditorInput && modifiedResourceEditorInput) {
 			return {
+				label: this.name,
+				description: this.description,
 				originalInput: originalResourceEditorInput,
 				modifiedInput: modifiedResourceEditorInput
 			};
