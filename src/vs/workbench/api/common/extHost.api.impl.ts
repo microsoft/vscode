@@ -349,6 +349,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		const test: typeof vscode.test = {
 			registerTestController(provider) {
+				checkProposedApiEnabled(extension);
 				return extHostTesting.registerTestController(extension.identifier.value, provider);
 			},
 			createDocumentTestObserver(document) {
@@ -360,12 +361,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTesting.createWorkspaceTestObserver(workspaceFolder);
 			},
 			runTests(provider) {
+				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
 			},
 			createTestItem<T>(options: vscode.TestItemOptions, data?: T) {
 				return new extHostTypes.TestItemImpl(options.id, options.label, options.uri, data);
 			},
 			createTestRun(request, name, persist) {
+				checkProposedApiEnabled(extension);
 				return extHostTesting.createTestRun(extension.identifier.value, request, name, persist);
 			},
 			get onDidChangeTestResults() {
@@ -377,6 +380,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTesting.results;
 			},
 		};
+
+		// todo@connor4312: backwards compatibility for a short period
+		(test as any).createTestRunTask = test.createTestRun;
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
