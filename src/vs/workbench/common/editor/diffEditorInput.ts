@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -131,6 +131,22 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 		// Otherwise return normal diff model
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
+	}
+
+	override asResourceEditorInput(groupId: GroupIdentifier): IResourceDiffEditorInput | undefined {
+		const originalResourceEditorInput = this.secondary.asResourceEditorInput(groupId);
+		const modifiedResourceEditorInput = this.primary.asResourceEditorInput(groupId);
+
+		if (originalResourceEditorInput && modifiedResourceEditorInput) {
+			return {
+				label: this.name,
+				description: this.description,
+				originalInput: originalResourceEditorInput,
+				modifiedInput: modifiedResourceEditorInput
+			};
+		}
+
+		return undefined;
 	}
 
 	override matches(otherInput: unknown): boolean {

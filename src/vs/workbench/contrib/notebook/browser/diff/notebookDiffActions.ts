@@ -48,8 +48,8 @@ registerAction2(class extends Action2 {
 
 			await editorService.openEditor(
 				{
-					leftEditor: { resource: diffEditorInput.originalResource },
-					rightEditor: { resource: diffEditorInput.resource },
+					originalInput: { resource: diffEditorInput.originalResource },
+					modifiedInput: { resource: diffEditorInput.resource },
 					label: diffEditorInput.textDiffName,
 					options: {
 						preserveFocus: false,

@@ -16,6 +16,7 @@ import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/r
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IReference } from 'vs/base/common/lifecycle';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
+import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -113,6 +114,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		private name: string | undefined,
 		private description: string | undefined,
 		private preferredMode: string | undefined,
+		private preferredContents: string | undefined,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
@@ -158,6 +160,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		this.preferredMode = mode;
 	}
 
+	setPreferredContents(contents: string): void {
+		this.preferredContents = contents;
+	}
+
 	override async resolve(): Promise<ITextEditorModel> {
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
@@ -176,10 +182,18 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 
 		this.cachedModel = model;
 
-		// Set mode if we have a preferred mode configured
-		if (this.preferredMode) {
-			model.setMode(this.preferredMode);
+		// Set contents and mode if preferred
+		if (typeof this.preferredContents === 'string' || typeof this.preferredMode === 'string') {
+			model.updateTextEditorModel(typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined, this.preferredMode);
 		}
+
+		// Unset preferred contents and mode after having applied
+		// them once to prevent these properties to stick. We still
+		// want the user to change the language mode in the editor
+		// and want to show updated contents (if any) in future
+		// `resolve` calls.
+		this.preferredContents = undefined;
+		this.preferredMode = undefined;
 
 		return model;
 	}
