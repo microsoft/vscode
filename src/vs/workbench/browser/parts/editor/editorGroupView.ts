@@ -1026,6 +1026,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Report error only if we are not told to ignore errors that occur from opening an editor
 		if (!isPromiseCanceledError(error) && (!options || !options.ignoreError)) {
 
+			// Always log the error to figure out what is going on
+			this.logService.error(error);
+
 			// Since it is more likely that errors fail to open when restoring them e.g.
 			// because files got deleted or moved meanwhile, we do not show any notifications
 			// if we are still restoring editors.
@@ -1089,11 +1092,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 					Event.once(handle.onDidClose)(() => actions.primary && dispose(actions.primary));
 				}
-			}
-
-			// Restoring: just log errors to console
-			else {
-				this.logService.error(error);
 			}
 		}
 
