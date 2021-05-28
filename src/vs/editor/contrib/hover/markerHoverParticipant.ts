@@ -24,7 +24,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorHoverStatusBar, HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 
 const $ = dom.$;
 
@@ -86,7 +86,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
+	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		if (!hoverParts.length) {
 			return Disposable.None;
 		}
@@ -164,7 +164,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return hoverElement;
 	}
 
-	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: EditorHoverStatusBar, disposables: DisposableStore): void {
+	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: IEditorHoverStatusBar, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			statusBar.addAction({
 				label: nls.localize('view problem', "View Problem"),

@@ -67,6 +67,10 @@ export class GhostTextController extends Disposable {
 		return this.activeController.value?.shouldShowHoverAt(hoverRange) || false;
 	}
 
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return this.widget.shouldShowHoverAtViewZone(viewZoneId);
+	}
+
 	public trigger(): void {
 		this.activeController.value?.trigger();
 	}

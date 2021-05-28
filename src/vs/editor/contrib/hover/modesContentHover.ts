@@ -29,76 +29,13 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
 import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
-import { IEmptyContentData, ITextContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorHoverStatusBar, IHoverPart, HoverAnchor, IEditorHoverParticipant, HoverAnchorType, IEditorHover, HoverRangeAnchor } from 'vs/editor/contrib/hover/hoverTypes';
 
 const $ = dom.$;
 
-export interface IHoverPart {
-	/**
-	 * The creator of this hover part.
-	 */
-	readonly owner: IEditorHoverParticipant;
-	/**
-	 * The range where this hover part applies.
-	 */
-	readonly range: Range;
-	/**
-	 * Force the hover to always be rendered at this specific range,
-	 * even in the case of multiple hover parts.
-	 */
-	readonly forceShowAtRange?: boolean;
-
-	isValidForHoverAnchor(anchor: HoverAnchor): boolean;
-}
-
-export interface IEditorHover {
-	hide(): void;
-	onContentsChanged(): void;
-	setColorPicker(widget: ColorPickerWidget): void;
-}
-
-export const enum HoverAnchorType {
-	Range = 1,
-	ForeignElement = 2
-}
-
-export class HoverRangeAnchor {
-	public readonly type = HoverAnchorType.Range;
-	public readonly lineNumber: number;
-	constructor(
-		public readonly range: Range
-	) {
-		this.lineNumber = this.range.startLineNumber;
-	}
-	public equals(other: HoverAnchor) {
-		return (other.type === HoverAnchorType.Range && this.range.equalsRange(other.range));
-	}
-	public canAdoptVisibleHover(lastAnchor: HoverAnchor, showAtPosition: Position): boolean {
-		return (lastAnchor.type === HoverAnchorType.Range && showAtPosition.lineNumber === this.range.startLineNumber);
-	}
-}
-
-export class HoverForeignElementAnchor {
-	public readonly type = HoverAnchorType.ForeignElement;
-	public readonly lineNumber: number;
-	constructor(
-		public readonly owner: IEditorHoverParticipant,
-		lineNumber: number
-	) {
-		this.lineNumber = lineNumber;
-	}
-	public equals(other: HoverAnchor) {
-		return (other.type === HoverAnchorType.ForeignElement && this.owner === other.owner);
-	}
-	public canAdoptVisibleHover(lastAnchor: HoverAnchor, showAtPosition: Position): boolean {
-		return (lastAnchor.type === HoverAnchorType.ForeignElement && this.owner === lastAnchor.owner);
-	}
-}
-
-export type HoverAnchor = HoverRangeAnchor | HoverForeignElementAnchor;
-
-export class EditorHoverStatusBar extends Disposable {
+class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 
 	public readonly hoverElement: HTMLElement;
 	private readonly actionsElement: HTMLElement;
@@ -128,13 +65,6 @@ export class EditorHoverStatusBar extends Disposable {
 		this._hasContent = true;
 		return result;
 	}
-}
-
-export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
-	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): T[];
-	computeAsync?(anchor: HoverAnchor, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
-	createLoadingMessage?(anchor: HoverAnchor): T | null;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable;
 }
 
 class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
@@ -250,6 +180,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 	static readonly ID = 'editor.contrib.modesContentHoverWidget';
 
+	private readonly _participants: IEditorHoverParticipant[];
+
 	private readonly _hover: HoverWidget;
 	private readonly _id: string;
 	private readonly _editor: ICodeEditor;
@@ -279,7 +211,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	) {
 		super();
 
-		const participants = [
+		this._participants = [
 			instantiationService.createInstance(ColorHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
 			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
@@ -315,7 +247,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		this._messages = [];
 		this._lastAnchor = null;
-		this._computer = new ModesContentComputer(this._editor, participants);
+		this._computer = new ModesContentComputer(this._editor, this._participants);
 		this._highlightDecorations = [];
 		this._isChangingDecorations = false;
 		this._shouldFocus = false;
@@ -381,25 +313,37 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
-		if (!this._shouldShowAt(mouseEvent)) {
+		const anchorCandidates: HoverAnchor[] = [];
+
+		for (const participant of this._participants) {
+			if (typeof participant.suggestHoverAnchor === 'function') {
+				const anchor = participant.suggestHoverAnchor(mouseEvent);
+				if (anchor) {
+					anchorCandidates.push(anchor);
+				}
+			}
+		}
+
+		if (this._shouldShowAt(mouseEvent) && mouseEvent.target.range) {
+			// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+			// Check if mouse is hovering on color decorator
+			const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+				&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+			const showAtRange = (
+				hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+					? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+					: mouseEvent.target.range
+			);
+			anchorCandidates.push(new HoverRangeAnchor(0, showAtRange));
+		}
+
+		if (anchorCandidates.length === 0) {
 			return false;
 		}
 
-		if (!mouseEvent.target.range) {
-			return false;
-		}
+		anchorCandidates.sort((a, b) => b.priority - a.priority);
+		this._startShowingAt(anchorCandidates[0], HoverStartMode.Delayed, false);
 
-		// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
-		// Check if mouse is hovering on color decorator
-		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
-			&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
-		const showAtRange = (
-			hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
-				? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
-				: mouseEvent.target.range
-		);
-
-		this.startShowingAtRange(showAtRange, HoverStartMode.Delayed, false);
 		return true;
 	}
 
@@ -476,7 +420,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	public startShowingAtRange(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this._startShowingAt(new HoverRangeAnchor(range), mode, focus);
+		this._startShowingAt(new HoverRangeAnchor(0, range), mode, focus);
 	}
 
 	private _startShowingAt(anchor: HoverAnchor, mode: HoverStartMode, focus: boolean): void {
@@ -612,7 +556,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			if (forceShowAtRange) {
 				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this._showAt(new Position(anchor.lineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(new Position(anchor.range.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
 			this._updateContents(fragment);
 		}
