@@ -40,6 +40,10 @@ export interface IEmptyContentData {
 	horizontalDistanceToText?: number;
 }
 
+export interface ITextContentData {
+	mightBeForeignElement: boolean;
+}
+
 const enum HitTestResultType {
 	Unknown = 0,
 	Content = 1,
@@ -408,6 +412,17 @@ class HitTestRequest extends BareHitTestRequest {
 		return `pos(${this.pos.x},${this.pos.y}), editorPos(${this.editorPos.x},${this.editorPos.y}), mouseVerticalOffset: ${this.mouseVerticalOffset}, mouseContentHorizontalOffset: ${this.mouseContentHorizontalOffset}\n\ttarget: ${this.target ? (<HTMLElement>this.target).outerHTML : null}`;
 	}
 
+	public fulfill(type: MouseTargetType.UNKNOWN, position?: Position | null, range?: EditorRange | null): MouseTarget;
+	public fulfill(type: MouseTargetType.TEXTAREA, position: Position | null): MouseTarget;
+	public fulfill(type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS, position: Position, range: EditorRange, detail: IMarginData): MouseTarget;
+	public fulfill(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, position: Position, range: null, detail: IViewZoneData): MouseTarget;
+	public fulfill(type: MouseTargetType.CONTENT_TEXT, position: Position | null, range: EditorRange | null, detail: ITextContentData): MouseTarget;
+	public fulfill(type: MouseTargetType.CONTENT_EMPTY, position: Position | null, range: EditorRange | null, detail: IEmptyContentData): MouseTarget;
+	public fulfill(type: MouseTargetType.CONTENT_WIDGET, position: null, range: null, detail: string): MouseTarget;
+	public fulfill(type: MouseTargetType.SCROLLBAR, position: Position): MouseTarget;
+	public fulfill(type: MouseTargetType.OVERLAY_WIDGET, position: null, range: null, detail: string): MouseTarget;
+	// public fulfill(type: MouseTargetType.OVERVIEW_RULER, position?: Position | null, range?: EditorRange | null, detail?: any): MouseTarget;
+	// public fulfill(type: MouseTargetType.OUTSIDE_EDITOR, position?: Position | null, range?: EditorRange | null, detail?: any): MouseTarget;
 	public fulfill(type: MouseTargetType, position: Position | null = null, range: EditorRange | null = null, detail: any = null): MouseTarget {
 		let mouseColumn = this.mouseColumn;
 		if (position && position.column < this._ctx.model.getLineMaxColumn(position.lineNumber)) {
@@ -549,7 +564,7 @@ export class MouseTargetFactory {
 			for (const d of lastViewCursorsRenderData) {
 
 				if (request.target === d.domNode) {
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false });
 				}
 			}
 		}
@@ -581,7 +596,7 @@ export class MouseTargetFactory {
 					cursorVerticalOffset <= mouseVerticalOffset
 					&& mouseVerticalOffset <= cursorVerticalOffset + d.height
 				) {
-					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position);
+					return request.fulfill(MouseTargetType.CONTENT_TEXT, d.position, null, { mightBeForeignElement: false });
 				}
 			}
 		}
@@ -603,7 +618,7 @@ export class MouseTargetFactory {
 		// Is it the textarea?
 		if (ElementPath.isTextArea(request.targetPath)) {
 			if (ctx.lastRenderData.lastTextareaPosition) {
-				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition);
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, ctx.lastRenderData.lastTextareaPosition, null, { mightBeForeignElement: false });
 			}
 			return request.fulfill(MouseTargetType.TEXTAREA, ctx.lastRenderData.lastTextareaPosition);
 		}
@@ -649,7 +664,7 @@ export class MouseTargetFactory {
 		}
 
 		if (ctx.isInTopPadding(request.mouseVerticalOffset)) {
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(1, 1), undefined, EMPTY_CONTENT_AFTER_LINES);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(1, 1), null, EMPTY_CONTENT_AFTER_LINES);
 		}
 
 		// Check if it is below any lines and any view zones
@@ -657,7 +672,7 @@ export class MouseTargetFactory {
 			// This most likely indicates it happened after the last view-line
 			const lineCount = ctx.model.getLineCount();
 			const maxLineColumn = ctx.model.getLineMaxColumn(lineCount);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), undefined, EMPTY_CONTENT_AFTER_LINES);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineCount, maxLineColumn), null, EMPTY_CONTENT_AFTER_LINES);
 		}
 
 		if (domHitTestExecuted) {
@@ -668,14 +683,14 @@ export class MouseTargetFactory {
 				if (ctx.model.getLineLength(lineNumber) === 0) {
 					const lineWidth = ctx.getLineWidth(lineNumber);
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), undefined, detail);
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, new Position(lineNumber, 1), null, detail);
 				}
 
 				const lineWidth = ctx.getLineWidth(lineNumber);
 				if (request.mouseContentHorizontalOffset >= lineWidth) {
 					const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
 					const pos = new Position(lineNumber, ctx.model.getLineMaxColumn(lineNumber));
-					return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
+					return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, null, detail);
 				}
 			}
 
@@ -750,7 +765,7 @@ export class MouseTargetFactory {
 
 		if (request.mouseContentHorizontalOffset > lineWidth) {
 			const detail = createEmptyContentDataInLines(request.mouseContentHorizontalOffset - lineWidth);
-			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, undefined, detail);
+			return request.fulfill(MouseTargetType.CONTENT_EMPTY, pos, null, detail);
 		}
 
 		const visibleRange = ctx.visibleRangeForPosition(lineNumber, column);
@@ -762,7 +777,7 @@ export class MouseTargetFactory {
 		const columnHorizontalOffset = visibleRange.left;
 
 		if (request.mouseContentHorizontalOffset === columnHorizontalOffset) {
-			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos);
+			return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: false });
 		}
 
 		// Let's define a, b, c and check if the offset is in between them...
@@ -786,15 +801,19 @@ export class MouseTargetFactory {
 
 		points.sort((a, b) => a.offset - b.offset);
 
+		const mouseCoordinates = request.pos.toClientCoordinates();
+		const spanNodeClientRect = spanNode.getBoundingClientRect();
+		const mouseIsOverSpanNode = (spanNodeClientRect.left <= mouseCoordinates.clientX && mouseCoordinates.clientX <= spanNodeClientRect.right);
+
 		for (let i = 1; i < points.length; i++) {
 			const prev = points[i - 1];
 			const curr = points[i];
 			if (prev.offset <= request.mouseContentHorizontalOffset && request.mouseContentHorizontalOffset <= curr.offset) {
 				const rng = new EditorRange(lineNumber, prev.column, lineNumber, curr.column);
-				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng);
+				return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, rng, { mightBeForeignElement: !mouseIsOverSpanNode });
 			}
 		}
-		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos);
+		return request.fulfill(MouseTargetType.CONTENT_TEXT, pos, null, { mightBeForeignElement: !mouseIsOverSpanNode });
 	}
 
 	/**
