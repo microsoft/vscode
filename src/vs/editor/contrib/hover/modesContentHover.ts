@@ -35,14 +35,21 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 const $ = dom.$;
 
 export interface IHoverPart {
+	/**
+	 * The creator of this hover part.
+	 */
 	readonly owner: IEditorHoverParticipant;
+	/**
+	 * The range where this hover part applies.
+	 */
 	readonly range: Range;
 	/**
 	 * Force the hover to always be rendered at this specific range,
 	 * even in the case of multiple hover parts.
 	 */
 	readonly forceShowAtRange?: boolean;
-	equals(other: IHoverPart): boolean;
+
+	isValidForHoverRange(hoverRange: Range): boolean;
 }
 
 export interface IEditorHover {
@@ -442,21 +449,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			if (!this._showAtPosition || this._showAtPosition.lineNumber !== range.startLineNumber) {
 				this.hide();
 			} else {
-				let filteredMessages: IHoverPart[] = [];
-				for (let i = 0, len = this._messages.length; i < len; i++) {
-					const msg = this._messages[i];
-					const rng = msg.range;
-					if (rng && rng.startColumn <= range.startColumn && rng.endColumn >= range.endColumn) {
-						filteredMessages.push(msg);
-					}
-				}
-				if (filteredMessages.length > 0) {
-					if (hoverContentsEquals(filteredMessages, this._messages)) {
-						return;
-					}
-					this._renderMessages(range, filteredMessages);
-				} else {
+				const filteredMessages = this._messages.filter((m) => m.isValidForHoverRange(range));
+				if (filteredMessages.length === 0) {
 					this.hide();
+				} else if (filteredMessages.length === this._messages.length) {
+					// no change
+					return;
+				} else {
+					this._renderMessages(range, filteredMessages);
 				}
 			}
 		}
@@ -587,18 +587,6 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
-}
-
-function hoverContentsEquals(first: IHoverPart[], second: IHoverPart[]): boolean {
-	if (first.length !== second.length) {
-		return false;
-	}
-	for (let i = 0; i < first.length; i++) {
-		if (!first[i].equals(second[i])) {
-			return false;
-		}
-	}
-	return true;
 }
 
 registerThemingParticipant((theme, collector) => {

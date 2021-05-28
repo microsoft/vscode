@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isEmptyMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
@@ -30,11 +30,11 @@ export class MarkdownHover implements IHoverPart {
 		public readonly contents: IMarkdownString[]
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkdownHover) {
-			return markedStringsEquals(this.contents, other.contents);
-		}
-		return false;
+	public isValidForHoverRange(hoverRange: Range): boolean {
+		return (
+			this.range.startColumn <= hoverRange.startColumn
+			&& this.range.endColumn >= hoverRange.endColumn
+		);
 	}
 }
 

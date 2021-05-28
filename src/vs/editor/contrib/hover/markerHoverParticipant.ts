@@ -36,11 +36,11 @@ export class MarkerHover implements IHoverPart {
 		public readonly marker: IMarker,
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkerHover) {
-			return IMarkerData.makeKey(this.marker) === IMarkerData.makeKey(other.marker);
-		}
-		return false;
+	public isValidForHoverRange(hoverRange: Range): boolean {
+		return (
+			this.range.startColumn <= hoverRange.startColumn
+			&& this.range.endColumn >= hoverRange.endColumn
+		);
 	}
 }
 

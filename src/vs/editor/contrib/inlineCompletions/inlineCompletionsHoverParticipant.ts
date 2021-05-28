@@ -19,8 +19,11 @@ export class InlineCompletionsHover implements IHoverPart {
 		public readonly range: Range
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		return false;
+	public isValidForHoverRange(hoverRange: Range): boolean {
+		return (
+			this.range.startColumn <= hoverRange.startColumn
+			&& this.range.endColumn >= hoverRange.endColumn
+		);
 	}
 
 }

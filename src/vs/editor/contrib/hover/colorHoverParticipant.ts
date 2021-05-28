@@ -33,8 +33,11 @@ export class ColorHover implements IHoverPart {
 		public readonly provider: DocumentColorProvider
 	) { }
 
-	equals(other: IHoverPart): boolean {
-		return false;
+	public isValidForHoverRange(hoverRange: Range): boolean {
+		return (
+			this.range.startColumn <= hoverRange.startColumn
+			&& this.range.endColumn >= hoverRange.endColumn
+		);
 	}
 }
 
