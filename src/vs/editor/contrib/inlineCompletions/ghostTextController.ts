@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Range } from 'vs/editor/common/core/range';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -17,7 +18,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-class GhostTextController extends Disposable {
+export class GhostTextController extends Disposable {
 	public static readonly inlineCompletionsVisible = new RawContextKey<boolean>('inlineCompletionsVisible ', false, nls.localize('inlineCompletionsVisible', "Whether inline suggestions are visible"));
 	static ID = 'editor.contrib.ghostTextController';
 
@@ -58,6 +59,10 @@ class GhostTextController extends Disposable {
 		this.activeController.value = this.editor.hasModel() && suggestOptions.showSuggestionPreview
 			? this.instantiationService.createInstance(ActiveGhostTextController, this.editor, this.widget, this.contextKeys)
 			: undefined;
+	}
+
+	public shouldShowHoverAt(hoverRange: Range): boolean {
+		return this.activeController.value?.shouldShowHoverAt(hoverRange) || false;
 	}
 
 	public trigger(): void {
@@ -127,6 +132,16 @@ export class ActiveGhostTextController extends Disposable {
 		);
 	}
 
+	public shouldShowHoverAt(hoverRange: Range): boolean {
+		if (this.widget.model === this.inlineCompletionsModel) {
+			const ghostText = this.widget.model.ghostText;
+			if (ghostText) {
+				return hoverRange.containsPosition(ghostText.position);
+			}
+		}
+		return false;
+	}
+
 	public trigger(): void {
 		if (this.widget.model === this.inlineCompletionsModel) {
 			this.inlineCompletionsModel.startSession();
@@ -190,9 +205,10 @@ registerEditorCommand(new GhostTextCommand({
 }));
 
 export class ShowNextInlineCompletionAction extends EditorAction {
+	public static ID = 'editor.action.showNextInlineCompletion';
 	constructor() {
 		super({
-			id: 'editor.action.showNextInlineCompletion',
+			id: ShowNextInlineCompletionAction.ID,
 			label: nls.localize('showNextInlineCompletion', "Show Next Inline Completion"),
 			alias: 'Show Next Inline Completion',
 			precondition: EditorContextKeys.writable,
@@ -212,9 +228,10 @@ export class ShowNextInlineCompletionAction extends EditorAction {
 }
 
 export class ShowPreviousInlineCompletionAction extends EditorAction {
+	public static ID = 'editor.action.showPreviousInlineCompletion';
 	constructor() {
 		super({
-			id: 'editor.action.showPreviousInlineCompletion',
+			id: ShowPreviousInlineCompletionAction.ID,
 			label: nls.localize('showPreviousInlineCompletion', "Show Previous Inline Completion"),
 			alias: 'Show Previous Inline Completion',
 			precondition: EditorContextKeys.writable,

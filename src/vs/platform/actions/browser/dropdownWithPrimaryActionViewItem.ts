@@ -12,8 +12,8 @@ import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -22,7 +22,6 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 	private _dropdown: DropdownMenuActionViewItem;
 	private _container: HTMLElement | null = null;
 	private _dropdownContainer: HTMLElement | null = null;
-	private toDispose: IDisposable[];
 
 	get onDidChangeDropdownVisibility(): Event<boolean> {
 		return this._dropdown.onDidChangeVisibility;
@@ -43,7 +42,6 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 			menuAsChild: true,
 			classNames: ['codicon', 'codicon-chevron-down']
 		});
-		this.toDispose = [];
 	}
 
 	override setActionContext(newContext: unknown): void {
@@ -60,7 +58,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		this._primaryAction.render(DOM.append(this._container, primaryContainer));
 		this._dropdownContainer = DOM.$('.dropdown-action-container');
 		this._dropdown.render(DOM.append(this._container, this._dropdownContainer));
-		this.toDispose.push(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(primaryContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.RightArrow)) {
 				this._primaryAction.element!.tabIndex = -1;
@@ -68,7 +66,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 				event.stopPropagation();
 			}
 		}));
-		this.toDispose.push(DOM.addDisposableListener(this._dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(DOM.addDisposableListener(this._dropdownContainer, DOM.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.equals(KeyCode.LeftArrow)) {
 				this._primaryAction.element!.tabIndex = 0;
@@ -103,12 +101,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	override dispose(): void {
-		this.toDispose = dispose(this.toDispose);
-	}
-
 	update(dropdownAction: IAction, dropdownMenuActions: IAction[], dropdownIcon?: string): void {
-		this._dropdown?.dispose();
+		this._dropdown.dispose();
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: ['codicon', dropdownIcon || 'codicon-chevron-down']
@@ -116,5 +110,11 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		if (this._dropdownContainer) {
 			this._dropdown.render(this._dropdownContainer);
 		}
+	}
+
+	override dispose() {
+		this._primaryAction.dispose();
+		this._dropdown.dispose();
+		super.dispose();
 	}
 }

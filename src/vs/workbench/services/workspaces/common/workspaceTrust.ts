@@ -417,15 +417,15 @@ export class RemoteWorkspaceTrustManagementService extends WorkspaceTrustManagem
 			return true; // trust running tests with vscode-test
 		}
 
+		// Remote - remote authority explicitly sets workspace trust
+		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
+			return this._remoteAuthority.options.isTrusted;
+		}
+
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise default to restricted mode
 			// Workspace may transition to trusted based on the opened editors
 			return this._trustState.isTrusted ?? false;
-		}
-
-		// Remote - remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
-			return this._remoteAuthority.options.isTrusted;
 		}
 
 		// Workspace

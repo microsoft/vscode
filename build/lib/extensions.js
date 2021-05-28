@@ -4,7 +4,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.buildExtensionMedia = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
+exports.buildExtensionMedia = exports.webpackExtensions = exports.translatePackageJSON = exports.scanBuiltinExtensions = exports.packageMarketplaceExtensionsStream = exports.packageLocalExtensionsStream = exports.fromMarketplace = void 0;
 const es = require("event-stream");
 const fs = require("fs");
 const cp = require("child_process");
@@ -408,6 +408,7 @@ async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
         }
     });
 }
+exports.webpackExtensions = webpackExtensions;
 async function esbuildExtensions(taskName, isWatch, scripts) {
     function reporter(stdError, script) {
         const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);

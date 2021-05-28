@@ -602,8 +602,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff.length === 2) {
 					const diffEditorInput: IResourceDiffEditorInput[] = [{
-						leftEditor: { resource: filesToDiff[0].resource },
-						rightEditor: { resource: filesToDiff[1].resource },
+						originalInput: { resource: filesToDiff[0].resource },
+						modifiedInput: { resource: filesToDiff[1].resource },
 						options: { pinned: true },
 						forceFile: true
 					}];

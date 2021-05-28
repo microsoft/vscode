@@ -78,15 +78,22 @@ export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
 	options?: ITextEditorOptions;
 
 	/**
+	 * The contents of the text input if known. If provided,
+	 * the input will not attempt to load the contents from
+	 * disk and may appear dirty.
+	 */
+	contents?: string;
+
+	/**
 	 * The encoding of the text input if known.
 	 */
-	readonly encoding?: string;
+	encoding?: string;
 
 	/**
 	 * The identifier of the language mode of the text input
 	 * if known to use when displaying the contents.
 	 */
-	readonly mode?: string;
+	mode?: string;
 }
 
 export interface IResourceEditorInput extends IBaseResourceEditorInput {

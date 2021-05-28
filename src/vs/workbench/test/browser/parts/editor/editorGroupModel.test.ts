@@ -167,6 +167,7 @@ suite('Workbench editor group model', () => {
 		getEncoding() { return undefined; }
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }
+		setPreferredContents(contents: string): void { }
 		setMode(mode: string) { }
 		setPreferredMode(mode: string) { }
 		isResolved(): boolean { return false; }

@@ -1152,6 +1152,26 @@ export class SearchForTestExtension extends Action2 {
 	}
 }
 
+export class OpenOutputPeek extends Action2 {
+	public static readonly ID = 'testing.openOutputPeek';
+	constructor() {
+		super({
+			id: OpenOutputPeek.ID,
+			title: localize('testing.openOutputPeek', "Peek Output"),
+			f1: true,
+			category,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_M),
+			},
+		});
+	}
+
+	public async run(accessor: ServicesAccessor) {
+		accessor.get(ITestingPeekOpener).open();
+	}
+}
+
 export const allTestActions = [
 	AutoRunOffAction,
 	AutoRunOnAction,
@@ -1167,6 +1187,7 @@ export const allTestActions = [
 	DebugSelectedAction,
 	GoToTest,
 	HideTestAction,
+	OpenOutputPeek,
 	RefreshTestsAction,
 	ReRunFailedTests,
 	ReRunLastRun,

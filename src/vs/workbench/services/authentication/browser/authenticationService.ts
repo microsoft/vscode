@@ -338,7 +338,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 		}
 
 		Object.keys(existingRequestsForProvider).forEach(requestedScopes => {
-			if (addedSessions.some(session => session.scopes.slice().sort().join('') === requestedScopes)) {
+			if (addedSessions.some(session => session.scopes.slice().join('') === requestedScopes)) {
 				const sessionRequest = existingRequestsForProvider[requestedScopes];
 				sessionRequest?.disposables.forEach(item => item.dispose());
 
@@ -604,7 +604,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
 
 		if (provider) {
 			const providerRequests = this._signInRequestItems.get(providerId);
-			const scopesList = scopes.sort().join('');
+			const scopesList = scopes.join('');
 			const extensionHasExistingRequest = providerRequests
 				&& providerRequests[scopesList]
 				&& providerRequests[scopesList].requestingExtensionIds.includes(extensionId);

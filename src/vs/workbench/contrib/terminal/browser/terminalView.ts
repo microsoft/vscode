@@ -215,13 +215,23 @@ export class TerminalViewPane extends ViewPane {
 
 		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		for (const p of profiles) {
-			const suffix = p.profileName === defaultProfileName ? nls.localize('defaultTerminalSuffix', " (Default)") : '';
-			dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-			submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName + suffix, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			const isDefault = p.profileName === defaultProfileName;
+			if (isDefault) {
+				dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+				submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			} else {
+				dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+				submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName, category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+			}
 		}
 
 		for (const contributed of this._terminalContributionService.terminalTypes) {
 			dropdownActions.push(new MenuItemAction({ id: contributed.command, title: contributed.title, category: TerminalTabContextMenuGroup.Profile }, undefined, undefined, this._contextKeyService, this._commandService));
+		}
+
+		for (const contributed of this._terminalContributionService.terminalProfiles) {
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title, undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.id, false)));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title, undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.id, true)));
 		}
 
 		if (dropdownActions.length > 0) {

@@ -14,7 +14,7 @@ import { asArray } from 'vs/base/common/arrays';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { Position } from 'vs/editor/common/core/position';
@@ -103,7 +103,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment): IDisposable {
+	public renderHoverParts(hoverParts: MarkdownHover[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
 		const disposables = new DisposableStore();
 		for (const hoverPart of hoverParts) {
 			for (const contents of hoverPart.contents) {

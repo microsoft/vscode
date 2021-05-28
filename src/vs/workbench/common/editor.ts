@@ -213,7 +213,7 @@ export interface IFileEditorInputFactory {
 	/**
 	 * Creates new new editor input capable of showing files.
 	 */
-	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
+	createFileEditorInput(resource: URI, preferredResource: URI | undefined, preferredName: string | undefined, preferredDescription: string | undefined, preferredEncoding: string | undefined, preferredMode: string | undefined, preferredContents: string | undefined, instantiationService: IInstantiationService): IFileEditorInput;
 
 	/**
 	 * Check if the provided object is a file editor input.
@@ -284,11 +284,6 @@ export interface IUntitledTextResourceEditorInput extends IBaseTextResourceEdito
 	 * the untitled editor.
 	 */
 	readonly resource?: URI;
-
-	/**
-	 * Optional contents of the untitled resource.
-	 */
-	readonly contents?: string;
 }
 
 export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
@@ -296,12 +291,12 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	/**
 	 * The left hand side editor to open inside a diff editor.
 	 */
-	readonly leftEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly originalInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 
 	/**
 	 * The right hand side editor to open inside a diff editor.
 	 */
-	readonly rightEditor: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
+	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
 export const enum Verbosity {
@@ -546,7 +541,7 @@ export interface IEditorInput extends IDisposable {
 	 *
 	 * May return `undefined` if a untyped representatin is not supported.
 	 */
-	asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput | undefined;
+	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined;
 
 	/**
 	 * Returns if the other object matches this input.
@@ -658,6 +653,11 @@ export interface IFileEditorInput extends IEditorInput, IEncodingSupport, IModeS
 	 * Sets the preferred language mode to use for this file input.
 	 */
 	setPreferredMode(mode: string): void;
+
+	/**
+	 * Sets the preferred contents to use for this file input.
+	 */
+	setPreferredContents(contents: string): void;
 
 	/**
 	 * Forces this file input to open as binary instead of text.

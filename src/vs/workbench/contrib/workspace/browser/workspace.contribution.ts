@@ -43,8 +43,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { splitName } from 'vs/base/common/labels';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
-import { getVirtualWorkspaceScheme } from 'vs/platform/remote/common/remoteHosts';
-import { verifyMicrosoftInternalDomain } from 'vs/platform/telemetry/common/commonProperties';
+import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
@@ -174,7 +173,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		// Don't show modal prompt for virtual workspaces by default
-		if (getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined) {
+		if (isVirtualWorkspace(this.workspaceContextService.getWorkspace())) {
 			this.updateWorkbenchIndicators(false);
 			return;
 		}
@@ -225,7 +224,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
-	private getBannerItem(isVirtualWorkspace: boolean, restrictedMode: boolean): IBannerItem | undefined {
+	private getBannerItem(isInVirtualWorkspace: boolean, restrictedMode: boolean): IBannerItem | undefined {
 
 		const dismissedVirtual = this.storageService.getBoolean(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
 		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
@@ -236,7 +235,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		// don't show restricted mode only banner
-		if (dismissedRestricted && !isVirtualWorkspace) {
+		if (dismissedRestricted && !isInVirtualWorkspace) {
 			return undefined;
 		}
 
@@ -246,7 +245,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		const choose = (virtual: any, restricted: any, virtualAndRestricted: any) => {
-			return (isVirtualWorkspace && !dismissedVirtual) && (restrictedMode && !dismissedRestricted) ? virtualAndRestricted : ((isVirtualWorkspace && !dismissedVirtual) ? virtual : restricted);
+			return (isInVirtualWorkspace && !dismissedVirtual) && (restrictedMode && !dismissedRestricted) ? virtualAndRestricted : ((isInVirtualWorkspace && !dismissedVirtual) ? virtual : restricted);
 		};
 
 		const id = choose(BANNER_VIRTUAL_WORKSPACE, BANNER_RESTRICTED_MODE, BANNER_VIRTUAL_AND_RESTRICTED);
@@ -295,7 +294,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			message,
 			actions,
 			onClose: () => {
-				if (isVirtualWorkspace) {
+				if (isInVirtualWorkspace) {
 					this.storageService.store(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
 
@@ -430,12 +429,12 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	private updateWorkbenchIndicators(trusted: boolean): void {
 		this.updateStatusbarEntry(trusted);
 
-		const isVirtualWorkspace = getVirtualWorkspaceScheme(this.workspaceContextService.getWorkspace()) !== undefined;
+		const isInVirtualWorkspace = isVirtualWorkspace(this.workspaceContextService.getWorkspace());
 		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		const bannerItem = this.getBannerItem(isVirtualWorkspace, !trusted);
+		const bannerItem = this.getBannerItem(isInVirtualWorkspace, !trusted);
 
 		if (bannerItem && (!isEmptyWorkspace || this.showBannerInEmptyWindow)) {
-			if (!isVirtualWorkspace) {
+			if (!isInVirtualWorkspace) {
 				if (!trusted) {
 					this.bannerService.show(bannerItem);
 				} else {
@@ -626,7 +625,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 		properties: {
 			[WORKSPACE_TRUST_ENABLED]: {
 				type: 'boolean',
-				default: verifyMicrosoftInternalDomain(product.msftInternalDomains || []),
+				default: true,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
 				scope: ConfigurationScope.APPLICATION,

@@ -5,8 +5,8 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -23,11 +23,16 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { HoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
+import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsHoverParticipant';
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
+import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+
+const $ = dom.$;
 
 export interface IHoverPart {
 	readonly owner: IEditorHoverParticipant;
@@ -46,11 +51,43 @@ export interface IEditorHover {
 	setColorPicker(widget: ColorPickerWidget): void;
 }
 
+export class EditorHoverStatusBar extends Disposable {
+
+	public readonly hoverElement: HTMLElement;
+	private readonly actionsElement: HTMLElement;
+	private _hasContent: boolean = false;
+
+	public get hasContent() {
+		return this._hasContent;
+	}
+
+	constructor(
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+	) {
+		super();
+		this.hoverElement = $('div.hover-row.status-bar');
+		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
+	}
+
+	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): void {
+		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
+		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
+		this._register(renderHoverAction(this.actionsElement, actionOptions, keybindingLabel));
+		this._hasContent = true;
+	}
+
+	public append(element: HTMLElement): HTMLElement {
+		const result = dom.append(this.actionsElement, element);
+		this._hasContent = true;
+		return result;
+	}
+}
+
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {
 	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): T[];
 	computeAsync?(range: Range, lineDecorations: IModelDecoration[], token: CancellationToken): Promise<T[]>;
 	createLoadingMessage?(range: Range): T;
-	renderHoverParts(hoverParts: T[], fragment: DocumentFragment): IDisposable;
+	renderHoverParts(hoverParts: T[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable;
 }
 
 class ModesContentComputer implements IHoverComputer<IHoverPart[]> {
@@ -189,14 +226,16 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	constructor(
 		editor: ICodeEditor,
 		private readonly _hoverVisibleKey: IContextKey<boolean>,
-		instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
 
 		const participants = [
 			instantiationService.createInstance(ColorHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
-			instantiationService.createInstance(MarkerHoverParticipant, editor, this)
+			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
+			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this)
 		];
 
 		this._hover = this._register(new HoverWidget());
@@ -275,7 +314,48 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		return this._hover.containerDomNode;
 	}
 
-	public showAt(position: Position, range: Range | null, focus: boolean): void {
+	private _shouldShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		const targetType = mouseEvent.target.type;
+		if (targetType === MouseTargetType.CONTENT_TEXT) {
+			return true;
+		}
+
+		if (targetType === MouseTargetType.CONTENT_EMPTY) {
+			const epsilon = this._editor.getOption(EditorOption.fontInfo).typicalHalfwidthCharacterWidth / 2;
+			const data = <IEmptyContentData>mouseEvent.target.detail;
+			if (data && !data.isAfterLines && typeof data.horizontalDistanceToText === 'number' && data.horizontalDistanceToText < epsilon) {
+				// Let hover kick in even when the mouse is technically in the empty area after a line, given the distance is small enough
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	public maybeShowAt(mouseEvent: IEditorMouseEvent): boolean {
+		if (!this._shouldShowAt(mouseEvent)) {
+			return false;
+		}
+
+		if (!mouseEvent.target.range) {
+			return false;
+		}
+
+		// TODO@rebornix. This should be removed if we move Color Picker out of Hover component.
+		// Check if mouse is hovering on color decorator
+		const hoverOnColorDecorator = [...mouseEvent.target.element?.classList.values() || []].find(className => className.startsWith('ced-colorBox'))
+			&& mouseEvent.target.range.endColumn - mouseEvent.target.range.startColumn === 1;
+		const showAtRange = (
+			hoverOnColorDecorator // shift the mouse focus by one as color decorator is a `before` decoration of next character.
+				? new Range(mouseEvent.target.range.startLineNumber, mouseEvent.target.range.startColumn + 1, mouseEvent.target.range.endLineNumber, mouseEvent.target.range.endColumn + 1)
+				: mouseEvent.target.range
+		);
+
+		this.startShowingAt(showAtRange, HoverStartMode.Delayed, false);
+		return true;
+	}
+
+	private _showAt(position: Position, range: Range | null, focus: boolean): void {
 		// Position has changed
 		this._showAtPosition = position;
 		this._showAtRange = range;
@@ -469,8 +549,14 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 			dest.push(msg);
 		}
 
+		const statusBar = disposables.add(new EditorHoverStatusBar(this._keybindingService));
+
 		for (const [participant, participantHoverParts] of hoverParts) {
-			disposables.add(participant.renderHoverParts(participantHoverParts, fragment));
+			disposables.add(participant.renderHoverParts(participantHoverParts, fragment, statusBar));
+		}
+
+		if (statusBar.hasContent) {
+			fragment.appendChild(statusBar.hoverElement);
 		}
 
 		this._renderDisposable = disposables;
@@ -479,9 +565,9 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 
 		if (fragment.hasChildNodes()) {
 			if (forceShowAtRange) {
-				this.showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
+				this._showAt(forceShowAtRange.getStartPosition(), forceShowAtRange, this._shouldFocus);
 			} else {
-				this.showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
+				this._showAt(new Position(renderRange.startLineNumber, renderColumn), highlightRange, this._shouldFocus);
 			}
 			this._updateContents(fragment);
 		}
@@ -498,6 +584,7 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 	}
 
 	private static readonly _DECORATION_OPTIONS = ModelDecorationOptions.register({
+		description: 'content-hover-highlight',
 		className: 'hoverHighlight'
 	});
 }

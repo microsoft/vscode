@@ -1001,7 +1001,7 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test.skip('multiple tabs: different editors with same document', async function () {
+	test('multiple tabs: different editors with same document', async function () {
 
 		const notebook = await openRandomNotebookDocument();
 		const firstNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.One });
@@ -1011,7 +1011,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
 
-		const secondNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Two });
+		const secondNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
 		assert.strictEqual(secondNotebookEditor !== undefined, true, 'notebook first');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');

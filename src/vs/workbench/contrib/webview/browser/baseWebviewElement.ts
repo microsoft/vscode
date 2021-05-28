@@ -244,7 +244,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				const uri = URI.from({
 					scheme: entry.scheme,
 					authority: entry.authority,
-					path: entry.path,
+					path: decodeURIComponent(entry.path), // This gets re-encoded
 					query: entry.query,
 				});
 				this.loadResource(entry.id, uri, entry.ifNoneMatch);
@@ -386,7 +386,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
 				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
@@ -394,7 +394,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
 				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
