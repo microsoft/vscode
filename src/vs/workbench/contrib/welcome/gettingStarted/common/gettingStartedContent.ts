@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcome/gettingStarted/common/media/example_markdown_media';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
