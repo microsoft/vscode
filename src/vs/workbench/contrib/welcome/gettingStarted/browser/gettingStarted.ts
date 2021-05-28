@@ -41,7 +41,7 @@ import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Emitter, Event } from 'vs/base/common/event';
-import { LinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
@@ -468,6 +468,17 @@ export class GettingStartedPage extends EditorPane {
 			this.stepMediaComponent.appendChild(mediaElement);
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
+
+			this.stepDisposables.add(addDisposableListener(mediaElement, 'click', () => {
+				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				if (hrefs.length === 1) {
+					const href = hrefs[0];
+					if (href.startsWith('http')) {
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.openerService.open(href);
+					}
+				}
+			}));
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
 
