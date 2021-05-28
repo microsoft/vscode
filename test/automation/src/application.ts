@@ -73,6 +73,7 @@ export class Application {
 		await this.code.waitForElement('.explorer-folders-view');
 
 		if (!this.options.web) {
+			// Dismiss workspace trust dialog
 			await this.code.waitAndClick(`.monaco-workbench .dialog-buttons-row a:nth-child(1)`, 10, 10);
 		}
 
@@ -86,7 +87,10 @@ export class Application {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
+		await this.code.waitForElement('.explorer-folders-view');
+
 		if (!this.options.web) {
+			// Dismiss workspace trust dialog
 			await this.code.waitAndClick(`.monaco-workbench .dialog-buttons-row a:nth-child(1)`, 10, 10);
 		}
 	}
