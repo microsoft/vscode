@@ -205,7 +205,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedRealDefaultProfile(os: OperatingSystem): ITerminalProfile | undefined {
-		const defaultProfileName = this.getSafeConfigValue('defaultProfile', os);
+		const defaultProfileName = this._configurationService.getValue(`terminal.integrated.defaultProfile.${this._getOsKey(os)}`);
 		if (defaultProfileName && typeof defaultProfileName === 'string') {
 			return this._terminalService.availableProfiles.find(e => e.profileName === defaultProfileName);
 		}
@@ -213,9 +213,13 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private async _getUnresolvedShellSettingDefaultProfile(options: IShellLaunchConfigResolveOptions): Promise<ITerminalProfile | undefined> {
-		let executable = this.getSafeConfigValue('shell', options.os) as string | null;
-		if (!this._isValidShell(executable) && !this.getSafeConfigValue('shellArgs', options.os, false)) {
-			return undefined;
+		let executable = this._configurationService.getValue<string>(`terminal.integrated.shell.${this._getOsKey(options.os)}`);
+		if (!this._isValidShell(executable)) {
+			const shellArgs = this._configurationService.inspect(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
+			//  && !this.getSafeConfigValue('shellArgs', options.os, false)) {
+			if (!shellArgs.userValue && !shellArgs.workspaceValue) {
+				return undefined;
+			}
 		}
 
 		if (!executable || !this._isValidShell(executable)) {
@@ -223,7 +227,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 
 		let args: string | string[] | undefined;
-		const shellArgsSetting = this.getSafeConfigValue('shellArgs', options.os);
+		const shellArgsSetting = this._configurationService.getValue(`terminal.integrated.shellArgs.${this._getOsKey(options.os)}`);
 		if (this._isValidShellArgs(shellArgsSetting, options.os)) {
 			args = shellArgsSetting;
 		}
@@ -279,7 +283,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 	}
 
 	private _getUnresolvedAutomationShellProfile(options: IShellLaunchConfigResolveOptions): ITerminalProfile | undefined {
-		const automationShell = this.getSafeConfigValue('automationShell', options.os);
+		const automationShell = this._configurationService.getValue(`terminal.integrated.automationShell.${this._getOsKey(options.os)}`);
 		if (!automationShell || typeof automationShell !== 'string') {
 			return undefined;
 		}
@@ -383,32 +387,6 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			return true;
 		}
 		return false;
-	}
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem, useDefaultValue: boolean = true): unknown | undefined {
-		return this.getSafeConfigValueFullKey(`terminal.integrated.${key}.${this._getOsKey(os)}`, useDefaultValue);
-	}
-	getSafeConfigValueFullKey(key: string, useDefaultValue: boolean = true): unknown | undefined {
-		const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
-		const config = this._configurationService.inspect(key);
-		let value: unknown | undefined;
-		if (isWorkspaceConfigAllowed) {
-			value = config.user?.value || config.workspace?.value;
-		} else {
-			value = config.user?.value;
-		}
-		if (value === undefined && useDefaultValue) {
-			value = config.default?.value;
-		}
-		// Clone if needed to allow extensibility
-		if (Array.isArray(value)) {
-			return value.slice();
-		}
-		if (value !== null && typeof value === 'object') {
-			return { ...value };
-		}
-		return value;
 	}
 
 	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined> {
