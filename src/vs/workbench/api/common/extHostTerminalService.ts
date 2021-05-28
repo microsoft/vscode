@@ -18,9 +18,10 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -42,12 +43,14 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShell(useAutomationShell: boolean): string;
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
+	registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
+	isSplitTerminal?: boolean;
 }
 
 export const IExtHostTerminalService = createDecorator<IExtHostTerminalService>('IExtHostTerminalService');
@@ -118,30 +121,39 @@ export class ExtHostTerminal {
 	}
 
 	public async create(
-		shellPath?: string,
-		shellArgs?: string[] | string,
-		cwd?: string | URI,
-		env?: ITerminalEnvironment,
-		icon?: URI | { light: URI; dark: URI } | ThemeIcon,
-		initialText?: string,
-		waitOnExit?: boolean,
-		strictEnv?: boolean,
-		hideFromUser?: boolean,
-		isFeatureTerminal?: boolean,
-		isExtensionOwnedTerminal?: boolean,
-		useShellEnvironment?: boolean
+		options: vscode.TerminalOptions,
+		internalOptions?: ITerminalInternalOptions,
 	): Promise<void> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, shellPath, shellArgs, cwd, env, icon, initialText, waitOnExit, strictEnv, hideFromUser, isFeatureTerminal, isExtensionOwnedTerminal, useShellEnvironment });
+		await this._proxy.$createTerminal(this._id, {
+			name: options.name,
+			shellPath: withNullAsUndefined(options.shellPath),
+			shellArgs: withNullAsUndefined(options.shellArgs),
+			cwd: withNullAsUndefined(options.cwd),
+			env: withNullAsUndefined(options.env),
+			icon: withNullAsUndefined(options.iconPath),
+			initialText: withNullAsUndefined(options.message),
+			strictEnv: withNullAsUndefined(options.strictEnv),
+			hideFromUser: withNullAsUndefined(options.hideFromUser),
+			isFeatureTerminal: withNullAsUndefined(internalOptions?.isFeatureTerminal),
+			isExtensionOwnedTerminal: true,
+			useShellEnvironment: withNullAsUndefined(internalOptions?.useShellEnvironment),
+			isSplitTerminal: withNullAsUndefined(internalOptions?.isSplitTerminal)
+		});
 	}
 
-	public async createExtensionTerminal(iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
+	public async createExtensionTerminal(isSplitTerminal?: boolean, iconPath?: URI | { light: URI; dark: URI } | ThemeIcon): Promise<number> {
 		if (typeof this._id !== 'string') {
 			throw new Error('Terminal has already been created');
 		}
-		await this._proxy.$createTerminal(this._id, { name: this._name, isExtensionCustomPtyTerminal: true, icon: iconPath });
+		await this._proxy.$createTerminal(this._id, {
+			name: this._name,
+			isExtensionCustomPtyTerminal: true,
+			icon: iconPath,
+			isSplitTerminal
+		});
 		// At this point, the id has been set via `$acceptTerminalOpened`
 		if (typeof this._id === 'string') {
 			throw new Error('Terminal creation failed');
@@ -302,6 +314,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	private readonly _bufferer: TerminalDataBufferer;
 	private readonly _linkProviders: Set<vscode.TerminalLinkProvider> = new Set();
+	private readonly _profileProviders: Map<string, vscode.TerminalProfileProvider> = new Map();
 	private readonly _terminalLinkCache: Map<number, Map<number, ICachedLinkEntry>> = new Map();
 	private readonly _terminalLinkCancellationSource: Map<number, CancellationTokenSource> = new Map();
 
@@ -353,10 +366,10 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return profile?.args || [];
 	}
 
-	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions): vscode.Terminal {
+	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(options.iconPath).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, options.iconPath).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -569,6 +582,33 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 				this._proxy.$stopLinkProvider();
 			}
 		});
+	}
+
+	public registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
+		if (this._profileProviders.has(id)) {
+			throw new Error(`Terminal profile provider "${id}" already registered`);
+		}
+		this._profileProviders.set(id, provider);
+		this._proxy.$registerProfileProvider(id);
+		return new VSCodeDisposable(() => {
+			this._profileProviders.delete(id);
+			this._proxy.$unregisterProfileProvider(id);
+		});
+	}
+
+	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
+		const token = new CancellationTokenSource().token;
+		const options = await this._profileProviders.get(id)?.provideProfileOptions(token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (!options) {
+			throw new Error(`No terminal profile options provided for id "${id}"`);
+		}
+		if ('pty' in options) {
+			this.createExtensionTerminal(options, { isSplitTerminal });
+		}
+		this.createTerminalFromOptions(options, { isSplitTerminal });
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {
