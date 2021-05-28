@@ -241,6 +241,10 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		return;
 	}
 
+	const textFileService = accessor.get(ITextFileService);
+	const editorService = accessor.get(IEditorService);
+	const fileService = accessor.get(IFileService);
+
 	// Extract resources from URIs or Editors
 	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
 		if (URI.isUri(resourceOrEditor)) {
@@ -265,22 +269,22 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-	const firstFile = resources.find(resource => !resource.isDirectory);
+	const firstFile = resources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
+		// TODO@sandbox this will no longer work when `vscode-file`
+		// is enabled because we block loading resources that are not
+		// inside installation dir
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
 	}
 
 	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
-	const files = resources.filter(resource => !resource.isDirectory);
+	const files = resources.filter(({ resource, isDirectory }) => !isDirectory && fileService.canHandleResource(resource));
 	if (files.length) {
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
 	// Editors: enables cross window DND of editors
 	// into the editor area while presering UI state
-	const textFileService = accessor.get(ITextFileService);
-	const editorService = accessor.get(IEditorService);
-
 	const draggedEditors: IDraggedResourceEditorInput[] = [];
 
 	for (const resourceOrEditor of resourcesOrEditors) {

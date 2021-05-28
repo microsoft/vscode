@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 
 export type SearchConfiguration = {
 	query: string,
@@ -266,6 +267,19 @@ export class SearchEditorInput extends EditorInput {
 		const query = (await this.getModels()).configurationModel.config.query;
 		const searchFileName = (query.replace(/[^\w \-_]+/g, '_') || 'Search') + SEARCH_EDITOR_EXT;
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
+	}
+
+	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
+		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
+			return undefined;
+		}
+
+		return {
+			resource: this.resource,
+			options: {
+				override: SearchEditorInput.ID
+			}
+		};
 	}
 }
 
