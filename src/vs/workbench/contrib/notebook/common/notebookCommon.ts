@@ -180,12 +180,12 @@ export interface IOutputItemDto {
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
 	outputId: string;
-	metadata?: Record<string, unknown>;
+	metadata?: Record<string, any>;
 }
 
 export interface ICellOutput {
 	outputs: IOutputItemDto[];
-	// metadata?: NotebookCellOutsputMetadata;
+	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputItemDto[]): void;
@@ -921,6 +921,7 @@ export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
 export const ShowFoldingControls = 'notebook.showFoldingControls';
 export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
 export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
+export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

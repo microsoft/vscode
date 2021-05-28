@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, NotebookCellEditorOptionsCustomizations, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, NotebookCellEditorOptionsCustomizations, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -54,6 +54,7 @@ export interface NotebookLayoutConfiguration {
 	insertToolbarAlignment: 'left' | 'center';
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
+	consolidatedRunButton: boolean;
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
@@ -74,6 +75,7 @@ interface NotebookOptionsChangeEvent {
 	globalToolbar?: boolean;
 	showFoldingControls?: boolean;
 	consolidatedOutputButton?: boolean;
+	consolidatedRunButton?: boolean;
 	dragAndDropEnabled?: boolean;
 	fontSize?: boolean;
 	editorOptionsCustomizations?: boolean;
@@ -110,6 +112,7 @@ export class NotebookOptions {
 		const showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
 		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
+		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
 		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey) ?? { 'default': 'right' };
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
@@ -142,6 +145,7 @@ export class NotebookOptions {
 			showCellStatusBarAfterExecute,
 			globalToolbar,
 			consolidatedOutputButton,
+			consolidatedRunButton,
 			dragAndDropEnabled,
 			cellToolbarLocation,
 			cellToolbarInteraction,
@@ -177,6 +181,7 @@ export class NotebookOptions {
 		const insertToolbarAlignment = e.affectsConfiguration(ExperimentalInsertToolbarAlignment);
 		const globalToolbar = e.affectsConfiguration(GlobalToolbar);
 		const consolidatedOutputButton = e.affectsConfiguration(ConsolidatedOutputButton);
+		const consolidatedRunButton = e.affectsConfiguration(ConsolidatedRunButton);
 		const showFoldingControls = e.affectsConfiguration(ShowFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(DragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
@@ -193,6 +198,7 @@ export class NotebookOptions {
 			&& !insertToolbarAlignment
 			&& !globalToolbar
 			&& !consolidatedOutputButton
+			&& !consolidatedRunButton
 			&& !showFoldingControls
 			&& !dragAndDropEnabled
 			&& !fontSize
@@ -246,6 +252,10 @@ export class NotebookOptions {
 			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton) ?? true;
 		}
 
+		if (consolidatedRunButton) {
+			configuration.consolidatedRunButton = this.configurationService.getValue<boolean>(ConsolidatedRunButton) ?? true;
+		}
+
 		if (showFoldingControls) {
 			configuration.showFoldingControls = this._computeShowFoldingControlsOption();
 		}
@@ -277,6 +287,7 @@ export class NotebookOptions {
 			globalToolbar,
 			showFoldingControls,
 			consolidatedOutputButton,
+			consolidatedRunButton,
 			dragAndDropEnabled,
 			fontSize,
 			editorOptionsCustomizations

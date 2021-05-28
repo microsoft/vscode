@@ -381,38 +381,53 @@ class NotebookCellExecutionTask extends Disposable {
 		this.applyEdits([edit]);
 	}
 
-	private cellIndexToHandle(cellIndex: number | undefined): number {
-		if (typeof cellIndex !== 'number') {
-			return this._cell.handle;
+	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | number | undefined): number {
+		let cell: ExtHostCell | undefined = this._cell;
+		if (typeof cellOrCellIndex === 'number') {
+			// todo@jrieken remove support for number shortly
+			cell = this._document.getCellFromIndex(cellOrCellIndex);
+		} else if (cellOrCellIndex) {
+			cell = this._document.getCellFromApiCell(cellOrCellIndex);
 		}
-		const cell = this._document.getCellFromIndex(cellIndex);
 		if (!cell) {
-			throw new Error('INVALID cell index');
+			throw new Error('INVALID cell');
 		}
 		return cell.handle;
 	}
 
 	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): IOutputDto[] {
 		return items.map(output => {
-			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.outputs, true);
-			if (newOutput === output.outputs) {
+			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
+			if (newOutput === output.items) {
 				return extHostTypeConverters.NotebookCellOutput.from(output);
 			}
 			return extHostTypeConverters.NotebookCellOutput.from({
-				outputs: newOutput,
+				items: newOutput,
 				id: output.id,
 				metadata: output.metadata
 			});
 		});
 	}
 
+	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | number | undefined, append: boolean): Promise<void> {
+		const handle = this.cellIndexToHandle(cell);
+		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
+		return this.applyEditSoon({ editType: CellEditType.Output, handle, append, outputs: outputDtos });
+	}
+
+	private async updateOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputOrOutputId: vscode.NotebookCellOutput | string, append: boolean): Promise<void> {
+		if (NotebookCellOutput.isNotebookCellOutput(outputOrOutputId)) {
+			outputOrOutputId = outputOrOutputId.id;
+		}
+		items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
+		return this.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId: outputOrOutputId, append });
+	}
+
 	asApiObject(): vscode.NotebookCellExecution {
 		const that = this;
-		return Object.freeze(<vscode.NotebookCellExecution>{
+		const result: vscode.NotebookCellExecution = {
 			get token() { return that._tokenSource.token; },
-			get document() { return that._document.apiNotebook; },
 			get cell() { return that._cell.apiCell; },
-
 			get executionOrder() { return that._executionOrder; },
 			set executionOrder(v: number | undefined) {
 				that._executionOrder = v;
@@ -450,37 +465,32 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			clearOutput(cellIndex?: number): Thenable<void> {
+			clearOutput(cell?: vscode.NotebookCell | number): Thenable<void> {
 				that.verifyStateForOutput();
-				return this.replaceOutput([], cellIndex);
+				return that.updateOutputs([], cell, false);
 			},
 
-			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
+			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
-				const handle = that.cellIndexToHandle(cellIndex);
-				const outputDtos = that.validateAndConvertOutputs(asArray(outputs));
-				return that.applyEditSoon({ editType: CellEditType.Output, handle, append: true, outputs: outputDtos });
+				return that.updateOutputs(outputs, cell, true);
 			},
 
-			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cellIndex?: number): Promise<void> {
+			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
-				const handle = that.cellIndexToHandle(cellIndex);
-				const outputDtos = that.validateAndConvertOutputs(asArray(outputs));
-				return that.applyEditSoon({ editType: CellEditType.Output, handle, outputs: outputDtos });
+				return that.updateOutputs(outputs, cell, false);
 			},
 
-			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
-				return that.applyEditSoon({ editType: CellEditType.OutputItems, append: true, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
+				that.updateOutputItems(items, output, true);
 			},
 
-			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputId: string): Promise<void> {
+			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
-				return that.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId });
+				that.updateOutputItems(items, output, false);
 			}
-		});
+		};
+		return Object.freeze(result);
 	}
 }
 

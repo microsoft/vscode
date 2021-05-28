@@ -192,7 +192,7 @@ export interface ICreationRequestMessage {
 	type: 'html';
 	content:
 	| { type: RenderOutputType.Html; htmlContent: string }
-	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array, metadata: unknown; mimeType: string };
+	| { type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array, metadata: unknown; metadata2: unknown, mimeType: string };
 	cellId: string;
 	outputId: string;
 	cellTop: number;
@@ -1515,6 +1515,7 @@ var requirejs = (function() {
 					mimeType: content.mimeType,
 					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
 					metadata: outputDto?.metadata,
+					metadata2: output.metadata
 				},
 			};
 		} else {
