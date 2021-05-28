@@ -226,6 +226,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
+			this._register(this._modelRef.object.onDidChangeEditable(() => this._onDidChangeCapabilities.fire()));
 			// If we're loading untitled file data we should ensure it's dirty
 			if (this._untitledDocumentData) {
 				this._defaultDirtyState = true;

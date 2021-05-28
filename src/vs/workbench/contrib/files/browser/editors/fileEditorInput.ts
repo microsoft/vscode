@@ -134,7 +134,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// re-emit some events from the model
 		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
-		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeLabel.fire()));
+		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 
 		// important: treat save errors as potential dirty change because
 		// a file that is in save conflict or error will report dirty even

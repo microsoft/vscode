@@ -22,6 +22,9 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	protected readonly _onDidChangeLabel = this._register(new Emitter<void>());
 	readonly onDidChangeLabel = this._onDidChangeLabel.event;
 
+	protected readonly _onDidChangeCapabilities = this._register(new Emitter<void>());
+	readonly onDidChangeCapabilities = this._onDidChangeCapabilities.event;
+
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 

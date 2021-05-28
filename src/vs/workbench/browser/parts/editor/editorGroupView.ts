@@ -504,7 +504,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.model.onDidCloseEditor(editor => this.handleOnDidCloseEditor(editor)));
 		this._register(this.model.onWillDisposeEditor(editor => this.onWillDisposeEditor(editor)));
 		this._register(this.model.onDidChangeEditorDirty(editor => this.onDidChangeEditorDirty(editor)));
-		this._register(this.model.onDidEditorLabelChange(editor => this.onDidEditorLabelChange(editor)));
+		this._register(this.model.onDidChangeEditorLabel(editor => this.onDidChangeEditorLabel(editor)));
+		this._register(this.model.onDidChangeEditorCapabilities(editor => this.onDidChangeEditorCapabilities(editor)));
 
 		// Option Changes
 		this._register(this.accessor.onDidChangeEditorPartOptions(e => this.onDidChangeEditorPartOptions(e)));
@@ -692,13 +693,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_DIRTY, editor });
 	}
 
-	private onDidEditorLabelChange(editor: EditorInput): void {
+	private onDidChangeEditorLabel(editor: EditorInput): void {
 
 		// Forward to title control
 		this.titleAreaControl.updateEditorLabel(editor);
 
 		// Event
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
+	}
+
+	private onDidChangeEditorCapabilities(editor: EditorInput): void {
+
+		// Forward to title control
+		this.titleAreaControl.updateEditorCapabilities(editor);
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CAPABILITIES, editor });
 	}
 
 	private onDidVisibilityChange(visible: boolean): void {

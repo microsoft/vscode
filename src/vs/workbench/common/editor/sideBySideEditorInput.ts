@@ -81,9 +81,13 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 			}
 		}));
 
-		// Reemit some events from the primary side to the outside
+		// Re-emit some events from the primary side to the outside
 		this._register(this.primary.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._register(this.primary.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
+
+		// Re-emit some events from both sides to the outside
+		this._register(this.primary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
+		this._register(this.secondary.onDidChangeCapabilities(() => this._onDidChangeCapabilities.fire()));
 	}
 
 	override getName(): string {

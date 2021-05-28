@@ -58,6 +58,7 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly backupId: string | undefined;
 
 	isEditable(): boolean;
+	readonly onDidChangeEditable: Event<void>;
 	isOnReadonlyFileSystem(): boolean;
 
 	isOrphaned(): boolean;

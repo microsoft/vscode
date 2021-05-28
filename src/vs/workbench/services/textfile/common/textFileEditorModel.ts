@@ -10,7 +10,7 @@ import { EncodingMode, ITextFileService, TextFileEditorModelState, ITextFileEdit
 import { IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { IWorkingCopyBackupService, IResolvedWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
+import { IFileService, FileOperationError, FileOperationResult, FileChangesEvent, FileChangeType, IFileStatWithMetadata, ETAG_DISABLED, FileSystemProviderCapabilities, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { timeout, TaskSequentializer } from 'vs/base/common/async';
@@ -437,8 +437,13 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			this.setOrphaned(result === FileOperationResult.FILE_NOT_FOUND);
 
 			// NotModified status is expected and can be handled gracefully
-			// if we are resolved
+			// if we are resolved. We still want to update our last resolved
+			// stat to e.g. detect changes to the file's readonly state
 			if (this.isResolved() && result === FileOperationResult.FILE_NOT_MODIFIED_SINCE) {
+				if (error instanceof NotModifiedSinceFileOperationError) {
+					this.updateLastResolvedFileStat(error.stat);
+				}
+
 				return;
 			}
 
