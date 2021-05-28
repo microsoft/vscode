@@ -234,8 +234,8 @@ export class ModesContentHoverWidget extends Widget implements IContentWidget, I
 		const participants = [
 			instantiationService.createInstance(ColorHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkdownHoverParticipant, editor, this),
+			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this),
 			instantiationService.createInstance(MarkerHoverParticipant, editor, this),
-			instantiationService.createInstance(InlineCompletionsHoverParticipant, editor, this)
 		];
 
 		this._hover = this._register(new HoverWidget());
