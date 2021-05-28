@@ -1363,7 +1363,7 @@ declare module 'vscode' {
 		 */
 		data: Uint8Array;
 
-		//todo@API
+		//todo@API remove in favour of NotebookCellOutput#metadata
 		metadata?: { [key: string]: any };
 
 		/**
@@ -1470,9 +1470,9 @@ declare module 'vscode' {
 		 * @param kind The kind.
 		 * @param value The source value.
 		 * @param languageId The language identifier of the source value.
-		 * @param outputs //TODO@API remove ctor?
-		 * @param metadata //TODO@API remove ctor?
-		 * @param executionSummary //TODO@API remove ctor?
+		 * @param outputs //TODO@API remove from ctor?
+		 * @param metadata //TODO@API remove from ctor?
+		 * @param executionSummary //TODO@API remove from ctor?
 		 */
 		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
 	}
@@ -1929,7 +1929,7 @@ declare module 'vscode' {
 		Right = 2
 	}
 
-	// todo@api json
+	// todo@api jsdoc
 	export class NotebookCellStatusBarItem {
 		text: string;
 		alignment: NotebookCellStatusBarAlignment;
@@ -1941,7 +1941,7 @@ declare module 'vscode' {
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 	}
 
-	// todo@api json
+	// todo@api jsdoc
 	export interface NotebookCellStatusBarItemProvider {
 		/**
 		 * Implement and fire this event to signal that statusbar items have changed. The provide method will be called again.
@@ -1951,6 +1951,7 @@ declare module 'vscode' {
 		/**
 		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
 		 */
+		// todo@API rename to ...NotebookCell...
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
