@@ -180,12 +180,12 @@ export interface IOutputItemDto {
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
 	outputId: string;
-	metadata?: Record<string, unknown>;
+	metadata?: Record<string, any>;
 }
 
 export interface ICellOutput {
 	outputs: IOutputItemDto[];
-	// metadata?: NotebookCellOutsputMetadata;
+	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputItemDto[]): void;
