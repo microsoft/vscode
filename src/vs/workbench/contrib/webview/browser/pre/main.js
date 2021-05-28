@@ -25,6 +25,7 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
+const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
 /**
  * Use polling to track focus of main webview and iframes within the webview
@@ -210,16 +211,16 @@ const workerReady = new Promise(async (resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
 	}
 
-	const expectedWorkerVersion = 2;
+	const swPath = `service-worker.js${self.location.search}`;
 
-	navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
+	navigator.serviceWorker.register(swPath).then(
 		async registration => {
 			await navigator.serviceWorker.ready;
 
 			/**
 			 * @param {MessageEvent} event
 			 */
-			const versionHandler = (event) => {
+			const versionHandler = async (event) => {
 				if (event.data.channel !== 'version') {
 					return;
 				}
@@ -228,10 +229,16 @@ const workerReady = new Promise(async (resolve, reject) => {
 				if (event.data.version === expectedWorkerVersion) {
 					return resolve();
 				} else {
-					// If we have the wrong version, try once to unregister and re-register
-					return registration.update()
+					console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
+					console.log(`Attempting to reload service worker`);
+
+					// If we have the wrong version, try once (and only once) to unregister and re-register
+					// Note that `.update` doesn't seem to work desktop electron at the moment so we use
+					// `unregister` and `register` here.
+					return registration.unregister()
+						.then(() => navigator.serviceWorker.register(swPath))
 						.then(() => navigator.serviceWorker.ready)
-						.finally(resolve);
+						.finally(() => { resolve(); });
 				}
 			};
 			navigator.serviceWorker.addEventListener('message', versionHandler);

@@ -83,6 +83,8 @@ namespace WebviewState {
 
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
+	protected readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
