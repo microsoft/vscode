@@ -102,4 +102,4 @@ please see [How to Contribute](https://github.com/microsoft/vscode/wiki/How-to-C
 
 # Thank You!
 
-Your contributions to open source, large or small, make those kinds of big projects like this possible. Thank you for taking the time to contribute.
+Your contributions to open source, large or small, make those kinds of big projects like this possible. Don't be sad if your pull request was denied. There will always be the opportunity to contribute again. Thank you for taking the time to contribute.
