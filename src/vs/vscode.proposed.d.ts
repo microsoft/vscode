@@ -1655,6 +1655,18 @@ declare module 'vscode' {
 		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
 	}
 
+	/**
+	 * A notebook controller represents an entity that can execute notebook cells. This is often referred to as a kernel.
+	 *
+	 * There can be multiple controllers and the editor will let users choose which controller to use for a certain notebook. The
+	 * {@link NotebookController.viewType `viewType`}-property defines for what kind of notebooks a controller is for and
+	 * the {@link NotebookController.updateNotebookAffinity `updateNotebookAffinity`}-function allows controllers to set a preference
+	 * for specific notebooks.
+	 *
+	 * When a cell is being run the editor will invoke the {@link NotebookController.executeHandler `executeHandler`} and a controller
+	 * is expected to create and finalize a {@link NotebookCellExecution notebook cell execution}. However, controllers are also free
+	 * to create executions by themselves.
+	 */
 	export interface NotebookController {
 
 		/**
@@ -1721,8 +1733,8 @@ declare module 'vscode' {
 		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
 		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
 		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
-		 * running. For those cases the {@link NotebookInterruptHandler interrupt handler} exists - it can be thought of as the
-		 * equivalent of `SIGINT` or `Control+C` in terminals.
+		 * running. For those cases the interrupt handler exists - it can be thought of as the equivalent of `SIGINT`
+		 * or `Control+C` in terminals.
 		 *
 		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
 		 * only be used when tokens cannot be supported.
@@ -1769,7 +1781,8 @@ declare module 'vscode' {
 		readonly rendererScripts: NotebookRendererScript[];
 
 		/**
-		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
+		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
+		 * the controller.
 		 */
 		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
 
