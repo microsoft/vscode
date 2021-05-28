@@ -83,7 +83,13 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 		}
 
 		// TODO: item.isResolved
-		this.setCurrentInlineCompletion(getInlineCompletion(suggestController, this.editor.getPosition(), focusedItem));
+		this.setCurrentInlineCompletion(
+			getInlineCompletion(
+				suggestController,
+				this.editor.getPosition(),
+				focusedItem
+			)
+		);
 	}
 
 	private setCurrentInlineCompletion(completion: NormalizedInlineCompletion | undefined): void {

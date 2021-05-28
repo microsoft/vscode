@@ -43,6 +43,7 @@ import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/e
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -70,6 +71,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
@@ -350,6 +352,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
 			});
+
+			// Now that the canonical URI provider has been registered, we
+			// need to refresh workspace trust before resolving the authority
+			await this._workspaceTrustManagementService.recalculateWorkspaceTrust();
 
 			let resolverResult: ResolverResult;
 

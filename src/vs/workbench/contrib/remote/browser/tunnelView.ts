@@ -1391,7 +1391,11 @@ namespace SetTunnelProtocolAction {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};
-			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes);
+			// Remove tunnel close/forward when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
+			await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+			await remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes);
+			const isPublic = arg.privacy === TunnelPrivacy.Public;
+			return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, arg.source, isPublic, isPublic);
 		}
 	}
 

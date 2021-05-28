@@ -182,7 +182,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
 					description: localize('gettingStarted.pickColor.description', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n[Browse Color Themes](command:workbench.action.selectTheme)"),
-					media: { type: 'image', altText: 'Color theme preview for dark and light theme.', path: 'colorTheme.png', }
+					media: { type: 'markdown', path: 'example_markdown_media', }
 				},
 				{
 					id: 'findLanguageExtensions',
@@ -207,18 +207,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 							hc: 'hc/commandPalette.png',
 						}
 					},
-				},
-				{
-					id: 'keymaps',
-					title: localize('gettingStarted.keymaps.title', "Bring your favorite shortcuts"),
-					description: localize('gettingStarted.keymaps.description', "If you already have your favorite shortcuts from another editor, bring them into VS Code.\n[Browse Keymap Extensions](command:workbench.extensions.action.showRecommendedKeymapExtensions)"),
-					media: {
-						type: 'image', altText: 'List of keymap extensions.', path: {
-							dark: 'dark/keymaps.png',
-							light: 'light/keymaps.png',
-							hc: 'hc/keymaps.png',
-						},
-					}
 				},
 				{
 					id: 'settingsSync',

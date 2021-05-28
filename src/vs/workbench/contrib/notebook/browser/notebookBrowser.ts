@@ -69,6 +69,8 @@ export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCo
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
 
+export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
+
 //#endregion
 
 //#region Shared commands

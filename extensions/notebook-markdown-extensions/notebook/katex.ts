@@ -6,10 +6,13 @@ import type * as markdownIt from 'markdown-it';
 
 const styleHref = import.meta.url.replace(/katex.js$/, 'katex.min.css');
 
-export function activate(ctx: {
-	getRenderer: (id: string) => any
+export async function activate(ctx: {
+	getRenderer: (id: string) => Promise<any | undefined>
 }) {
-	const markdownItRenderer = ctx.getRenderer('markdownItRenderer');
+	const markdownItRenderer = await ctx.getRenderer('markdownItRenderer');
+	if (!markdownItRenderer) {
+		throw new Error('Could not load markdownItRenderer');
+	}
 
 	const link = document.createElement('link');
 	link.rel = 'stylesheet';

@@ -270,7 +270,7 @@ export interface MainThreadBulkEditsShape extends IDisposable {
 
 export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): Promise<string | undefined>;
-	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
+	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
 	$tryShowEditor(id: string, position: EditorGroupColumn): Promise<void>;
 	$tryHideEditor(id: string): Promise<void>;
@@ -365,6 +365,14 @@ export interface IDocumentFilterDto {
 export interface ISignatureHelpProviderMetadataDto {
 	readonly triggerCharacters: readonly string[];
 	readonly retriggerCharacters: readonly string[];
+}
+
+export interface IdentifiableInlineCompletions extends modes.InlineCompletions<IdentifiableInlineCompletion> {
+	pid: number;
+}
+
+export interface IdentifiableInlineCompletion extends modes.InlineCompletion {
+	idx: number;
 }
 
 export interface MainThreadLanguageFeaturesShape extends IDisposable {
@@ -464,6 +472,7 @@ export interface TerminalLaunchConfig {
 	isFeatureTerminal?: boolean;
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
+	isSplitTerminal?: boolean;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -477,6 +486,8 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$startLinkProvider(): void;
 	$stopLinkProvider(): void;
 	$registerProcessSupport(isSupported: boolean): void;
+	$registerProfileProvider(id: string): void;
+	$unregisterProfileProvider(id: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 
 	// Process
@@ -1640,7 +1651,9 @@ export interface ExtHostLanguageFeaturesShape {
 	$provideCompletionItems(handle: number, resource: UriComponents, position: IPosition, context: modes.CompletionContext, token: CancellationToken): Promise<ISuggestResultDto | undefined>;
 	$resolveCompletionItem(handle: number, id: ChainedCacheId, token: CancellationToken): Promise<ISuggestDataDto | undefined>;
 	$releaseCompletionItems(handle: number, id: number): void;
-	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<modes.InlineCompletions | undefined>;
+	$provideInlineCompletions(handle: number, resource: UriComponents, position: IPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined>;
+	$handleInlineCompletionDidShow(handle: number, pid: number, idx: number): void;
+	$freeInlineCompletionsList(handle: number, pid: number): void;
 	$provideSignatureHelp(handle: number, resource: UriComponents, position: IPosition, context: modes.SignatureHelpContext, token: CancellationToken): Promise<ISignatureHelpDto | undefined>;
 	$releaseSignatureHelp(handle: number, id: number): void;
 	$provideInlayHints(handle: number, resource: UriComponents, range: IRange, token: CancellationToken): Promise<IInlayHintsDto | undefined>
@@ -1711,6 +1724,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
+	$createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void>;
 }
 
 export interface ExtHostSCMShape {

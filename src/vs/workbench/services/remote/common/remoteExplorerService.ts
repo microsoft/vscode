@@ -450,14 +450,18 @@ export class TunnelModel extends Disposable {
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
-		this._register(this.tunnelService.onTunnelClosed(async (address) => {
-			const key = makeAddress(address.host, address.port);
-			if (this.forwarded.has(key)) {
-				this.forwarded.delete(key);
-				await this.storeForwarded();
-				this._onClosePort.fire(address);
-			}
+		this._register(this.tunnelService.onTunnelClosed(address => {
+			return this.onTunnelClosed(address);
 		}));
+	}
+
+	private async onTunnelClosed(address: { host: string, port: number }) {
+		const key = makeAddress(address.host, address.port);
+		if (this.forwarded.has(key)) {
+			this.forwarded.delete(key);
+			await this.storeForwarded();
+			this._onClosePort.fire(address);
+		}
 	}
 
 	private makeLocalUri(localAddress: string, attributes?: Attributes) {
@@ -585,7 +589,8 @@ export class TunnelModel extends Disposable {
 				existingTunnel.name = attributes?.label ?? name;
 				this._onForwardPort.fire();
 			}
-			if (attributes?.protocol && attributes.protocol !== existingTunnel.localUri.scheme) {
+			// Remove tunnel provider check when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
+			if (!this.tunnelService.hasTunnelProvider && attributes?.protocol && (attributes.protocol !== existingTunnel.localUri.scheme)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}
@@ -608,7 +613,8 @@ export class TunnelModel extends Disposable {
 	}
 
 	async close(host: string, port: number): Promise<void> {
-		return this.tunnelService.closeTunnel(host, port);
+		await this.tunnelService.closeTunnel(host, port);
+		return this.onTunnelClosed({ host, port });
 	}
 
 	address(host: string, port: number): string | undefined {

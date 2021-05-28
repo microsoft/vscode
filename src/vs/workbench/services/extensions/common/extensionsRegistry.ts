@@ -326,6 +326,11 @@ export const schema: IJSONSchema = {
 						body: 'onRenderer:${11:rendererId}'
 					},
 					{
+						label: 'onTerminalProfile',
+						body: 'onTerminalProfile:${1:terminalType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'

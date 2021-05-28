@@ -18,6 +18,9 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	private _onDidChangeTrustedFolders = new Emitter<void>();
 	onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
+	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
+	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
+
 	private trusted: boolean;
 
 	constructor(trusted: boolean = true) {
@@ -44,7 +47,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -60,12 +63,20 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	canSetWorkspaceTrust(): boolean {
+	canSetWorkspaceTrust(): Promise<boolean> {
+		throw new Error('Method not implemented.');
+	}
+
+	initializeWorkspaceTrust(): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
 	isWorkpaceTrusted(): boolean {
 		return this.trusted;
+	}
+
+	recalculateWorkspaceTrust(): Promise<void> {
+		throw new Error('Method not implemented.');
 	}
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {

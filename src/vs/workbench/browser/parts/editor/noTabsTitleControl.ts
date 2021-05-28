@@ -114,7 +114,7 @@ export class NoTabsTitleControl extends TitleControl {
 	private onTitleTap(e: GestureEvent): void {
 
 		// We only want to open the quick access picker when
-		// the tap occured over the editor label, so we need
+		// the tap occurred over the editor label, so we need
 		// to check on the target
 		// (https://github.com/microsoft/vscode/issues/107543)
 		const target = e.initialTarget;
@@ -164,6 +164,10 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorCapabilities(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 

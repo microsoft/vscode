@@ -131,6 +131,12 @@ export const enum NotebookRendererMatch {
 	Never = 3,
 }
 
+/**
+ * Renderer messaging requirement. While this allows for 'optional' messaging,
+ * VS Code effectively treats it the same as true right now. "Partial
+ * activation" of extensions is a very tricky problem, which could allow
+ * solving this. But for now, optional is mostly only honored for aznb.
+ */
 export type RendererMessagingSpec = true | false | 'optional';
 
 export interface INotebookRendererInfo {
@@ -167,8 +173,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly value: unknown;
-	readonly valueBytes?: number[];
+	readonly valueBytes: number[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -597,7 +602,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -916,6 +920,7 @@ export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
 export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
 export const ShowFoldingControls = 'notebook.showFoldingControls';
 export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
+export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

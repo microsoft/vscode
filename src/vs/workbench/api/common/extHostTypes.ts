@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace, equals } from 'vs/base/common/arrays';
+import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
+import { normalizeMimeType } from 'vs/base/common/mime';
 import { isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -1552,9 +1552,12 @@ export class InlineSuggestion implements vscode.InlineCompletionItem {
 
 	text: string;
 	range?: Range;
+	command?: vscode.Command;
 
-	constructor(text: string) {
+	constructor(text: string, range?: Range, command?: vscode.Command) {
 		this.text = text;
+		this.range = range;
+		this.command = command;
 	}
 }
 
@@ -3109,7 +3112,8 @@ export class NotebookCellOutputItem {
 		if (!obj) {
 			return false;
 		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
 	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
@@ -3145,25 +3149,42 @@ export class NotebookCellOutputItem {
 		return NotebookCellOutputItem.text(rawStr, mime, metadata);
 	}
 
-	/** @deprecated */
-	public value: Uint8Array | unknown; // JSON'able
-
 	constructor(
 		public data: Uint8Array,
 		public mime: string,
 		public metadata?: { [key: string]: any }
 	) {
-		if (!(data instanceof Uint8Array)) {
-			this.value = data;
+		const mimeNormalized = normalizeMimeType(mime, true);
+		if (!mimeNormalized) {
+			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
 		}
-		if (isFalsyOrWhitespace(this.mime)) {
-			throw new Error('INVALID mime type, must not be empty or falsy');
-		}
-		// todo@joh stringify and check metadata and throw when not JSONable
+		this.mime = mimeNormalized;
 	}
 }
 
 export class NotebookCellOutput {
+
+	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
+		const seen = new Set<string>();
+		const removeIdx = new Set<number>();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const normalMime = normalizeMimeType(item.mime);
+			if (!seen.has(normalMime)) {
+				seen.add(normalMime);
+				continue;
+			}
+			// duplicated mime types... first has won
+			removeIdx.add(i);
+			if (warn) {
+				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
+			}
+		}
+		if (removeIdx.size === 0) {
+			return items;
+		}
+		return items.filter((_item, index) => !removeIdx.has(index));
+	}
 
 	id: string;
 	outputs: NotebookCellOutputItem[];
@@ -3174,7 +3195,7 @@ export class NotebookCellOutput {
 		idOrMetadata?: string | Record<string, any>,
 		metadata?: Record<string, any>
 	) {
-		this.outputs = outputs;
+		this.outputs = NotebookCellOutput.ensureUniqueMimeTypes(outputs, true);
 		if (typeof idOrMetadata === 'string') {
 			this.id = idOrMetadata;
 			this.metadata = metadata;
@@ -3224,14 +3245,15 @@ export enum NotebookControllerAffinity {
 	Preferred = 2
 }
 
-export class NotebookKernelPreload {
-	public readonly provides: string[];
+export class NotebookRendererScript {
+
+	public provides: string[];
 
 	constructor(
-		public readonly uri: vscode.Uri,
+		public uri: vscode.Uri,
 		provides: string | string[] = []
 	) {
-		this.provides = typeof provides === 'string' ? [provides] : provides;
+		this.provides = asArray(provides);
 	}
 }
 

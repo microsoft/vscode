@@ -51,7 +51,7 @@ import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/brows
 import { IActionableTestTreeElement, isActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
@@ -539,7 +539,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => [
@@ -949,6 +949,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 		protected readonly labels: ResourceLabels,
 		private readonly actionRunner: TestExplorerActionRunner,
 		private readonly menuService: IMenuService,
+		protected readonly testService: ITestService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly instantiationService: IInstantiationService,
 	) {
@@ -1006,7 +1007,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
@@ -1021,11 +1022,11 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		labels: ResourceLabels,
 		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
+		@ITestService testService: ITestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITestService private readonly testService: ITestService
 	) {
-		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, testService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -1083,16 +1084,6 @@ const formatDuration = (ms: number) => {
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';
 
-	constructor(
-		labels: ResourceLabels,
-		actionRunner: TestExplorerActionRunner,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
-	}
-
 	/**
 	 * @inheritdoc
 	 */
@@ -1120,6 +1111,7 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
+	testService: ITestService,
 	element: IActionableTestTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
@@ -1127,6 +1119,7 @@ const getActionableElementActions = (
 		['view', Testing.ExplorerViewId],
 		[TestingContextKeys.testItemExtId.key, test?.item.extId],
 		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excludeTests.value.has(test.item.extId)],
 		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
 		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
 	]);

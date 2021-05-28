@@ -117,7 +117,9 @@ export interface IWalkthroughStep {
 	readonly id: string;
 	readonly title: string;
 	readonly description: string | undefined;
-	readonly media: { path: string | { dark: string, light: string, hc: string }, altText?: string }
+	readonly media:
+	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
+	| { markdown: string, image?: never }
 	readonly completionEvents?: string[];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
 	readonly doneOn?: { command: string };

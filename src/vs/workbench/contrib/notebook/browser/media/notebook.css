@@ -72,6 +72,10 @@
 	background-color: unset;
 }
 
+.monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar .action-item.disabled .notebook-label {
+	opacity: 0.4;
+}
+
 .monaco-workbench .notebookOverlay .notebook-toolbar-container .monaco-action-bar:not(.vertical) .action-item.active .action-label:not(.disabled) {
 	background-color: unset;
 }

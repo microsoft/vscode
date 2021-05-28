@@ -9,7 +9,7 @@
 
 const sw = /** @type {ServiceWorkerGlobalScope} */ (/** @type {any} */ (self));
 
-const VERSION = 1;
+const VERSION = 2;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
@@ -243,8 +243,8 @@ async function processResourceRequest(event, requestUrl) {
 		return response.clone();
 	}
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
 		console.log('Could not find parent client for request');
 		return notFound();
 	}
@@ -258,15 +258,17 @@ async function processResourceRequest(event, requestUrl) {
 	const scheme = firstHostSegment.split('+', 1)[0];
 	const authority = firstHostSegment.slice(scheme.length + 1); // may be empty
 
-	parentClient.postMessage({
-		channel: 'load-resource',
-		id: requestId,
-		path: decodeURIComponent(requestUrl.pathname),
-		scheme,
-		authority,
-		query: requestUrl.search.replace(/^\?/, ''),
-		ifNoneMatch: cached?.headers.get('ETag'),
-	});
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-resource',
+			id: requestId,
+			path: requestUrl.pathname,
+			scheme,
+			authority,
+			query: requestUrl.search.replace(/^\?/, ''),
+			ifNoneMatch: cached?.headers.get('ETag'),
+		});
+	}
 
 	return promise.then(entry => resolveResourceEntry(entry, cached));
 }
@@ -308,18 +310,20 @@ async function processLocalhostRequest(event, requestUrl) {
 		});
 	};
 
-	const parentClient = await getOuterIframeClient(webviewId);
-	if (!parentClient) {
+	const parentClients = await getOuterIframeClient(webviewId);
+	if (!parentClients.length) {
 		console.log('Could not find parent client for request');
 		return notFound();
 	}
 
 	const { requestId, promise } = localhostRequestStore.create();
-	parentClient.postMessage({
-		channel: 'load-localhost',
-		origin: origin,
-		id: requestId,
-	});
+	for (const parentClient of parentClients) {
+		parentClient.postMessage({
+			channel: 'load-localhost',
+			origin: origin,
+			id: requestId,
+		});
+	}
 
 	return promise.then(resolveRedirect);
 }
@@ -335,11 +339,11 @@ function getWebviewIdForClient(client) {
 
 /**
  * @param {string} webviewId
- * @returns {Promise<Client | undefined>}
+ * @returns {Promise<Client[]>}
  */
 async function getOuterIframeClient(webviewId) {
 	const allClients = await sw.clients.matchAll({ includeUncontrolled: true });
-	return allClients.find(client => {
+	return allClients.filter(client => {
 		const clientUrl = new URL(client.url);
 		const hasExpectedPathName = (clientUrl.pathname === `${rootPath}/` || clientUrl.pathname === `${rootPath}/index.html` || clientUrl.pathname === `${rootPath}/electron-browser-index.html`);
 		return hasExpectedPathName && clientUrl.searchParams.get('id') === webviewId;

@@ -685,6 +685,11 @@ suite('ExtHostTypes', function () {
 
 	test('NotebookCellOutputItem - factories', function () {
 
+		assert.throws(() => {
+			// invalid mime type
+			new types.NotebookCellOutputItem(new Uint8Array(), 'invalid');
+		});
+
 		// --- err
 
 		let item = types.NotebookCellOutputItem.error(new Error());
@@ -698,8 +703,8 @@ suite('ExtHostTypes', function () {
 		assert.strictEqual(item.mime, 'application/json');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
-		item = types.NotebookCellOutputItem.json(1, 'foo');
-		assert.strictEqual(item.mime, 'foo');
+		item = types.NotebookCellOutputItem.json(1, 'foo/bar');
+		assert.strictEqual(item.mime, 'foo/bar');
 		assert.deepStrictEqual(item.data, new TextEncoder().encode(JSON.stringify(1)));
 
 		item = types.NotebookCellOutputItem.json(true);

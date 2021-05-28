@@ -9,7 +9,7 @@ import { EventType, addDisposableListener, getClientArea, Dimension, position, s
 import { onDidChangeFullscreen, isFullscreen } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { isWindows, isLinux, isMacintosh, isWeb, isNative } from 'vs/base/common/platform';
+import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { IResourceDiffEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -602,8 +602,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return pathsToEditors(initialFilesToOpen.filesToDiff, fileService).then(filesToDiff => {
 				if (filesToDiff.length === 2) {
 					const diffEditorInput: IResourceDiffEditorInput[] = [{
-						leftEditor: { resource: filesToDiff[0].resource },
-						rightEditor: { resource: filesToDiff[1].resource },
+						originalInput: { resource: filesToDiff[0].resource },
+						modifiedInput: { resource: filesToDiff[1].resource },
 						options: { pinned: true },
 						forceFile: true
 					}];
@@ -1052,7 +1052,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				silentNotifications: boolean;
 			} = this.configurationService.getValue('zenMode');
 
-			toggleFullScreen = !this.state.fullscreen && config.fullScreen;
+			toggleFullScreen = !this.state.fullscreen && config.fullScreen && !isIOS;
 
 			this.state.zenMode.transitionedToFullScreen = restoring ? config.fullScreen : toggleFullScreen;
 			this.state.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
@@ -1628,7 +1628,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		let newVisibilityValue: string;
 		if (currentVisibilityValue === 'visible' || currentVisibilityValue === 'classic') {
-			newVisibilityValue = 'compact';
+			newVisibilityValue = getTitleBarStyle(this.configurationService) === 'native' ? 'toggle' : 'compact';
 		} else {
 			newVisibilityValue = 'classic';
 		}

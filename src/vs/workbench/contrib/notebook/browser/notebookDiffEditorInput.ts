@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -201,6 +201,16 @@ ${patterns}
 		}
 
 		return new NotebookDiffEditorModel(this._originalTextModel.object, this._modifiedTextModel.object);
+	}
+
+	override asResourceEditorInput(group: GroupIdentifier): IResourceDiffEditorInput {
+		return {
+			originalInput: { resource: this.originalResource },
+			modifiedInput: { resource: this.resource },
+			options: {
+				override: this.viewType
+			}
+		};
 	}
 
 	override matches(otherInput: unknown): boolean {

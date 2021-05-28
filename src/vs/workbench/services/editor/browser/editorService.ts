@@ -339,7 +339,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// Handle deletes in opened editors depending on:
 				// - we close any editor when `closeOnFileDelete: true`
-				// - we close any editor when the delete occured from within VSCode
+				// - we close any editor when the delete occurred from within VSCode
 				// - we close any editor without resolved working copy assuming that
 				//   this editor could not be opened after the file is gone
 				if (this.closeOnFileDelete || !isExternal || !this.workingCopyService.has(resource)) {
@@ -784,15 +784,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Untyped editor
 			else {
 				const resourceDiffEditor = editor as IResourceDiffEditorInput;
-				if (resourceDiffEditor.leftEditor && resourceDiffEditor.rightEditor) {
-					const leftResourceEditor = resourceDiffEditor.leftEditor as IResourceEditorInput;
-					if (URI.isUri(leftResourceEditor.resource)) {
-						resources.set(leftResourceEditor.resource, true);
+				if (resourceDiffEditor.originalInput && resourceDiffEditor.modifiedInput) {
+					const originalResourceEditor = resourceDiffEditor.originalInput as IResourceEditorInput;
+					if (URI.isUri(originalResourceEditor.resource)) {
+						resources.set(originalResourceEditor.resource, true);
 					}
 
-					const rightResourceEditor = resourceDiffEditor.rightEditor as IResourceEditorInput;
-					if (URI.isUri(rightResourceEditor.resource)) {
-						resources.set(rightResourceEditor.resource, true);
+					const modifiedResourceEditor = resourceDiffEditor.modifiedInput as IResourceEditorInput;
+					if (URI.isUri(modifiedResourceEditor.resource)) {
+						resources.set(modifiedResourceEditor.resource, true);
 					}
 				}
 
@@ -958,15 +958,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Diff Editor Support
 		const resourceDiffInput = input as IResourceDiffEditorInput;
-		if (resourceDiffInput.leftEditor && resourceDiffInput.rightEditor) {
-			const leftInput = this.createEditorInput({ ...resourceDiffInput.leftEditor, forceFile: resourceDiffInput.forceFile });
-			const rightInput = this.createEditorInput({ ...resourceDiffInput.rightEditor, forceFile: resourceDiffInput.forceFile });
+		if (resourceDiffInput.originalInput && resourceDiffInput.modifiedInput) {
+			const originalInput = this.createEditorInput({ ...resourceDiffInput.originalInput, forceFile: resourceDiffInput.forceFile });
+			const modifiedInput = this.createEditorInput({ ...resourceDiffInput.modifiedInput, forceFile: resourceDiffInput.forceFile });
 
 			return this.instantiationService.createInstance(DiffEditorInput,
 				resourceDiffInput.label,
 				resourceDiffInput.description,
-				leftInput,
-				rightInput,
+				originalInput,
+				modifiedInput,
 				undefined
 			);
 		}
@@ -1027,11 +1027,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 				// File
 				if (textResourceEditorInput.forceFile || this.fileService.canHandleResource(canonicalResource)) {
-					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, this.instantiationService);
+					return this.fileEditorInputFactory.createFileEditorInput(canonicalResource, preferredResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.encoding, textResourceEditorInput.mode, textResourceEditorInput.contents, this.instantiationService);
 				}
 
 				// Resource
-				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode);
+				return this.instantiationService.createInstance(TextResourceEditorInput, canonicalResource, textResourceEditorInput.label, textResourceEditorInput.description, textResourceEditorInput.mode, textResourceEditorInput.contents);
 			}, cachedInput => {
 
 				// Untitled
@@ -1058,6 +1058,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (textResourceEditorInput.mode) {
 						cachedInput.setPreferredMode(textResourceEditorInput.mode);
 					}
+
+					if (typeof textResourceEditorInput.contents === 'string') {
+						cachedInput.setPreferredContents(textResourceEditorInput.contents);
+					}
 				}
 
 				// Resources
@@ -1072,6 +1076,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 					if (textResourceEditorInput.mode) {
 						cachedInput.setPreferredMode(textResourceEditorInput.mode);
+					}
+
+					if (typeof textResourceEditorInput.contents === 'string') {
+						cachedInput.setPreferredContents(textResourceEditorInput.contents);
 					}
 				}
 			}) as EditorInput;

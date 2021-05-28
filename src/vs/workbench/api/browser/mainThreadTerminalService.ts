@@ -33,6 +33,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _extHostTerminalIds = new Map<string, number>();
 	private readonly _toDispose = new DisposableStore();
 	private readonly _terminalProcessProxies = new Map<number, ITerminalProcessExtHostProxy>();
+	private readonly _profileProviders = new Map<string, IDisposable>();
 	private _dataEventTracker: TerminalDataEventTracker | undefined;
 	/**
 	 * A single shared terminal link provider for the exthost. When an ext registers a link
@@ -142,7 +143,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			isExtensionOwnedTerminal: launchConfig.isExtensionOwnedTerminal,
 			useShellEnvironment: launchConfig.useShellEnvironment
 		};
-		const terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		let terminal: ITerminalInstance | undefined;
+		if (launchConfig.isSplitTerminal) {
+			const activeInstance = this._terminalService.getActiveInstance();
+			if (activeInstance) {
+				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
+			}
+		}
+		if (!terminal) {
+			terminal = this._terminalService.createTerminal(shellLaunchConfig);
+		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
 
@@ -199,6 +209,18 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $registerProcessSupport(isSupported: boolean): void {
 		this._terminalService.registerProcessSupport(isSupported);
+	}
+
+	public $registerProfileProvider(id: string): void {
+		// Proxy profile provider requests through the extension host
+		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(id, {
+			createContributedTerminalProfile: async (isSplitTerminal) => this._proxy.$createContributedProfileTerminal(id, isSplitTerminal)
+		}));
+	}
+
+	public $unregisterProfileProvider(id: string): void {
+		this._profileProviders.get(id)?.dispose();
+		this._profileProviders.delete(id);
 	}
 
 	private _onActiveTerminalChanged(terminalId: number | null): void {

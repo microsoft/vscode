@@ -210,7 +210,7 @@ const workerReady = new Promise(async (resolve, reject) => {
 		return reject(new Error('Service Workers are not enabled in browser. Webviews will not work.'));
 	}
 
-	const expectedWorkerVersion = 1;
+	const expectedWorkerVersion = 2;
 
 	navigator.serviceWorker.register(`service-worker.js${self.location.search}`).then(
 		async registration => {

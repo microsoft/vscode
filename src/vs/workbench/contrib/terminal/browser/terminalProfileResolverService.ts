@@ -410,6 +410,45 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		}
 		return value;
 	}
+
+	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined> {
+		const detectedProfile = this._terminalService.availableProfiles?.find(p => p.path === shell);
+		const fallbackProfile = (await this.getDefaultProfile({
+			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
+			os: this._primaryBackendOs!
+		}));
+		const profile = detectedProfile || fallbackProfile;
+		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
+		const createdProfile = {
+			profileName: profile.profileName,
+			path: profile.path,
+			args,
+			isDefault: true
+		};
+		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args)) {
+			return undefined;
+		}
+		return createdProfile;
+	}
+
+	private _argsMatch(args1: string | string[] | undefined, args2: string | string[] | undefined): boolean {
+		if (!args1 && !args2) {
+			return true;
+		} else if (typeof args1 === 'string' && typeof args2 === 'string') {
+			return args1 === args2;
+		} else if (Array.isArray(args1) && Array.isArray(args2)) {
+			if (args1.length !== args2.length) {
+				return false;
+			}
+			for (let i = 0; i < args1.length; i++) {
+				if (args1[i] !== args2[i]) {
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
+	}
 }
 
 export class BrowserTerminalProfileResolverService extends BaseTerminalProfileResolverService {

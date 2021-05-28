@@ -452,7 +452,7 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -460,8 +460,8 @@ function registerOpenEditorAPICommands(): void {
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 		await editorService.openEditor({
-			leftEditor: { resource: URI.revive(leftResource) },
-			rightEditor: { resource: URI.revive(rightResource) },
+			originalInput: { resource: URI.revive(originalResource) },
+			modifiedInput: { resource: URI.revive(modifiedResource) },
 			label,
 			options
 		}, viewColumnToEditorGroup(editorGroupService, column));

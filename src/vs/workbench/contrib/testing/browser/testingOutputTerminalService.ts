@@ -11,7 +11,10 @@ import { isDefined } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessDataEvent, ITerminalChildProcess, ITerminalLaunchError, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IViewsService } from 'vs/workbench/common/views';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { testingViewIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 
@@ -48,12 +51,18 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	constructor(
 		@ITerminalService private readonly terminalService: ITerminalService,
 		@ITestResultService resultService: ITestResultService,
+		@IViewsService private viewsService: IViewsService,
 	) {
 		// If a result terminal is currently active and we start a new test run,
 		// stream live results there automatically.
 		resultService.onResultsChanged(evt => {
 			const active = this.terminalService.getActiveInstance();
 			if (!('started' in evt) || !active) {
+				return;
+			}
+
+			const pane = this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
+			if (!pane) {
 				return;
 			}
 
@@ -93,6 +102,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		const output = new TestOutputProcess();
 		this.showResultsInTerminal(this.terminalService.createTerminal({
 			isFeatureTerminal: true,
+			icon: testingViewIcon,
 			customPtyImplementation: () => output,
 			name: getTitle(result),
 		}), output, result);
