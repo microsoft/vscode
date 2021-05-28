@@ -250,7 +250,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your file"),
+					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
 					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n[Quick Open a File](command:toSide:workbench.action.quickOpen)"),
 					when: 'workspaceFolderCount != 0',
 					media: {
