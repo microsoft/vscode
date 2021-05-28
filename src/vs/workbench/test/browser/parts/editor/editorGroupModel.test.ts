@@ -24,7 +24,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
-suite('Workbench editor group model', () => {
+suite('EditorGroupModel', () => {
 
 	function inst(): IInstantiationService {
 		let inst = new TestInstantiationService();
