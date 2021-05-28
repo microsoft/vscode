@@ -1195,11 +1195,30 @@ declare module 'vscode' {
 		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
 	}
 
-	// todo@API jsdoc
+	/**
+	 * The summary of a notebook cell execution.
+	 */
 	export interface NotebookCellExecutionSummary {
+
+		/**
+		 * The order in which the execution happened.
+		 */
 		readonly executionOrder?: number;
+
+		/**
+		 * If the exclusive finished successfully.
+		 */
 		readonly success?: boolean;
+
+		/**
+		 * The unix timestamp at which execution started.
+		 */
+		// todo@API use duration instead of start/end?
 		readonly startTime?: number;
+
+		/**
+		 * The unix timestamp at which execution ended.
+		 */
 		readonly endTime?: number;
 	}
 
@@ -1387,13 +1406,24 @@ declare module 'vscode' {
 		//todo@API rename to items
 		outputs: NotebookCellOutputItem[];
 
-		//todo@API
+		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
 		metadata?: { [key: string]: any };
 
-		// todo@API jsdoc
+		/**
+		 * Create new notebook output.
+		 *
+		 * @param outputs Notebook output items.
+		 * @param metadata Optional metadata.
+		 */
 		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
 
-		// todo@API jsdoc
+		/**
+		 * Create new notebook output.
+		 *
+		 * @param outputs Notebook output items.
+		 * @param id Identifier of this output.
+		 * @param metadata Optional metadata.
+		 */
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
@@ -1504,7 +1534,12 @@ declare module 'vscode' {
 		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 	}
 
-	// todo@api jsdoc
+	/**
+	 * Notebook content options define what parts of a notebook are persisted. Note
+	 *
+	 * For instance, a notebook serializer can opt-out of saving outputs and in that case the editor doesn't mark a
+	 * notebooks as {@link NotebookDocument.isDirty dirty} when its output has changed.
+	 */
 	export interface NotebookDocumentContentOptions {
 		/**
 		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
@@ -1522,10 +1557,13 @@ declare module 'vscode' {
 		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		*/
+		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
 		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
 	}
 
-	// todo@api jsdoc
+	/**
+	 * A callback that is invoked by the editor whenever cell execution has been triggered.
+	 */
 	export interface NotebookExecuteHandler {
 		/**
 		 * @param cells The notebook cells to execute.
@@ -1537,6 +1575,8 @@ declare module 'vscode' {
 
 	/**
 	 * Notebook controller affinity for notebook documents.
+	 *
+	 * @see {@link NotebookController.updateNotebookAffinity}
 	 */
 	export enum NotebookControllerAffinity {
 
@@ -1551,7 +1591,10 @@ declare module 'vscode' {
 		Preferred = 2
 	}
 
-	// todo@api jsdoc
+	/**
+	 * Represents a script that is loaded into the notebook renderer before rendering output. This allows
+	 * to provide and share functionality for notebook markup and notebook output renderers.
+	 */
 	export class NotebookRendererScript {
 
 		/**
@@ -1574,6 +1617,7 @@ declare module 'vscode' {
 	}
 
 	// todo@api jsdoc
+	// todo@api Inline unless we can come up with more (future) properties
 	export interface NotebookCellExecuteStartContext {
 		/**
 		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
@@ -1583,11 +1627,13 @@ declare module 'vscode' {
 	}
 
 	// todo@api jsdoc
+	// todo@api Inline unless we can come up with more (future) properties
 	export interface NotebookCellExecuteEndContext {
 		/**
 		 * If true, a green check is shown on the cell status bar.
 		 * If false, a red X is shown.
 		 */
+		// todo@api undefined === false, so by default cells execution fails?
 		success?: boolean;
 
 		/**
@@ -1827,22 +1873,43 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
-	// todo@api json
+	/**
+	 * The execution state of a notebook cell.
+	 */
 	export enum NotebookCellExecutionState {
+		/**
+		 * The cell is idle.
+		 */
 		Idle = 1,
+		/**
+		 * Execution for the cell is pending.
+		 */
 		Pending = 2,
+		/**
+		 * The cell is currently executing.
+		 */
 		Executing = 3,
 	}
 
-	// todo@api json
+	/**
+	 * An event describing a cell execution state change.
+	 */
 	export interface NotebookCellExecutionStateChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell execution state has changed.
 		 */
+		// todo@api remove? use cell.notebook instead?
 		readonly document: NotebookDocument;
-		// todo@api json
+
+		/**
+		 * The {@link NotebookCell cell} for which the execution state has changed.
+		 */
 		readonly cell: NotebookCell;
-		// todo@api json
+
+		/**
+		 * The new execution state of the cell.
+		 */
+		// todo@API rename to state?
 		readonly executionState: NotebookCellExecutionState;
 	}
 
@@ -1887,8 +1954,17 @@ declare module 'vscode' {
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
-	// todo@api jsdoc
+	/**
+	 * Namespace for notebooks.
+	 *
+	 * The notebooks functionality is composed of three loosly coupled components:
+	 *
+	 * 1. {@link NotebookSerializer} enable the editor to open and save notebooks
+	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
+	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
+	 */
 	// todo@api rename to notebooks?
+	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
 	export namespace notebook {
 
 		/**
@@ -1961,8 +2037,11 @@ declare module 'vscode' {
 		 */
 		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
-		// todo@api jsdoc
-		// todo@API what is this used for?
+		/**
+		 * An {@link Event} which fires when the execution state of a cell has changed.
+		 */
+		// todo@API this is an event that is fired for a property that cells don't have and that makes me wonder
+		// how a correct consumer work, e.g the consumer could have been late and missed an event?
 		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
 		// todo@api jsdoc
