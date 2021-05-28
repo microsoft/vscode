@@ -1,0 +1,196 @@
+# Query: todo@API
+# Flags: WordMatch OpenEditors
+# Including: */vscode.proposed.d.ts
+# ContextLines: 1
+
+56 results - 1 file
+
+src/vs/vscode.proposed.d.ts:
+  1098  		 */
+  1099: 		// todo@API should this be called `notebookType` or `notebookKind`
+  1100  		readonly viewType: string;
+
+  1159  
+  1160: 	// todo@API jsdoc
+  1161  	export class NotebookCellMetadata {
+
+  1165  		 */
+  1166: 		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
+  1167  		readonly inputCollapsed?: boolean;
+
+  1171  		 */
+  1172: 		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
+  1173  		readonly outputCollapsed?: boolean;
+
+  1215  		 */
+  1216: 		// todo@API use duration instead of start/end?
+  1217  		readonly startTime?: number;
+
+  1224  
+  1225: 	// todo@API jsdoc
+  1226: 	// todo@API remove this and use simple {}?
+  1227  	export class NotebookDocumentMetadata {
+
+  1290  	 */
+  1291: 	// todo@API document which mime types are supported out of the box and
+  1292  	// which are considered secure
+
+  1365  
+  1366: 		//todo@API remove in favour of NotebookCellOutput#metadata
+  1367  		metadata?: { [key: string]: any };
+
+  1383  	 */
+  1384: 	//todo@API - add sugar function to add more outputs
+  1385  	export class NotebookCellOutput {
+
+  1407  
+  1408: 		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
+  1409  		metadata?: { [key: string]: any };
+
+  1471  		 * @param languageId The language identifier of the source value.
+  1472: 		 * @param outputs //TODO@API remove from ctor?
+  1473: 		 * @param metadata //TODO@API remove from ctor?
+  1474: 		 * @param executionSummary //TODO@API remove from ctor?
+  1475  		 */
+
+  1558  		*/
+  1559: 		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
+  1560  		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
+
+  1617  
+  1618: 	// todo@api jsdoc
+  1619: 	// todo@api Inline unless we can come up with more (future) properties
+  1620  	export interface NotebookCellExecuteStartContext {
+
+  1627  
+  1628: 	// todo@api jsdoc
+  1629: 	// todo@api Inline unless we can come up with more (future) properties
+  1630  	export interface NotebookCellExecuteEndContext {
+
+  1634  		 */
+  1635: 		// todo@api undefined === false, so by default cells execution fails?
+  1636  		success?: boolean;
+
+  1672  
+  1673: 		// todo@API inline context object?
+  1674  		start(context?: NotebookCellExecuteStartContext): void;
+  1675  
+  1676: 		// todo@API inline context object?
+  1677  		end(result?: NotebookCellExecuteEndContext): void;
+
+  1751  		 */
+  1752: 		// todo@api rename to notebookType?
+  1753  		readonly viewType: string;
+
+  1790  		 */
+  1791: 		// todo@API rename to supportsExecutionOrder, usesExecutionOrder
+  1792  		hasExecutionOrder?: boolean;
+
+  1849  
+  1850: 		// todo@API allow add, not remove
+  1851  		readonly rendererScripts: NotebookRendererScript[];
+
+  1870  
+  1871: 		//todo@API validate this works
+  1872  		asWebviewUri(localResource: Uri): Uri;
+
+  1899  		 */
+  1900: 		// todo@api remove? use cell.notebook instead?
+  1901  		readonly document: NotebookDocument;
+
+  1910  		 */
+  1911: 		// todo@API rename to state?
+  1912  		readonly executionState: NotebookCellExecutionState;
+
+  1930  
+  1931: 	// todo@api jsdoc
+  1932  	export class NotebookCellStatusBarItem {
+
+  1942  
+  1943: 	// todo@api jsdoc
+  1944  	export interface NotebookCellStatusBarItemProvider {
+
+  1952  		 */
+  1953: 		// todo@API rename to ...NotebookCell...
+  1954  		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+
+  1965  	 */
+  1966: 	// todo@api rename to notebooks?
+  1967: 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
+  1968  	export namespace notebook {
+
+  2035  		 * @param handler
+  2036: 		 * @param rendererScripts todo@API should renderer scripts come later?
+  2037  		 */
+
+  2042  		 */
+  2043: 		// todo@API this is an event that is fired for a property that cells don't have and that makes me wonder
+  2044  		// how a correct consumer work, e.g the consumer could have been late and missed an event?
+
+  2046  
+  2047: 		// todo@api jsdoc
+  2048  		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
+
+  2118  		readonly start: number;
+  2119: 		// todo@API end? Use NotebookCellRange instead?
+  2120  		readonly deletedCount: number;
+  2121: 		// todo@API removedCells, deletedCells?
+  2122  		readonly deletedItems: NotebookCell[];
+  2123: 		// todo@API addedCells, insertedCells, newCells?
+  2124  		readonly items: NotebookCell[];
+
+  2183  
+  2184: 		// todo@API add onDidChangeNotebookCellOutputs
+  2185  		export const onDidChangeCellOutputs: Event<NotebookCellOutputsChangeEvent>;
+  2186  
+  2187: 		// todo@API add onDidChangeNotebookCellMetadata
+  2188  		export const onDidChangeCellMetadata: Event<NotebookCellMetadataChangeEvent>;
+
+  2206  
+  2207: 	// todo@API add NotebookEdit-type which handles all these cases?
+  2208  	// export class NotebookEdit {
+
+  2223  	export interface WorkspaceEdit {
+  2224: 		// todo@API add NotebookEdit-type which handles all these cases?
+  2225  		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+
+  2285  		 */
+  2286: 		// todo@API really needed? we didn't find a user here
+  2287  		export function createConcatTextDocument(notebook: NotebookDocument, selector?: DocumentSelector): NotebookConcatTextDocument;
+
+  2339  
+  2340: 	// todo@API use openNotebookDOCUMENT to align with openCustomDocument etc?
+  2341: 	// todo@API rename to NotebookDocumentContentProvider
+  2342  	export interface NotebookContentProvider {
+
+  2352  
+  2353: 		// todo@API use NotebookData instead
+  2354  		saveNotebook(document: NotebookDocument, token: CancellationToken): Thenable<void>;
+  2355  
+  2356: 		// todo@API use NotebookData instead
+  2357  		saveNotebookAs(targetResource: Uri, document: NotebookDocument, token: CancellationToken): Thenable<void>;
+  2358  
+  2359: 		// todo@API use NotebookData instead
+  2360  		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
+
+  2364  
+  2365: 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
+  2366: 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
+  2367  		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions): Disposable;
+
+  2647  
+  2648: 	// todo@API Split between Inlay- and OverlayHints (InlayHint are for a position, OverlayHints for a non-empty range)
+  2649: 	// todo@API add "mini-markdown" for links and styles
+  2650  	// (done) remove description
+
+  2699  
+  2700: 		// todo@API make range first argument
+  2701  		constructor(text: string, position: Position, kind?: InlayHintKind);
+
+  3564  
+  3565: 	// TODO@API must be a class
+  3566  	export interface OpenEditorInfo {
+
+  3574  
+  3575: 		// todo@API proper event type
+  3576  		export const onDidChangeOpenEditors: Event<void>;
