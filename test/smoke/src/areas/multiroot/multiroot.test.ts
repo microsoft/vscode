@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
+import minimist = require('minimist');
 import * as path from 'path';
-import { Application } from '../../../../automation';
+import { Application, ApplicationOptions } from '../../../../automation';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -34,17 +35,20 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 	return workspaceFilePath;
 }
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
 
 		before(async function () {
-			const app = this.app as Application;
+			const defaultOptions = this.defaultOptions as ApplicationOptions;
+			const workspaceFilePath = await createWorkspaceFile(defaultOptions.workspacePath);
 
-			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
+			const app = new Application({ ...defaultOptions, workspacePath: workspaceFilePath });
+			await app!.start(opts.web ? false : undefined);
+			this.app = app;
+		});
 
-			// restart with preventing additional windows from restoring
-			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: workspaceFilePath });
+		after(async function () {
+			await this.app.stop();
 		});
 
 		it('shows results from all folders', async function () {
