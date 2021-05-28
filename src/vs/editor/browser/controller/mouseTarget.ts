@@ -40,54 +40,36 @@ export interface IEmptyContentData {
 	horizontalDistanceToText?: number;
 }
 
-interface IETextRange {
-	boundingHeight: number;
-	boundingLeft: number;
-	boundingTop: number;
-	boundingWidth: number;
-	htmlText: string;
-	offsetLeft: number;
-	offsetTop: number;
-	text: string;
-	collapse(start?: boolean): void;
-	compareEndPoints(how: string, sourceRange: IETextRange): number;
-	duplicate(): IETextRange;
-	execCommand(cmdID: string, showUI?: boolean, value?: any): boolean;
-	execCommandShowHelp(cmdID: string): boolean;
-	expand(Unit: string): boolean;
-	findText(string: string, count?: number, flags?: number): boolean;
-	getBookmark(): string;
-	getBoundingClientRect(): ClientRect;
-	getClientRects(): ClientRectList;
-	inRange(range: IETextRange): boolean;
-	isEqual(range: IETextRange): boolean;
-	move(unit: string, count?: number): number;
-	moveEnd(unit: string, count?: number): number;
-	moveStart(unit: string, count?: number): number;
-	moveToBookmark(bookmark: string): boolean;
-	moveToElementText(element: Element): void;
-	moveToPoint(x: number, y: number): void;
-	parentElement(): Element;
-	pasteHTML(html: string): void;
-	queryCommandEnabled(cmdID: string): boolean;
-	queryCommandIndeterm(cmdID: string): boolean;
-	queryCommandState(cmdID: string): boolean;
-	queryCommandSupported(cmdID: string): boolean;
-	queryCommandText(cmdID: string): string;
-	queryCommandValue(cmdID: string): any;
-	scrollIntoView(fStart?: boolean): void;
-	select(): void;
-	setEndPoint(how: string, SourceRange: IETextRange): void;
+const enum HitTestResultType {
+	Unknown = 0,
+	Content = 1,
 }
 
-declare const IETextRange: {
-	prototype: IETextRange;
-	new(): IETextRange;
-};
+class UnknownHitTestResult {
+	readonly type = HitTestResultType.Unknown;
+	constructor(
+		readonly hitTarget: Element | null = null
+	) { }
+}
 
-interface IHitTestResult {
-	position: Position | null;
-	hitTarget: Element | null;
+class ContentHitTestResult {
+	readonly type = HitTestResultType.Content;
+	constructor(
+		readonly position: Position,
+		readonly spanNode: HTMLElement
+	) { }
+}
+
+type HitTestResult = UnknownHitTestResult | ContentHitTestResult;
+
+namespace HitTestResult {
+	export function createFromDOMInfo(ctx: HitTestContext, spanNode: HTMLElement, offset: number): HitTestResult {
+		const position = ctx.getPositionFromDOMInfo(spanNode, offset);
+		if (position) {
+			return new ContentHitTestResult(position, spanNode);
+		}
+		return new UnknownHitTestResult(spanNode);
+	}
 }
 
 export class PointerHandlerLastRenderData {
@@ -506,8 +488,8 @@ export class MouseTargetFactory {
 
 			const hitTestResult = MouseTargetFactory._doHitTest(ctx, request);
 
-			if (hitTestResult.position) {
-				return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.position.lineNumber, hitTestResult.position.column);
+			if (hitTestResult.type === HitTestResultType.Content) {
+				return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position);
 			}
 
 			return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
@@ -703,8 +685,8 @@ export class MouseTargetFactory {
 
 		const hitTestResult = MouseTargetFactory._doHitTest(ctx, request);
 
-		if (hitTestResult.position) {
-			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.position.lineNumber, hitTestResult.position.column);
+		if (hitTestResult.type === HitTestResultType.Content) {
+			return MouseTargetFactory.createMouseTargetFromHitTestPosition(ctx, request, hitTestResult.spanNode, hitTestResult.position);
 		}
 
 		return this._createMouseTarget(ctx, request.withTarget(hitTestResult.hitTarget), true);
@@ -760,8 +742,9 @@ export class MouseTargetFactory {
 		return (chars + 1);
 	}
 
-	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, lineNumber: number, column: number): MouseTarget {
-		const pos = new Position(lineNumber, column);
+	private static createMouseTargetFromHitTestPosition(ctx: HitTestContext, request: HitTestRequest, spanNode: HTMLElement, pos: Position): MouseTarget {
+		const lineNumber = pos.lineNumber;
+		const column = pos.column;
 
 		const lineWidth = ctx.getLineWidth(lineNumber);
 
@@ -817,7 +800,7 @@ export class MouseTargetFactory {
 	/**
 	 * Most probably WebKit browsers and Edge
 	 */
-	private static _doHitTestWithCaretRangeFromPoint(ctx: HitTestContext, request: BareHitTestRequest): IHitTestResult {
+	private static _doHitTestWithCaretRangeFromPoint(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		// In Chrome, especially on Linux it is possible to click between lines,
 		// so try to adjust the `hity` below so that it lands in the center of a line
@@ -836,7 +819,7 @@ export class MouseTargetFactory {
 		const adjustedPage = new PageCoordinates(request.pos.x, adjustedPageY);
 
 		const r = this._actualDoHitTestWithCaretRangeFromPoint(ctx, adjustedPage.toClientCoordinates());
-		if (r.position) {
+		if (r.type === HitTestResultType.Content) {
 			return r;
 		}
 
@@ -844,7 +827,7 @@ export class MouseTargetFactory {
 		return this._actualDoHitTestWithCaretRangeFromPoint(ctx, request.pos.toClientCoordinates());
 	}
 
-	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
+	private static _actualDoHitTestWithCaretRangeFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
 		const shadowRoot = dom.getShadowRoot(ctx.viewDomNode);
 		let range: Range;
 		if (shadowRoot) {
@@ -858,15 +841,11 @@ export class MouseTargetFactory {
 		}
 
 		if (!range || !range.startContainer) {
-			return {
-				position: null,
-				hitTarget: null
-			};
+			return new UnknownHitTestResult();
 		}
 
 		// Chrome always hits a TEXT_NODE, while Edge sometimes hits a token span
 		const startContainer = range.startContainer;
-		let hitTarget: HTMLElement | null = null;
 
 		if (startContainer.nodeType === startContainer.TEXT_NODE) {
 			// startContainer is expected to be the token text
@@ -876,13 +855,9 @@ export class MouseTargetFactory {
 			const parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
 			if (parent3ClassName === ViewLine.CLASS_NAME) {
-				const p = ctx.getPositionFromDOMInfo(<HTMLElement>parent1, range.startOffset);
-				return {
-					position: p,
-					hitTarget: null
-				};
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>parent1, range.startOffset);
 			} else {
-				hitTarget = <HTMLElement>startContainer.parentNode;
+				return new UnknownHitTestResult(<HTMLElement>startContainer.parentNode);
 			}
 		} else if (startContainer.nodeType === startContainer.ELEMENT_NODE) {
 			// startContainer is expected to be the token span
@@ -891,26 +866,19 @@ export class MouseTargetFactory {
 			const parent2ClassName = parent2 && parent2.nodeType === parent2.ELEMENT_NODE ? (<HTMLElement>parent2).className : null;
 
 			if (parent2ClassName === ViewLine.CLASS_NAME) {
-				const p = ctx.getPositionFromDOMInfo(<HTMLElement>startContainer, (<HTMLElement>startContainer).textContent!.length);
-				return {
-					position: p,
-					hitTarget: null
-				};
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>startContainer, (<HTMLElement>startContainer).textContent!.length);
 			} else {
-				hitTarget = <HTMLElement>startContainer;
+				return new UnknownHitTestResult(<HTMLElement>startContainer);
 			}
 		}
 
-		return {
-			position: null,
-			hitTarget: hitTarget
-		};
+		return new UnknownHitTestResult();
 	}
 
 	/**
 	 * Most probably Gecko
 	 */
-	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): IHitTestResult {
+	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
 		const hitResult: { offsetNode: Node; offset: number; } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
@@ -921,16 +889,9 @@ export class MouseTargetFactory {
 			const parent3ClassName = parent3 && parent3.nodeType === parent3.ELEMENT_NODE ? (<HTMLElement>parent3).className : null;
 
 			if (parent3ClassName === ViewLine.CLASS_NAME) {
-				const p = ctx.getPositionFromDOMInfo(<HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
-				return {
-					position: p,
-					hitTarget: null
-				};
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>hitResult.offsetNode.parentNode, hitResult.offset);
 			} else {
-				return {
-					position: null,
-					hitTarget: <HTMLElement>hitResult.offsetNode.parentNode
-				};
+				return new UnknownHitTestResult(<HTMLElement>hitResult.offsetNode.parentNode);
 			}
 		}
 
@@ -946,26 +907,15 @@ export class MouseTargetFactory {
 				// it returned the `<span>` of the line and the offset is the `<span>` with the inline decoration
 				const tokenSpan = hitResult.offsetNode.childNodes[Math.min(hitResult.offset, hitResult.offsetNode.childNodes.length - 1)];
 				if (tokenSpan) {
-					const p = ctx.getPositionFromDOMInfo(<HTMLElement>tokenSpan, 0);
-					return {
-						position: p,
-						hitTarget: null
-					};
+					return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>tokenSpan, 0);
 				}
 			} else if (parent2ClassName === ViewLine.CLASS_NAME) {
 				// it returned the `<span>` with the inline decoration
-				const p = ctx.getPositionFromDOMInfo(<HTMLElement>hitResult.offsetNode, 0);
-				return {
-					position: p,
-					hitTarget: null
-				};
+				return HitTestResult.createFromDOMInfo(ctx, <HTMLElement>hitResult.offsetNode, 0);
 			}
 		}
 
-		return {
-			position: null,
-			hitTarget: <HTMLElement>hitResult.offsetNode
-		};
+		return new UnknownHitTestResult(<HTMLElement>hitResult.offsetNode);
 	}
 
 	private static _snapToSoftTabBoundary(position: Position, viewModel: IViewModel): Position {
@@ -978,22 +928,17 @@ export class MouseTargetFactory {
 		return position;
 	}
 
-	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): IHitTestResult {
+	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
-		let result: IHitTestResult;
+		let result: HitTestResult = new UnknownHitTestResult();
 		if (typeof document.caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
 		} else if ((<any>document).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
-		} else {
-			result = {
-				position: null,
-				hitTarget: null
-			};
 		}
 		// Snap to the nearest soft tab boundary if atomic soft tabs are enabled.
-		if (result.position && ctx.stickyTabStops) {
-			result.position = this._snapToSoftTabBoundary(result.position, ctx.model);
+		if (result.type === HitTestResultType.Content && ctx.stickyTabStops) {
+			result = new ContentHitTestResult(this._snapToSoftTabBoundary(result.position, ctx.model), result.spanNode);
 		}
 		return result;
 	}
