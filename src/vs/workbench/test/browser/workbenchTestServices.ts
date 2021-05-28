@@ -851,8 +851,8 @@ export class TestFileService implements IFileService {
 	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
 	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
 	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
-	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options: IResolveMetadataFileOptions): Promise<IFileStatWithMetadata>;
+	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat>;
 	resolve(resource: URI, _options?: IResolveFileOptions): Promise<IFileStat> {
 		return Promise.resolve({
 			resource,
