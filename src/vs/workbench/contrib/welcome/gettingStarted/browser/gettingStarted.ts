@@ -606,7 +606,6 @@ export class GettingStartedPage extends EditorPane {
 					body {
 						display: flex;
 						flex-direction: column;
-						justify-content: center;
 						padding: 0;
 						height: inherit;
 					}
