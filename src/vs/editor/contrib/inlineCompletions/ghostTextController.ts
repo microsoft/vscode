@@ -235,7 +235,7 @@ export class ShowNextInlineCompletionAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
 			},
 		});
 	}
@@ -258,7 +258,7 @@ export class ShowPreviousInlineCompletionAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
 			},
 		});
 	}
