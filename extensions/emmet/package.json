@@ -48,13 +48,6 @@
           "default": true,
           "markdownDescription": "%emmetShowAbbreviationSuggestions%"
         },
-        "emmet.hmm": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": ["a", "b", "c"]
-          }
-        },
         "emmet.includeLanguages": {
           "type": "object",
           "additionalProperties": {
