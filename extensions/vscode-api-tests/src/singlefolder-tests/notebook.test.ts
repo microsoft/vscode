@@ -475,10 +475,11 @@ suite('Notebook API tests', function () {
 		const secondCell = vscode.window.activeNotebookEditor!.document.cellAt(1);
 		assert.strictEqual(secondCell!.outputs.length, 1);
 		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true });
-		assert.strictEqual(secondCell!.outputs[0].outputs.length, 1);
-		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
-		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].outputs[0].data), 'Hello World');
-		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
+		assert.strictEqual((<any>secondCell!.outputs[0]).outputs.length, 1); //todo@jrieken will FAIL once the backwards compatibility is gone
+		assert.strictEqual(secondCell!.outputs[0].items.length, 1);
+		assert.strictEqual(secondCell!.outputs[0].items[0].mime, 'text/plain');
+		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].items[0].data), 'Hello World');
+		assert.deepStrictEqual(secondCell!.outputs[0].items[0].metadata, { testOutputItemMetadata: true });
 		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
 		assert.strictEqual(secondCell!.executionSummary?.success, true);
 
@@ -746,9 +747,9 @@ suite('Notebook API tests', function () {
 			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].outputs.length, 1);
-			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my output');
+			assert.strictEqual(cell.outputs[0].items.length, 1);
+			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my output');
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
@@ -756,9 +757,9 @@ suite('Notebook API tests', function () {
 			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].outputs.length, 1);
-			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my second output');
+			assert.strictEqual(cell.outputs[0].items.length, 1);
+			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my second output');
 		});
 	});
 
@@ -796,9 +797,9 @@ suite('Notebook API tests', function () {
 			await vscode.commands.executeCommand('notebook.cell.cancelExecution');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].outputs.length, 1);
-			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Canceled');
+			assert.strictEqual(cell.outputs[0].items.length, 1);
+			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'Canceled');
 		});
 
 		cancelableKernel.controller.dispose();
@@ -838,9 +839,9 @@ suite('Notebook API tests', function () {
 			await vscode.commands.executeCommand('notebook.cell.cancelExecution');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
-			assert.strictEqual(cell.outputs[0].outputs.length, 1);
-			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Interrupted');
+			assert.strictEqual(cell.outputs[0].items.length, 1);
+			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'Interrupted');
 		});
 
 		interruptableKernel.controller.dispose();
@@ -1184,7 +1185,7 @@ suite('Notebook API tests', function () {
 					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
-				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].outputs[0].data), 'Some output');
+				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].items[0].data), 'Some output');
 				task.end({});
 				called = true;
 			}

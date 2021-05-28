@@ -1547,10 +1547,10 @@ export namespace NotebookCellOutputItem {
 }
 
 export namespace NotebookCellOutput {
-	export function from(output: types.NotebookCellOutput): notebooks.IOutputDto {
+	export function from(output: vscode.NotebookCellOutput): notebooks.IOutputDto {
 		return {
 			outputId: output.id,
-			outputs: output.outputs.map(NotebookCellOutputItem.from),
+			outputs: output.items.map(NotebookCellOutputItem.from),
 			metadata: output.metadata
 		};
 	}

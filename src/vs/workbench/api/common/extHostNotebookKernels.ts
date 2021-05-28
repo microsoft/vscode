@@ -397,12 +397,12 @@ class NotebookCellExecutionTask extends Disposable {
 
 	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): IOutputDto[] {
 		return items.map(output => {
-			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.outputs, true);
-			if (newOutput === output.outputs) {
+			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
+			if (newOutput === output.items) {
 				return extHostTypeConverters.NotebookCellOutput.from(output);
 			}
 			return extHostTypeConverters.NotebookCellOutput.from({
-				outputs: newOutput,
+				items: newOutput,
 				id: output.id,
 				metadata: output.metadata
 			});

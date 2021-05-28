@@ -1403,8 +1403,7 @@ declare module 'vscode' {
 		 * ])
 		 * ```
 		 */
-		//todo@API rename to items
-		outputs: NotebookCellOutputItem[];
+		items: NotebookCellOutputItem[];
 
 		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
 		metadata?: { [key: string]: any };
