@@ -3845,14 +3845,18 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
-		 * Enable or disable the rendering of the suggestion inline.
+		 * Enable or disable the rendering of the suggestion preview.
 		 */
 		showSuggestionPreview?: boolean;
 		/**
-		 * Enable or disable the default expansion of the suggestion preview.
-		 * Defaults to false.
+		 * Enable or disable the rendering of automatic inline completions.
+		*/
+		showInlineCompletions?: boolean;
+		/**
+		 * Enable or disable the default expansion of the ghost text as used
+		 * by the suggestion preview or the inline completions.
 		 */
-		suggestionPreviewExpanded?: boolean;
+		ghostTextExpanded?: boolean;
 		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
