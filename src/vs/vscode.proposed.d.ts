@@ -1090,11 +1090,12 @@ declare module 'vscode' {
 		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
 		 *
 		 * @see {@link FileSystemProvider}
-		 * @see {@link TextDocumentContentProvider}
 		 */
 		readonly uri: Uri;
 
-		// todo@API should we really expose this?
+		/**
+		 * The type of notebook.
+		 */
 		// todo@API should this be called `notebookType` or `notebookKind`
 		readonly viewType: string;
 
@@ -1148,24 +1149,27 @@ declare module 'vscode' {
 		getCells(range?: NotebookRange): NotebookCell[];
 
 		/**
-		 * Save the document. The saving will be handled by the corresponding content provider
+		 * Save the document. The saving will be handled by the corresponding {@link NotebookSerializer serializer}.
 		 *
 		 * @return A promise that will resolve to true when the document
-		 * has been saved. If the file was not dirty or the save failed,
-		 * will return false.
+		 * has been saved. Will return false if the file was not dirty or when save failed.
 		 */
 		save(): Thenable<boolean>;
 	}
 
+	// todo@API jsdoc
 	export class NotebookCellMetadata {
+
 		/**
 		 * Whether a code cell's editor is collapsed
 		 */
+		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
 		readonly inputCollapsed?: boolean;
 
 		/**
 		 * Whether a code cell's outputs are collapsed
 		 */
+		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
 		readonly outputCollapsed?: boolean;
 
 		/**
@@ -1191,6 +1195,7 @@ declare module 'vscode' {
 		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
 	}
 
+	// todo@API jsdoc
 	export interface NotebookCellExecutionSummary {
 		readonly executionOrder?: number;
 		readonly success?: boolean;
@@ -1198,6 +1203,8 @@ declare module 'vscode' {
 		readonly endTime?: number;
 	}
 
+	// todo@API jsdoc
+	// todo@API remove this and use simple {}?
 	export class NotebookDocumentMetadata {
 		/**
 		 * Additional attributes of the document metadata.
@@ -1220,7 +1227,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A notebook range represents on ordered pair of two cell indicies.
+	 * A notebook range represents an ordered pair of two cell indicies.
 	 * It is guaranteed that start is less than or equal to end.
 	 */
 	export class NotebookRange {
@@ -1383,8 +1390,10 @@ declare module 'vscode' {
 		//todo@API
 		metadata?: { [key: string]: any };
 
+		// todo@API jsdoc
 		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
 
+		// todo@API jsdoc
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
@@ -1495,6 +1504,7 @@ declare module 'vscode' {
 		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
 	}
 
+	// todo@api jsdoc
 	export interface NotebookDocumentContentOptions {
 		/**
 		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
@@ -1515,6 +1525,7 @@ declare module 'vscode' {
 		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
 	}
 
+	// todo@api jsdoc
 	export interface NotebookExecuteHandler {
 		/**
 		 * @param cells The notebook cells to execute.
@@ -1524,12 +1535,23 @@ declare module 'vscode' {
 		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
+	/**
+	 * Notebook controller affinity for notebook documents.
+	 */
 	export enum NotebookControllerAffinity {
+
+		/**
+		 * Default affinity.
+		 */
 		Default = 1,
+
+		/**
+		 * A controller is preferred for a notebook.
+		 */
 		Preferred = 2
 	}
 
-
+	// todo@api jsdoc
 	export class NotebookRendererScript {
 
 		/**
@@ -1551,6 +1573,7 @@ declare module 'vscode' {
 		constructor(uri: Uri, provides?: string | string[]);
 	}
 
+	// todo@api jsdoc
 	export interface NotebookCellExecuteStartContext {
 		/**
 		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
@@ -1559,6 +1582,7 @@ declare module 'vscode' {
 		startTime?: number;
 	}
 
+	// todo@api jsdoc
 	export interface NotebookCellExecuteEndContext {
 		/**
 		 * If true, a green check is shown on the cell status bar.
@@ -1680,6 +1704,7 @@ declare module 'vscode' {
 		/**
 		 * The notebook view type this controller is for.
 		 */
+		// todo@api rename to notebookType?
 		readonly viewType: string;
 
 		/**
@@ -1755,7 +1780,7 @@ declare module 'vscode' {
 
 		/**
 		 * A controller can set affinities for specific notebook documents. This allows a controller
-		 * to be more important for some notebooks.
+		 * to be presented more prominent for some notebooks.
 		 *
 		 * @param notebook The notebook for which a priority is set.
 		 * @param affinity A controller affinity
@@ -1802,18 +1827,22 @@ declare module 'vscode' {
 		asWebviewUri(localResource: Uri): Uri;
 	}
 
+	// todo@api json
 	export enum NotebookCellExecutionState {
 		Idle = 1,
 		Pending = 2,
 		Executing = 3,
 	}
 
+	// todo@api json
 	export interface NotebookCellExecutionStateChangeEvent {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell execution state has changed.
 		 */
 		readonly document: NotebookDocument;
+		// todo@api json
 		readonly cell: NotebookCell;
+		// todo@api json
 		readonly executionState: NotebookCellExecutionState;
 	}
 
@@ -1833,6 +1862,7 @@ declare module 'vscode' {
 		Right = 2
 	}
 
+	// todo@api json
 	export class NotebookCellStatusBarItem {
 		text: string;
 		alignment: NotebookCellStatusBarAlignment;
@@ -1844,6 +1874,7 @@ declare module 'vscode' {
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 	}
 
+	// todo@api json
 	export interface NotebookCellStatusBarItemProvider {
 		/**
 		 * Implement and fire this event to signal that statusbar items have changed. The provide method will be called again.
@@ -1856,6 +1887,8 @@ declare module 'vscode' {
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
+	// todo@api jsdoc
+	// todo@api rename to notebooks?
 	export namespace notebook {
 
 		/**
@@ -1924,14 +1957,15 @@ declare module 'vscode' {
 		 * @param viewType A notebook view type for which this controller is for.
 		 * @param label The label of the controller
 		 * @param handler
-		 * @param rendererScripts
+		 * @param rendererScripts todo@API should renderer scripts come later?
 		 */
 		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
+		// todo@api jsdoc
 		// todo@API what is this used for?
-		// todo@API qualify cell, ...NotebookCell...
 		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
+		// todo@api jsdoc
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
