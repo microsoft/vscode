@@ -833,6 +833,16 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	}
 
 	async createWebview(): Promise<void> {
+		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
+
+		// Python hasn't moved to use a preload to load require support yet.
+		// For all other notebooks, we no longer want to include our loader.
+		if (!this.documentUri.path.toLowerCase().endsWith('.ipynb')) {
+			const htmlContent = this.generateContent('', baseUrl.toString());
+			this._initialize(htmlContent);
+			return;
+		}
+
 		let coreDependencies = '';
 		let resolveFunc: () => void;
 
@@ -840,7 +850,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			resolveFunc = resolve;
 		});
 
-		const baseUrl = this.asWebviewUri(dirname(this.documentUri), undefined);
 
 		if (!isWeb) {
 			const loaderUri = FileAccess.asFileUri('vs/loader.js', require);
@@ -889,7 +898,7 @@ var requirejs = (function() {
 		await this._initalized;
 	}
 
-	private async _initialize(content: string) {
+	private _initialize(content: string) {
 		if (!document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
