@@ -1572,18 +1572,13 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
-	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecution
 	/**
-	 * A NotebookCellExecution is how the kernel modifies a notebook cell as it is executing. When
-	 * {@link notebook.createNotebookCellExecution `createNotebookCellExecution`} is called, the cell
-	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
-	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
-	 * modified with the methods on the run task.
+	 * A NotebookCellExecution is how {@link NotebookController notebook controller} modify a notebook cell as
+	 * it is executing.
 	 *
-	 * All outputs methods operate on this NotebookCellExecution's cell by default. They optionally take
-	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
-	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
-	 * all resolve once the output edit has been applied.
+	 * When a cell execution object is created, the cell enters the {@link NotebookCellExecutionState.Pending `Pending`} state.
+	 * When {@link NotebookCellExecution.start `start(...)`} is called on the execution task, it enters the {@link NotebookCellExecutionState.Executing `Executing`} state. When
+	 * {@link NotebookCellExecution.end `end(...)`} is called, it enters the {@link NotebookCellExecutionState.Idle `Idle`} state.
 	 */
 	export interface NotebookCellExecution {
 
@@ -1608,6 +1603,7 @@ declare module 'vscode' {
 
 		// todo@API inline context object?
 		start(context?: NotebookCellExecuteStartContext): void;
+
 		// todo@API inline context object?
 		end(result?: NotebookCellExecuteEndContext): void;
 
@@ -1757,8 +1753,11 @@ declare module 'vscode' {
 		/**
 		 * Create a cell execution task.
 		 *
+		 * _Note_ that there can only be one execution per cell at a time and that an error is thrown if
+		 * a cell execution is created while another is still active.
+		 *
 		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
-		 * being calleed or when cell execution has been started else, e.g when a cell was already
+		 * being called or when cell execution has been started else, e.g when a cell was already
 		 * executing or when cell execution was triggered from another source.
 		 *
 		 * @param cell The notebook cell for which to create the execution.
