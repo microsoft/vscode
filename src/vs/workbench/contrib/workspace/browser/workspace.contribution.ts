@@ -45,6 +45,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
@@ -77,6 +79,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IBannerService private readonly bannerService: IBannerService,
 		@IHostService private readonly hostService: IHostService,
 	) {
@@ -84,25 +88,35 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		this.statusbarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-		if (isWorkspaceTrustEnabled(configurationService)) {
-			this.registerListeners();
-			this.createStatusbarEntry();
+		(async () => {
 
-			// Set empty workspace trust state
-			this.setEmptyWorkspaceTrustState();
+			await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
-			// Show modal dialog
-			if (this.hostService.hasFocus) {
-				this.showModalOnStart();
-			} else {
-				const focusDisposable = this.hostService.onDidChangeFocus(focused => {
-					if (focused) {
-						focusDisposable.dispose();
-						this.showModalOnStart();
-					}
-				});
+			// Workaround until isTrusted from resolver is available pre-resolution
+			if (this.workbenchEnvironmentService.remoteAuthority) {
+				await this.remoteAuthorityResolverService.resolveAuthority(this.workbenchEnvironmentService.remoteAuthority);
 			}
-		}
+
+			if (isWorkspaceTrustEnabled(configurationService)) {
+				this.registerListeners();
+				this.createStatusbarEntry();
+
+				// Set empty workspace trust state
+				this.setEmptyWorkspaceTrustState();
+
+				// Show modal dialog
+				if (this.hostService.hasFocus) {
+					this.showModalOnStart();
+				} else {
+					const focusDisposable = this.hostService.onDidChangeFocus(focused => {
+						if (focused) {
+							focusDisposable.dispose();
+							this.showModalOnStart();
+						}
+					});
+				}
+			}
+		})();
 	}
 
 	private get startupPromptSetting(): 'always' | 'once' | 'never' {
@@ -168,7 +182,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		// Don't show modal prompt if workspace trust cannot be changed
-		if (!(await this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
+		if (!(this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
 			return;
 		}
 
@@ -447,9 +461,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private registerListeners(): void {
-		this._register(this.workspaceTrustManagementService.onDidInitiateWorkspaceTrustRequestOnStartup(() => {
-			this.showModalOnStart();
-		}));
 
 		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
 			// Message
@@ -700,7 +711,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedFolders().length,
+			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedUris().length,
 		});
 	}
 
