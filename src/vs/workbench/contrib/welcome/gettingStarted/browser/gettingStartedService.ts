@@ -298,7 +298,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 							}
 							: {
 								type: 'markdown',
-								path: convertInternalMediaPathToFileURI(step.media.path),
+								path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
 								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
 								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
 							},
