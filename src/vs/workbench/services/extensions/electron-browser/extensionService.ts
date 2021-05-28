@@ -354,9 +354,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			});
 
 			// Now that the canonical URI provider has been registered, we
-			// need to refresh workspace trust before resolving the authority
-			await this._workspaceTrustManagementService.recalculateWorkspaceTrust();
-
+			// need to wait for the trust state to be initialized
+			await this._workspaceTrustManagementService.workspaceTrustInitialized;
 			let resolverResult: ResolverResult;
 
 			try {
