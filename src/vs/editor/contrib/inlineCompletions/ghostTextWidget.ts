@@ -21,6 +21,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -149,8 +150,8 @@ export class GhostTextWidget extends Disposable {
 
 		if (renderData) {
 			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
-			let opacity = '0.467';
-			let color = 'white';
+			let opacity: string | undefined = undefined;
+			let color: string | undefined = undefined;
 			if (suggestPreviewForeground) {
 				function opaque(color: Color): Color {
 					const { r, b, g } = color.rgba;
@@ -162,10 +163,18 @@ export class GhostTextWidget extends Disposable {
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
+
+			const line = this.editor.getModel()?.getLineContent(renderData.position.lineNumber) || '';
+			const linePrefix = line.substr(0, renderData.position.column - 1);
+
+			const opts = this.editor.getOptions();
+			const renderWhitespace = opts.get(EditorOption.renderWhitespace);
+			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, renderWhitespace === 'all');
+
 			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
 				after: {
 					// TODO: escape?
-					contentText: renderData.lines[0],
+					contentText,
 					opacity,
 					color,
 				},
@@ -305,6 +314,41 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
+function renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
+	const newLine = lineStart + text;
+	const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+
+
+	let contentText = '';
+	let curCol = lineStart.length + 1;
+	for (const c of text) {
+		if (c === '\t') {
+			const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+			if (renderWhitespace) {
+				contentText += '→';
+				for (let i = 1; i < width; i++) {
+					contentText += '\xa0';
+				}
+			} else {
+				for (let i = 0; i < width; i++) {
+					contentText += '\xa0';
+				}
+			}
+		} else if (c === ' ') {
+			if (renderWhitespace) {
+				contentText += '·';
+			} else {
+				contentText += '\xa0';
+			}
+		} else {
+			contentText += c;
+		}
+		curCol += 1;
+	}
+
+	return contentText;
+}
+
 class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = false;
 	readonly suppressMouseDown = false;
@@ -340,7 +384,6 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 }
 
 registerThemingParticipant((theme, collector) => {
-
 	const suggestPreviewForeground = theme.getColor(editorSuggestPreviewOpacity);
 
 	if (suggestPreviewForeground) {
