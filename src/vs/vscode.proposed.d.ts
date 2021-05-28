@@ -1601,9 +1601,6 @@ declare module 'vscode' {
 		 */
 		readonly token: CancellationToken;
 
-		//todo@API remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-
 		/**
 		 * Set and unset the order of this cell execution.
 		 */
@@ -1614,13 +1611,52 @@ declare module 'vscode' {
 		// todo@API inline context object?
 		end(result?: NotebookCellExecuteEndContext): void;
 
-		// todo@API use object instead of index? FF
-		clearOutput(cellIndex?: number): Thenable<void>;
-		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
-		// todo@API use object instead of index?
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
+		/**
+		 * Clears the output of the cell that is executing or of another cell that is affected by this execution.
+		 *
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		clearOutput(cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Replace the output of the cell that is executing or of another cell that is affected by this execution.
+		 *
+		 * @param out Output that replaces the current output.
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
+		 *
+		 * @param out Output that is appended to the current output.
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Replace all output items of existing cell output.
+		 *
+		 * @param items Output items that replace the items of existing output.
+		 * @param output Output object or the identifier of one.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+
+		/**
+		 * Append output items to existing cell output.
+		 *
+		 * @param items Output items that are append to existing output.
+		 * @param output Output object or the identifier of one.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
 	}
 
 	export interface NotebookController {
