@@ -85,7 +85,6 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
 	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
@@ -582,8 +581,6 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 	 */
 	forceExactSize?: boolean;
 }
-
-export type SafeConfigProvider = <T>(key: string) => T | undefined;
 
 export const enum ProfileSource {
 	GitBash = 'Git Bash',

@@ -111,6 +111,10 @@ export class GhostTextWidget extends Disposable {
 		return this.modelRef.value?.object;
 	}
 
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return (this.viewZoneId === viewZoneId);
+	}
+
 	public setModel(model: GhostTextWidgetModel | undefined): void {
 		if (model === this.model) { return; }
 		this.modelRef.value = model

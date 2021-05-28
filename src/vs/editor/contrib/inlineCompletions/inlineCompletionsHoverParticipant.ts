@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
+import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -13,6 +13,7 @@ import { GhostTextController, ShowNextInlineCompletionAction, ShowPreviousInline
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -20,10 +21,11 @@ export class InlineCompletionsHover implements IHoverPart {
 		public readonly range: Range
 	) { }
 
-	public isValidForHoverRange(hoverRange: Range): boolean {
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
 		return (
-			this.range.startColumn <= hoverRange.startColumn
-			&& this.range.endColumn >= hoverRange.endColumn
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
 }
@@ -37,15 +39,40 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) { }
 
-	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
+	suggestHoverAnchor(mouseEvent: IEditorMouseEvent): HoverAnchor | null {
 		const controller = GhostTextController.get(this._editor);
-		if (controller.shouldShowHoverAt(hoverRange)) {
-			return [new InlineCompletionsHover(this, hoverRange)];
+		if (!controller) {
+			return null;
+		}
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+			// handle the case where the mouse is over the view zone
+			const viewZoneData = <IViewZoneData>mouseEvent.target.detail;
+			if (controller.shouldShowHoverAtViewZone(viewZoneData.viewZoneId)) {
+				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position));
+			}
+		}
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_EMPTY) {
+			// handle the case where the mouse is over the empty portion of a line following ghost text
+			if (mouseEvent.target.range && controller.shouldShowHoverAt(mouseEvent.target.range)) {
+				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+			}
+		}
+		// let mightBeForeignElement = false;
+		// 	if (mouseEvent.target.type === MouseTargetType.CONTENT_TEXT && mouseEvent.target.detail) {
+		// 		mightBeForeignElement = (<ITextContentData>mouseEvent.target.detail).mightBeForeignElement;
+		// 	}
+		return null;
+	}
+
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
+		const controller = GhostTextController.get(this._editor);
+		if (controller && controller.shouldShowHoverAt(anchor.range)) {
+			return [new InlineCompletionsHover(this, anchor.range)];
 		}
 		return [];
 	}
 
-	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
+	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		const menu = this._menuService.createMenu(
 			MenuId.InlineCompletionsActions,
 			this._contextKeyService
