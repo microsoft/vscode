@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { EditorHoverStatusBar, HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
@@ -19,10 +19,11 @@ export class InlineCompletionsHover implements IHoverPart {
 		public readonly range: Range
 	) { }
 
-	public isValidForHoverRange(hoverRange: Range): boolean {
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
 		return (
-			this.range.startColumn <= hoverRange.startColumn
-			&& this.range.endColumn >= hoverRange.endColumn
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
 
@@ -36,10 +37,13 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		@ICommandService private readonly _commandService: ICommandService,
 	) { }
 
-	computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
+	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
+		if (anchor.type !== HoverAnchorType.Range) {
+			return [];
+		}
 		const controller = GhostTextController.get(this._editor);
-		if (controller.shouldShowHoverAt(hoverRange)) {
-			return [new InlineCompletionsHover(this, hoverRange)];
+		if (controller.shouldShowHoverAt(anchor.range)) {
+			return [new InlineCompletionsHover(this, anchor.range)];
 		}
 		return [];
 	}

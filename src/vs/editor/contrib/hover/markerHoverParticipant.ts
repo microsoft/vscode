@@ -24,7 +24,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { EditorHoverStatusBar, HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
 
 const $ = dom.$;
 
@@ -36,10 +36,11 @@ export class MarkerHover implements IHoverPart {
 		public readonly marker: IMarker,
 	) { }
 
-	public isValidForHoverRange(hoverRange: Range): boolean {
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
 		return (
-			this.range.startColumn <= hoverRange.startColumn
-			&& this.range.endColumn >= hoverRange.endColumn
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
 		);
 	}
 }
@@ -60,13 +61,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel()) {
+	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return [];
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = hoverRange.startLineNumber;
+		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkerHover[] = [];
 		for (const d of lineDecorations) {
@@ -78,7 +79,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				continue;
 			}
 
-			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
 			result.push(new MarkerHover(this, range, marker));
 		}
 
