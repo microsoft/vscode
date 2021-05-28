@@ -52,7 +52,7 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 
 	public get expanded() {
 		if (this._expanded === undefined) {
-			return this.editor.getOption(EditorOption.suggest).suggestionPreviewExpanded;
+			return this.editor.getOption(EditorOption.suggest).ghostTextExpanded;
 		}
 		return this._expanded;
 	}

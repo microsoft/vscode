@@ -30,8 +30,8 @@ export class GhostTextController extends Disposable {
 
 	private readonly widget: GhostTextWidget;
 	private readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
-
 	private readonly contextKeys: GhostTextContextKeys;
+	private triggeredExplicitly = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -54,13 +54,21 @@ export class GhostTextController extends Disposable {
 		this.updateModelController();
 	}
 
+	// Don't call this method when not neccessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 
 		this.activeController.value = undefined;
-		this.activeController.value = this.editor.hasModel() && suggestOptions.showSuggestionPreview
-			? this.instantiationService.createInstance(ActiveGhostTextController, this.editor, this.widget, this.contextKeys)
-			: undefined;
+		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
+		this.activeController.value =
+			this.editor.hasModel() && (suggestOptions.showSuggestionPreview || suggestOptions.showInlineCompletions || this.triggeredExplicitly)
+				? this.instantiationService.createInstance(
+					ActiveGhostTextController,
+					this.editor,
+					this.widget,
+					this.contextKeys
+				)
+				: undefined;
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {
@@ -72,15 +80,19 @@ export class GhostTextController extends Disposable {
 	}
 
 	public trigger(): void {
-		this.activeController.value?.trigger();
+		this.triggeredExplicitly = true;
+		if (!this.activeController.value) {
+			this.updateModelController();
+		}
+		this.activeController.value?.triggerInlineCompletion();
 	}
 
 	public commit(): void {
-		this.activeController.value?.commit();
+		this.activeController.value?.commitInlineCompletion();
 	}
 
 	public hide(): void {
-		this.activeController.value?.hide();
+		this.activeController.value?.hideInlineCompletion();
 	}
 
 	public showNextInlineCompletion(): void {
@@ -104,8 +116,15 @@ class GhostTextContextKeys {
  * The controller for a text editor with an initialized text model.
 */
 export class ActiveGhostTextController extends Disposable {
-	private readonly suggestWidgetAdapterModel = new SuggestWidgetAdapterModel(this.editor);
-	private readonly inlineCompletionsModel = new InlineCompletionsModel(this.editor, this.commandService);
+	private readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetAdapterModel(this.editor));
+	private readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.commandService));
+
+	private get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
+		if (this.widget.model === this.inlineCompletionsModel) {
+			return this.inlineCompletionsModel;
+		}
+		return undefined;
+	}
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -118,7 +137,6 @@ export class ActiveGhostTextController extends Disposable {
 		this._register(this.suggestWidgetAdapterModel.onDidChange(() => {
 			this.updateModel();
 		}));
-
 		this.updateModel();
 
 		this._register(toDisposable(() => {
@@ -127,18 +145,19 @@ export class ActiveGhostTextController extends Disposable {
 			}
 		}));
 
-		this._register(this.inlineCompletionsModel.onDidChange(() => {
-			this.updateContextKeys();
-		}));
+		if (this.inlineCompletionsModel) {
+			this._register(this.inlineCompletionsModel.onDidChange(() => {
+				this.updateContextKeys();
+			}));
+		}
 	}
 
 	private updateContextKeys(): void {
 		this.contextKeys.inlineCompletionVisible.set(
-			this.widget.model === this.inlineCompletionsModel
-			&& this.inlineCompletionsModel.ghostText !== undefined
+			this.activeInlineCompletionsModel?.ghostText !== undefined
 		);
 
-		if (this.inlineCompletionsModel.ghostText) {
+		if (this.inlineCompletionsModel?.ghostText) {
 			const firstLine = this.inlineCompletionsModel.ghostText.lines[0] || '';
 			const suggestionStartsWithWs = firstLine.startsWith(' ') || firstLine.startsWith('\t');
 			const p = this.inlineCompletionsModel.ghostText.position;
@@ -155,48 +174,40 @@ export class ActiveGhostTextController extends Disposable {
 	}
 
 	public shouldShowHoverAt(hoverRange: Range): boolean {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			const ghostText = this.widget.model.ghostText;
-			if (ghostText) {
-				return hoverRange.containsPosition(ghostText.position);
-			}
+		const ghostText = this.activeInlineCompletionsModel?.ghostText;
+		if (ghostText) {
+			return hoverRange.containsPosition(ghostText.position);
 		}
 		return false;
 	}
 
-	public trigger(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.startSession();
-		}
+	public triggerInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.startSession();
 	}
 
-	public commit(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.commitCurrentSuggestion();
-		}
+	public commitInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.commitCurrentSuggestion();
 	}
 
-	public hide(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.hide();
-		}
+	public hideInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.hide();
 	}
 
 	public showNextInlineCompletion(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.showNextInlineCompletion();
-		}
+		this.activeInlineCompletionsModel?.showNext();
 	}
 
 	public showPreviousInlineCompletion(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.showPreviousInlineCompletion();
-		}
+		this.activeInlineCompletionsModel?.showPrevious();
 	}
 
 	private updateModel() {
-		this.widget.setModel(this.suggestWidgetAdapterModel.isActive ? this.suggestWidgetAdapterModel : this.inlineCompletionsModel);
-		this.inlineCompletionsModel.setActive(this.widget.model === this.inlineCompletionsModel);
+		this.widget.setModel(
+			this.suggestWidgetAdapterModel.isActive
+				? this.suggestWidgetAdapterModel
+				: this.inlineCompletionsModel
+		);
+		this.inlineCompletionsModel?.setActive(this.widget.model === this.inlineCompletionsModel);
 	}
 }
 
@@ -239,7 +250,7 @@ export class ShowNextInlineCompletionAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
 			},
 		});
 	}
@@ -262,7 +273,7 @@ export class ShowPreviousInlineCompletionAction extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
 			},
 		});
 	}
