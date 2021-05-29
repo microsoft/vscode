@@ -366,45 +366,37 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			}
 		};
 
-		let sectionToOpen: string | undefined;
-
 		if (!(extension.contributes?.walkthroughs?.length)) {
 			return;
 		}
 
-		if (this.productService.quality === 'stable') {
-			console.warn('Extension', extension.identifier.value, 'contributes welcome page content but this is a Stable build and extension contributions are only available in Insiders. The contributed content will be disregarded.');
-			return;
-		}
-
-		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.extensionContributions')) {
-			console.warn('Extension', extension.identifier.value, 'contributes welcome page content but the welcome page extension contribution feature flag has not been set. Set `workbench.welcomePage.experimental.extensionContributions` to begin using this experimental feature.');
-			return;
-		}
-
-		extension.contributes.startEntries?.forEach(entry => {
-			const entryID = extension.identifier.value + '#startEntry#' + idForStartEntry(entry);
-			this.registerStartEntry({
-				content: {
-					type: 'startEntry',
-					command: entry.command,
-				},
-				description: entry.description,
-				title: entry.title,
-				id: entryID,
-				order: 0,
-				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
-				icon: {
-					type: 'image',
-					path: extension.icon
-						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
-						: DefaultIconPath
-				}
+		if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.startEntryContributions') && this.productService.quality !== 'stable') {
+			extension.contributes.startEntries?.forEach(entry => {
+				const entryID = extension.identifier.value + '#startEntry#' + idForStartEntry(entry);
+				this.registerStartEntry({
+					content: {
+						type: 'startEntry',
+						command: entry.command,
+					},
+					description: entry.description,
+					title: entry.title,
+					id: entryID,
+					order: 0,
+					when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
+					icon: {
+						type: 'image',
+						path: extension.icon
+							? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
+							: DefaultIconPath
+					}
+				});
 			});
-		});
+		}
 
 
-		await Promise.all(extension.contributes?.walkthroughs?.map(async walkthrough => {
+		let sectionToOpen: string | undefined;
+		let sectionToOpenIndex = Math.max();
+		await Promise.all(extension.contributes?.walkthroughs?.map(async (walkthrough, index) => {
 			const categoryID = extension.identifier.value + '#' + walkthrough.id;
 
 			const override = await Promise.race([
@@ -414,11 +406,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 			if (
 				this.sessionInstalledExtensions.has(extension.identifier.value)
-				&& walkthrough.primary
 				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
 				this.sessionInstalledExtensions.delete(extension.identifier.value);
-				sectionToOpen = categoryID;
+				if (index < sectionToOpenIndex) {
+					sectionToOpen = categoryID;
+					sectionToOpenIndex = index;
+				}
 			}
 
 			const walkthoughDescriptior = {
@@ -433,7 +427,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
 						: DefaultIconPath
 				},
-				when: ContextKeyExpr.deserialize(walkthrough.when) ?? ContextKeyExpr.true(),
+				when: ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true(),
 			} as const;
 
 			const steps = (walkthrough.steps ?? (walkthrough as any).tasks).map((step, index) => {
@@ -498,7 +492,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		this.triggerInstalledExtensionsRegistered();
 
-		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.experimental.extensionContributions') !== 'hide') {
+		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
 	}
