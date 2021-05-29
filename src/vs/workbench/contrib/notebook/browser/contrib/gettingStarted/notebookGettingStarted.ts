@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -24,7 +26,9 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	constructor(
 		@IEditorService _editorService: IEditorService,
 		@IStorageService _storageService: IStorageService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@ICommandService _commandService: ICommandService,
+		@IConfigurationService _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -40,6 +44,10 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 					storedValue[hasOpenedNotebookKey] = true;
 					memento.saveMemento();
 					listener.dispose();
+
+					if (_configurationService.getValue('notebook.experimental.openGettingStarted')) {
+						_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+					}
 				}
 			}));
 		}
