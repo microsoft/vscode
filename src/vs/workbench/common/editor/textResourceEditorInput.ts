@@ -202,7 +202,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

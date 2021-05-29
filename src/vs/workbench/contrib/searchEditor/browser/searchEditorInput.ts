@@ -214,7 +214,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override matches(other: unknown) {
-		if (this === other) { return true; }
+		if (super.matches(other)) { return true; }
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment) || !!(other.backingUri && isEqual(other.backingUri, this.backingUri));
