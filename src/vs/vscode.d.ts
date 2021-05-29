@@ -5653,7 +5653,7 @@ declare module 'vscode' {
 		command: string | Command | undefined;
 
 		/**
-		 * Accessibility information used when screen reader interacts with this StatusBar item
+		 * Accessibility information used when a screen reader interacts with this StatusBar item
 		 */
 		accessibilityInformation?: AccessibilityInformation;
 

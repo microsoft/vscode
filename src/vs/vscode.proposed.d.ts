@@ -1928,19 +1928,49 @@ declare module 'vscode' {
 		Right = 2
 	}
 
-	// todo@api jsdoc
+	/**
+	 * A contribution to a cell's status bar
+	 */
 	export class NotebookCellStatusBarItem {
+		/**
+		 * The text to show for the item.
+		 */
 		text: string;
+
+		/**
+		 * Whether the item is aligned to the left or right.
+		 */
 		alignment: NotebookCellStatusBarAlignment;
+
+		/**
+		 * An optional command to execute when the item is clicked.
+		 */
 		command?: string | Command;
+
+		/**
+		 * A tooltip to show when the item is hovered.
+		 */
 		tooltip?: string;
+
+		/**
+		 * The priority of the item. A higher value item will be shown more to the left.
+		 */
 		priority?: number;
+
+		/**
+		 * Accessibility information used when a screen reader interacts with this item.
+		 */
 		accessibilityInformation?: AccessibilityInformation;
 
+		/**
+		 * Creates a new NotebookCellStatusBarItem.
+		 */
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 	}
 
-	// todo@api jsdoc
+	/**
+	 * A provider that can contribute items to the status bar that appears below a cell's editor.
+	 */
 	export interface NotebookCellStatusBarItemProvider {
 		/**
 		 * Implement and fire this event to signal that statusbar items have changed. The provide method will be called again.
@@ -1949,8 +1979,9 @@ declare module 'vscode' {
 
 		/**
 		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
+		 * @param cell The cell for which to return items.
+		 * @param token A token triggered if this request should be cancelled.
 		 */
-		// todo@API rename to ...NotebookCell...
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
@@ -2044,7 +2075,11 @@ declare module 'vscode' {
 		// how a correct consumer work, e.g the consumer could have been late and missed an event?
 		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 
-		// todo@api jsdoc
+		/**
+		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
+		 * @param notebookType The notebook view type to register for.
+		 * @param provider The provider implementation.
+		 */
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
 
