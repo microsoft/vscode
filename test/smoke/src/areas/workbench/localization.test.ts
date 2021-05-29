@@ -21,7 +21,9 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.extensions.openExtensionsViewlet();
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 
+			console.log(app);
 			await app.restart({ extraArgs: ['--locale=DE'] });
+			console.log(app);
 		});
 
 		after(async function () {
@@ -30,6 +32,7 @@ export function setup(opts: minimist.ParsedArgs) {
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
+			console.log(app);
 
 			if (app.quality === Quality.Dev || app.remote) {
 				this.skip();
