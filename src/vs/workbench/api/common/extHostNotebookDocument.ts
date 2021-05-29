@@ -356,7 +356,7 @@ export class ExtHostNotebookDocument {
 
 		if (originalInternalMetadata.runState !== newInternalMetadata.runState) {
 			const executionState = newInternalMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, executionState }));
+			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, state: executionState }));
 		}
 	}
 

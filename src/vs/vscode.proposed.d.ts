@@ -1895,12 +1895,6 @@ declare module 'vscode' {
 	 */
 	export interface NotebookCellExecutionStateChangeEvent {
 		/**
-		 * The {@link NotebookDocument notebook document} for which the cell execution state has changed.
-		 */
-		// todo@api remove? use cell.notebook instead?
-		readonly document: NotebookDocument;
-
-		/**
 		 * The {@link NotebookCell cell} for which the execution state has changed.
 		 */
 		readonly cell: NotebookCell;
@@ -1908,8 +1902,7 @@ declare module 'vscode' {
 		/**
 		 * The new execution state of the cell.
 		 */
-		// todo@API rename to state?
-		readonly executionState: NotebookCellExecutionState;
+		readonly state: NotebookCellExecutionState;
 	}
 
 	/**
