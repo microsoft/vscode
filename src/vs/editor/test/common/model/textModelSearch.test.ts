@@ -633,7 +633,7 @@ suite('TextModelSearch', () => {
 		assertParseSearchResult('foo\\\\r', true, false, null, new SearchData(/foo\\r/giu, null, null));
 	});
 
-	test('issue #53415. \W should match line break.', () => {
+	test('issue #53415. \\W should match line break.', () => {
 		assertFindMatches(
 			[
 				'text',
