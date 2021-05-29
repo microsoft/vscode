@@ -1631,8 +1631,8 @@ declare module 'vscode' {
 		/**
 		 * If true, a green check is shown on the cell status bar.
 		 * If false, a red X is shown.
+		 * If undefined, no check or X icon is shown.
 		 */
-		// todo@api undefined === false, so by default cells execution fails?
 		success?: boolean;
 
 		/**
