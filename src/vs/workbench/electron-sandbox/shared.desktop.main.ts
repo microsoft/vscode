@@ -44,7 +44,7 @@ import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/
 import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
-import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { RemoteWorkspaceTrustManagementService, WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
@@ -264,7 +264,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, environmentService, storageService, uriIdentityService, configurationService);
+		const workspaceTrustManagementService = !environmentService.remoteAuthority ?
+			new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService) :
+			new RemoteWorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
+		await workspaceTrustManagementService.initializeWorkspaceTrust();
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly

@@ -100,6 +100,7 @@ export class IFrameWebview extends BaseWebview<HTMLIFrameElement> implements Web
 	protected initElement(extension: WebviewExtensionDescription | undefined, options: WebviewOptions, extraParams?: { [key: string]: string }) {
 		const params: { [key: string]: string } = {
 			id: this.id,
+			swVersion: String(this._expectedServiceWorkerVersion),
 			extensionId: extension?.id.value ?? '', // The extensionId and purpose in the URL are used for filtering in js-debug:
 			...extraParams,
 			'vscode-resource-base-authority': this.webviewRootResourceAuthority,

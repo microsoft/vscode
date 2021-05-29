@@ -144,11 +144,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		async restoreEditorViewState(): Promise<void> {
 			if (this.editorViewState) {
-				await this.editorService.openEditor(
-					this.editorViewState.editor,
-					{ viewState: this.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
-					this.editorViewState.group
-				);
+				const options: ITextEditorOptions = {
+					viewState: this.editorViewState.state,
+					preserveFocus: true /* import to not close the picker as a result */
+				};
+
+				await this.editorService.openEditor(this.editorViewState.editor, options, this.editorViewState.group);
 			}
 		}
 	}(this, this.editorService);

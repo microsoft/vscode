@@ -257,6 +257,7 @@ suite('Workbench - Test Results Service', () => {
 			completedAt,
 			id: 'some-id',
 			tasks: [{ id: 't', running: false, name: undefined }],
+			name: 'hello world',
 			items: [{
 				...(await getInitializedMainTestCollection()).getNodeById('id-a')!,
 				tasks: [{ state, duration: 0, messages: [] }],

@@ -38,6 +38,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { DefaultIconPath } from 'vs/platform/extensionManagement/common/extensionManagement';
 
 interface IExtensionProfileInformation {
 	/**
@@ -56,7 +57,7 @@ interface IExtensionProfileInformation {
 export interface IRuntimeExtension {
 	originalIndex: number;
 	description: IExtensionDescription;
-	marketplaceInfo: IExtension;
+	marketplaceInfo: IExtension | undefined;
 	status: IExtensionsStatus;
 	profileInfo?: IExtensionProfileInformation;
 	unresponsiveProfile?: IExtensionHostProfile;
@@ -267,8 +268,8 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				data.root.classList.toggle('odd', index % 2 === 1);
 
 				const onError = Event.once(domEvent(data.icon, 'error'));
-				onError(() => data.icon.src = element.marketplaceInfo.iconUrlFallback, null, data.elementDisposables);
-				data.icon.src = element.marketplaceInfo.iconUrl;
+				onError(() => data.icon.src = element.marketplaceInfo?.iconUrlFallback || DefaultIconPath, null, data.elementDisposables);
+				data.icon.src = element.marketplaceInfo?.iconUrl || DefaultIconPath;
 
 				if (!data.icon.complete) {
 					data.icon.style.visibility = 'hidden';
@@ -276,7 +277,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				} else {
 					data.icon.style.visibility = 'inherit';
 				}
-				data.name.textContent = element.marketplaceInfo.displayName;
+				data.name.textContent = element.marketplaceInfo?.displayName || element.description.identifier.value;
 				data.version.textContent = element.description.version;
 
 				const activationTimes = element.status.activationTimes!;
@@ -429,8 +430,10 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 				actions.push(new Separator());
 			}
 
-			actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledWorkspace)));
-			actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo, EnablementState.DisabledGlobally)));
+			if (e.element!.marketplaceInfo) {
+				actions.push(new Action('runtimeExtensionsEditor.action.disableWorkspace', nls.localize('disable workspace', "Disable (Workspace)"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledWorkspace)));
+				actions.push(new Action('runtimeExtensionsEditor.action.disable', nls.localize('disable', "Disable"), undefined, true, () => this._extensionsWorkbenchService.setEnablement(e.element!.marketplaceInfo!, EnablementState.DisabledGlobally)));
+			}
 			actions.push(new Separator());
 
 			const profileAction = this._createProfileAction();

@@ -27,33 +27,28 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		return this._layoutInfo;
 	}
 
+	private _previewHeight = 0;
+
 	set renderedMarkdownHeight(newHeight: number) {
 		if (this.getEditState() === CellEditState.Preview) {
-			const newTotalHeight = newHeight + this.viewContext.notebookOptions.getLayoutConfiguration().bottomToolbarGap; // BOTTOM_CELL_TOOLBAR_GAP;
-			this.totalHeight = newTotalHeight;
-		}
-	}
+			this._previewHeight = newHeight;
+			const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
-	private set totalHeight(newHeight: number) {
-		if (newHeight !== this.layoutInfo.totalHeight) {
-			this.layoutChange({ totalHeight: newHeight });
+			this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
 		}
-	}
-
-	private get totalHeight() {
-		throw new Error('MarkdownCellViewModel.totalHeight is write only');
 	}
 
 	private _editorHeight = 0;
 	set editorHeight(newHeight: number) {
 		this._editorHeight = newHeight;
 		const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
-		this.totalHeight = this._editorHeight
+		this._updateTotalHeight(this._editorHeight
 			+ layoutConfiguration.markdownCellTopMargin // MARKDOWN_CELL_TOP_MARGIN
 			+ layoutConfiguration.markdownCellBottomMargin // MARKDOWN_CELL_BOTTOM_MARGIN
-			+ layoutConfiguration.bottomToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
-			+ this.viewContext.notebookOptions.computeStatusBarHeight();
+			+ bottomToolbarGap // BOTTOM_CELL_TOOLBAR_GAP
+			+ this.viewContext.notebookOptions.computeStatusBarHeight());
 	}
 
 	get editorHeight() {
@@ -113,14 +108,16 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		@ITextModelService textModelService: ITextModelService,
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService);
+		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
 		this._layoutInfo = {
 			editorHeight: 0,
+			previewHeight: 0,
 			fontInfo: initialNotebookLayoutInfo?.fontInfo || null,
 			editorWidth: initialNotebookLayoutInfo?.width
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(initialNotebookLayoutInfo.width)
 				: 0,
-			bottomToolbarOffset: this.viewContext.notebookOptions.getLayoutConfiguration().bottomToolbarGap, // BOTTOM_CELL_TOOLBAR_GAP,
+			bottomToolbarOffset: bottomToolbarGap,
 			totalHeight: 0
 		};
 
@@ -131,6 +128,23 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._register(model.onDidChangeMetadata(e => {
 			if (this.metadata.inputCollapsed) {
 				this._onDidHideInput.fire();
+			}
+		}));
+
+		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
+			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+				const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
+				const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
+
+				if (this.getEditState() === CellEditState.Editing) {
+					this._updateTotalHeight(this._editorHeight
+						+ layoutConfiguration.markdownCellTopMargin
+						+ layoutConfiguration.markdownCellBottomMargin
+						+ bottomToolbarGap
+						+ this.viewContext.notebookOptions.computeStatusBarHeight());
+				} else {
+					this._updateTotalHeight(this._previewHeight + bottomToolbarGap);
+				}
 			}
 		}));
 	}
@@ -151,6 +165,12 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		this._onDidChangeState.fire({ foldingStateChanged: true });
 	}
 
+	private _updateTotalHeight(newHeight: number) {
+		if (newHeight !== this.layoutInfo.totalHeight) {
+			this.layoutChange({ totalHeight: newHeight });
+		}
+	}
+
 	layoutChange(state: MarkdownCellLayoutChangeEvent) {
 		// recompute
 		if (!this.metadata.inputCollapsed) {
@@ -158,19 +178,21 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;
 			const totalHeight = state.totalHeight === undefined ? this._layoutInfo.totalHeight : state.totalHeight;
+			const previewHeight = this._previewHeight;
 
 			this._layoutInfo = {
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
+				previewHeight,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight),
+				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
 				totalHeight
 			};
 		} else {
 			const editorWidth = state.outerWidth !== undefined
 				? this.viewContext.notebookOptions.computeMarkdownCellEditorWidth(state.outerWidth)
 				: this._layoutInfo.editorWidth;
-			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight();
+			const totalHeight = this.viewContext.notebookOptions.computeCollapsedMarkdownCellHeight(this.viewType);
 
 			state.totalHeight = totalHeight;
 
@@ -178,7 +200,8 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 				fontInfo: state.font || this._layoutInfo.fontInfo,
 				editorWidth,
 				editorHeight: this._editorHeight,
-				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight),
+				previewHeight: this._previewHeight,
+				bottomToolbarOffset: this.viewContext.notebookOptions.computeBottomToolbarOffset(totalHeight, this.viewType),
 				totalHeight
 			};
 		}
@@ -193,6 +216,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 			this._layoutInfo = {
 				fontInfo: this._layoutInfo.fontInfo,
 				editorWidth: this._layoutInfo.editorWidth,
+				previewHeight: this._layoutInfo.previewHeight,
 				bottomToolbarOffset: this._layoutInfo.bottomToolbarOffset,
 				totalHeight: totalHeight,
 				editorHeight: this._editorHeight

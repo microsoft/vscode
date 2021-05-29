@@ -20,7 +20,7 @@ import { EditorService } from 'vs/workbench/services/editor/browser/editorServic
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
-suite('Workbench editor', () => {
+suite('Workbench editor utils', () => {
 
 	class TestEditorInputWithPreferredResource extends TestEditorInput implements IEditorInputWithPreferredResource {
 

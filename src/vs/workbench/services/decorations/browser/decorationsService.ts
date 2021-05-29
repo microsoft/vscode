@@ -75,12 +75,9 @@ class DecorationRule {
 		const { color, letter } = data;
 		// label
 		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(theme, color)};`, element);
-		// icon
 		if (ThemeIcon.isThemeIcon(letter)) {
 			this._createIconCSSRule(letter, color, element, theme);
-		}
-		// letter
-		else if (letter) {
+		} else if (letter) {
 			createCSSRule(`.${this.itemBadgeClassName}::after`, `content: "${letter}"; color: ${getColor(theme, color)};`, element);
 		}
 	}
@@ -93,6 +90,7 @@ class DecorationRule {
 		// icon (only show first)
 		const icon = data.find(d => ThemeIcon.isThemeIcon(d.letter))?.letter as ThemeIcon | undefined;
 		if (icon) {
+			// todo@jrieken this is fishy. icons should be just like letter and not mute bubble badge
 			this._createIconCSSRule(icon, color, element, theme);
 		} else {
 			// badge
@@ -112,14 +110,26 @@ class DecorationRule {
 	}
 
 	private _createIconCSSRule(icon: ThemeIcon, color: string | undefined, element: HTMLStyleElement, theme: IColorTheme) {
-		const codicon = iconRegistry.get(icon.id);
+
+		const index = icon.id.lastIndexOf('~');
+		const id = index < 0 ? icon.id : icon.id.substr(0, index);
+		const modifier = index < 0 ? '' : icon.id.substr(index + 1);
+
+		const codicon = iconRegistry.get(id);
 		if (!codicon || !('fontCharacter' in codicon.definition)) {
 			return;
 		}
 		const charCode = parseInt(codicon.definition.fontCharacter.substr(1), 16);
 		createCSSRule(
 			`.${this.iconBadgeClassName}::after`,
-			`content: "${String.fromCharCode(charCode)}"; color: ${getColor(theme, color)}; font-family: codicon; font-size: 16px; padding-right: 14px; font-weight: normal`,
+			`content: "${String.fromCharCode(charCode)}";
+			color: ${getColor(theme, color)};
+			font-family: codicon;
+			font-size: 16px;
+			padding-right: 14px;
+			font-weight: normal;
+			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
+			`,
 			element
 		);
 	}

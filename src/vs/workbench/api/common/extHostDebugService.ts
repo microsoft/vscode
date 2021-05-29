@@ -48,8 +48,8 @@ export interface IExtHostDebugService extends ExtHostDebugServiceShape {
 	onDidChangeBreakpoints: Event<vscode.BreakpointsChangeEvent>;
 	breakpoints: vscode.Breakpoint[];
 
-	addBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void>;
-	removeBreakpoints(breakpoints0: vscode.Breakpoint[]): Promise<void>;
+	addBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
+	removeBreakpoints(breakpoints0: readonly vscode.Breakpoint[]): Promise<void>;
 	startDebugging(folder: vscode.WorkspaceFolder | undefined, nameOrConfig: string | vscode.DebugConfiguration, options: vscode.DebugSessionOptions): Promise<boolean>;
 	stopDebugging(session?: vscode.DebugSession): Promise<void>;
 	registerDebugConfigurationProvider(type: string, provider: vscode.DebugConfigurationProvider, trigger: vscode.DebugConfigurationProviderTriggerKind): vscode.Disposable;

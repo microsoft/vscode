@@ -9,9 +9,9 @@ import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -26,8 +26,8 @@ suite('Files - FileEditorInput', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
-	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string): FileEditorInput {
-		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode);
+	function createFileInput(resource: URI, preferredResource?: URI, preferredMode?: string, preferredName?: string, preferredDescription?: string, preferredContents?: string): FileEditorInput {
+		return instantiationService.createInstance(FileEditorInput, resource, preferredResource, preferredName, preferredDescription, undefined, preferredMode, preferredContents);
 	}
 
 	setup(() => {
@@ -56,6 +56,9 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
 		assert.ok(input.getTitle(Verbosity.SHORT));
+
+		const untypedInput = input.asResourceEditorInput(0);
+		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
 
 		assert.strictEqual('file.js', input.getName());
 
@@ -151,6 +154,32 @@ suite('Files - FileEditorInput', () => {
 
 		const model2 = await input2.resolve() as TextFileEditorModel;
 		assert.strictEqual(model2.textEditorModel!.getModeId(), mode);
+	});
+
+	test('preferred contents', async function () {
+		const input = createFileInput(toResource.call(this, '/foo/bar/file.js'), undefined, undefined, undefined, undefined, 'My contents');
+
+		const model = await input.resolve() as TextFileEditorModel;
+		assert.strictEqual(model.textEditorModel!.getValue(), 'My contents');
+		assert.strictEqual(input.isDirty(), true);
+
+		const untypedInput = input.asResourceEditorInput(0);
+		assert.strictEqual(untypedInput.contents, 'My contents');
+
+		input.setPreferredContents('Other contents');
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel!.getValue(), 'Other contents');
+
+		model.textEditorModel?.setValue('Changed contents');
+		await input.resolve();
+		assert.strictEqual(model.textEditorModel!.getValue(), 'Changed contents'); // preferred contents only used once
+
+		const input2 = createFileInput(toResource.call(this, '/foo/bar/file.js'));
+		input2.setPreferredContents('My contents');
+
+		const model2 = await input2.resolve() as TextFileEditorModel;
+		assert.strictEqual(model2.textEditorModel!.getValue(), 'My contents');
+		assert.strictEqual(input2.isDirty(), true);
 	});
 
 	test('matches', function () {
@@ -341,5 +370,46 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(didChangeLabelCounter, 0);
 
 		fileInput.dispose();
+	});
+
+	test('reports readonly changes', async function () {
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+
+		let listenerCount = 0;
+		const listener = input.onDidChangeCapabilities(() => {
+			listenerCount++;
+		});
+
+		const model = await accessor.textFileService.files.resolve(input.resource);
+
+		assert.strictEqual(model.isReadonly(), false);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+
+		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: true });
+			await input.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(model.isReadonly(), true);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(listenerCount, 1);
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: false });
+			await input.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(model.isReadonly(), false);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(listenerCount, 2);
+
+		input.dispose();
+		listener.dispose();
 	});
 });

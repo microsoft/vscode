@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { EditorOptions, CloseDirection, IEditorPartOptions, EditorsOrder } from 'vs/workbench/common/editor';
+import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -196,10 +196,10 @@ suite('EditorGroupsService', () => {
 		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
 
 		const rootGroupInput = new TestFileEditorInput(URI.file('foo/bar1'), TEST_EDITOR_INPUT_ID);
-		await rootGroup.openEditor(rootGroupInput, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(rootGroupInput, { pinned: true });
 
 		const rightGroupInput = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
-		await rightGroup.openEditor(rightGroupInput, EditorOptions.create({ pinned: true }));
+		await rightGroup.openEditor(rightGroupInput, { pinned: true });
 
 		assert.strictEqual(part.groups.length, 3);
 
@@ -293,7 +293,7 @@ suite('EditorGroupsService', () => {
 
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 
-		await rootGroup.openEditor(input, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(input, { pinned: true });
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT, { activate: true });
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
 		assert.strictEqual(groupAddedCounter, 2);
@@ -323,13 +323,13 @@ suite('EditorGroupsService', () => {
 		const input2 = new TestFileEditorInput(URI.file('foo/bar2'), TEST_EDITOR_INPUT_ID);
 		const input3 = new TestFileEditorInput(URI.file('foo/bar3'), TEST_EDITOR_INPUT_ID);
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(input1, { pinned: true });
 
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-		await rightGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await rightGroup.openEditor(input2, { pinned: true });
 
 		const downGroup = part.copyGroup(rootGroup, rightGroup, GroupDirection.DOWN);
-		await downGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+		await downGroup.openEditor(input3, { pinned: true });
 
 		part.activateGroup(rootGroup);
 
@@ -378,6 +378,7 @@ suite('EditorGroupsService', () => {
 		let editorCloseCounter = 0;
 		let editorPinCounter = 0;
 		let editorStickyCounter = 0;
+		let editorCapabilitiesCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
 				assert.ok(e.editor);
@@ -391,6 +392,9 @@ suite('EditorGroupsService', () => {
 			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
 				assert.ok(e.editor);
 				editorPinCounter++;
+			} else if (e.kind === GroupChangeKind.EDITOR_CAPABILITIES) {
+				assert.ok(e.editor);
+				editorCapabilitiesCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_STICKY) {
 				assert.ok(e.editor);
 				editorStickyCounter++;
@@ -410,8 +414,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
-		await group.openEditor(input, EditorOptions.create({ pinned: true }));
-		await group.openEditor(inputInactive, EditorOptions.create({ inactive: true }));
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputInactive, { inactive: true });
 
 		assert.strictEqual(group.isActive(input), true);
 		assert.strictEqual(group.isActive(inputInactive), false);
@@ -419,12 +423,19 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.contains(inputInactive), true);
 		assert.strictEqual(group.isEmpty, false);
 		assert.strictEqual(group.count, 2);
+		assert.strictEqual(editorCapabilitiesCounter, 0);
 		assert.strictEqual(editorDidOpenCounter, 2);
 		assert.strictEqual(activeEditorChangeCounter, 1);
 		assert.strictEqual(group.getEditorByIndex(0), input);
 		assert.strictEqual(group.getEditorByIndex(1), inputInactive);
 		assert.strictEqual(group.getIndexOfEditor(input), 0);
 		assert.strictEqual(group.getIndexOfEditor(inputInactive), 1);
+
+		input.capabilities = EditorInputCapabilities.RequiresTrust;
+		assert.strictEqual(editorCapabilitiesCounter, 1);
+
+		inputInactive.capabilities = EditorInputCapabilities.Singleton;
+		assert.strictEqual(editorCapabilitiesCounter, 2);
 
 		assert.strictEqual(group.previewEditor, inputInactive);
 		assert.strictEqual(group.isPinned(inputInactive), false);
@@ -1144,8 +1155,8 @@ suite('EditorGroupsService', () => {
 		const input = new TestFileEditorInput(URI.file('foo/bar'), TEST_EDITOR_INPUT_ID);
 		const inputInactive = new TestFileEditorInput(URI.file('foo/bar/inactive'), TEST_EDITOR_INPUT_ID);
 
-		await group.openEditor(input, EditorOptions.create({ pinned: true }));
-		await group.openEditor(inputInactive, EditorOptions.create({ inactive: true }));
+		await group.openEditor(input, { pinned: true });
+		await group.openEditor(inputInactive, { inactive: true });
 
 		assert.strictEqual(group.stickyCount, 0);
 		assert.strictEqual(group.isSticky(input), false);
@@ -1206,7 +1217,7 @@ suite('EditorGroupsService', () => {
 
 		const inputSticky = new TestFileEditorInput(URI.file('foo/bar/sticky'), TEST_EDITOR_INPUT_ID);
 
-		await group.openEditor(inputSticky, EditorOptions.create({ sticky: true }));
+		await group.openEditor(inputSticky, { sticky: true });
 
 		assert.strictEqual(group.stickyCount, 2);
 		assert.strictEqual(group.isSticky(input), false);
@@ -1217,7 +1228,7 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(group.getIndexOfEditor(inputSticky), 1);
 		assert.strictEqual(group.getIndexOfEditor(input), 2);
 
-		await group.openEditor(input, EditorOptions.create({ sticky: true }));
+		await group.openEditor(input, { sticky: true });
 
 		assert.strictEqual(group.stickyCount, 3);
 		assert.strictEqual(group.isSticky(input), true);

@@ -11,6 +11,8 @@ export const configureKernelIcon = registerIcon('notebook-kernel-configure', Cod
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
+export const executeAboveIcon = registerIcon('notebook-execute-above', Codicon.runAbove, localize('executeAboveIcon', 'Icon to execute above cells in notebook editors.'));
+export const executeBelowIcon = registerIcon('notebook-execute-below', Codicon.runBelow, localize('executeBelowIcon', 'Icon to execute below cells in notebook editors.'));
 export const stopIcon = registerIcon('notebook-stop', Codicon.primitiveSquare, localize('stopIcon', 'Icon to stop an execution in notebook editors.'));
 export const deleteCellIcon = registerIcon('notebook-delete-cell', Codicon.trash, localize('deleteCellIcon', 'Icon to delete a cell in notebook editors.'));
 export const executeAllIcon = registerIcon('notebook-execute-all', Codicon.runAll, localize('executeAllIcon', 'Icon to execute all cells in notebook editors.'));

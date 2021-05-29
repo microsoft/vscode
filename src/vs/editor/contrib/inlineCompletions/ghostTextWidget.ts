@@ -21,7 +21,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -52,7 +52,7 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 
 	public get expanded() {
 		if (this._expanded === undefined) {
-			return this.editor.getOption(EditorOption.suggest).suggestionPreviewExpanded;
+			return this.editor.getOption(EditorOption.suggest).ghostTextExpanded;
 		}
 		return this._expanded;
 	}
@@ -81,7 +81,6 @@ export class GhostTextWidget extends Disposable {
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
-	private viewMoreContentWidget2: ViewMoreLinesContentWidget | null = null;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -110,6 +109,10 @@ export class GhostTextWidget extends Disposable {
 
 	public get model(): GhostTextWidgetModel | undefined {
 		return this.modelRef.value?.object;
+	}
+
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return (this.viewZoneId === viewZoneId);
 	}
 
 	public setModel(model: GhostTextWidgetModel | undefined): void {
@@ -151,8 +154,8 @@ export class GhostTextWidget extends Disposable {
 
 		if (renderData) {
 			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
-			let opacity = '0.467';
-			let color = 'white';
+			let opacity: string | undefined = undefined;
+			let color: string | undefined = undefined;
 			if (suggestPreviewForeground) {
 				function opaque(color: Color): Color {
 					const { r, b, g } = color.rgba;
@@ -164,10 +167,18 @@ export class GhostTextWidget extends Disposable {
 			}
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
-			this._codeEditorService.registerDecorationType(this.codeEditorDecorationTypeKey, {
+
+			const line = this.editor.getModel()?.getLineContent(renderData.position.lineNumber) || '';
+			const linePrefix = line.substr(0, renderData.position.column - 1);
+
+			const opts = this.editor.getOptions();
+			const renderWhitespace = opts.get(EditorOption.renderWhitespace);
+			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, renderWhitespace === 'all');
+
+			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
 				after: {
 					// TODO: escape?
-					contentText: renderData.lines[0],
+					contentText,
 					opacity,
 					color,
 				},
@@ -179,7 +190,6 @@ export class GhostTextWidget extends Disposable {
 			newDecorations.push({
 				range: Range.fromPositions(renderData.position, renderData.position),
 				options: {
-					hoverMessage: new MarkdownString('⬅️ Previous | Next ➡️'),
 					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
 				}
 			});
@@ -189,11 +199,6 @@ export class GhostTextWidget extends Disposable {
 		if (this.viewMoreContentWidget) {
 			this.viewMoreContentWidget.dispose();
 			this.viewMoreContentWidget = null;
-		}
-
-		if (this.viewMoreContentWidget2) {
-			this.viewMoreContentWidget2.dispose();
-			this.viewMoreContentWidget2 = null;
 		}
 
 		this.editor.changeViewZones((changeAccessor) => {
@@ -313,6 +318,41 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
+function renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
+	const newLine = lineStart + text;
+	const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+
+
+	let contentText = '';
+	let curCol = lineStart.length + 1;
+	for (const c of text) {
+		if (c === '\t') {
+			const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+			if (renderWhitespace) {
+				contentText += '→';
+				for (let i = 1; i < width; i++) {
+					contentText += '\xa0';
+				}
+			} else {
+				for (let i = 0; i < width; i++) {
+					contentText += '\xa0';
+				}
+			}
+		} else if (c === ' ') {
+			if (renderWhitespace) {
+				contentText += '·';
+			} else {
+				contentText += '\xa0';
+			}
+		} else {
+			contentText += c;
+		}
+		curCol += 1;
+	}
+
+	return contentText;
+}
+
 class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = false;
 	readonly suppressMouseDown = false;
@@ -349,8 +389,18 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 
 registerThemingParticipant((theme, collector) => {
 	const suggestPreviewForeground = theme.getColor(editorSuggestPreviewOpacity);
+
 	if (suggestPreviewForeground) {
-		collector.addRule(`.monaco-editor .suggest-preview-text { opacity: ${suggestPreviewForeground.rgba.a}; }`);
+		function opaque(color: Color): Color {
+			const { r, b, g } = color.rgba;
+			return new Color(new RGBA(r, g, b, 255));
+		}
+
+		const opacity = String(suggestPreviewForeground.rgba.a);
+		const color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
+
+		// We need to override the only used token type .mtk1
+		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { opacity: ${opacity}; color: ${color}; }`);
 	}
 
 	const suggestPreviewBorder = theme.getColor(editorSuggestPreviewBorder);

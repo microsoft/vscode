@@ -10,6 +10,7 @@ import { IJSONSchema, IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 
 const terminalProfileBaseProperties: IJSONSchemaMap = {
 	args: {
@@ -295,12 +296,6 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
-		[TerminalSettingId.AllowWorkspaceConfiguration]: {
-			scope: ConfigurationScope.APPLICATION,
-			description: localize('terminal.integrated.allowWorkspaceConfiguration', "Allows shell and profile settings to be pick up from a workspace."),
-			type: 'boolean',
-			default: false
-		},
 		[TerminalSettingId.InheritEnv]: {
 			scope: ConfigurationScope.APPLICATION,
 			description: localize('terminal.integrated.inheritEnv', "Whether new shells should inherit their environment from VS Code which may source a login shell to ensure $PATH and other development variables are initialized. This has no effect on Windows."),
@@ -352,7 +347,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 			},
 			[TerminalSettingId.DefaultProfileMacOs]: {
 				restricted: true,
-				description: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.osx', "The default profile used on macOS. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.osx#`', '`#terminal.integrated.shellArgs.osx#`'),
 				type: ['string', 'null'],
 				default: null,
 				enum: detectedProfiles?.os === OperatingSystem.Macintosh ? enumValues : undefined,
@@ -360,7 +355,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 			},
 			[TerminalSettingId.DefaultProfileWindows]: {
 				restricted: true,
-				description: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
+				markdownDescription: localize('terminal.integrated.defaultProfile.windows', "The default profile used on Windows. This setting will currently be ignored if either {0} or {1} are set.", '`#terminal.integrated.shell.windows#`', '`#terminal.integrated.shellArgs.windows#`'),
 				type: ['string', 'null'],
 				default: null,
 				enum: detectedProfiles?.os === OperatingSystem.Windows ? enumValues : undefined,
@@ -372,7 +367,7 @@ export function registerTerminalDefaultProfileConfiguration(detectedProfiles?: {
 }
 
 function createProfileDescription(profile: ITerminalProfile): string {
-	let description = `$(${profile.icon || Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
+	let description = `$(${ThemeIcon.isThemeIcon(profile.icon) ? profile.icon.id : profile.icon ? profile.icon : Codicon.terminal.id}) ${profile.profileName}\n- path: ${profile.path}`;
 	if (profile.args) {
 		if (typeof profile.args === 'string') {
 			description += `\n- args: "${profile.args}"`;

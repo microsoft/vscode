@@ -82,7 +82,10 @@ export class EditorGroupModel extends Disposable {
 	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
 
 	private readonly _onDidChangeEditorLabel = this._register(new Emitter<EditorInput>());
-	readonly onDidEditorLabelChange = this._onDidChangeEditorLabel.event;
+	readonly onDidChangeEditorLabel = this._onDidChangeEditorLabel.event;
+
+	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
+	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
 
 	private readonly _onDidMoveEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidMoveEditor = this._onDidMoveEditor.event;
@@ -331,6 +334,11 @@ export class EditorGroupModel extends Disposable {
 		// Re-Emit label changes
 		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidChangeEditorLabel.fire(editor);
+		}));
+
+		// Re-Emit capability changes
+		listeners.add(editor.onDidChangeCapabilities(() => {
+			this._onDidChangeEditorCapabilities.fire(editor);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed

@@ -43,7 +43,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -53,6 +53,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -581,7 +582,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rootElement.focus();
 	}
 
-	override async setInput(input: WorkspaceTrustEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: WorkspaceTrustEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }
@@ -778,7 +779,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.affectedFeaturesContainer = append(parent, $('.workspace-trust-features'));
 	}
 
-	private renderAffectedFeatures(numSettings: number, numExtensions: number): void {
+	private async renderAffectedFeatures(numSettings: number, numExtensions: number): Promise<void> {
 		clearNode(this.affectedFeaturesContainer);
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
 		const [trustedTitle, trustedSubTitle] = this.getFeaturesHeaderText(true);
@@ -802,13 +803,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
 				this.addTrustedTextToElement(untrustedContainer);
 			}
 		} else {
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(trustedContainer);
 			}
 		}

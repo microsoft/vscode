@@ -61,7 +61,7 @@ abstract class BaseZoomAction extends Action2 {
 
 	private static readonly SETTING_KEY = 'window.zoomLevel';
 
-	private static readonly MAX_ZOOM_LEVEL = 9;
+	private static readonly MAX_ZOOM_LEVEL = 8;
 	private static readonly MIN_ZOOM_LEVEL = -8;
 
 	constructor(desc: Readonly<IAction2Options>) {

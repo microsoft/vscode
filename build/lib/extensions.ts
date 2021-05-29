@@ -5,6 +5,7 @@
 
 import * as es from 'event-stream';
 import * as fs from 'fs';
+import * as cp from 'child_process';
 import * as glob from 'glob';
 import * as gulp from 'gulp';
 import * as path from 'path';
@@ -19,6 +20,7 @@ import * as fancyLog from 'fancy-log';
 import * as ansiColors from 'ansi-colors';
 const buffer = require('gulp-buffer');
 import * as jsoncParser from 'jsonc-parser';
+import webpack = require('webpack');
 const util = require('./util');
 const root = path.dirname(path.dirname(__dirname));
 const commit = util.getVersion(root);
@@ -402,4 +404,139 @@ export function translatePackageJSON(packageJSON: string, packageNLSPath: string
 	};
 	translate(packageJSON);
 	return packageJSON;
+}
+
+const extensionsPath = path.join(root, 'extensions');
+
+// Additional projects to webpack. These typically build code for webviews
+const webpackMediaConfigFiles = [
+	'markdown-language-features/webpack.config.js',
+	'simple-browser/webpack.config.js',
+];
+
+// Additional projects to run esbuild on. These typically build code for webviews
+const esbuildMediaScripts = [
+	'markdown-language-features/esbuild.js',
+	'notebook-markdown-extensions/esbuild.js',
+];
+
+export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {
+	const webpack = require('webpack') as typeof import('webpack');
+
+	const webpackConfigs: webpack.Configuration[] = [];
+
+	for (const { configPath, outputRoot } of webpackConfigLocations) {
+		const configOrFnOrArray = require(configPath);
+		function addConfig(configOrFn: webpack.Configuration | Function) {
+			let config;
+			if (typeof configOrFn === 'function') {
+				config = configOrFn({}, {});
+				webpackConfigs.push(config);
+			} else {
+				config = configOrFn;
+			}
+
+			if (outputRoot) {
+				config.output.path = path.join(outputRoot, path.relative(path.dirname(configPath), config.output.path));
+			}
+
+			webpackConfigs.push(configOrFn);
+		}
+		addConfig(configOrFnOrArray);
+	}
+	function reporter(fullStats: any) {
+		if (Array.isArray(fullStats.children)) {
+			for (const stats of fullStats.children) {
+				const outputPath = stats.outputPath;
+				if (outputPath) {
+					const relativePath = path.relative(extensionsPath, outputPath).replace(/\\/g, '/');
+					const match = relativePath.match(/[^\/]+(\/server|\/client)?/);
+					fancyLog(`Finished ${ansiColors.green(taskName)} ${ansiColors.cyan(match![0])} with ${stats.errors.length} errors.`);
+				}
+				if (Array.isArray(stats.errors)) {
+					stats.errors.forEach((error: any) => {
+						fancyLog.error(error);
+					});
+				}
+				if (Array.isArray(stats.warnings)) {
+					stats.warnings.forEach((warning: any) => {
+						fancyLog.warn(warning);
+					});
+				}
+			}
+		}
+	}
+	return new Promise<void>((resolve, reject) => {
+		if (isWatch) {
+			webpack(webpackConfigs).watch({}, (err, stats) => {
+				if (err) {
+					reject();
+				} else {
+					reporter(stats.toJson());
+				}
+			});
+		} else {
+			webpack(webpackConfigs).run((err, stats) => {
+				if (err) {
+					fancyLog.error(err);
+					reject();
+				} else {
+					reporter(stats.toJson());
+					resolve();
+				}
+			});
+		}
+	});
+}
+
+async function esbuildExtensions(taskName: string, isWatch: boolean, scripts: { script: string, outputRoot?: string }[]) {
+	function reporter(stdError: string, script: string) {
+		const matches = (stdError || '').match(/\> (.+): error: (.+)?/g);
+		fancyLog(`Finished ${ansiColors.green(taskName)} ${script} with ${matches ? matches.length : 0} errors.`);
+		for (const match of matches || []) {
+			fancyLog.error(match);
+		}
+	}
+
+	const tasks = scripts.map(({ script, outputRoot }) => {
+		return new Promise<void>((resolve, reject) => {
+			const args = [script];
+			if (isWatch) {
+				args.push('--watch');
+			}
+			if (outputRoot) {
+				args.push('--outputRoot', outputRoot);
+			}
+			const proc = cp.execFile(process.argv[0], args, {}, (error, _stdout, stderr) => {
+				if (error) {
+					return reject(error);
+				}
+				reporter(stderr, script);
+				if (stderr) {
+					return reject();
+				}
+				return resolve();
+			});
+
+			proc.stdout!.on('data', (data) => {
+				fancyLog(`${ansiColors.green(taskName)}: ${data.toString('utf8')}`);
+			});
+		});
+	});
+	return Promise.all(tasks);
+}
+
+export async function buildExtensionMedia(isWatch: boolean, outputRoot?: string) {
+	return Promise.all([
+		webpackExtensions('webpacking extension media', isWatch, webpackMediaConfigFiles.map(p => {
+			return {
+				configPath: path.join(extensionsPath, p),
+				outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+			};
+		})),
+		esbuildExtensions('esbuilding extension media', isWatch, esbuildMediaScripts.map(p => ({
+			script: path.join(extensionsPath, p),
+			outputRoot: outputRoot ? path.join(root, outputRoot, path.dirname(p)) : undefined
+		}))),
+	]);
 }

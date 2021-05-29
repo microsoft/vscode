@@ -110,10 +110,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
-	getSafeConfigValueFullKey(key: string): unknown | undefined;
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -208,7 +205,6 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
-	allowWorkspaceConfiguration: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -574,12 +570,20 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 ];
 
 export interface ITerminalContributions {
+	/** @deprecated */
 	types?: ITerminalTypeContribution[];
+	profiles?: ITerminalProfileContribution[];
 }
 
 export interface ITerminalTypeContribution {
 	title: string;
 	command: string;
+	icon?: string;
+}
+
+export interface ITerminalProfileContribution {
+	title: string;
+	id: string;
 	icon?: string;
 }
 
@@ -607,6 +611,28 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 						},
 						icon: {
 							description: nls.localize('vscode.extension.contributes.terminal.types.icon', "A codicon to associate with this terminal type."),
+							type: 'string',
+						},
+					},
+				},
+			},
+			profiles: {
+				type: 'array',
+				description: nls.localize('vscode.extension.contributes.terminal.profiles', "Defines additional terminal profiles that the user can create."),
+				items: {
+					type: 'object',
+					required: ['id', 'title'],
+					properties: {
+						command: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),
+							type: 'string',
+						},
+						title: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.title', "Title for this terminal profile."),
+							type: 'string',
+						},
+						icon: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.icon', "A codicon to associate with this terminal profile."),
 							type: 'string',
 						},
 					},

@@ -171,6 +171,8 @@ export interface ISerializedTestResults {
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
 	tasks: ITestRunTask[];
+	/** Human-readable name of the test run. */
+	name: string;
 }
 
 export const enum TestDiffOpType {

@@ -61,9 +61,10 @@ export namespace Iterable {
 		}
 	}
 
-	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T) => R): Iterable<R> {
+	export function* map<T, R>(iterable: Iterable<T>, fn: (t: T, index: number) => R): Iterable<R> {
+		let index = 0;
 		for (const element of iterable) {
-			yield fn(element);
+			yield fn(element, index++);
 		}
 	}
 

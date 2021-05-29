@@ -445,7 +445,7 @@ export class PaneView extends Disposable {
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
-	readonly onScroll: Event<ScrollEvent>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
 		super();
@@ -455,7 +455,7 @@ export class PaneView extends Disposable {
 		this.element = append(container, $('.monaco-pane-view'));
 		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
-		this.onScroll = this.splitview.onScroll;
+		this.onDidScroll = this.splitview.onDidScroll;
 	}
 
 	addPane(pane: Pane, size: number, index = this.splitview.length): void {

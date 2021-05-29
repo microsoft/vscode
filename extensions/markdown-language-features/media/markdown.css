@@ -106,6 +106,13 @@ body.showEditorSelection li.code-line:hover:before {
 	border-left: none;
 }
 
+ul ul,
+ul ol,
+ol ul,
+ol ol {
+	margin-bottom: 0;
+}
+
 img {
 	max-width: 100%;
 	max-height: 100%;

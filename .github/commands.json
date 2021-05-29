@@ -90,7 +90,7 @@
 			"@author"
 		],
 		"action": "updateLabels",
-		"addLabel": "z-author-verified",
+		"addLabel": "verified",
 		"removeLabel": "author-verification-requested",
 		"requireLabel": "author-verification-requested",
 		"disallowLabel": "unreleased"

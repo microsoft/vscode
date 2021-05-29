@@ -249,6 +249,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	}
 
 	private static readonly _DECORATION_OPTIONS_WITH_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match',
 		overviewRuler: {
@@ -258,6 +259,7 @@ export class BracketMatchingController extends Disposable implements IEditorCont
 	});
 
 	private static readonly _DECORATION_OPTIONS_WITHOUT_OVERVIEW_RULER = ModelDecorationOptions.register({
+		description: 'bracket-match-no-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'bracket-match'
 	});

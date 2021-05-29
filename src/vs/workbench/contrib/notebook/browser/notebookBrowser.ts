@@ -26,8 +26,8 @@ import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/cont
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -68,6 +68,8 @@ export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebo
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
+
+export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
 
 //#endregion
 
@@ -235,6 +237,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
+	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -242,6 +245,8 @@ export interface MarkdownCellLayoutInfo {
 export interface MarkdownCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
+	editorHeight?: number;
+	previewHeight?: number;
 	totalHeight?: number;
 }
 
@@ -320,23 +325,10 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
-export class NotebookEditorOptions extends EditorOptions {
-
-	readonly cellOptions?: IResourceEditorInput;
+export interface INotebookEditorOptions extends ITextEditorOptions {
+	readonly cellOptions?: ITextResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
-
-	constructor(options: Partial<NotebookEditorOptions>) {
-		super();
-		this.overwrite(options);
-		this.cellOptions = options.cellOptions;
-		this.cellSelections = options.cellSelections;
-		this.isReadOnly = options.isReadOnly;
-	}
-
-	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
-		return new NotebookEditorOptions({ ...this, ...options });
-	}
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
@@ -406,7 +398,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
-	setOptions(options: NotebookEditorOptions | undefined): Promise<void>;
+	setOptions(options: INotebookEditorOptions | undefined): Promise<void>;
 
 	/**
 	 * Select & focus cell

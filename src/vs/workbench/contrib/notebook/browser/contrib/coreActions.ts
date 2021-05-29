@@ -18,7 +18,7 @@ import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/context
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
-import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CellFocusMode, EXECUTE_CELL_COMMAND_ID, EXPAND_CELL_INPUT_COMMAND_ID, getNotebookEditorFromEditorPane, IActiveNotebookEditor, ICellViewModel, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_HAS_OUTPUTS, NOTEBOOK_CELL_INPUT_COLLAPSED, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_MARKDOWN_EDIT_MODE, NOTEBOOK_CELL_OUTPUT_COLLAPSED, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_KERNEL_COUNT, NOTEBOOK_INTERRUPTIBLE_KERNEL, NOTEBOOK_HAS_RUNNING_CELL, CHANGE_CELL_LANGUAGE, QUIT_EDIT_CELL_COMMAND_ID, NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON, NOTEBOOK_HAS_OUTPUTS } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, ICellEditOperation, isDocumentExcludePattern, NotebookCellMetadata, NotebookCellExecutionState, TransientCellMetadata, TransientDocumentMetadata, SelectionStateType, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, isICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -34,7 +34,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 
 // Kernel Command
@@ -62,6 +62,8 @@ const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
+const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
+const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
@@ -409,6 +411,74 @@ function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[])
 	const context = getContextFromActiveEditor(accessor.get(IEditorService));
 	return context;
 }
+
+registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELLS_ABOVE,
+			precondition: executeCellCondition,
+			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
+			menu: {
+				id: MenuId.NotebookCellExecute,
+				when: executeCellCondition
+			},
+			icon: icons.executeAboveIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		let endCellIdx: number | undefined = undefined;
+		if (context.ui && context.cell) {
+			endCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		} else if (context.selectedCells) {
+			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+		}
+
+		if (typeof endCellIdx === 'number') {
+			const range = { start: 0, end: endCellIdx };
+			const cells = context.notebookEditor.viewModel.getCells(range);
+			context.notebookEditor.executeNotebookCells(cells);
+		}
+	}
+});
+
+registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELL_AND_BELOW,
+			precondition: executeCellCondition,
+			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
+			menu: {
+				id: MenuId.NotebookCellExecute,
+				when: executeCellCondition,
+			},
+			icon: icons.executeBelowIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		let startCellIdx: number | undefined = undefined;
+		if (context.ui && context.cell) {
+			startCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		} else if (context.selectedCells) {
+			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+		}
+
+		if (typeof startCellIdx === 'number') {
+			const range = { start: startCellIdx, end: context.notebookEditor.viewModel.viewCells.length };
+			const cells = context.notebookEditor.viewModel.getCells(range);
+			context.notebookEditor.executeNotebookCells(cells);
+		}
+	}
+});
 
 registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
@@ -1578,6 +1648,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 		super({
 			id: CLEAR_ALL_CELLS_OUTPUTS_COMMAND_ID,
 			title: localize('clearAllCellsOutputs', 'Clear Outputs'),
+			precondition: NOTEBOOK_HAS_OUTPUTS,
 			menu: [
 				{
 					id: MenuId.EditorTitle,
@@ -1590,7 +1661,10 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 				},
 				{
 					id: MenuId.NotebookToolbar,
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						executeNotebookCondition,
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					),
 					group: 'navigation/execute',
 					order: 0
 				}

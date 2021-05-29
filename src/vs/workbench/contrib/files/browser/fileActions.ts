@@ -454,8 +454,8 @@ export class GlobalCompareResourcesAction extends Action {
 				const resource = (picks[0] as unknown as { resource: unknown }).resource;
 				if (URI.isUri(resource) && this.textModelService.canHandleResource(resource)) {
 					this.editorService.openEditor({
-						leftResource: activeResource,
-						rightResource: resource,
+						originalInput: { resource: activeResource },
+						modifiedInput: { resource: resource },
 						options: { pinned: true }
 					});
 				}
@@ -730,8 +730,9 @@ export class CompareWithClipboardAction extends Action {
 			const editorLabel = nls.localize('clipboardComparisonLabel', "Clipboard ↔ {0}", name);
 
 			await this.editorService.openEditor({
-				leftResource: resource.with({ scheme }),
-				rightResource: resource, label: editorLabel,
+				originalInput: { resource: resource.with({ scheme }) },
+				modifiedInput: { resource: resource },
+				label: editorLabel,
 				options: { pinned: true }
 			}).finally(() => {
 				dispose(this.registrationDisposal);
