@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CompactView, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CompactView, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -20,13 +20,16 @@ const profiles = {
 		[FocusIndicator]: 'border',
 		[InsertToolbarPosition]: 'both',
 		[GlobalToolbar]: false,
-		[CompactView]: false,
+		[CellToolbarLocation]: { default: 'right' },
+		[CompactView]: true,
 		[ShowCellStatusBarKey]: true,
+		[ShowCellStatusBarAfterExecuteKey]: false,
 	},
 	[NotebookProfileType.jupyter]: {
 		[FocusIndicator]: 'gutter',
 		[InsertToolbarPosition]: 'notebookToolbar',
 		[GlobalToolbar]: true,
+		[CellToolbarLocation]: { default: 'left' },
 		[CompactView]: true,
 		[ShowCellStatusBarKey]: true,
 	},
@@ -34,7 +37,8 @@ const profiles = {
 		[FocusIndicator]: 'border',
 		[InsertToolbarPosition]: 'betweenCells',
 		[GlobalToolbar]: false,
-		[CompactView]: true,
+		[CellToolbarLocation]: { default: 'right' },
+		[CompactView]: false,
 		[ShowCellStatusBarKey]: false,
 	}
 };
