@@ -85,7 +85,6 @@ export class Application {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
-		await this.code.waitForElement('.explorer-folders-view');
 		await this.dismissTrustDialog();
 	}
 

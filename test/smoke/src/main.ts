@@ -304,7 +304,6 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		setupDataNotebookTests(opts);
 		setupDataLanguagesTests(opts);
 		setupDataEditorTests(opts);
-		// setupDataStatusbarTests(!!opts.web);
 		setupDataStatusbarTests(opts);
 		setupDataExtensionTests(opts);
 		if (!opts.web) { setupDataMultirootTests(opts); }
