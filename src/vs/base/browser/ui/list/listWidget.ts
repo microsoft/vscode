@@ -662,21 +662,26 @@ export class MouseController<T> implements IDisposable {
 		const focus = e.index!;
 		const anchor = this.list.getAnchor();
 
-		if (this.isSelectionRangeChangeEvent(e) && typeof anchor === 'number') {
-			const min = Math.min(anchor, focus);
-			const max = Math.max(anchor, focus);
-			const rangeSelection = range(min, max + 1);
-			const selection = this.list.getSelection();
-			const contiguousRange = getContiguousRangeContaining(disjunction(selection, [anchor]), anchor);
+		if (this.isSelectionRangeChangeEvent(e)) {
+			if (typeof anchor === 'number') {
+				const min = Math.min(anchor, focus);
+				const max = Math.max(anchor, focus);
+				const rangeSelection = range(min, max + 1);
+				const selection = this.list.getSelection();
+				const contiguousRange = getContiguousRangeContaining(disjunction(selection, [anchor]), anchor);
 
-			if (contiguousRange.length === 0) {
-				return;
+				if (contiguousRange.length === 0) {
+					return;
+				}
+
+				const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
+				this.list.setSelection(newSelection, e.browserEvent);
+				this.list.setFocus([focus], e.browserEvent);
+			} else { // shift + click when there isn't an anchor, https://github.com/microsoft/vscode/issues/122402
+				this.list.setSelection([focus], e.browserEvent);
+				this.list.setFocus([focus], e.browserEvent);
+				this.list.setAnchor(focus);
 			}
-
-			const newSelection = disjunction(rangeSelection, relativeComplement(selection, contiguousRange));
-			this.list.setSelection(newSelection, e.browserEvent);
-			this.list.setFocus([focus], e.browserEvent);
-
 		} else if (this.isSelectionSingleChangeEvent(e)) {
 			const selection = this.list.getSelection();
 			const newSelection = selection.filter(i => i !== focus);
