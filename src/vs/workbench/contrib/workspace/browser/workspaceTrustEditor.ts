@@ -188,7 +188,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			currentWorkspaceUris.push(currentWorkspace.configuration);
 		}
 
-		const entries = this.workspaceTrustManagementService.getTrustedFolders().map(uri => {
+		const entries = this.workspaceTrustManagementService.getTrustedUris().map(uri => {
 
 			let relatedToCurrentWorkspace = false;
 			for (const workspaceUri of currentWorkspaceUris) {
@@ -215,7 +215,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
-		const trustedFolders = this.workspaceTrustManagementService.getTrustedFolders();
+		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = this.getIndexOfTrustedUriEntry(item);
 
 		if (index >= trustedFolders.length) {
@@ -224,7 +224,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedFolders(trustedFolders);
+		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 		this._onDidAcceptEdit.fire(item);
 	}
 
@@ -803,13 +803,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
 				this.addTrustedTextToElement(untrustedContainer);
 			}
 		} else {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(trustedContainer);
 			}
 		}
