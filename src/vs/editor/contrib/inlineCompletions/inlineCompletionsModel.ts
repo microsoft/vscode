@@ -434,11 +434,17 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 		return undefined;
 	}
 
+	const position = inlineCompletion.range.getEndPosition();
 	const lines = strings.splitLines(inlineCompletion.text.substr(valueToBeReplaced.length));
+
+	if (lines.length > 1 && textModel.getLineMaxColumn(position.lineNumber) !== position.column) {
+		// Such ghost text is not supported.
+		return undefined;
+	}
 
 	return {
 		lines,
-		position: inlineCompletion.range.getEndPosition()
+		position
 	};
 }
 
