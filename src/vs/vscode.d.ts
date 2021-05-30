@@ -670,6 +670,12 @@ declare module 'vscode' {
 		 */
 		lineNumbers?: TextEditorLineNumbersStyle;
 
+		/**
+		 * An array of save participant id's that should be skipped
+		 * when the model is saved.
+		 * When getting a text editor's options, this property will always be present.
+		 * When setting a text editor's options, this property is optional.
+		 */
 		skipSaveParticipants?: string[];
 	}
 
