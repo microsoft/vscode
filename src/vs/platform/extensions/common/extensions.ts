@@ -3,47 +3,47 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as strings from 'vs/base/common/strings';
-import { ILocalization } from 'vs/platform/localizations/common/localizations';
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+ *  strings 'vs/base/common/strings';
+ { ILocalization }  'vs/platform/localizations/common/localizations';
+ { URI } 'vs/base/common/uri';
+ { createDecorator } 'vs/platform/instantiation/common/instantiation';
 
-export const MANIFEST_CACHE_FOLDER = 'CachedExtensions';
-export const USER_MANIFEST_CACHE_FILE = 'user';
-export const BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
+ MANIFEST_CACHE_FOLDER = 'CachedExtensions';
+ USER_MANIFEST_CACHE_FILE = 'user';
+ BUILTIN_MANIFEST_CACHE_FILE = 'builtin';
 
-export interface ICommand {
+ ICommand {
 	command: string;
-	title: string;
+	: string;
 	category?: string;
 }
 
-export interface IConfigurationProperty {
+ IConfigurationProperty {
 	description: string;
-	type: string | string[];
+	: string | string[];
 	default?: any;
 }
 
-export interface IConfiguration {
+ IConfiguration {
 	properties: { [key: string]: IConfigurationProperty; };
 }
 
-export interface IDebugger {
+ IDebugger {
 	label?: string;
-	type: string;
+	: string;
 	runtime?: string;
 }
 
-export interface IGrammar {
+ IGrammar {
 	language: string;
 }
 
-export interface IJSONValidation {
+ IJSONValidation {
 	fileMatch: string | string[];
 	url: string;
 }
 
-export interface IKeyBinding {
+ IKeyBinding {
 	command: string;
 	key: string;
 	when?: string;
@@ -52,99 +52,100 @@ export interface IKeyBinding {
 	win?: string;
 }
 
-export interface ILanguage {
+ ILanguage {
 	id: string;
 	extensions: string[];
 	aliases: string[];
 }
 
-export interface IMenu {
+ IMenu {
 	command: string;
 	alt?: string;
-	when?: string;
+	?: string;
 	group?: string;
 }
-
-export interface ISnippet {
+ 
+ISnippet {
 	language: string;
 }
 
-export interface ITheme {
+ ITheme {
 	label: string;
 }
 
-export interface IViewContainer {
+ IViewContainer {
 	id: string;
 	title: string;
 }
 
-export interface IView {
+ IView {
 	id: string;
 	name: string;
 }
 
-export interface IColor {
+ IColor {
 	id: string;
 	description: string;
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
-export interface IWebviewEditor {
-	readonly viewType: string;
-	readonly priority: string;
-	readonly selector: readonly {
-		readonly filenamePattern?: string;
+ IWebviewEditor {
+	 viewType: string;
+	 priority: string;
+	 selector:  {
+		 filenamePattern?: string;
 	}[];
 }
 
-export interface ICodeActionContributionAction {
-	readonly kind: string;
-	readonly title: string;
-	readonly description?: string;
+ ICodeActionContributionAction {
+	 kind: string;
+	 title: string;
+	 description?: string;
 }
 
-export interface ICodeActionContribution {
-	readonly languages: readonly string[];
-	readonly actions: readonly ICodeActionContributionAction[];
+ ICodeActionContribution {
+	 languages: 
+ string[];
+	 actions: ICodeActionContributionAction[];
 }
 
-export interface IAuthenticationContribution {
-	readonly id: string;
-	readonly label: string;
+ IAuthenticationContribution {
+	 id: string;
+	 label: string;
 }
 
-export interface IWalkthroughStep {
-	readonly id: string;
-	readonly title: string;
-	readonly description: string | undefined;
-	readonly media:
-	| { image: string | { dark: string, light: string, hc: string }, altText: string, markdown?: never }
-	| { markdown: string, image?: never }
-	readonly completionEvents?: string[];
+ IWalkthroughStep {
+	 id: string;
+	 title: string;
+	 description: string   undefined;
+	 media:
+	| { image: string  { dark: string, light: string, hc: string }, altText: string, markdown?:  }
+	| { markdown: string, image?:  }
+	 completionEvents?:  [];
 	/** @deprecated use `completionEvents: 'onCommand:...'` */
-	readonly doneOn?: { command: string };
-	readonly when?: string;
+	 doneOn?: { command:  };
+	 ?: string;
 }
 
-export interface IWalkthrough {
-	readonly id: string,
-	readonly title: string;
-	readonly description: string;
-	readonly steps: IWalkthroughStep[];
-	readonly when?: string;
+ IWalkthrough {
+	 id: string,
+	 title: string;
+	 description: string;
+	 steps: IWalkthroughStep[];
+	 ?: string;
 }
 
-export interface IStartEntry {
-	readonly title: string;
-	readonly description: string;
-	readonly command: string;
-	readonly type?: 'sample-folder' | 'sample-notebook' | string;
-	readonly when?: string;
-}
+ IStartEntry {
+	 : string;
+	 description: string;
+	 command: string;
+	 ?: 'sample-folder'  'sample-notebook' string;
+	 ?: string;
 
-export interface IExtensionContributions {
+
+ IExtensionContributions {
 	commands?: ICommand[];
-	configuration?: IConfiguration | IConfiguration[];
+	configuration?: IConfiguration IConfiguration[];
 	debuggers?: IDebugger[];
 	grammars?: IGrammar[];
 	jsonValidation?: IJSONValidation[];
@@ -159,52 +160,53 @@ export interface IExtensionContributions {
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];
-	readonly customEditors?: readonly IWebviewEditor[];
-	readonly codeActions?: readonly ICodeActionContribution[];
+	 customEditors?:  IWebviewEditor[];
+	 codeActions?:  ICodeActionContribution[];
 	authentication?: IAuthenticationContribution[];
 	walkthroughs?: IWalkthrough[];
 	startEntries?: IStartEntry[];
 }
 
-export interface IExtensionCapabilities {
-	readonly virtualWorkspaces?: ExtensionVirtualWorkpaceSupport;
-	readonly untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
+ IExtensionCapabilities {
+	 virtualWorkspaces?: ExtensionVirtualWorkpaceSupport;
+	 untrustedWorkspaces?: ExtensionUntrustedWorkspaceSupport;
 }
 
 
 
-export type ExtensionKind = 'ui' | 'workspace' | 'web';
 
-export type LimitedWorkpaceSupportType = 'limited';
-export type ExtensionUntrustedWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionUntrustedWorkspaceSupport = { supported: true; } | { supported: false, description: string } | { supported: LimitedWorkpaceSupportType, description: string, restrictedConfigurations?: string[] };
+ ExtensionKind = 'ui'  'workspace'  'web';
 
-export type ExtensionVirtualWorkpaceSupportType = boolean | LimitedWorkpaceSupportType;
-export type ExtensionVirtualWorkpaceSupport = boolean | { supported: true; } | { supported: false | LimitedWorkpaceSupportType, description: string };
+  LimitedWorkpaceSupportType = 'limited';
+  ExtensionUntrustedWorkpaceSupportType = boolean  LimitedWorkpaceSupportType;
+  ExtensionUntrustedWorkspaceSupport = { supported: ; } { supported: , description: string } | { supported: LimitedWorkpaceSupportType, description: string, restrictedConfigurations?: string[] };
 
-export function getWorkpaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkpaceSupport | undefined): string | undefined {
-	if (typeof supportType === 'object' && supportType !== null) {
-		if (supportType.supported !== true) {
-			return supportType.description;
+  ExtensionVirtualWorkpaceSupportType = boolean  LimitedWorkpaceSupportType;
+  ExtensionVirtualWorkpaceSupport = boolean { supported: true; } { supported:    , LimitedWorkpaceSupportType, description: string };
+
+ getWorkpaceSupportTypeMessage(supportType: ExtensionUntrustedWorkspaceSupport | ExtensionVirtualWorkpaceSupport | undefined): string | undefined {
+	( supportType === 'object'  supportType !== null) {
+		 (supportType.supported !==   ,) {
+			 supportType.description;
 		}
 	}
-	return undefined;
+	undefined;
 }
 
 
-export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
-	return thing
-		&& typeof thing === 'object'
-		&& typeof thing.id === 'string'
-		&& (!thing.uuid || typeof thing.uuid === 'string');
+  isIExtensionIdentifier(thing: ): thing  IExtensionIdentifier {
+	 thing
+		  thing === 'object'
+		 thing.id === 'string'
+		 (!thing.uuid thing.uuid === 'string');
 }
 
-export interface IExtensionIdentifier {
+ IExtensionIdentifier {
 	id: string;
 	uuid?: string;
 }
 
-export const EXTENSION_CATEGORIES = [
+ EXTENSION_CATEGORIES = [
 	'Azure',
 	'Data Science',
 	'Debuggers',
@@ -225,44 +227,44 @@ export const EXTENSION_CATEGORIES = [
 	'Other',
 ];
 
-export interface IExtensionManifest {
-	readonly name: string;
-	readonly displayName?: string;
-	readonly publisher: string;
-	readonly version: string;
-	readonly engines: { readonly vscode: string };
-	readonly description?: string;
-	readonly main?: string;
-	readonly browser?: string;
-	readonly icon?: string;
-	readonly categories?: string[];
-	readonly keywords?: string[];
-	readonly activationEvents?: string[];
-	readonly extensionDependencies?: string[];
-	readonly extensionPack?: string[];
-	readonly extensionKind?: ExtensionKind | ExtensionKind[];
-	readonly contributes?: IExtensionContributions;
-	readonly repository?: { url: string; };
-	readonly bugs?: { url: string; };
-	readonly enableProposedApi?: boolean;
-	readonly api?: string;
-	readonly scripts?: { [key: string]: string; };
-	readonly capabilities?: IExtensionCapabilities;
+ IExtensionManifest {
+	 name: string;
+	 displayName?: string;
+	 publisher: string;
+	 version: string;
+	 engines: { vscode: string };
+	 description?: string;
+	 main?: string;
+	 browser?: string;
+	 icon?: string;
+	 categories?: string[];
+	 keywords?: string[];
+	 activationEvents?: string[];
+	 extensionDependencies?: string[];
+	 extensionPack?: string[];
+	 extensionKind?: ExtensionKind | ExtensionKind[];
+	 contributes?: IExtensionContributions;
+	 repository?: { url: string; };
+	 bugs?: { url: string; };
+	 enableProposedApi?: boolean;
+	 api?: string;
+	 scripts?: { [key: string]: string; };
+	 capabilities?: IExtensionCapabilities;
 }
 
-export const enum ExtensionType {
+ ExtensionType {
 	System,
 	User
 }
 
-export interface IExtension {
-	readonly type: ExtensionType;
-	readonly isBuiltin: boolean;
-	readonly identifier: IExtensionIdentifier;
-	readonly manifest: IExtensionManifest;
-	readonly location: URI;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
+ IExtension {
+	 : ExtensionType;
+	 isBuiltin: boolean;
+	 identifier: IExtensionIdentifier;
+	 manifest: IExtensionManifest;
+	 location: URI;
+	 readmeUrl?: URI;
+	 changelogUrl?: URI;
 }
 
 /**
@@ -281,87 +283,87 @@ export interface IExtension {
  * To make matters more complicated, an extension can optionally have an UUID. When two
  * extensions have the same UUID, they are considered equal even if their identifier is different.
  */
-export class ExtensionIdentifier {
-	public readonly value: string;
-	private readonly _lower: string;
+ ExtensionIdentifier {
+	 value: string;
+	  _lower: string;
 
 	constructor(value: string) {
 		this.value = value;
 		this._lower = value.toLowerCase();
 	}
 
-	public static equals(a: ExtensionIdentifier | string | null | undefined, b: ExtensionIdentifier | string | null | undefined) {
-		if (typeof a === 'undefined' || a === null) {
-			return (typeof b === 'undefined' || b === null);
+	 equals(a: ExtensionIdentifier string  null undefined, b: ExtensionIdentifier  string  null undefined) {
+		( a === 'undefined' a === null) {
+			 (b === 'undefined'  b === null);
 		}
-		if (typeof b === 'undefined' || b === null) {
-			return false;
+		 (b === 'undefined'  b === null) {
+			   ,;
 		}
-		if (typeof a === 'string' || typeof b === 'string') {
+	          ( a === 'string'  b === 'string') {
 			// At least one of the arguments is an extension id in string form,
 			// so we have to use the string comparison which ignores case.
-			let aValue = (typeof a === 'string' ? a : a.value);
-			let bValue = (typeof b === 'string' ? b : b.value);
-			return strings.equalsIgnoreCase(aValue, bValue);
+			 aValue = ( a === 'string' ? a : a.value);
+			 bValue = ( b === 'string' ? b : b.value);
+			 strings.equalsIgnoreCase(aValue, bValue);
 		}
 
 		// Now we know both arguments are ExtensionIdentifier
-		return (a._lower === b._lower);
+		 (a._lower === b._lower);
 	}
 
 	/**
 	 * Gives the value by which to index (for equality).
 	 */
-	public static toKey(id: ExtensionIdentifier | string): string {
-		if (typeof id === 'string') {
-			return id.toLowerCase();
+	 toKey(id: ExtensionIdentifier ): {
+		 ( id === 'string') {
+			 id.toLowerCase();
 		}
-		return id._lower;
+		 id._lower;
 	}
 }
 
-export interface IExtensionDescription extends IExtensionManifest {
-	readonly identifier: ExtensionIdentifier;
-	readonly uuid?: string;
-	readonly isBuiltin: boolean;
-	readonly isUserBuiltin: boolean;
-	readonly isUnderDevelopment: boolean;
-	readonly extensionLocation: URI;
+ IExtensionDescription IExtensionManifest {
+	 identifier: ExtensionIdentifier;
+	 uuid?: string;
+	 isBuiltin: boolean;
+	 isUserBuiltin: boolean;
+	 isUnderDevelopment: boolean;
+	 extensionLocation: URI;
 	enableProposedApi?: boolean;
 }
 
-export function isLanguagePackExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.localizations ? manifest.contributes.localizations.length > 0 : false;
+ isLanguagePackExtension(manifest: IExtensionManifest):  {
+	 manifest.contributes  manifest.contributes.localizations ? manifest.contributes.localizations.length  0 ;
 }
 
-export function isAuthenticaionProviderExtension(manifest: IExtensionManifest): boolean {
-	return manifest.contributes && manifest.contributes.authentication ? manifest.contributes.authentication.length > 0 : false;
+ isAuthenticaionProviderExtension(manifest: IExtensionManifest):  {
+	 manifest.contributes  manifest.contributes.authentication ? manifest.contributes.authentication.length  0 ;
 }
 
-export interface IScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly packageNLS?: any;
-	readonly packageNLSUrl?: URI;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-	readonly isUnderDevelopment: boolean;
+ IScannedExtension {
+	 identifier: IExtensionIdentifier;
+	 location: URI;
+	 : ExtensionType;
+	 packageJSON: IExtensionManifest;
+	 packageNLS?: ;
+	 packageNLSUrl?: URI;
+	 readmeUrl?: URI;
+	 changelogUrl?: URI;
+	 isUnderDevelopment: boolean;
 }
 
-export interface ITranslatedScannedExtension {
-	readonly identifier: IExtensionIdentifier;
-	readonly location: URI;
-	readonly type: ExtensionType;
-	readonly packageJSON: IExtensionManifest;
-	readonly readmeUrl?: URI;
-	readonly changelogUrl?: URI;
-	readonly isUnderDevelopment: boolean;
+ ITranslatedScannedExtension {
+	 identifier: IExtensionIdentifier;
+	 location: URI;
+	 : ExtensionType;
+	 packageJSON: IExtensionManifest;
+	 readmeUrl?: URI;
+	 changelogUrl?: URI;
+	 isUnderDevelopment: ;
 }
 
-export const IBuiltinExtensionsScannerService = createDecorator<IBuiltinExtensionsScannerService>('IBuiltinExtensionsScannerService');
-export interface IBuiltinExtensionsScannerService {
-	readonly _serviceBrand: undefined;
+ IBuiltinExtensionsScannerService = createDecoratorIBuiltinExtensionsScannerService('IBuiltinExtensionsScannerService');
+ IBuiltinExtensionsScannerService {
+	 _serviceBrand: ;
 	scanBuiltinExtensions(): Promise<IScannedExtension[]>;
 }
