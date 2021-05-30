@@ -34,6 +34,8 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
+	id = 'trimWhitespace';
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
@@ -42,7 +44,7 @@ export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 	}
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
+		if (!model.textEditorModel || !canParticipate(model, this.id)) {
 			return;
 		}
 
@@ -98,7 +100,13 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 	return candidate;
 }
 
+function canParticipate(model: ITextFileEditorModel, id: string) {
+	return !model.textEditorModel?.getOptions().skipSaveParticipants.includes(id);
+}
+
 export class FinalNewLineParticipant implements ITextFileSaveParticipant {
+
+	id = 'finalNewLine';
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -108,7 +116,7 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 	}
 
 	async participate(model: ITextFileEditorModel, _env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
+		if (!model.textEditorModel || !canParticipate(model, this.id)) {
 			return;
 		}
 
@@ -138,6 +146,8 @@ export class FinalNewLineParticipant implements ITextFileSaveParticipant {
 
 export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
+	id = 'trimFinalNewLines';
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
@@ -146,7 +156,7 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 	}
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }): Promise<void> {
-		if (!model.textEditorModel) {
+		if (!model.textEditorModel || !canParticipate(model, this.id)) {
 			return;
 		}
 
@@ -211,6 +221,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 
 class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
+	id = 'formatOnSave';
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
@@ -220,7 +232,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 	}
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		if (!model.textEditorModel) {
+		if (!model.textEditorModel || !canParticipate(model, this.id)) {
 			return;
 		}
 		if (env.reason === SaveReason.AUTO) {
@@ -262,13 +274,15 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
 class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 
+	id = 'codeActionOnSave';
+
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) { }
 
 	async participate(model: ITextFileEditorModel, env: { reason: SaveReason; }, progress: IProgress<IProgressStep>, token: CancellationToken): Promise<void> {
-		if (!model.textEditorModel) {
+		if (!model.textEditorModel || !canParticipate(model, this.id)) {
 			return;
 		}
 

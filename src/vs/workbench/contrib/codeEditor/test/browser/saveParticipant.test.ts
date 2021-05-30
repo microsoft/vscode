@@ -171,4 +171,61 @@ suite('Save Participants', function () {
 		// confirm trimming
 		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
 	});
+
+	test('insert final new line can be skipped', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+
+		await model.resolve();
+		model.textEditorModel.updateOptions({ skipSaveParticipants: ['finalNewLine'] });
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'insertFinalNewline': true });
+		const participant = new FinalNewLineParticipant(configService, undefined!);
+
+		// New empty line added (single line)
+		let lineContent = 'Hello New Line';
+		model.textEditorModel.setValue(lineContent);
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+	});
+
+
+	test('trim final new lines can be skipped', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+
+		await model.resolve();
+		model.textEditorModel.updateOptions({ skipSaveParticipants: ['trimFinalNewLines'] });
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+		const participant = new TrimFinalNewLinesParticipant(configService, undefined!);
+		const textContent = 'Trim New Line';
+		const eol = `${model.textEditorModel.getEOL()}`;
+
+		// Remove new line (single line with two new lines)
+		let lineContent = `${textContent}${eol}${eol}`;
+		model.textEditorModel.setValue(lineContent);
+		await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), lineContent);
+	});
+
+	test('trimWhitespace can be skipped', async function () {
+		const model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8', undefined) as IResolvedTextFileEditorModel;
+
+		await model.resolve();
+		model.textEditorModel.updateOptions({ skipSaveParticipants: ['trimWhitespace'] });
+
+		const configService = new TestConfigurationService();
+		configService.setUserConfiguration('files', { 'trimTrailingWhitespace': true });
+		const participant = new TrimWhitespaceParticipant(configService, undefined!);
+		const textContent = 'Test 	';
+		model.textEditorModel.setValue(textContent);
+
+
+		// save many times
+		for (let i = 0; i < 10; i++) {
+			await participant.participate(model, { reason: SaveReason.EXPLICIT });
+		}
+
+		// confirm trimming
+		assert.strictEqual(snapshotToString(model.createSnapshot()!), `${textContent}`);
+	});
 });

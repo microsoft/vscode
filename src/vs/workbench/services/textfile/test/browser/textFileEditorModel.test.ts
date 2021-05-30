@@ -589,6 +589,7 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: async model => {
 				assert.ok(model.isDirty());
 				(model as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('bar'));
@@ -619,6 +620,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: async () => {
 				eventCounter++;
 			}
@@ -644,6 +646,7 @@ suite('Files - TextFileEditorModel', () => {
 		});
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: model => {
 				assert.ok(model.isDirty());
 				(model as TextFileEditorModel).updateTextEditorModel(createTextBufferFactory('bar'));
@@ -670,6 +673,7 @@ suite('Files - TextFileEditorModel', () => {
 		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/index_async.txt'), 'utf8', undefined);
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: async () => {
 				new Error('boom');
 			}
@@ -690,6 +694,7 @@ suite('Files - TextFileEditorModel', () => {
 		let participations: boolean[] = [];
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: async (model, context, progress, token) => {
 				await timeout(10);
 
@@ -741,6 +746,7 @@ suite('Files - TextFileEditorModel', () => {
 		let breakLoop = false;
 
 		const participant = accessor.textFileService.files.addSaveParticipant({
+			id: 'test',
 			participate: async model => {
 				if (breakLoop) {
 					return;

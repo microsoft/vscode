@@ -16,6 +16,7 @@ import type * as vscode from 'vscode';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Lazy } from 'vs/base/common/lazy';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { equals } from 'vs/base/common/arrays';
 
 export class TextEditorDecorationType {
 
@@ -146,6 +147,7 @@ export class ExtHostTextEditorOptions {
 	private _insertSpaces!: boolean;
 	private _cursorStyle!: TextEditorCursorStyle;
 	private _lineNumbers!: TextEditorLineNumbersStyle;
+	private _skipSaveParticipants!: string[];
 
 	readonly value: vscode.TextEditorOptions;
 
@@ -181,6 +183,12 @@ export class ExtHostTextEditorOptions {
 			},
 			set lineNumbers(value: TextEditorLineNumbersStyle) {
 				that._setLineNumbers(value);
+			},
+			get skipSaveParticipants(): string[] {
+				return that._skipSaveParticipants;
+			},
+			set skipSaveParticipants(value: string[]) {
+				that._setSkipSaveParticipants(value);
 			}
 		};
 	}
@@ -190,6 +198,7 @@ export class ExtHostTextEditorOptions {
 		this._insertSpaces = source.insertSpaces;
 		this._cursorStyle = source.cursorStyle;
 		this._lineNumbers = TypeConverters.TextEditorLineNumbersStyle.to(source.lineNumbers);
+		this._skipSaveParticipants = source.skipSaveParticipants;
 	}
 
 	// --- internal: tabSize
@@ -281,6 +290,16 @@ export class ExtHostTextEditorOptions {
 		}));
 	}
 
+	private _setSkipSaveParticipants(value: string[]) {
+		if (equals(this._skipSaveParticipants, value, (a, b) => a === b)) {
+			return;
+		}
+		this._skipSaveParticipants = value;
+		this._warnOnError(this._proxy.$trySetOptions(this._id, {
+			skipSaveParticipants: value
+		}));
+	}
+
 	public assign(newOptions: vscode.TextEditorOptions) {
 		const bulkConfigurationUpdate: ITextEditorConfigurationUpdate = {};
 		let hasUpdate = false;
@@ -337,6 +356,14 @@ export class ExtHostTextEditorOptions {
 				this._lineNumbers = newOptions.lineNumbers;
 				hasUpdate = true;
 				bulkConfigurationUpdate.lineNumbers = TypeConverters.TextEditorLineNumbersStyle.from(newOptions.lineNumbers);
+			}
+		}
+
+		if (typeof newOptions.skipSaveParticipants !== 'undefined') {
+			if (!equals(this._skipSaveParticipants, newOptions.skipSaveParticipants, (a, b) => a === b)) {
+				this._skipSaveParticipants = newOptions.skipSaveParticipants;
+				hasUpdate = true;
+				bulkConfigurationUpdate.skipSaveParticipants = newOptions.skipSaveParticipants;
 			}
 		}
 

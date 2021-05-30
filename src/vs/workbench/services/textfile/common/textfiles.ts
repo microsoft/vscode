@@ -318,6 +318,8 @@ export interface ITextFileResolveEvent {
 
 export interface ITextFileSaveParticipant {
 
+	id: string;
+
 	/**
 	 * Participate in a save of a model. Allows to change the model
 	 * before it is being saved to disk.

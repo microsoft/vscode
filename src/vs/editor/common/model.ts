@@ -17,6 +17,7 @@ import { LanguageId, LanguageIdentifier, FormattingOptions } from 'vs/editor/com
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { MultilineTokens, MultilineTokens2 } from 'vs/editor/common/model/tokensStore';
 import { TextChange } from 'vs/editor/common/model/textChange';
+import { equals } from 'vs/base/common/arrays';
 
 /**
  * Vertical Lane in the overview ruler of the editor.
@@ -407,6 +408,7 @@ export class TextModelResolvedOptions {
 	readonly insertSpaces: boolean;
 	readonly defaultEOL: DefaultEndOfLine;
 	readonly trimAutoWhitespace: boolean;
+	readonly skipSaveParticipants: string[];
 
 	/**
 	 * @internal
@@ -417,12 +419,14 @@ export class TextModelResolvedOptions {
 		insertSpaces: boolean;
 		defaultEOL: DefaultEndOfLine;
 		trimAutoWhitespace: boolean;
+		skipSaveParticipants: string[]
 	}) {
 		this.tabSize = Math.max(1, src.tabSize | 0);
 		this.indentSize = src.tabSize | 0;
 		this.insertSpaces = Boolean(src.insertSpaces);
 		this.defaultEOL = src.defaultEOL | 0;
 		this.trimAutoWhitespace = Boolean(src.trimAutoWhitespace);
+		this.skipSaveParticipants = src.skipSaveParticipants;
 	}
 
 	/**
@@ -435,6 +439,7 @@ export class TextModelResolvedOptions {
 			&& this.insertSpaces === other.insertSpaces
 			&& this.defaultEOL === other.defaultEOL
 			&& this.trimAutoWhitespace === other.trimAutoWhitespace
+			&& equals(this.skipSaveParticipants, other.skipSaveParticipants, ((a, b) => a === b))
 		);
 	}
 
@@ -447,6 +452,7 @@ export class TextModelResolvedOptions {
 			indentSize: this.indentSize !== newOpts.indentSize,
 			insertSpaces: this.insertSpaces !== newOpts.insertSpaces,
 			trimAutoWhitespace: this.trimAutoWhitespace !== newOpts.trimAutoWhitespace,
+			skipSaveParticipants: !equals(this.skipSaveParticipants, newOpts.skipSaveParticipants, (a, b) => a === b)
 		};
 	}
 }
@@ -470,6 +476,7 @@ export interface ITextModelUpdateOptions {
 	indentSize?: number;
 	insertSpaces?: boolean;
 	trimAutoWhitespace?: boolean;
+	skipSaveParticipants?: string[];
 }
 
 export class FindMatch {

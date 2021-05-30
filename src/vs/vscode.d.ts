@@ -669,6 +669,8 @@ declare module 'vscode' {
 		 * When setting a text editor's options, this property is optional.
 		 */
 		lineNumbers?: TextEditorLineNumbersStyle;
+
+		skipSaveParticipants?: string[];
 	}
 
 	/**

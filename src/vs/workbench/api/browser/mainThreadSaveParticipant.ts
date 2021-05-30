@@ -17,6 +17,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 class ExtHostSaveParticipant implements ITextFileSaveParticipant {
 
+	id = '_extHostSave';
+
 	private readonly _proxy: ExtHostDocumentSaveParticipantShape;
 
 	constructor(extHostContext: IExtHostContext) {

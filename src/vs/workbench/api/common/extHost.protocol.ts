@@ -232,6 +232,7 @@ export interface ITextEditorConfigurationUpdate {
 	insertSpaces?: boolean | 'auto';
 	cursorStyle?: TextEditorCursorStyle;
 	lineNumbers?: RenderLineNumbersType;
+	skipSaveParticipants?: string[];
 }
 
 export interface IResolvedTextEditorConfiguration {
@@ -239,6 +240,7 @@ export interface IResolvedTextEditorConfiguration {
 	insertSpaces: boolean;
 	cursorStyle: TextEditorCursorStyle;
 	lineNumbers: RenderLineNumbersType;
+	skipSaveParticipants: string[];
 }
 
 export enum TextEditorRevealType {

@@ -201,7 +201,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 				indentSize: guessedIndentation.tabSize, // TODO@Alex: guess indentSize independent of tabSize
 				insertSpaces: guessedIndentation.insertSpaces,
 				trimAutoWhitespace: options.trimAutoWhitespace,
-				defaultEOL: options.defaultEOL
+				defaultEOL: options.defaultEOL,
+				skipSaveParticipants: []
 			});
 		}
 
@@ -210,7 +211,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 			indentSize: options.indentSize,
 			insertSpaces: options.insertSpaces,
 			trimAutoWhitespace: options.trimAutoWhitespace,
-			defaultEOL: options.defaultEOL
+			defaultEOL: options.defaultEOL,
+			skipSaveParticipants: []
 		});
 
 	}
@@ -617,13 +619,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 		let indentSize = (typeof _newOpts.indentSize !== 'undefined') ? _newOpts.indentSize : this._options.indentSize;
 		let insertSpaces = (typeof _newOpts.insertSpaces !== 'undefined') ? _newOpts.insertSpaces : this._options.insertSpaces;
 		let trimAutoWhitespace = (typeof _newOpts.trimAutoWhitespace !== 'undefined') ? _newOpts.trimAutoWhitespace : this._options.trimAutoWhitespace;
+		let skipSaveParticipants = (typeof _newOpts.skipSaveParticipants !== 'undefined') ? _newOpts.skipSaveParticipants : this._options.skipSaveParticipants;
 
 		let newOpts = new model.TextModelResolvedOptions({
 			tabSize: tabSize,
 			indentSize: indentSize,
 			insertSpaces: insertSpaces,
 			defaultEOL: this._options.defaultEOL,
-			trimAutoWhitespace: trimAutoWhitespace
+			trimAutoWhitespace: trimAutoWhitespace,
+			skipSaveParticipants
 		});
 
 		if (this._options.equals(newOpts)) {
