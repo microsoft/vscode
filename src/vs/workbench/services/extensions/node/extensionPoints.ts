@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
 import * as nls from 'vs/nls';
 import * as path from 'vs/base/common/path';
 import * as semver from 'vs/base/common/semver/semver';
@@ -60,7 +59,7 @@ class ExtensionManifestParser extends ExtensionManifestHandler {
 	}
 
 	public parse(): Promise<IExtensionDescription> {
-		return fs.promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
+		return pfs.Promises.readFile(this._absoluteManifestPath).then((manifestContents) => {
 			const errors: json.ParseError[] = [];
 			const manifest = ExtensionManifestParser._fastParseJSON(manifestContents.toString(), errors);
 			if (json.getNodeType(manifest) !== 'object') {
@@ -130,7 +129,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 		let translationPath = this._nlsConfig.translations[translationId];
 		let localizedMessages: Promise<LocalizedMessages | undefined>;
 		if (translationPath) {
-			localizedMessages = fs.promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
+			localizedMessages = pfs.Promises.readFile(translationPath, 'utf8').then<LocalizedMessages, LocalizedMessages>((content) => {
 				let errors: json.ParseError[] = [];
 				let translationBundle: TranslationBundle = json.parse(content, errors);
 				if (errors.length > 0) {
@@ -155,7 +154,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 					if (!messageBundle.localized) {
 						return { values: undefined, default: messageBundle.original };
 					}
-					return fs.promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
+					return pfs.Promises.readFile(messageBundle.localized, 'utf8').then(messageBundleContent => {
 						let errors: json.ParseError[] = [];
 						let messages: MessageBag = json.parse(messageBundleContent, errors);
 						if (errors.length > 0) {
@@ -204,7 +203,7 @@ class ExtensionManifestNLSReplacer extends ExtensionManifestHandler {
 	private static resolveOriginalMessageBundle(originalMessageBundle: string | null, errors: json.ParseError[]) {
 		return new Promise<{ [key: string]: string; } | null>((c, e) => {
 			if (originalMessageBundle) {
-				fs.promises.readFile(originalMessageBundle).then(originalBundleContent => {
+				pfs.Promises.readFile(originalMessageBundle).then(originalBundleContent => {
 					c(json.parse(originalBundleContent.toString(), errors));
 				}, (err) => {
 					c(null);
@@ -553,7 +552,7 @@ export class ExtensionScanner {
 			let obsolete: { [folderName: string]: boolean; } = {};
 			if (!isBuiltin) {
 				try {
-					const obsoleteFileContents = await fs.promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
+					const obsoleteFileContents = await pfs.Promises.readFile(path.join(absoluteFolderPath, '.obsolete'), 'utf8');
 					obsolete = JSON.parse(obsoleteFileContents);
 				} catch (err) {
 					// Don't care

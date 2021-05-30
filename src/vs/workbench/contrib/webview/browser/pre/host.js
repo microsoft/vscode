@@ -6,8 +6,13 @@
 
 import { createWebviewManager } from './main.js';
 
-const id = document.location.search.match(/\bid=([\w-]+)/)[1];
-const onElectron = /platform=electron/.test(document.location.search);
+const searchParams = new URL(location.toString()).searchParams;
+const id = searchParams.get('id');
+if (!id) {
+	throw new Error('Could not resolve webview id. Webview will not work.\nThis is usually caused by incorrectly trying to navigate in a webview');
+}
+
+const onElectron = searchParams.get('platform') === 'electron';
 
 const hostMessaging = new class HostMessaging {
 	constructor() {

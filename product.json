@@ -22,6 +22,7 @@
 	"licenseFileName": "LICENSE.txt",
 	"reportIssueUrl": "https://github.com/microsoft/vscode/issues/new",
 	"urlProtocol": "code-oss",
+	"webviewContentExternalBaseUrlTemplate": "https://{{uuid}}.vscode-webview.net/{{quality}}/{{commit}}/out/vs/workbench/contrib/webview/browser/pre/",
 	"extensionAllowedProposedApi": [
 		"ms-vscode.vscode-js-profile-flame",
 		"ms-vscode.vscode-js-profile-table",
@@ -33,7 +34,7 @@
 	"builtInExtensions": [
 		{
 			"name": "ms-vscode.node-debug",
-			"version": "1.44.27",
+			"version": "1.44.28",
 			"repo": "https://github.com/microsoft/vscode-node-debug",
 			"metadata": {
 				"id": "b6ded8fb-a0a0-4c1c-acbd-ab2a3bc995a6",
@@ -48,7 +49,7 @@
 		},
 		{
 			"name": "ms-vscode.node-debug2",
-			"version": "1.42.6",
+			"version": "1.42.7",
 			"repo": "https://github.com/microsoft/vscode-node-debug2",
 			"metadata": {
 				"id": "36d19e17-7569-4841-a001-947eb18602b2",

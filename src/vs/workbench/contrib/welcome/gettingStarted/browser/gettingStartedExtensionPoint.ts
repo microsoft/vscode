@@ -11,7 +11,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
 		doNotSuggest: true,
-		description: localize('walkthroughs', "Contribute collections of steps to help users with your extension. Experimental, available in VS Code Insiders only."),
+		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
 		type: 'array',
 		items: {
 			type: 'object',
@@ -31,8 +31,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					description: localize('walkthroughs.description', "Description of walkthrough.")
 				},
 				primary: {
-					type: 'boolean',
-					description: localize('walkthroughs.primary', "if this is a `primary` walkthrough, hinting if it should be opened on install of the extension. The first `primary` walkthough with a `when` condition matching the current context may be opened by core on install of the extension.")
+					deprecationMessage: localize('walkthroughs.primary.deprecated', "Deprecated. The first walkthrough with a satisfied when condition will be opened on install.")
 				},
 				when: {
 					type: 'string',
@@ -76,10 +75,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
-										required: ['path', 'altText'],
+										required: ['image', 'altText'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											image: {
 												description: localize('walkthroughs.steps.media.image.path.string', "Path to an image - or object consisting of paths to light, dark, and hc images - relative to extension directory. Depending on context, the image will be displayed from 400px to 800px wide, with similar bounds on height. To support HIDPI displays, the image will be rendered at 1.5x scaling, for example a 900 physical pixels wide image will be displayed as 600 logical pixels wide."),
 												oneOf: [
 													{
@@ -111,10 +113,13 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											}
 										}
 									}, {
-										required: ['path'],
+										required: ['markdown'],
 										additionalProperties: false,
 										properties: {
 											path: {
+												deprecationMessage: localize('pathDeprecated', "Deprecated. Please use `image` or `markdown` instead")
+											},
+											markdown: {
 												description: localize('walkthroughs.steps.media.markdown.path', "Path to the markdown document, relative to extension directory."),
 												type: 'string',
 											}
@@ -137,6 +142,21 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 											label: 'onLink',
 											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a Getting Started step.'),
 											body: 'onLink:${2:linkId}'
+										},
+										{
+											label: 'onView',
+											description: localize('walkthroughs.steps.completionEvents.onView', 'Check off step when a given view is opened'),
+											body: 'onView:${2:viewId}'
+										},
+										{
+											label: 'onSettingChanged',
+											description: localize('walkthroughs.steps.completionEvents.onSettingChanged', 'Check off step when a given setting is changed'),
+											body: 'onSettingChanged:${2:settingName}'
+										},
+										{
+											label: 'onContext',
+											description: localize('walkthroughs.steps.completionEvents.onContext', 'Check off step when a context key expression is true.'),
+											body: 'onContext:${2:key}'
 										},
 										{
 											label: 'extensionInstalled',

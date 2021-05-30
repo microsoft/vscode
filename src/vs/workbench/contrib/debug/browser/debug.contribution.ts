@@ -306,6 +306,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		id: 'debug.installAdditionalDebuggers',
 		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
 	},
+	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	order: 1
 });
 

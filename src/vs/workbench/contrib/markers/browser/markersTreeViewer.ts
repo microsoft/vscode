@@ -32,7 +32,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { CancelablePromise, createCancelablePromise, Delayer } from 'vs/base/common/async';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { Range } from 'vs/editor/common/core/range';
@@ -892,13 +892,13 @@ export class ResourceDragAndDrop implements ITreeDragAndDrop<MarkerElement> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<MarkerElement>).elements;
-		const resources: URI[] = elements
+		const resources = elements
 			.filter(e => e instanceof ResourceMarkers)
 			.map(resourceMarker => (resourceMarker as ResourceMarkers).resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

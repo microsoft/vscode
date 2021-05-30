@@ -6,8 +6,7 @@
 import { checksum } from 'vs/base/node/crypto';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
-import { rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises, rimraf, writeFile } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('Crypto', () => {
@@ -17,7 +16,7 @@ flakySuite('Crypto', () => {
 	setup(function () {
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'crypto');
 
-		return promises.mkdir(testDir, { recursive: true });
+		return Promises.mkdir(testDir, { recursive: true });
 	});
 
 	teardown(function () {

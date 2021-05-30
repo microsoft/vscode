@@ -415,6 +415,7 @@ export class Cursor extends Disposable {
 			autoClosedCharactersDeltaDecorations.push({
 				range: autoClosedCharactersRanges[i],
 				options: {
+					description: 'auto-closed-character',
 					inlineClassName: 'auto-closed-character',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
@@ -422,6 +423,7 @@ export class Cursor extends Disposable {
 			autoClosedEnclosingDeltaDecorations.push({
 				range: autoClosedEnclosingRanges[i],
 				options: {
+					description: 'auto-closed-enclosing',
 					stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 				}
 			});

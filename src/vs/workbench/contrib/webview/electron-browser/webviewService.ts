@@ -28,7 +28,7 @@ export class ElectronWebviewService extends WebviewService {
 	): WebviewElement {
 		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes') ?? !options.enableFindWidget;
 		const webview = this._instantiationService.createInstance(useIframes ? ElectronIframeWebview : ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 
@@ -39,7 +39,7 @@ export class ElectronWebviewService extends WebviewService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay {
 		const webview = this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 }

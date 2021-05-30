@@ -74,6 +74,11 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
  */
 export interface IModelDecorationOptions {
 	/**
+	 * A debug description that can be used for inspecting model decorations.
+	 * @internal
+	 */
+	description: string;
+	/**
 	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
@@ -1261,6 +1266,12 @@ export interface ITextModel {
 	 * @internal
 	 */
 	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**

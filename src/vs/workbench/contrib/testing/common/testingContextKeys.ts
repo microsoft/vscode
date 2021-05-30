@@ -20,6 +20,10 @@ export namespace TestingContextKeys {
 	export const explorerLocation = new RawContextKey('testing.explorerLocation', ViewContainerLocation.Sidebar);
 	export const autoRun = new RawContextKey('testing.autoRun', false);
 
+	export const peekItemType = new RawContextKey<string | undefined>('peekItemType', undefined, {
+		type: 'string',
+		description: localize('testing.peekItemType', 'Type of the item in the output peek view. Either a "test", "message", "task", or "result".'),
+	});
 	export const testItemExtId = new RawContextKey<string | undefined>('testId', undefined, {
 		type: 'string',
 		description: localize('testing.testId', 'ID of the current test item, set when creating or opening menus on test items')

@@ -40,7 +40,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { URI } from 'vs/base/common/uri';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 
 export interface IViewPaneOptions extends IPaneOptions {
 	id: string;
@@ -445,7 +445,7 @@ export abstract class ViewPane extends Pane implements IView {
 		this.scrollableElement.scanDomNode();
 	}
 
-	onRootScroll() {
+	onDidScrollRoot() {
 		// noop
 	}
 

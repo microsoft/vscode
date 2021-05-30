@@ -3845,6 +3845,19 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
+		 * Enable or disable the rendering of the suggestion preview.
+		 */
+		showSuggestionPreview?: boolean;
+		/**
+		 * Enable or disable the rendering of automatic inline completions.
+		*/
+		showInlineCompletions?: boolean;
+		/**
+		 * Enable or disable the default expansion of the ghost text as used
+		 * by the suggestion preview or the inline completions.
+		 */
+		ghostTextExpanded?: boolean;
+		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;
@@ -3860,6 +3873,10 @@ declare namespace monaco.editor {
 		 * Show constructor-suggestions.
 		 */
 		showConstructors?: boolean;
+		/**
+		 * Show deprecated-suggestions.
+		 */
+		showDeprecated?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
@@ -5817,6 +5834,29 @@ declare namespace monaco.languages {
 		 * The editor will only resolve a completion item once.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	}
+
+	/**
+	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
 	}
 
 	export interface CodeAction {

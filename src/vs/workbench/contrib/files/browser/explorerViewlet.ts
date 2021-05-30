@@ -37,7 +37,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { WorkbenchStateContext, RemoteNameContext } from 'vs/workbench/browser/contextkeys';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { AddRootFolderAction, OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import { isMacintosh } from 'vs/base/common/platform';
+import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
@@ -294,7 +294,7 @@ viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	order: 1
 });
 
-const commandId = isMacintosh ? OpenFileFolderAction.ID : OpenFolderAction.ID;
+const commandId = (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID;
 viewsRegistry.registerViewWelcomeContent(EmptyView.ID, {
 	content: localize({ key: 'remoteNoFolderHelp', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
 		"Connected to remote.\n[Open Folder](command:{0})", commandId),

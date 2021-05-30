@@ -198,7 +198,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			*/
 			this.telemetryReporter?.sendTelemetryEvent('login');
 
-			const token = await this._githubServer.login(scopes.sort().join(' '));
+			const token = await this._githubServer.login(scopes.join(' '));
 			this.afterTokenLoad(token);
 			const session = await this.tokenToSession(token, scopes);
 			await this.setToken(session);

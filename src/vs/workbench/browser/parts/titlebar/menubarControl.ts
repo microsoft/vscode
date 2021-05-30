@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -36,10 +36,101 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { IsMacNativeContext, IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export type IOpenRecentAction = IAction & { uri: URI, remoteAuthority?: string };
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarFileMenu,
+	title: {
+		value: 'File',
+		original: 'File',
+		mnemonicTitle: localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
+	},
+	order: 1
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarEditMenu,
+	title: {
+		value: 'Edit',
+		original: 'Edit',
+		mnemonicTitle: localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")
+	},
+	order: 2
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarSelectionMenu,
+	title: {
+		value: 'Selection',
+		original: 'Selection',
+		mnemonicTitle: localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")
+	},
+	order: 3
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarViewMenu,
+	title: {
+		value: 'View',
+		original: 'View',
+		mnemonicTitle: localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")
+	},
+	order: 4
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarGoMenu,
+	title: {
+		value: 'Go',
+		original: 'Go',
+		mnemonicTitle: localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")
+	},
+	order: 5
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarDebugMenu,
+	title: {
+		value: 'Run',
+		original: 'Run',
+		mnemonicTitle: localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+	},
+	order: 6
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarTerminalMenu,
+	title: {
+		value: 'Terminal',
+		original: 'Terminal',
+		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
+	},
+	order: 7
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarHelpMenu,
+	title: {
+		value: 'Help',
+		original: 'Help',
+		mnemonicTitle: localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
+	},
+	order: 8
+});
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarPreferencesMenu,
+	title: {
+		value: 'Preferences',
+		original: 'Preferences',
+		mnemonicTitle: localize('mPreferences', "Preferences")
+	},
+	when: IsMacNativeContext,
+	order: 9
+});
 
 export abstract class MenubarControl extends Disposable {
 
@@ -52,28 +143,10 @@ export abstract class MenubarControl extends Disposable {
 	];
 
 	protected menus: {
-		'File': IMenu;
-		'Edit': IMenu;
-		'Selection': IMenu;
-		'View': IMenu;
-		'Go': IMenu;
-		'Run': IMenu;
-		'Terminal': IMenu;
-		'Window'?: IMenu;
-		'Help': IMenu;
 		[index: string]: IMenu | undefined;
-	};
+	} = {};
 
-	protected topLevelTitles: { [menu: string]: string } = {
-		'File': localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
-		'Edit': localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
-		'Selection': localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
-		'View': localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View"),
-		'Go': localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go"),
-		'Run': localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run"),
-		'Terminal': localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
-		'Help': localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
-	};
+	protected topLevelTitles: { [menu: string]: string } = {};
 
 	protected recentlyOpened: IRecentlyOpened = { files: [], workspaces: [] };
 
@@ -100,16 +173,16 @@ export abstract class MenubarControl extends Disposable {
 
 		super();
 
-		this.menus = {
-			'File': this._register(this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService)),
-			'Edit': this._register(this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService)),
-			'Selection': this._register(this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)),
-			'View': this._register(this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService)),
-			'Go': this._register(this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService)),
-			'Run': this._register(this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService)),
-			'Terminal': this._register(this.menuService.createMenu(MenuId.MenubarTerminalMenu, this.contextKeyService)),
-			'Help': this._register(this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService))
-		};
+		const mainMenu = this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService);
+		const [, mainMenuActions] = mainMenu.getActions()[0];
+		for (const mainMenuAction of mainMenuActions) {
+			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
+				this.menus[mainMenuAction.item.title.original] = this._register(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
+				this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
+			}
+		}
+
+		mainMenu.dispose();
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 

@@ -16,6 +16,7 @@ import { IMainThreadTestCollection, ITestService, waitForAllRoots } from 'vs/wor
 
 export interface ITestSubscriptionFolder {
 	folder: IWorkspaceFolder;
+	collection: IMainThreadTestCollection;
 	getChildren(): Iterable<IncrementalTestCollectionItem>;
 }
 
@@ -153,9 +154,10 @@ export class WorkspaceTestCollectionService implements IWorkspaceTestCollectionS
 		}
 
 		const store = new DisposableStore();
-		const diffEmitter = store.add(new Emitter<[IWorkspaceFolder, TestsDiff]>());
-		const sub = store.add(this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, documentUri, diff => diffEmitter.fire([folder!, diff])));
-		const subFolder: ITestSubscriptionFolder = { folder, getChildren: () => sub.object.all };
+		const diffEmitter = store.add(new Emitter<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>());
+		const onDiff = (diff: TestsDiff) => diffEmitter.fire({ diff, folder: subFolder });
+		const sub = store.add(this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, documentUri, onDiff));
+		const subFolder: ITestSubscriptionFolder = { folder, collection: sub.object, getChildren: () => sub.object.all };
 
 		return new TestSubscriptionListener({
 			get busyProviders() { return sub.object.busyProviders; },
@@ -175,11 +177,11 @@ export interface TestSubscription {
 	readonly pendingRootProviders: number;
 	readonly workspaceFolderCollections: Map<ITestSubscriptionFolder, IMainThreadTestCollection>;
 	readonly onFolderChange: Event<IWorkspaceFoldersChangeEvent>;
-	readonly onDiff: Event<[workspaceFolder: IWorkspaceFolder, diff: TestsDiff]>;
+	readonly onDiff: Event<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>;
 }
 
 class WorkspaceTestSubscription extends Disposable implements TestSubscription {
-	private onDiffEmitter = this._register(new Emitter<[workspaceFolder: IWorkspaceFolder, diff: TestsDiff]>());
+	private onDiffEmitter = this._register(new Emitter<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>());
 	private onFolderChangeEmitter = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
 
 	private listeners = new Set<TestSubscriptionListener>();
@@ -270,6 +272,9 @@ class WorkspaceTestSubscription extends Disposable implements TestSubscription {
 	private subscribeToWorkspace(folder: IWorkspaceFolder) {
 		const folderNode: ITestSubscriptionFolder = {
 			folder,
+			get collection() {
+				return ref.object;
+			},
 			getChildren: function* () {
 				for (const rootId of ref.object.rootIds) {
 					const node = ref.object.getNodeById(rootId);
@@ -283,7 +288,7 @@ class WorkspaceTestSubscription extends Disposable implements TestSubscription {
 		const ref = this.testService.subscribeToDiffs(
 			ExtHostTestingResource.Workspace,
 			folder.uri,
-			diff => this.onDiffEmitter.fire([folder, diff]),
+			diff => this.onDiffEmitter.fire({ folder: folderNode, diff }),
 		);
 
 		const disposable = new DisposableStore();

@@ -20,7 +20,7 @@ import { ExplorerItem } from 'vs/workbench/contrib/files/common/explorerModel';
 import { URI } from 'vs/base/common/uri';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { extractResources } from 'vs/workbench/browser/dnd';
+import { extractEditorsDropData } from 'vs/workbench/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
 import { triggerDownload, WebFileSystemAccess } from 'vs/base/browser/dom';
@@ -165,7 +165,7 @@ export class BrowserFileUpload {
 						return;
 					}
 
-					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true })], {
+					await this.explorerService.applyBulkEdit([new ResourceFileEdit(joinPath(target.resource, entry.name), undefined, { recursive: true, folder: target.getChild(entry.name)?.isDirectory })], {
 						undoLabel: localize('overwrite', "Overwrite {0}", entry.name),
 						progressLabel: localize('overwriting', "Overwriting {0}", entry.name),
 					});
@@ -418,8 +418,8 @@ export class NativeFileImport {
 	private async doImport(target: ExplorerItem, source: DragEvent, token: CancellationToken): Promise<void> {
 
 		// Check for dropped external files to be folders
-		const droppedResources = extractResources(source, true);
-		const resolvedFiles = await this.fileService.resolveAll(droppedResources.map(droppedResource => ({ resource: droppedResource.resource })));
+		const files = coalesce(extractEditorsDropData(source, true).filter(editor => URI.isUri(editor.resource) && this.fileService.canHandleResource(editor.resource)).map(editor => editor.resource));
+		const resolvedFiles = await this.fileService.resolveAll(files.map(file => ({ resource: file })));
 
 		if (token.isCancellationRequested) {
 			return;
@@ -462,13 +462,13 @@ export class NativeFileImport {
 
 			// Copy resources
 			if (choice === buttons.length - 2) {
-				return this.importResources(target, droppedResources.map(res => res.resource), token);
+				return this.importResources(target, files, token);
 			}
 		}
 
 		// Handle dropped files (only support FileStat as target)
 		else if (target instanceof ExplorerItem) {
-			return this.importResources(target, droppedResources.map(res => res.resource), token);
+			return this.importResources(target, files, token);
 		}
 	}
 

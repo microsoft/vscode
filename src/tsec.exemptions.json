@@ -20,6 +20,7 @@
 		"vs/editor/browser/view/domLineBreaksComputer.ts",
 		"vs/editor/browser/view/viewLayer.ts",
 		"vs/editor/browser/widget/diffEditorWidget.ts",
+		"vs/editor/contrib/inlineCompletions/ghostTextWidget.ts",
 		"vs/editor/browser/widget/diffReview.ts",
 		"vs/editor/standalone/browser/colorizer.ts",
 		"vs/workbench/api/worker/extHostExtensionService.ts",

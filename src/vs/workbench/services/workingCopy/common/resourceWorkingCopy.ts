@@ -42,7 +42,7 @@ export interface IResourceWorkingCopy extends IWorkingCopy, IDisposable {
 export abstract class ResourceWorkingCopy extends Disposable implements IResourceWorkingCopy {
 
 	constructor(
-		public readonly resource: URI,
+		readonly resource: URI,
 		@IFileService protected readonly fileService: IFileService
 	) {
 		super();

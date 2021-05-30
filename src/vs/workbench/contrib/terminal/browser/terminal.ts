@@ -8,8 +8,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TitleEventSource } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -17,7 +17,7 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/common/remoteTerminalChannel';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IEditableData } from 'vs/workbench/common/views';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
@@ -64,15 +64,20 @@ export interface ITerminalGroup {
 	activeInstance: ITerminalInstance | null;
 	terminalInstances: ITerminalInstance[];
 	title: string;
-	onDisposed: Event<ITerminalGroup>;
-	onInstancesChanged: Event<void>;
+
+	readonly onDisposed: Event<ITerminalGroup>;
+	readonly onInstancesChanged: Event<void>;
+	readonly onPanelOrientationChanged: Event<Orientation>;
+
 	focusPreviousPane(): void;
 	focusNextPane(): void;
 	resizePane(direction: Direction): void;
 	resizePanes(relativeSizes: number[]): void;
 	setActiveInstanceByIndex(index: number): void;
 	attachToElement(element: HTMLElement): void;
+	addInstance(instance: ITerminalInstance): void;
 	removeInstance(instance: ITerminalInstance): void;
+	moveInstance(instance: ITerminalInstance, index: number): void;
 	setVisible(visible: boolean): void;
 	layout(width: number, height: number): void;
 	addDisposable(disposable: IDisposable): void;
@@ -100,6 +105,10 @@ export interface ITerminalService {
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<void>;
 	onGroupDisposed: Event<ITerminalGroup>;
+	/**
+	 * An event that fires when a terminal group is created, disposed of, or shown (in the case of a background group)
+	 */
+	onGroupsChanged: Event<void>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -112,6 +121,7 @@ export interface ITerminalService {
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
+	onInstanceColorChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
 	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onDidRegisterProcessSupport: Event<void>;
@@ -131,6 +141,8 @@ export interface ITerminalService {
 	 */
 	createTerminal(profile: ITerminalProfile): ITerminalInstance;
 
+	createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void>;
+
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -145,6 +157,12 @@ export interface ITerminalService {
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
 	unsplitInstance(instance: ITerminalInstance): void;
+	joinInstances(instances: ITerminalInstance[]): void;
+	/**
+	 * Moves a terminal instance's group to the target instance group's position.
+	 */
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -183,6 +201,8 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
+	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
@@ -191,6 +211,8 @@ export interface ITerminalService {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
+	getEditableData(stat: ITerminalInstance): IEditableData | undefined;
+	setEditable(stat: ITerminalInstance, data: IEditableData | null): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
@@ -204,6 +226,10 @@ export interface IRemoteTerminalService extends IOffProcessTerminalService {
  */
 export interface ITerminalExternalLinkProvider {
 	provideLinks(instance: ITerminalInstance, line: string): Promise<ITerminalLink[] | undefined>;
+}
+
+export interface ITerminalProfileProvider {
+	createContributedTerminalProfile(isSplitTerminal: boolean): Promise<void>;
 }
 
 export interface ITerminalLink {
@@ -256,7 +282,7 @@ export interface ITerminalInstance {
 	readonly rows: number;
 	readonly maxCols: number;
 	readonly maxRows: number;
-	readonly icon?: ThemeIcon;
+	readonly icon?: TerminalIcon;
 	readonly color?: string;
 
 	readonly statusList: ITerminalStatusList;
@@ -313,6 +339,11 @@ export interface ITerminalInstance {
 	onFocus: Event<ITerminalInstance>;
 
 	/**
+	 * An event that fires when a terminal is dropped on this instance via drag and drop.
+	 */
+	onRequestAddInstanceToGroup: Event<IRequestAddInstanceToGroupEvent>;
+
+	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
 	 * sequences.
 	 */
@@ -362,6 +393,11 @@ export interface ITerminalInstance {
 	 * explicit name given to the terminal instance through the extension API.
 	 */
 	readonly title: string;
+
+	/**
+	 * How the current title was set.
+	 */
+	readonly titleSource: TitleEventSource;
 
 	/**
 	 * The shell type of the terminal.
@@ -575,12 +611,13 @@ export interface ITerminalInstance {
 	registerLinkProvider(provider: ITerminalExternalLinkProvider): IDisposable;
 
 	/**
-	 * Triggers a quick pick to rename this terminal.
+	 * Sets the terminal name to the provided title or triggers a quick pick
+	 * to take user input.
 	 */
-	rename(): Promise<void>;
+	rename(title?: string): Promise<void>;
 
 	/**
-	 * Triggers a quick pick to rename this terminal.
+	 * Triggers a quick pick to change the icon of this terminal.
 	 */
 	changeIcon(): Promise<void>;
 
@@ -588,6 +625,11 @@ export interface ITerminalInstance {
 	 * Triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
 	changeColor(): Promise<void>;
+}
+
+export interface IRequestAddInstanceToGroupEvent {
+	uri: URI;
+	side: 'left' | 'right'
 }
 
 export const enum LinuxDistro {

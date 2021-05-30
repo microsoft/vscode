@@ -12,6 +12,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { selectKernelIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelMatchResult, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 
 registerThemingParticipant((theme, collector) => {
 	const value = theme.getColor(toolbarHoverBackground);
@@ -26,7 +27,7 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 
 	constructor(
 		actualAction: IAction,
-		private readonly _editor: NotebookEditor,
+		private readonly _editor: NotebookEditor | INotebookEditor,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
 	) {
 		super(
@@ -56,13 +57,14 @@ export class NotebooKernelActionViewItem extends ActionViewItem {
 		}
 	}
 
-	private _update(): void {
-		const widget = this._editor.getControl();
-		if (!widget || !widget.hasModel()) {
+	protected _update(): void {
+		const notebook = this._editor.viewModel?.notebookDocument;
+
+		if (!notebook) {
 			this._resetAction();
 			return;
 		}
-		const notebook = widget.viewModel.notebookDocument;
+
 		const info = this._notebookKernelService.getMatchingKernel(notebook);
 		this._updateActionFromKernelInfo(info);
 	}

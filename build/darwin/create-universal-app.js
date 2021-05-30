@@ -23,7 +23,7 @@ async function main() {
     const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
     const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
     const infoPlistPath = path.resolve(outAppPath, 'Contents', 'Info.plist');
-    await vscode_universal_1.makeUniversalApp({
+    await (0, vscode_universal_1.makeUniversalApp)({
         x64AppPath,
         arm64AppPath,
         x64AsarPath,
@@ -33,7 +33,7 @@ async function main() {
             'Credits.rtf',
             'CodeResources',
             'fsevents.node',
-            'Info.plist', // TODO@deepak1556: regressed with 11.4.2 internal builds
+            'Info.plist',
             '.npmrc'
         ],
         outAppPath,

@@ -44,7 +44,7 @@ export class ExtHostCell {
 		};
 	}
 
-	private _outputs: extHostTypes.NotebookCellOutput[];
+	private _outputs: vscode.NotebookCellOutput[];
 	private _metadata: extHostTypes.NotebookCellMetadata;
 	private _previousResult: vscode.NotebookCellExecutionSummary | undefined;
 
@@ -102,9 +102,9 @@ export class ExtHostCell {
 		const output = this._outputs.find(op => op.id === outputId);
 		if (output) {
 			if (!append) {
-				output.outputs.length = 0;
+				output.items.length = 0;
 			}
-			output.outputs.push(...newItems);
+			output.items.push(...newItems);
 		}
 	}
 
@@ -258,7 +258,7 @@ export class ExtHostNotebookDocument {
 		if (this._disposed) {
 			return Promise.reject(new Error('Notebook has been closed'));
 		}
-		return this._proxy.$trySaveDocument(this.uri);
+		return this._proxy.$trySaveNotebook(this.uri);
 	}
 
 	private _spliceNotebookCells(splices: NotebookCellsSplice2[], initialization: boolean): void {
