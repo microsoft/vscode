@@ -28,8 +28,9 @@ export class Application {
 	private _workbench: Workbench | undefined;
 
 	constructor(private options: ApplicationOptions) {
+		const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
+		this._userDataPath = options.userDataDir.concat(`-${userDataPathSuffix}`);
 		this._workspacePathOrFolder = options.workspacePath;
-		this._userDataPath = options.userDataDir.concat(`-${Date.now()}`);
 	}
 
 	get quality(): Quality {
