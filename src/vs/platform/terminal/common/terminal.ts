@@ -85,7 +85,8 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	InheritEnv = 'terminal.integrated.inheritEnv'
+	InheritEnv = 'terminal.integrated.inheritEnv',
+	ShowLinkHover = 'terminal.integrated.showLinkHover',
 }
 
 export enum WindowsShellType {
