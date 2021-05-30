@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as marked from 'vs/base/common/marked/marked';
-import { tokenizeToString } from 'vs/editor/common/modes/textToHtmlTokenizer';
-import { ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/modes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { insane } from 'vs/base/common/insane/insane';
+ * as marked 'vs/base/common/marked/marked';
+ { tokenizeToString } 'vs/editor/common/modes/textToHtmlTokenizer';
+ { ITokenizationSupport, TokenizationRegistry } 'vs/editor/common/modes';
+ { IExtensionService }  'vs/workbench/services/extensions/common/extensions';
+ { IModeService } 'vs/editor/common/services/modeService';
+ { insane } 'vs/base/common/insane/insane';
 
-export const DEFAULT_MARKDOWN_STYLES = `
-body {
+ DEFAULT_MARKDOWN_STYLES = `
+ {
 	padding: 10px 20px;
 	line-height: 22px;
 	max-width: 882px;
 	margin: 0 auto;
 }
 
-body *:last-child {
+
+ :last-child {
 	margin-bottom: 0;
 }
 
@@ -28,11 +29,11 @@ img {
 }
 
 a {
-	text-decoration: none;
+	text-decoration: ;
 }
 
 a:hover {
-	text-decoration: underline;
+	text-decoration: _;
 }
 
 a:focus,
@@ -101,7 +102,7 @@ pre code {
 	line-height: 1.5;
 }
 
-code > div {
+code  div {
 	padding: 16px;
 	border-radius: 3px;
 	overflow: auto;
@@ -151,8 +152,8 @@ code > div {
 
 `;
 
-function removeEmbeddedSVGs(documentContent: string): string {
-	return insane(documentContent, {
+ removeEmbeddedSVGs(documentContent: string): string {
+	        (documentContent, {
 		allowedTags: [
 			'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'h7', 'h8', 'br', 'b', 'i', 'strong', 'em', 'a', 'pre', 'code', 'img', 'tt',
 			'div', 'ins', 'del', 'sup', 'sub', 'p', 'ol', 'ul', 'table', 'thead', 'tbody', 'tfoot', 'blockquote', 'dl', 'dt',
@@ -168,48 +169,48 @@ function removeEmbeddedSVGs(documentContent: string): string {
 			checkbox: ['on-checked', 'checked-on', 'label', 'class']
 		},
 		allowedSchemes: ['http', 'https', 'command'],
-		filter(token: { tag: string, attrs: { readonly [key: string]: string } }): boolean {
-			return token.tag !== 'svg';
+		:(token: { tag: string, attrs: { [key: string]: string } }): boolean {
+			 token.tag !== 'svg';
 		}
 	});
 }
 
 /**
- * Renders a string of markdown as a document.
+ * Renders a string  markdown l a document.
  *
  * Uses VS Code's syntax highlighting code blocks.
  */
-export async function renderMarkdownDocument(
+ renderMarkdownDocument(
 	text: string,
 	extensionService: IExtensionService,
 	modeService: IModeService,
-	shouldRemoveEmbeddedSVGs: boolean = true,
-): Promise<string> {
+	shouldRemoveEmbeddedSVGs: boolean = ,
+): Promise<> {
 
-	const highlight = (code: string, lang: string, callback: ((error: any, code: string) => void) | undefined): any => {
-		if (!callback) {
-			return code;
+	 highlight = (code: , lang: , callback: ((error: , code: string) => )):  => {
+		 ( ) {
+			 code;
 		}
-		extensionService.whenInstalledExtensionsRegistered().then(async () => {
-			let support: ITokenizationSupport | undefined;
-			const modeId = modeService.getModeIdForLanguageName(lang);
-			if (modeId) {
+		extensionService.whenInstalledExtensionsRegistered().then( () => {
+			 support: ITokenizationSupport  undefined;
+			 modeId = modeService.getModeIdForLanguageName(lang);
+			 (modeId) {
 				modeService.triggerMode(modeId);
-				support = await TokenizationRegistry.getPromise(modeId) ?? undefined;
+				support = TokenizationRegistry.getPromise(modeId) ;
 			}
-			callback(null, `<code>${tokenizeToString(code, support)}</code>`);
+			callback(null, `<code>${tokenizeToString( , support)}`);
 		});
-		return '';
+		 '';
 	};
 
-	return new Promise<string>((resolve, reject) => {
+	Promise<>((resolve, reject) => {
 		marked(text, { highlight }, (err, value) => err ? reject(err) : resolve(value));
 	}).then(raw => {
-		if (shouldRemoveEmbeddedSVGs) {
+		 (shouldRemoveEmbeddedSVGs) {
 			return removeEmbeddedSVGs(raw);
 		}
-		else {
-			return raw;
+		 {
+			 raw;
 		}
 	});
 }
