@@ -117,6 +117,8 @@ export class GettingStartedPage extends EditorPane {
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
 
+	private layoutMarkdown: (() => void) | undefined;
+
 	private webviewID = generateUuid();
 
 	constructor(
@@ -499,7 +501,11 @@ export class GettingStartedPage extends EditorPane {
 
 			const postTrueKeysMessage = () => {
 				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
-				if (enabledContextKeys) { webview.postMessage({ enabledContextKeys }); }
+				if (enabledContextKeys) {
+					webview.postMessage({
+						enabledContextKeys
+					});
+				}
 			};
 
 			let isDisposed = false;
@@ -527,6 +533,10 @@ export class GettingStartedPage extends EditorPane {
 				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
 					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
 				}));
+
+				this.layoutMarkdown = () => { webview.postMessage({ layout: true }); };
+				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
+				this.layoutMarkdown();
 
 				postTrueKeysMessage();
 
@@ -630,6 +640,7 @@ export class GettingStartedPage extends EditorPane {
 						display: flex;
 						flex-direction: column;
 						align-items: center;
+						margin: 5px;
 						cursor: pointer;
 					}
 					checkbox.checked > img {
@@ -656,9 +667,14 @@ export class GettingStartedPage extends EditorPane {
 				});
 
 				window.addEventListener('message', event => {
-					document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
-					for (const key of event.data.enabledContextKeys) {
-						document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
+					document.querySelectorAll('vertically-centered').forEach(element => {
+						element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+					})
+					if (event.data.enabledContextKeys) {
+						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
+						for (const key of event.data.enabledContextKeys) {
+							document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
+						}
 					}
 				});
 		</script>
@@ -939,6 +955,8 @@ export class GettingStartedPage extends EditorPane {
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
+
+		this.layoutMarkdown?.();
 
 		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
 		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');

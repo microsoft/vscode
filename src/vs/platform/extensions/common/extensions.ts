@@ -131,7 +131,6 @@ export interface IWalkthrough {
 	readonly title: string;
 	readonly description: string;
 	readonly steps: IWalkthroughStep[];
-	readonly primary?: boolean;
 	readonly when?: string;
 }
 
