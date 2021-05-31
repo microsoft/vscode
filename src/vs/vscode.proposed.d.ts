@@ -1873,39 +1873,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The execution state of a notebook cell.
-	 */
-	export enum NotebookCellExecutionState {
-		/**
-		 * The cell is idle.
-		 */
-		Idle = 1,
-		/**
-		 * Execution for the cell is pending.
-		 */
-		Pending = 2,
-		/**
-		 * The cell is currently executing.
-		 */
-		Executing = 3,
-	}
-
-	/**
-	 * An event describing a cell execution state change.
-	 */
-	export interface NotebookCellExecutionStateChangeEvent {
-		/**
-		 * The {@link NotebookCell cell} for which the execution state has changed.
-		 */
-		readonly cell: NotebookCell;
-
-		/**
-		 * The new execution state of the cell.
-		 */
-		readonly state: NotebookCellExecutionState;
-	}
-
-	/**
 	 * Represents the alignment of status bar items.
 	 */
 	export enum NotebookCellStatusBarAlignment {
@@ -2062,18 +2029,58 @@ declare module 'vscode' {
 		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
 		/**
-		 * An {@link Event} which fires when the execution state of a cell has changed.
-		 */
-		// todo@API this is an event that is fired for a property that cells don't have and that makes me wonder
-		// how a correct consumer work, e.g the consumer could have been late and missed an event?
-		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
-
-		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
 		 * @param notebookType The notebook view type to register for.
 		 * @param provider The provider implementation.
 		 */
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/124970, Cell Execution State
+
+	/**
+	 * The execution state of a notebook cell.
+	 */
+	export enum NotebookCellExecutionState {
+		/**
+		 * The cell is idle.
+		 */
+		Idle = 1,
+		/**
+		 * Execution for the cell is pending.
+		 */
+		Pending = 2,
+		/**
+		 * The cell is currently executing.
+		 */
+		Executing = 3,
+	}
+
+	/**
+	 * An event describing a cell execution state change.
+	 */
+	export interface NotebookCellExecutionStateChangeEvent {
+		/**
+		 * The {@link NotebookCell cell} for which the execution state has changed.
+		 */
+		readonly cell: NotebookCell;
+
+		/**
+		 * The new execution state of the cell.
+		 */
+		readonly state: NotebookCellExecutionState;
+	}
+
+	export namespace notebook {
+
+		/**
+		 * An {@link Event} which fires when the execution state of a cell has changed.
+		 */
+		// todo@API this is an event that is fired for a property that cells don't have and that makes me wonder
+		// how a correct consumer works, e.g the consumer could have been late and missed an event?
+		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
 
 	//#endregion
