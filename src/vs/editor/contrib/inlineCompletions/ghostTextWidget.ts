@@ -178,9 +178,8 @@ export class GhostTextWidget extends Disposable {
 			const line = this.editor.getModel()?.getLineContent(renderData.position.lineNumber) || '';
 			const linePrefix = line.substr(0, renderData.position.column - 1);
 
-			const opts = this.editor.getOptions();
-			const renderWhitespace = opts.get(EditorOption.renderWhitespace);
-			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, renderWhitespace === 'all');
+			// To avoid visual confusion, we don't want to render visible whitespace
+			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, false);
 
 			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
 				after: {
@@ -273,7 +272,8 @@ export class GhostTextWidget extends Disposable {
 		const opts = this.editor.getOptions();
 		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-		const renderWhitespace = opts.get(EditorOption.renderWhitespace);
+		// To avoid visual confusion, we don't want to render visible whitespace
+		const renderWhitespace = 'none';
 		const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
 		const fontLigatures = opts.get(EditorOption.fontLigatures);
 		const fontInfo = opts.get(EditorOption.fontInfo);
