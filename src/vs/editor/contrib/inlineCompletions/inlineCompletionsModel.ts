@@ -429,13 +429,24 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 }
 
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
+	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-	if (!inlineCompletion.text.startsWith(valueToBeReplaced)) {
+	// valueToBeReplaced === ws1 + valueToBeReplacedTrimmed
+	const valueToBeReplacedTrimmed = valueToBeReplaced.trimLeft();
+	// inlineCompletion.text === ws2 + insertTextTrimmed
+	const insertTextTrimmed = inlineCompletion.text.trimLeft();
+	if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
+		// if ws1 === ws2, then inlineCompletion.text does not start with valueToBeReplaced
 		return undefined;
 	}
 
 	const position = inlineCompletion.range.getEndPosition();
-	const lines = strings.splitLines(inlineCompletion.text.substr(valueToBeReplaced.length));
+	const remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
+	// if ws1 === ws2, then
+	// 		remainingInsertText === (ws2 + insertTextTrimmed).substr(ws1 + valueToBeReplacedTrimmed.length);
+	//                          === inlineCompletion.text.substr(valueToBeReplaced.length)
+
+	const lines = strings.splitLines(remainingInsertText);
 
 	if (lines.length > 1 && textModel.getLineMaxColumn(position.lineNumber) !== position.column) {
 		// Such ghost text is not supported.
@@ -448,8 +459,7 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	};
 }
 
-export interface LiveInlineCompletion extends InlineCompletion {
-	range: Range;
+export interface LiveInlineCompletion extends NormalizedInlineCompletion {
 	sourceProvider: InlineCompletionsProvider;
 	sourceInlineCompletion: InlineCompletion;
 	sourceInlineCompletions: InlineCompletions;
@@ -510,6 +520,10 @@ async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item
 			}))) {
+				if (item.range.startLineNumber !== item.range.endLineNumber) {
+					// Ignore invalid ranges.
+					continue;
+				}
 				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
 			}
 		}
