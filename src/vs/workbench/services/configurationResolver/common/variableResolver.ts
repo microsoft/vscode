@@ -152,7 +152,7 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 				resolvedVariables.set(variable, resolvedValue);
 			}
 
-			if (resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
+			if ((resolvedValue !== match) && types.isString(resolvedValue) && resolvedValue.match(AbstractVariableResolverService.VARIABLE_REGEXP)) {
 				resolvedValue = this.resolveString(environment, folderUri, resolvedValue, commandValueMapping, resolvedVariables);
 			}
 
