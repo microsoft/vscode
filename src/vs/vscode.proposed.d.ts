@@ -1905,6 +1905,7 @@ declare module 'vscode' {
 		/**
 		 * An optional command to execute when the item is clicked.
 		 */
+		//todo@API only have Command?
 		command?: string | Command;
 
 		/**
@@ -1925,6 +1926,8 @@ declare module 'vscode' {
 		/**
 		 * Creates a new NotebookCellStatusBarItem.
 		 */
+		// todo@API jsdoc for args
+		// todo@API should ctors only have the args for required properties?
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 	}
 
@@ -1933,7 +1936,7 @@ declare module 'vscode' {
 	 */
 	export interface NotebookCellStatusBarItemProvider {
 		/**
-		 * Implement and fire this event to signal that statusbar items have changed. The provide method will be called again.
+		 * An optional event to signal that statusbar items have changed. The provide method will be called again.
 		 */
 		onDidChangeCellStatusBarItems?: Event<void>;
 
@@ -2029,8 +2032,10 @@ declare module 'vscode' {
 
 		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
+		 *
 		 * @param notebookType The notebook view type to register for.
-		 * @param provider The provider implementation.
+		 * @param provider A cell status bar provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */
 		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
 	}
