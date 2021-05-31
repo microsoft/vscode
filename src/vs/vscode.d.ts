@@ -11293,6 +11293,986 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * A notebook cell kind.
+	 */
+	export enum NotebookCellKind {
+
+		/**
+		 * A markup-cell is formatted source that is used for display.
+		 */
+		Markup = 1,
+
+		/**
+		 * A code-cell is source that can be {@link NotebookController executed} and that
+		 * produces {@link NotebookCellOutput output}.
+		 */
+		Code = 2
+	}
+
+	/**
+	 * Represents a cell of a {@link NotebookDocument notebook}, either a {@link NotebookCellKind.Code code}-cell
+	 * or {@link NotebookCellKind.Markup markup}-cell.
+	 *
+	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
+	 */
+	export interface NotebookCell {
+
+		/**
+		 * The index of this cell in its {@link NotebookDocument.cellAt containing notebook}. The
+		 * index is updated when a cell is moved within its notebook. The index is `-1`
+		 * when the cell has been removed from its notebook.
+		 */
+		readonly index: number;
+
+		/**
+		 * The {@link NotebookDocument notebook} that contains this cell.
+		 */
+		readonly notebook: NotebookDocument;
+
+		/**
+		 * The kind of this cell.
+		 */
+		readonly kind: NotebookCellKind;
+
+		/**
+		 * The {@link TextDocument text} of this cell, represented as text document.
+		 */
+		readonly document: TextDocument;
+
+		/**
+		 * The metadata of this cell.
+		 */
+		readonly metadata: NotebookCellMetadata
+
+		/**
+		 * The outputs of this cell.
+		 */
+		readonly outputs: ReadonlyArray<NotebookCellOutput>;
+
+		/**
+		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
+		 */
+		readonly executionSummary?: NotebookCellExecutionSummary;
+	}
+
+	/**
+	 * Represents a notebook which itself is a sequence of {@link NotebookCell code or markup cells}. Notebook documents are
+	 * created from {@link NotebookData notebook data}.
+	 */
+	export interface NotebookDocument {
+
+		/**
+		 * The associated uri for this notebook.
+		 *
+		 * *Note* that most notebooks use the `file`-scheme, which means they are files on disk. However, **not** all notebooks are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see {@link FileSystemProvider}
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The type of notebook.
+		 */
+		// todo@API should this be called `notebookType` or `notebookKind`
+		readonly viewType: string;
+
+		/**
+		 * The version number of this notebook (it will strictly increase after each
+		 * change, including undo/redo).
+		 */
+		readonly version: number;
+
+		/**
+		 * `true` if there are unpersisted changes.
+		 */
+		readonly isDirty: boolean;
+
+		/**
+		 * Is this notebook representing an untitled file which has not been saved yet.
+		 */
+		readonly isUntitled: boolean;
+
+		/**
+		 * `true` if the notebook has been closed. A closed notebook isn't synchronized anymore
+		 * and won't be re-used when the same resource is opened again.
+		 */
+		readonly isClosed: boolean;
+
+		/**
+		 * The {@link NotebookDocumentMetadata metadata} for this notebook.
+		 */
+		readonly metadata: NotebookDocumentMetadata;
+
+		/**
+		 * The number of cells in the notebook.
+		 */
+		readonly cellCount: number;
+
+		/**
+		 * Return the cell at the specified index. The index will be adjusted to the notebook.
+		 *
+		 * @param index - The index of the cell to retrieve.
+		 * @return A {@link NotebookCell cell}.
+		 */
+		cellAt(index: number): NotebookCell;
+
+		/**
+		 * Get the cells of this notebook. A subset can be retrieved by providing
+		 * a range. The range will be adjuset to the notebook.
+		 *
+		 * @param range A notebook range.
+		 * @returns The cells contained by the range or all cells.
+		 */
+		getCells(range?: NotebookRange): NotebookCell[];
+
+		/**
+		 * Save the document. The saving will be handled by the corresponding {@link NotebookSerializer serializer}.
+		 *
+		 * @return A promise that will resolve to true when the document
+		 * has been saved. Will return false if the file was not dirty or when save failed.
+		 */
+		save(): Thenable<boolean>;
+	}
+
+	// todo@API jsdoc
+	export class NotebookCellMetadata {
+
+		/**
+		 * Whether a code cell's editor is collapsed
+		 */
+		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
+		readonly inputCollapsed?: boolean;
+
+		/**
+		 * Whether a code cell's outputs are collapsed
+		 */
+		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
+		readonly outputCollapsed?: boolean;
+
+		/**
+		 * Additional attributes of a cell metadata.
+		 */
+		readonly [key: string]: any;
+
+		/**
+		 * Create a new notebook cell metadata.
+		 *
+		 * @param inputCollapsed Whether a code cell's editor is collapsed
+		 * @param outputCollapsed Whether a code cell's outputs are collapsed
+		 */
+		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
+
+		/**
+		 * Derived a new cell metadata from this metadata.
+		 *
+		 * @param change An object that describes a change to this NotebookCellMetadata.
+		 * @return A new NotebookCellMetadata that reflects the given change. Will return `this` NotebookCellMetadata if the change
+		 *  is not changing anything.
+		 */
+		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
+	}
+
+	/**
+	 * The summary of a notebook cell execution.
+	 */
+	export interface NotebookCellExecutionSummary {
+
+		/**
+		 * The order in which the execution happened.
+		 */
+		readonly executionOrder?: number;
+
+		/**
+		 * If the exclusive finished successfully.
+		 */
+		readonly success?: boolean;
+
+		/**
+		 * The unix timestamp at which execution started.
+		 */
+		// todo@API use duration instead of start/end?
+		readonly startTime?: number;
+
+		/**
+		 * The unix timestamp at which execution ended.
+		 */
+		readonly endTime?: number;
+	}
+
+	// todo@API jsdoc
+	// todo@API remove this and use simple {}?
+	export class NotebookDocumentMetadata {
+		/**
+		 * Additional attributes of the document metadata.
+		 */
+		readonly [key: string]: any;
+
+		/**
+		 * Create a new notebook document metadata
+		 */
+		constructor();
+
+		/**
+		 * Derived a new document metadata from this metadata.
+		 *
+		 * @param change An object that describes a change to this NotebookDocumentMetadata.
+		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
+		 *  is not changing anything.
+		 */
+		with(change: { [key: string]: any }): NotebookDocumentMetadata
+	}
+
+	/**
+	 * A notebook range represents an ordered pair of two cell indicies.
+	 * It is guaranteed that start is less than or equal to end.
+	 */
+	export class NotebookRange {
+
+		/**
+		 * The zero-based start index of this range.
+		 */
+		readonly start: number;
+
+		/**
+		 * The exclusive end index of this range (zero-based).
+		 */
+		readonly end: number;
+
+		/**
+		 * `true` if `start` and `end` are equal.
+		 */
+		readonly isEmpty: boolean;
+
+		/**
+		 * Create a new notebook range. If `start` is not
+		 * before or equal to `end`, the values will be swapped.
+		 *
+		 * @param start start index
+		 * @param end end index.
+		 */
+		constructor(start: number, end: number);
+
+		/**
+		 * Derive a new range for this range.
+		 *
+		 * @param change An object that describes a change to this range.
+		 * @return A range that reflects the given change. Will return `this` range if the change
+		 * is not changing anything.
+		 */
+		with(change: { start?: number, end?: number }): NotebookRange;
+	}
+
+	/**
+	 * One representation of a {@link NotebookCellOutput notebook output}, defined by MIME type and data.
+	 */
+	export class NotebookCellOutputItem {
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 *
+		 * @param value A string.
+		 * @param mime Optional MIME type, defaults to `text/plain`.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static text(value: string, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` from
+		 * a JSON object.
+		 *
+		 * *Note* that this function is not expecting "stringified JSON" but
+		 * an object that can be stringified. This function will throw an error
+		 * when the passed value cannot be JSON-stringified.
+		 *
+		 * @param value A JSON-stringifyable value.
+		 * @param mime Optional MIME type, defaults to `application/json`
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static json(value: any, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.stdout` mime type.
+		 *
+		 * @param value A string.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.stderr` mime type.
+		 *
+		 * @param value A string.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.error` mime type.
+		 *
+		 * @param value An error object.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static error(value: Error, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
+		 * is interpreted.
+		 *
+		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
+		 * types and override existing types.
+		 */
+		mime: string;
+
+		/**
+		 * The data of this output item. Must always be an array of unsigned 8-bit integers.
+		 */
+		data: Uint8Array;
+
+		//todo@API remove in favour of NotebookCellOutput#metadata
+		metadata?: { [key: string]: any };
+
+		/**
+		 * Create a new notbook cell output item.
+		 *
+		 * @param data The value of the output item.
+		 * @param mime The mime type of the output item.
+		 * @param metadata Optional metadata for this output item.
+		 */
+		constructor(data: Uint8Array, mime: string, metadata?: { [key: string]: any });
+	}
+
+	/**
+	 * Notebook cell output represents a result of executing a cell. It is a container type for multiple
+	 * {@link NotebookCellOutputItem output items} where contained items represent the same result but
+	 * use different MIME types.
+	 */
+	//todo@API - add sugar function to add more outputs
+	export class NotebookCellOutput {
+
+		/**
+		 * Identifier for this output. Using the identifier allows a subsequent execution to modify
+		 * existing output. Defaults to a fresh UUID.
+		 */
+		id: string;
+
+		/**
+		 * The output items of this output. Each item must represent the same result. _Note_ that repeated
+		 * MIME types per output is invalid and that the editor will just pick one of them.
+		 *
+		 * ```ts
+		 * new vscode.NotebookCellOutput([
+		 * 	vscode.NotebookCellOutputItem.text('Hello', 'text/plain'),
+		 * 	vscode.NotebookCellOutputItem.text('<i>Hello</i>', 'text/html'),
+		 * 	vscode.NotebookCellOutputItem.text('_Hello_', 'text/markdown'),
+		 * 	vscode.NotebookCellOutputItem.text('Hey', 'text/plain'), // INVALID: repeated type, editor will pick just one
+		 * ])
+		 * ```
+		 */
+		items: NotebookCellOutputItem[];
+
+		/**
+		 * Arbitrary metadata for this cell output. Must be JSON-stringifyable.
+		 */
+		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
+		metadata?: { [key: string]: any };
+
+		/**
+		 * Create new notebook output.
+		 *
+		 * @param outputs Notebook output items.
+		 * @param metadata Optional metadata.
+		 */
+		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+
+		/**
+		 * Create new notebook output.
+		 *
+		 * @param outputs Notebook output items.
+		 * @param id Identifier of this output.
+		 * @param metadata Optional metadata.
+		 */
+		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
+	}
+
+	/**
+	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
+	 */
+	export class NotebookCellData {
+
+		/**
+		 * The {@link NotebookCellKind kind} of this cell data.
+		 */
+		kind: NotebookCellKind;
+
+		/**
+		 * The source value of this cell data - either source code or formatted text.
+		 */
+		value: string;
+
+		/**
+		 * The language identifier of the source value of this cell data. Any value from
+		 * {@link languages.getLanguages `getLanguages`} is possible.
+		 */
+		languageId: string;
+
+		/**
+		 * The outputs of this cell data.
+		 */
+		outputs?: NotebookCellOutput[];
+
+		/**
+		 * The metadata of this cell data.
+		 */
+		metadata?: NotebookCellMetadata;
+
+		/**
+		 * The execution summary of this cell data.
+		 */
+		executionSummary?: NotebookCellExecutionSummary;
+
+		/**
+		 * Create new cell data. Minimal cell data specifies its kind, its source value, and the
+		 * language identifier of its source.
+		 *
+		 * @param kind The kind.
+		 * @param value The source value.
+		 * @param languageId The language identifier of the source value.
+		 * @param outputs //TODO@API remove from ctor?
+		 * @param metadata //TODO@API remove from ctor?
+		 * @param executionSummary //TODO@API remove from ctor?
+		 */
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
+	}
+
+	/**
+	 * NotebookData is the raw representation of notebooks.
+	 *
+	 * Extensions are responsible to create {@link NotebookData `NotebookData`} so that the editor
+	 * can create a {@link NotebookDocument `NotebookDocument`}.
+	 *
+	 * @see {@link NotebookSerializer}
+	 */
+	export class NotebookData {
+		/**
+		 * The cell data of this notebook data.
+		 */
+		cells: NotebookCellData[];
+
+		/**
+		 * The metadata of this notebook data.
+		 */
+		metadata: NotebookDocumentMetadata;
+
+		/**
+		 * Create new notebook data.
+		 *
+		 * @param cells An array of cell data.
+		 * @param metadata Notebook metadata.
+		 */
+		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
+	}
+
+	/**
+	 * The notebook serializer enables the editor to open notebook files.
+	 *
+	 * At its core the editor only knows a {@link NotebookData notebook data structure} but not
+	 * how that data structure is written to a file, nor how it is read from a file. The
+	 * notebook serializer bridges this gap by deserializing bytes into notebook data and
+	 * vice versa.
+	 */
+	export interface NotebookSerializer {
+
+		/**
+		 * Deserialize contents of a notebook file into the notebook data structure.
+		 *
+		 * @param content Contents of a notebook file.
+		 * @param token A cancellation token.
+		 * @return Notebook data or a thenable that resolves to such.
+		 */
+		deserializeNotebook(content: Uint8Array, token: CancellationToken): NotebookData | Thenable<NotebookData>;
+
+		/**
+		 * Serialize notebook data into file contents.
+		 *
+		 * @param data A notebook data structure.
+		 * @param token A cancellation token.
+		 * @returns An array of bytes or a thenable that resolves to such.
+		 */
+		serializeNotebook(data: NotebookData, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+	}
+
+	/**
+	 * Notebook content options define what parts of a notebook are persisted. Note
+	 *
+	 * For instance, a notebook serializer can opt-out of saving outputs and in that case the editor doesn't mark a
+	 * notebooks as {@link NotebookDocument.isDirty dirty} when its output has changed.
+	 */
+	export interface NotebookDocumentContentOptions {
+		/**
+		 * Controls if outputs change will trigger notebook document content change and if it will be used in the diff editor
+		 * Default to false. If the content provider doesn't persisit the outputs in the file document, this should be set to true.
+		 */
+		transientOutputs?: boolean;
+
+		/**
+		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
+		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		 */
+		transientCellMetadata?: { [K in keyof NotebookCellMetadata]?: boolean };
+
+		/**
+		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
+		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
+		*/
+		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
+		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
+	}
+
+	/**
+	 * A callback that is invoked by the editor whenever cell execution has been triggered.
+	 */
+	//todo@API inline?
+	export interface NotebookExecuteHandler {
+		/**
+		 * @param cells The notebook cells to execute.
+		 * @param notebook The notebook for which the execute handler is being called.
+		 * @param controller The controller that the handler is attached to
+		 */
+		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
+	}
+
+	/**
+	 * Notebook controller affinity for notebook documents.
+	 *
+	 * @see {@link NotebookController.updateNotebookAffinity}
+	 */
+	export enum NotebookControllerAffinity {
+		/**
+		 * Default affinity.
+		 */
+		Default = 1,
+		/**
+		 * A controller is preferred for a notebook.
+		 */
+		Preferred = 2
+	}
+
+	/**
+	 * A notebook controller represents an entity that can execute notebook cells. This is often referred to as a kernel.
+	 *
+	 * There can be multiple controllers and the editor will let users choose which controller to use for a certain notebook. The
+	 * {@link NotebookController.viewType `viewType`}-property defines for what kind of notebooks a controller is for and
+	 * the {@link NotebookController.updateNotebookAffinity `updateNotebookAffinity`}-function allows controllers to set a preference
+	 * for specific notebooks.
+	 *
+	 * When a cell is being run the editor will invoke the {@link NotebookController.executeHandler `executeHandler`} and a controller
+	 * is expected to create and finalize a {@link NotebookCellExecution notebook cell execution}. However, controllers are also free
+	 * to create executions by themselves.
+	 */
+	// todo@api adopt notebookType-rename in comment
+	export interface NotebookController {
+
+		/**
+		 * The identifier of this notebook controller.
+		 *
+		 * _Note_ that controllers are remembered by their identifier and that extensions should use
+		 * stable identifiers across sessions.
+		 */
+		readonly id: string;
+
+		/**
+		 * The notebook view type this controller is for.
+		 */
+		// todo@api rename to notebookType
+		readonly viewType: string;
+
+		/**
+		 * An array of language identifiers that are supported by this
+		 * controller. Any language identifier from {@link languages.getLanguages `getLanguages`}
+		 * is possible. When falsy all languages are supported.
+		 *
+		 * Samples:
+		 * ```js
+		 * // support JavaScript and TypeScript
+		 * myController.supportedLanguages = ['javascript', 'typescript']
+		 *
+		 * // support all languages
+		 * myController.supportedLanguages = undefined; // falsy
+		 * myController.supportedLanguages = []; // falsy
+		 * ```
+		 */
+		supportedLanguages?: string[];
+
+		/**
+		 * The human-readable label of this notebook controller.
+		 */
+		label: string;
+
+		/**
+		 * The human-readable description which is rendered less prominent.
+		 */
+		description?: string;
+
+		/**
+		 * The human-readable detail which is rendered less prominent.
+		 */
+		detail?: string;
+
+		/**
+		 * Whether this controller supports execution order so that the
+		 * editor can render placeholders for them.
+		 */
+		// todo@API rename to supportsExecutionOrder
+		hasExecutionOrder?: boolean;
+
+		/**
+		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
+		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
+		 */
+		executeHandler: NotebookExecuteHandler;
+
+		/**
+		 * Optional interrupt handler.
+		 *
+		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
+		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
+		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
+		 * running. For those cases the interrupt handler exists - it can be thought of as the equivalent of `SIGINT`
+		 * or `Control+C` in terminals.
+		 *
+		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
+		 * only be used when tokens cannot be supported.
+		 */
+		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
+
+		/**
+		 * Dispose and free associated resources.
+		 */
+		dispose(): void;
+
+		/**
+		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
+		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
+		 * controller was suggested.
+		 */
+		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
+
+		/**
+		 * A controller can set affinities for specific notebook documents. This allows a controller
+		 * to be presented more prominent for some notebooks.
+		 *
+		 * @param notebook The notebook for which a priority is set.
+		 * @param affinity A controller affinity
+		 */
+		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
+
+		/**
+		 * Create a cell execution task.
+		 *
+		 * _Note_ that there can only be one execution per cell at a time and that an error is thrown if
+		 * a cell execution is created while another is still active.
+		 *
+		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
+		 * being called or when cell execution has been started else, e.g when a cell was already
+		 * executing or when cell execution was triggered from another source.
+		 *
+		 * @param cell The notebook cell for which to create the execution.
+		 * @returns A notebook cell execution.
+		 */
+		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
+	}
+
+	// todo@api jsdoc
+	// todo@api Inline unless we can come up with more (future) properties
+	export interface NotebookCellExecuteStartContext {
+		/**
+		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
+		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 */
+		startTime?: number;
+	}
+
+	// todo@api jsdoc
+	// todo@api Inline unless we can come up with more (future) properties
+	export interface NotebookCellExecuteEndContext {
+		/**
+		 * If true, a green check is shown on the cell status bar.
+		 * If false, a red X is shown.
+		 * If undefined, no check or X icon is shown.
+		 */
+		success?: boolean;
+
+		/**
+		 * The time that execution finished, in milliseconds in the Unix epoch.
+		 */
+		endTime?: number;
+	}
+
+	/**
+	 * A NotebookCellExecution is how {@link NotebookController notebook controller} modify a notebook cell as
+	 * it is executing.
+	 *
+	 * When a cell execution object is created, the cell enters the {@link NotebookCellExecutionState.Pending `Pending`} state.
+	 * When {@link NotebookCellExecution.start `start(...)`} is called on the execution task, it enters the {@link NotebookCellExecutionState.Executing `Executing`} state. When
+	 * {@link NotebookCellExecution.end `end(...)`} is called, it enters the {@link NotebookCellExecutionState.Idle `Idle`} state.
+	 */
+	export interface NotebookCellExecution {
+
+		/**
+		 * The {@link NotebookCell cell} for which this execution has been created.
+		 */
+		readonly cell: NotebookCell;
+
+		/**
+		 * A cancellation token which will be triggered when the cell execution is canceled
+		 * from the UI.
+		 *
+		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
+		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
+		 */
+		readonly token: CancellationToken;
+
+		/**
+		 * Set and unset the order of this cell execution.
+		 */
+		executionOrder: number | undefined;
+
+		// todo@API inline context object?
+		start(context?: NotebookCellExecuteStartContext): void;
+
+		// todo@API inline context object?
+		end(result?: NotebookCellExecuteEndContext): void;
+
+		/**
+		 * Clears the output of the cell that is executing or of another cell that is affected by this execution.
+		 *
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		clearOutput(cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Replace the output of the cell that is executing or of another cell that is affected by this execution.
+		 *
+		 * @param out Output that replaces the current output.
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Append to the output of the cell that is executing or to another cell that is affected by this execution.
+		 *
+		 * @param out Output that is appended to the current output.
+		 * @param cell Cell for which output is cleared. Defaults to the {@link NotebookCellExecution.cell cell} of
+		 * this execution.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cell?: NotebookCell): Thenable<void>;
+
+		/**
+		 * Replace all output items of existing cell output.
+		 *
+		 * @param items Output items that replace the items of existing output.
+		 * @param output Output object or the identifier of one.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+
+		/**
+		 * Append output items to existing cell output.
+		 *
+		 * @param items Output items that are append to existing output.
+		 * @param output Output object or the identifier of one.
+		 * @return A thenable that resolves when the operation finished.
+		 */
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+	}
+
+	/**
+	 * Represents the alignment of status bar items.
+	 */
+	export enum NotebookCellStatusBarAlignment {
+
+		/**
+		 * Aligned to the left side.
+		 */
+		Left = 1,
+
+		/**
+		 * Aligned to the right side.
+		 */
+		Right = 2
+	}
+
+	/**
+	 * A contribution to a cell's status bar
+	 */
+	export class NotebookCellStatusBarItem {
+		/**
+		 * The text to show for the item.
+		 */
+		text: string;
+
+		/**
+		 * Whether the item is aligned to the left or right.
+		 */
+		alignment: NotebookCellStatusBarAlignment;
+
+		/**
+		 * An optional command to execute when the item is clicked.
+		 */
+		//todo@API only have Command?
+		command?: string | Command;
+
+		/**
+		 * A tooltip to show when the item is hovered.
+		 */
+		tooltip?: string;
+
+		/**
+		 * The priority of the item. A higher value item will be shown more to the left.
+		 */
+		priority?: number;
+
+		/**
+		 * Accessibility information used when a screen reader interacts with this item.
+		 */
+		accessibilityInformation?: AccessibilityInformation;
+
+		/**
+		 * Creates a new NotebookCellStatusBarItem.
+		 */
+		// todo@API jsdoc for args
+		// todo@API should ctors only have the args for required properties?
+		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+	}
+
+	/**
+	 * A provider that can contribute items to the status bar that appears below a cell's editor.
+	 */
+	export interface NotebookCellStatusBarItemProvider {
+		/**
+		 * An optional event to signal that statusbar items have changed. The provide method will be called again.
+		 */
+		onDidChangeCellStatusBarItems?: Event<void>;
+
+		/**
+		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
+		 * @param cell The cell for which to return items.
+		 * @param token A token triggered if this request should be cancelled.
+		 */
+		//todo@API jsdoc for return-type
+		//todo@API should this return an item instead of an array?
+		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+	}
+
+	/**
+	 * Namespace for notebooks.
+	 *
+	 * The notebooks functionality is composed of three loosly coupled components:
+	 *
+	 * 1. {@link NotebookSerializer} enable the editor to open, show, and save notebooks
+	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
+	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
+	 */
+	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
+	export namespace notebooks {
+
+		/**
+		 * All notebook documents currently known to the editor.
+		 */
+		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+
+		/**
+		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
+		 *
+		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
+		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
+		 *
+		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
+		 * can be showns in a notebook editor but it can also be used for other things.
+		 *
+		 * @param uri The resource to open.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 */
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
+		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param viewType The notebook view type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(viewType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 */
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 *
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 *
+		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
+		 * for a notebook that has not been shown in an editor.
+		 */
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * Register a {@link NotebookSerializer notebook serializer}.
+		 *
+		 * A notebook serializer must to be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
+		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
+		 *
+		 * @param notebookType A notebook.
+		 * @param serializer A notebook serialzier.
+		 * @param options Optional context options that define what parts of a notebook should be persisted
+		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
+		 */
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+
+		/**
+		 * Creates a new notebook controller.
+		 *
+		 * @param id Identifier of the controller. Must be unique per extension.
+		 * @param viewType A notebook view type for which this controller is for.
+		 * @param label The label of the controller.
+		 * @param handler The execute-handler of the controller.
+		 */
+		//todo@API adopt viewType -> notebookType rename
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler): NotebookController;
+
+		/**
+		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
+		 *
+		 * @param notebookType The notebook view type to register for.
+		 * @param provider A cell status bar provider.
+		 * @return A {@link Disposable} that unregisters this provider when being disposed.
+		 */
+		export function registerNotebookCellStatusBarItemProvider(notebookType: string, provider: NotebookCellStatusBarItemProvider): Disposable;
+	}
+
+	/**
 	 * Represents the input box in the Source Control viewlet.
 	 */
 	export interface SourceControlInputBox {
