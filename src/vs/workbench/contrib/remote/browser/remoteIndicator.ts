@@ -414,12 +414,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
+			items.push({
+				type: 'separator'
+			});
+
+			let entriesBeforeConfig = items.length;
+
 			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
 				if (this.remoteAuthority) {
-					if (items.length) {
-						items.push({ type: 'separator' });
-					}
-
 					items.push({
 						type: 'item',
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
@@ -434,28 +436,27 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						});
 					}
 				} else if (this.virtualWorkspaceScheme) {
-					if (items.length) {
-						items.push({ type: 'separator' });
-					}
-
 					items.push({
 						type: 'item',
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						label: nls.localize('closeRemoteWindow.title', 'Close Remote')
+						label: nls.localize('closeVirtualWorkspace.title', 'Close Remote Workspace')
 					});
 				}
 			}
 
-			if (!this.remoteAuthority && this.extensionGalleryService.isEnabled()) {
-				items.push({
-					type: 'separator'
-				});
+			if (!this.remoteAuthority && !this.virtualWorkspaceScheme && this.extensionGalleryService.isEnabled()) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
-					label: nls.localize('installRemotes', "Install Additional Remote Development Extensions..."),
+					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
+
 					alwaysShow: true
 				});
 			}
+
+			if (items.length === entriesBeforeConfig) {
+				items.pop(); // remove the separator again
+			}
+
 			return items;
 		};
 
