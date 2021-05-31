@@ -11751,10 +11751,11 @@ declare module 'vscode' {
 		 * @param kind The kind.
 		 * @param value The source value.
 		 * @param languageId The language identifier of the source value.
-		 * @param outputs //TODO@API remove from ctor?
-		 * @param metadata //TODO@API remove from ctor?
-		 * @param executionSummary //TODO@API remove from ctor?
+		 * @param outputs Optional outputs.
+		 * @param metadata Optional metadata.
+		 * @param executionSummary Optional execution summary.
 		 */
+		// todo@API should ctors only have the args for required properties?
 		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
 	}
 
