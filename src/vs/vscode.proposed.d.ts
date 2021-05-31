@@ -1954,7 +1954,6 @@ declare module 'vscode' {
 	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
 	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
 	 */
-	// todo@api rename to notebooks?
 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
 	export namespace notebooks {
 
