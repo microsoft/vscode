@@ -34,7 +34,8 @@ export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWor
 export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 
 export const WorkspaceTrustContext = {
-	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustCtx', "Whether the current workspace has been trusted by the user."))
+	IsEnabled: new RawContextKey<boolean>('isWorkspaceTrustEnabled', false, localize('workspaceTrustEnabledCtx', "Whether the workspace trust feature is enabled.")),
+	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustedCtx', "Whether the current workspace has been trusted by the user."))
 };
 
 export class CanonicalWorkspace implements IWorkspace {
@@ -465,6 +466,7 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	private _trusted!: boolean;
 	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
 	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
+	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
 	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
 
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
@@ -482,7 +484,9 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 
 		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => this.trusted = trusted));
 
+		this._ctxWorkspaceTrustEnabled = WorkspaceTrustContext.IsEnabled.bindTo(contextKeyService);
 		this._ctxWorkspaceTrustState = WorkspaceTrustContext.IsTrusted.bindTo(contextKeyService);
+		this._ctxWorkspaceTrustEnabled.set(this.workspaceTrustManagementService.workspaceTrustEnabled);
 
 		this.trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 	}
