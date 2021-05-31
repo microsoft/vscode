@@ -1054,7 +1054,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: notebook
-		const notebook: typeof vscode.notebook = {
+		const notebooks: typeof vscode.notebooks = {
 			async openNotebookDocument(uriOrOptions?: URI | string, content?: vscode.NotebookData) {
 				checkProposedApiEnabled(extension);
 				let uri: URI;
@@ -1144,7 +1144,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			env,
 			extensions,
 			languages,
-			notebook,
+			notebooks,
+			notebook: notebooks,
 			scm,
 			tasks,
 			test,

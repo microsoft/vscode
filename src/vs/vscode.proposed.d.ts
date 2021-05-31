@@ -1956,7 +1956,7 @@ declare module 'vscode' {
 	 */
 	// todo@api rename to notebooks?
 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
-	export namespace notebook {
+	export namespace notebooks {
 
 		/**
 		 * All notebook documents currently known to the editor.
@@ -2073,7 +2073,7 @@ declare module 'vscode' {
 		readonly state: NotebookCellExecutionState;
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 
 		/**
 		 * An {@link Event} which fires when the execution state of a cell has changed.
@@ -2082,6 +2082,15 @@ declare module 'vscode' {
 		// how a correct consumer works, e.g the consumer could have been late and missed an event?
 		export const onDidChangeNotebookCellExecutionState: Event<NotebookCellExecutionStateChangeEvent>;
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated
+
+	/**
+	 * @deprecated use notebooks instead
+	 */
+	export const notebook: typeof notebooks;
 
 	//#endregion
 
@@ -2207,7 +2216,7 @@ declare module 'vscode' {
 		selections?: NotebookRange[];
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 
 
 
@@ -2302,7 +2311,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 		export function createNotebookEditorDecorationType(options: NotebookDecorationRenderOptions): NotebookEditorDecorationType;
 	}
 
@@ -2310,7 +2319,7 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookConcatTextDocument
 
-	export namespace notebook {
+	export namespace notebooks {
 		/**
 		 * Create a document that is the concatenation of all  notebook cells. By default all code-cells are included
 		 * but a selector can be provided to narrow to down the set of cells.
@@ -2395,7 +2404,7 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
@@ -2412,7 +2421,7 @@ declare module 'vscode' {
 		exclusive?: boolean;
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 		// SPECIAL overload with NotebookRegistrationData
 		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
 		// SPECIAL overload with NotebookRegistrationData
@@ -2486,7 +2495,7 @@ declare module 'vscode' {
 		postMessage(editor: NotebookEditor, message: TSend): void;
 	}
 
-	export namespace notebook {
+	export namespace notebooks {
 		/**
 		 * Creates a new messaging instance used to communicate with a specific
 		 * renderer. The renderer only has access to messaging if `requiresMessaging`
