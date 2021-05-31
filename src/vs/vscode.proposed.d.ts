@@ -1103,6 +1103,7 @@ declare module 'vscode' {
 		/**
 		 * The document associated with this notebook editor.
 		 */
+		//todo@api rename to notebook?
 		readonly document: NotebookDocument;
 
 		/**

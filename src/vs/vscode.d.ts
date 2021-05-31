@@ -11986,6 +11986,7 @@ declare module 'vscode' {
 		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
 		 * controller was suggested.
 		 */
+		//todo@api rename to ...NotebookDocument...
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
 		/**
