@@ -251,14 +251,29 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
+				name: 'extensionIdOrVSIXUri',
+				description: localize('workbench.extensions.installExtension.arg.decription', "Extension id or VSIX resource uri"),
+				constraint: (value: any) => typeof value === 'string' || value instanceof URI,
+			},
+			{
+				name: 'options',
+				description: '(optional) Options for installing the extension. Object with the following properties: ' +
+					'`installOnlyNewlyAddedFromExtensionPackVSIX`: When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX. ',
+				isOptional: true,
 				schema: {
-					'type': ['object', 'string']
+					'type': 'object',
+					'properties': {
+						'installOnlyNewlyAddedFromExtensionPackVSIX': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
+							default: false
+						}
+					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
@@ -271,7 +286,7 @@ CommandsRegistry.registerCommand({
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionManagementService.install(vsix);
+				await extensionManagementService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
 			}
 		} catch (e) {
 			onUnexpectedError(e);
