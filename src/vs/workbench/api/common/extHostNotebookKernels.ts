@@ -143,10 +143,17 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get hasExecutionOrder() {
-				return data.hasExecutionOrder ?? false;
+				return data.supportsExecutionOrder ?? false;
 			},
 			set hasExecutionOrder(value) {
-				data.hasExecutionOrder = value;
+				data.supportsExecutionOrder = value;
+				_update();
+			},
+			get supportsExecutionOrder() {
+				return data.supportsExecutionOrder ?? false;
+			},
+			set supportsExecutionOrder(value) {
+				data.supportsExecutionOrder = value;
 				_update();
 			},
 			get rendererScripts() {

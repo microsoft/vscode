@@ -915,7 +915,7 @@ export interface INotebookKernelDto2 {
 	description?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
-	hasExecutionOrder?: boolean;
+	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 

@@ -11938,7 +11938,10 @@ declare module 'vscode' {
 		 * Whether this controller supports execution order so that the
 		 * editor can render placeholders for them.
 		 */
-		// todo@API rename to supportsExecutionOrder
+		supportsExecutionOrder?: boolean;
+
+		// todo@API remove
+		/** @deprecated */
 		hasExecutionOrder?: boolean;
 
 		/**
