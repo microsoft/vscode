@@ -732,7 +732,7 @@ export class TerminalService implements ITerminalService {
 		this._onInstancesChanged.fire();
 	}
 
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void {
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
@@ -747,7 +747,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// Rearrange within the target group
-		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'right' ? 1 : 0);
+		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
 		targetGroup.moveInstance(source, index);
 	}
 

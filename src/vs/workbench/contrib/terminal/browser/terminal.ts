@@ -162,7 +162,7 @@ export interface ITerminalService {
 	 * Moves a terminal instance's group to the target instance group's position.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void;
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -629,7 +629,7 @@ export interface ITerminalInstance {
 
 export interface IRequestAddInstanceToGroupEvent {
 	uri: URI;
-	side: 'left' | 'right'
+	side: 'before' | 'after'
 }
 
 export const enum LinuxDistro {
