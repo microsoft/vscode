@@ -17,7 +17,7 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 	) {
 		super();
 
-		if (!workspaceTrustManagementService.workspaceTrustEnabled) {
+		if (workspaceTrustManagementService.workspaceTrustEnabled) {
 			const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
 				async participate(trusted: boolean): Promise<void> {
 					if (trusted) {

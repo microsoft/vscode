@@ -100,7 +100,7 @@ if (!isWeb) {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{});
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
-			await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionUntrustedSupport: { 'pub.a': { supported: true } } } } });
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true } } });
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
 		});
@@ -109,7 +109,7 @@ if (!isWeb) {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{});
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
-			await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionUntrustedSupport: { 'pub.a': { supported: true, version: '1.0.0' } } } } });
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true, version: '1.0.0' } } });
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
 		});
@@ -118,7 +118,7 @@ if (!isWeb) {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{});
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
-			await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { extensionUntrustedSupport: { 'pub.a': { supported: true, version: '2.0.0' } } } } });
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true, version: '2.0.0' } } });
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
 			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
 		});

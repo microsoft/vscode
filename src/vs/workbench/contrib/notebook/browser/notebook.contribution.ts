@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, ShowCellStatusBarAfterExecuteKey, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, ShowCellStatusBarAfterExecuteKey, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -66,10 +66,12 @@ import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
@@ -602,7 +604,7 @@ configurationRegistry.registerConfiguration({
 			},
 			default: []
 		},
-		[CellToolbarLocKey]: {
+		[CellToolbarLocation]: {
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
 			type: 'object',
 			additionalProperties: {
@@ -622,7 +624,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowCellStatusBarAfterExecuteKey]: {
-			description: nls.localize('notebook.showCellStatusbarAfterExecute.description', "Whether the cell status bar should be shown after the cell has been executed."),
+			description: nls.localize('notebook.showCellStatusbarAfterExecute.description', "Whether the cell status bar should be shown after the cell has been executed. Only has an effect if notebook.showCellStatusBar is false."),
 			type: 'boolean',
 			default: false,
 			tags: ['notebookLayout']
