@@ -144,7 +144,7 @@ export class ExtHostNotebookDocument {
 		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
-		private readonly _viewType: string,
+		private readonly _notebookType: string,
 		private _metadata: extHostTypes.NotebookDocumentMetadata,
 		readonly uri: URI,
 	) { }
@@ -159,7 +159,8 @@ export class ExtHostNotebookDocument {
 			this._notebook = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
-				get viewType() { return that._viewType; },
+				get viewType() { return that._notebookType; },
+				get notebookType() { return that._notebookType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get isClosed() { return that._disposed; },
@@ -356,7 +357,7 @@ export class ExtHostNotebookDocument {
 
 		if (originalInternalMetadata.runState !== newInternalMetadata.runState) {
 			const executionState = newInternalMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, executionState }));
+			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, state: executionState }));
 		}
 	}
 

@@ -859,12 +859,12 @@ suite('Notebook API tests', function () {
 		const p = new Promise<void>(r => resolve = r);
 		const listener = vscode.notebook.onDidChangeNotebookCellExecutionState(e => {
 			if (eventCount === 0) {
-				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
+				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Pending, 'should be set to Pending');
 			} else if (eventCount === 1) {
-				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
+				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Executing, 'should be set to Executing');
 				assert.strictEqual(cell.outputs.length, 0, 'no outputs yet: ' + JSON.stringify(cell.outputs[0]));
 			} else if (eventCount === 2) {
-				assert.strictEqual(e.executionState, vscode.NotebookCellExecutionState.Idle, 'should be set to Idle');
+				assert.strictEqual(e.state, vscode.NotebookCellExecutionState.Idle, 'should be set to Idle');
 				assert.strictEqual(cell.outputs.length, 1, 'should have an output');
 				resolve();
 			}

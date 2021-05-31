@@ -96,7 +96,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			for (const notebookContribution of extension.value) {
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
-					id: notebookContribution.viewType,
+					id: notebookContribution.type || notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),

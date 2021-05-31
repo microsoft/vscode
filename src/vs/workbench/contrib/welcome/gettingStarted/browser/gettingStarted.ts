@@ -497,7 +497,9 @@ export class GettingStartedPage extends EditorPane {
 			const rawHTML = await this.renderMarkdown(media.path, media.base);
 			webview.html = rawHTML;
 
-			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1).replace(/&#39;/g, '\''));
+			const serializedContextKeyExprs = rawHTML.match(/checked-on=\"([^'][^"]*)\"/g)?.map(attr => attr.slice('checked-on="'.length, -1)
+				.replace(/&#39;/g, '\'')
+				.replace(/&amp;/g, '&'));
 
 			const postTrueKeysMessage = () => {
 				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
