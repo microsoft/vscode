@@ -151,6 +151,9 @@ function getInlineCompletion(suggestController: SuggestController, position: Pos
 	const info = suggestController.getOverwriteInfo(item, false);
 	return {
 		text: insertText,
-		range: Range.fromPositions(position.delta(0, -info.overwriteBefore), position.delta(0, info.overwriteAfter)),
+		range: Range.fromPositions(
+			position.delta(0, -info.overwriteBefore),
+			position.delta(0, Math.max(info.overwriteAfter, 0))
+		),
 	};
 }
