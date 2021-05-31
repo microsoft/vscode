@@ -6,6 +6,7 @@
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -66,6 +67,11 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 		}));
 	}
 
+	private isSuggestionPreviewEnabled(): boolean {
+		const suggestOptions = this.editor.getOption(EditorOption.suggest);
+		return suggestOptions.showSuggestionPreview;
+	}
+
 	private updateFromSuggestion(): void {
 		const suggestController = SuggestController.get(this.editor);
 		if (!suggestController) {
@@ -109,7 +115,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 
 		const suggestController = SuggestController.get(this.editor);
 		if (suggestController) {
-			if (this.minReservedLineCount >= 1) {
+			if (this.minReservedLineCount >= 1 && this.isSuggestionPreviewEnabled()) {
 				suggestController.forceRenderingAbove();
 			} else {
 				suggestController.stopForceRenderingAbove();
@@ -120,7 +126,9 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	}
 
 	public override get ghostText(): GhostText | undefined {
-		return this.currentGhostText;
+		return this.isSuggestionPreviewEnabled()
+			? this.currentGhostText
+			: undefined;
 	}
 }
 

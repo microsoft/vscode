@@ -17,6 +17,7 @@ import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCom
 import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -77,6 +78,11 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
+		const suggestOptions = this.editor.getOption(EditorOption.suggest);
+		if (!suggestOptions.showInlineCompletions) {
+			return;
+		}
+
 		if (this.session && this.session.isValid) {
 			return;
 		}
@@ -105,11 +111,11 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 		this.session?.commitCurrentCompletion();
 	}
 
-	public showNextInlineCompletion(): void {
+	public showNext(): void {
 		this.session?.showNextInlineCompletion();
 	}
 
-	public showPreviousInlineCompletion(): void {
+	public showPrevious(): void {
 		this.session?.showPreviousInlineCompletion();
 	}
 }

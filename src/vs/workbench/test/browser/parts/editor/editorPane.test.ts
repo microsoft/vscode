@@ -103,7 +103,7 @@ class OtherTestInput extends EditorInput {
 }
 class TestResourceEditorInput extends TextResourceEditorInput { }
 
-suite('Workbench EditorPane', () => {
+suite('EditorPane', () => {
 
 	test('EditorPane API', async () => {
 		const editor = new TestEditor(NullTelemetryService);

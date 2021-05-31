@@ -24,7 +24,7 @@ import { IModelDecoration } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorHoverStatusBar, IEditorHover, IEditorHoverParticipant, IHoverPart } from 'vs/editor/contrib/hover/modesContentHover';
+import { HoverAnchor, HoverAnchorType, IEditorHover, IEditorHoverParticipant, IEditorHoverStatusBar, IHoverPart } from 'vs/editor/contrib/hover/hoverTypes';
 
 const $ = dom.$;
 
@@ -36,11 +36,12 @@ export class MarkerHover implements IHoverPart {
 		public readonly marker: IMarker,
 	) { }
 
-	public equals(other: IHoverPart): boolean {
-		if (other instanceof MarkerHover) {
-			return IMarkerData.makeKey(this.marker) === IMarkerData.makeKey(other.marker);
-		}
-		return false;
+	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
+		return (
+			anchor.type === HoverAnchorType.Range
+			&& this.range.startColumn <= anchor.range.startColumn
+			&& this.range.endColumn >= anchor.range.endColumn
+		);
 	}
 }
 
@@ -60,13 +61,13 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public computeSync(hoverRange: Range, lineDecorations: IModelDecoration[]): MarkerHover[] {
-		if (!this._editor.hasModel()) {
+	public computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): MarkerHover[] {
+		if (!this._editor.hasModel() || anchor.type !== HoverAnchorType.Range) {
 			return [];
 		}
 
 		const model = this._editor.getModel();
-		const lineNumber = hoverRange.startLineNumber;
+		const lineNumber = anchor.range.startLineNumber;
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		const result: MarkerHover[] = [];
 		for (const d of lineDecorations) {
@@ -78,14 +79,14 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 				continue;
 			}
 
-			const range = new Range(hoverRange.startLineNumber, startColumn, hoverRange.startLineNumber, endColumn);
+			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
 			result.push(new MarkerHover(this, range, marker));
 		}
 
 		return result;
 	}
 
-	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: EditorHoverStatusBar): IDisposable {
+	public renderHoverParts(hoverParts: MarkerHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		if (!hoverParts.length) {
 			return Disposable.None;
 		}
@@ -163,7 +164,7 @@ export class MarkerHoverParticipant implements IEditorHoverParticipant<MarkerHov
 		return hoverElement;
 	}
 
-	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: EditorHoverStatusBar, disposables: DisposableStore): void {
+	private renderMarkerStatusbar(markerHover: MarkerHover, statusBar: IEditorHoverStatusBar, disposables: DisposableStore): void {
 		if (markerHover.marker.severity === MarkerSeverity.Error || markerHover.marker.severity === MarkerSeverity.Warning || markerHover.marker.severity === MarkerSeverity.Info) {
 			statusBar.addAction({
 				label: nls.localize('view problem', "View Problem"),

@@ -359,7 +359,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	async showProfileMigrationNotification(): Promise<void> {
 		const platform = this._getPlatformKey();
 		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + platform) ||
-			!!this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform)) &&
+			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + platform).userValue) &&
 			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + platform);
 		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
 			this._notificationService.prompt(
@@ -374,8 +374,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
 							if (profile) {
 								this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
-								this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, null);
-								this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, null);
+								this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
+								this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
 								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
 							} else {
 								this._logService.trace('migration from shell/shellArgs to profile did not occur bc created profile was an exact match for existing one', shell, shellArgs);

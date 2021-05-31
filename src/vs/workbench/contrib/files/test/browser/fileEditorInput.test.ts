@@ -9,9 +9,9 @@ import { toResource } from 'vs/base/test/common/utils';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, getLastResolvedFileStat } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -370,5 +370,46 @@ suite('Files - FileEditorInput', () => {
 		assert.strictEqual(didChangeLabelCounter, 0);
 
 		fileInput.dispose();
+	});
+
+	test('reports readonly changes', async function () {
+		const input = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'));
+
+		let listenerCount = 0;
+		const listener = input.onDidChangeCapabilities(() => {
+			listenerCount++;
+		});
+
+		const model = await accessor.textFileService.files.resolve(input.resource);
+
+		assert.strictEqual(model.isReadonly(), false);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+
+		const stat = await accessor.fileService.resolve(input.resource, { resolveMetadata: true });
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: true });
+			await input.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(model.isReadonly(), true);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), true);
+		assert.strictEqual(listenerCount, 1);
+
+		try {
+			accessor.fileService.readShouldThrowError = new NotModifiedSinceFileOperationError('file not modified since', { ...stat, readonly: false });
+			await input.resolve();
+		} finally {
+			accessor.fileService.readShouldThrowError = undefined;
+		}
+
+		assert.strictEqual(model.isReadonly(), false);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(listenerCount, 2);
+
+		input.dispose();
+		listener.dispose();
 	});
 });

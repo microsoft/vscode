@@ -24,7 +24,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
-suite('Workbench editor group model', () => {
+suite('EditorGroupModel', () => {
 
 	function inst(): IInstantiationService {
 		let inst = new TestInstantiationService();
@@ -258,7 +258,7 @@ suite('Workbench editor group model', () => {
 		assert.strictEqual(clone.count, 3);
 
 		let didEditorLabelChange = false;
-		const toDispose = clone.onDidEditorLabelChange(() => didEditorLabelChange = true);
+		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
 		input1.setLabel();
 		assert.ok(didEditorLabelChange);
 
@@ -1560,12 +1560,12 @@ suite('Workbench editor group model', () => {
 		});
 
 		let label1ChangeCounter = 0;
-		group1.onDidEditorLabelChange(() => {
+		group1.onDidChangeEditorLabel(() => {
 			label1ChangeCounter++;
 		});
 
 		let label2ChangeCounter = 0;
-		group2.onDidEditorLabelChange(() => {
+		group2.onDidChangeEditorLabel(() => {
 			label2ChangeCounter++;
 		});
 
