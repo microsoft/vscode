@@ -11347,7 +11347,7 @@ declare module 'vscode' {
 		/**
 		 * The outputs of this cell.
 		 */
-		readonly outputs: ReadonlyArray<NotebookCellOutput>;
+		readonly outputs: readonly NotebookCellOutput[];
 
 		/**
 		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
@@ -11701,12 +11701,12 @@ declare module 'vscode' {
 		/**
 		 * Create new notebook output.
 		 *
-		 * @param outputs Notebook output items.
+		 * @param items Notebook output items.
 		 * @param id Identifier of this output.
 		 * @param metadata Optional metadata.
 		 */
-		//todo@API id-args is not used by jupyter but added with display_id in mind...
-		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
+		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
+		constructor(items: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
 	/**
@@ -12205,7 +12205,7 @@ declare module 'vscode' {
 		/**
 		 * All notebook documents currently known to the editor.
 		 */
-		export const notebookDocuments: ReadonlyArray<NotebookDocument>;
+		export const notebookDocuments: readonly NotebookDocument[];
 
 		/**
 		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
