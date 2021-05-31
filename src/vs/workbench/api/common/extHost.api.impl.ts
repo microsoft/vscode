@@ -1128,9 +1128,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
 			},
-			createNotebookController(id, viewType, label, executeHandler, preloads) {
+			createNotebookController(id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, rendererScripts?: vscode.NotebookRendererScript[]) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebookKernels.createNotebookController(extension, id, viewType, label, executeHandler, preloads);
+				return extHostNotebookKernels.createNotebookController(extension, id, viewType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
 			}
 		};
 

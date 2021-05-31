@@ -21,6 +21,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -185,18 +186,20 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					this._proxy.$removeKernel(handle);
 				}
 			},
-			// --- ipc
-			onDidReceiveMessage: onDidReceiveMessage.event,
-			postMessage(message, editor) {
-				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
-			},
-			asWebviewUri(uri: URI) {
-				return asWebviewUri(uri, that._initData.remote);
-			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {
 				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
-			}
+			},
+			// --- ipc
+			onDidReceiveMessage: onDidReceiveMessage.event,
+			postMessage(message, editor) {
+				checkProposedApiEnabled(extension);
+				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
+			},
+			asWebviewUri(uri: URI) {
+				checkProposedApiEnabled(extension);
+				return asWebviewUri(uri, that._initData.remote);
+			},
 		};
 
 		this._kernelData.set(handle, {

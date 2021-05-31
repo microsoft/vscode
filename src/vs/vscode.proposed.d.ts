@@ -1846,30 +1846,6 @@ declare module 'vscode' {
 		 * @returns A notebook cell execution.
 		 */
 		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
-
-		// todo@API allow add, not remove
-		readonly rendererScripts: NotebookRendererScript[];
-
-		/**
-		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
-		 * the controller.
-		 */
-		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
-
-		/**
-		 * Send a message to the renderer of notebook editors.
-		 *
-		 * Note that only editors showing documents that are bound to this controller
-		 * are receiving the message.
-		 *
-		 * @param message The message to send.
-		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
-		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
-		 */
-		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
-
-		//todo@API validate this works
-		asWebviewUri(localResource: Uri): Uri;
 	}
 
 	/**
@@ -2024,11 +2000,10 @@ declare module 'vscode' {
 		 *
 		 * @param id Identifier of the controller. Must be unique per extension.
 		 * @param viewType A notebook view type for which this controller is for.
-		 * @param label The label of the controller
-		 * @param handler
-		 * @param rendererScripts todo@API should renderer scripts come later?
+		 * @param label The label of the controller.
+		 * @param handler The execute-handler of the controller.
 		 */
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler): NotebookController;
 
 		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
@@ -2467,7 +2442,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
+	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
 	export interface NotebookRendererMessage<T> {
 		/**
@@ -2499,7 +2474,37 @@ declare module 'vscode' {
 		postMessage(editor: NotebookEditor, message: TSend): void;
 	}
 
+	export interface NotebookController {
+
+		// todo@API allow add, not remove
+		readonly rendererScripts: NotebookRendererScript[];
+
+		/**
+		 * An event that fires when a {@link NotebookController.rendererScripts renderer script} has send a message to
+		 * the controller.
+		 */
+		readonly onDidReceiveMessage: Event<{ editor: NotebookEditor, message: any }>;
+
+		/**
+		 * Send a message to the renderer of notebook editors.
+		 *
+		 * Note that only editors showing documents that are bound to this controller
+		 * are receiving the message.
+		 *
+		 * @param message The message to send.
+		 * @param editor A specific editor to send the message to. When `undefined` all applicable editors are receiving the message.
+		 * @returns A promise that resolves to a boolean indicating if the message has been send or not.
+		 */
+		postMessage(message: any, editor?: NotebookEditor): Thenable<boolean>;
+
+		//todo@API validate this works
+		asWebviewUri(localResource: Uri): Uri;
+	}
+
 	export namespace notebooks {
+
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
+
 		/**
 		 * Creates a new messaging instance used to communicate with a specific
 		 * renderer. The renderer only has access to messaging if `requiresMessaging`
@@ -2507,7 +2512,10 @@ declare module 'vscode' {
 		 *
 		 * @see https://github.com/microsoft/vscode/issues/123601
 		 * @param rendererId The renderer ID to communicate with
-		 */
+		*/
+		// todo@API can ANY extension talk to renderer or is there a check that the calling extension
+		// declared the renderer in its package.json?
+		// todo@API align with vscode.Webview -> remove generics
 		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
