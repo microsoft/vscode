@@ -13,6 +13,7 @@ import { CompletionItemInsertTextRule } from 'vs/editor/common/modes';
 import { BaseGhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
+import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 
@@ -145,7 +146,14 @@ function getInlineCompletion(suggestController: SuggestController, position: Pos
 
 	let { insertText } = item.completion;
 	if (item.completion.insertTextRules! & CompletionItemInsertTextRule.InsertAsSnippet) {
-		insertText = new SnippetParser().text(insertText);
+		const snippet = new SnippetParser().parse(insertText);
+		const model = suggestController.editor.getModel()!;
+		SnippetSession.adjustWhitespace(
+			model, position, snippet,
+			true,
+			true
+		);
+		insertText = snippet.toString();
 	}
 
 	const info = suggestController.getOverwriteInfo(item, false);

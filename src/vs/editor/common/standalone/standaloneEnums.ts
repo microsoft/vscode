@@ -361,7 +361,7 @@ export enum InlayHintKind {
 }
 
 /**
- * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+ * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
  */
 export enum InlineCompletionTriggerKind {
 	/**
