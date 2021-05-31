@@ -11945,6 +11945,21 @@ declare module 'vscode' {
 		hasExecutionOrder?: boolean;
 
 		/**
+		 * Create a cell execution task.
+		 *
+		 * _Note_ that there can only be one execution per cell at a time and that an error is thrown if
+		 * a cell execution is created while another is still active.
+		 *
+		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
+		 * being called or when cell execution has been started else, e.g when a cell was already
+		 * executing or when cell execution was triggered from another source.
+		 *
+		 * @param cell The notebook cell for which to create the execution.
+		 * @returns A notebook cell execution.
+		 */
+		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
+
+		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
@@ -11965,11 +11980,6 @@ declare module 'vscode' {
 		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
-		 * Dispose and free associated resources.
-		 */
-		dispose(): void;
-
-		/**
 		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
 		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
 		 * controller was suggested.
@@ -11986,19 +11996,9 @@ declare module 'vscode' {
 		updateNotebookAffinity(notebook: NotebookDocument, affinity: NotebookControllerAffinity): void;
 
 		/**
-		 * Create a cell execution task.
-		 *
-		 * _Note_ that there can only be one execution per cell at a time and that an error is thrown if
-		 * a cell execution is created while another is still active.
-		 *
-		 * This should be used in response to the {@link NotebookController.executeHandler execution handler}
-		 * being called or when cell execution has been started else, e.g when a cell was already
-		 * executing or when cell execution was triggered from another source.
-		 *
-		 * @param cell The notebook cell for which to create the execution.
-		 * @returns A notebook cell execution.
+		 * Dispose and free associated resources.
 		 */
-		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
+		dispose(): void;
 	}
 
 	// todo@api jsdoc
