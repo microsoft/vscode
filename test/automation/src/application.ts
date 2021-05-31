@@ -28,6 +28,7 @@ export class Application {
 	private _workbench: Workbench | undefined;
 
 	constructor(private options: ApplicationOptions) {
+		// https://github.com/microsoft/vscode/issues/34988
 		const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 		this._userDataPath = options.userDataDir.concat(`-${userDataPathSuffix}`);
 		this._workspacePathOrFolder = options.workspacePath;
