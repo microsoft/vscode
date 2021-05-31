@@ -33,7 +33,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	) {
 		super();
 
-		this._register(this.editor.onDidChangeModelContent((e) => {
+		this._register(this.editor.onDidType((e) => {
 			if (this.session && !this.session.isValid) {
 				this.hide();
 			}
