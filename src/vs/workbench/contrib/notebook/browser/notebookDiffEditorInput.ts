@@ -16,6 +16,7 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Schemas } from 'vs/base/common/network';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -70,7 +71,8 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
@@ -85,6 +87,16 @@ export class NotebookDiffEditorInput extends EditorInput {
 
 		if (this._modifiedTextModel?.object.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		if (this._modifiedTextModel) {
+			if (this._modifiedTextModel.object.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
 		}
 
 		return capabilities;
@@ -214,7 +226,7 @@ ${patterns}
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (this === otherInput) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookDiffEditorInput) {

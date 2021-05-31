@@ -308,21 +308,22 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
+			// Unset preferred contents after having applied it once
+			// to prevent this property to stick. We still want future
+			// `resolve` calls to fetch the contents from disk.
+			const preferredContents = this.preferredContents;
+			this.preferredContents = undefined;
+
 			// Resolve resource via text file service and only allow
 			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
-				contents: typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined,
+				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: TextFileResolveReason.EDITOR
 			});
-
-			// Unset preferred contents after having applied it once
-			// to prevent this property to stick. We still want future
-			// `resolve` calls to fetch the contents from disk.
-			this.preferredContents = undefined;
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
@@ -402,7 +403,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

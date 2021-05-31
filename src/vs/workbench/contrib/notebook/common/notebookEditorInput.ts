@@ -210,7 +210,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (this === otherInput) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {

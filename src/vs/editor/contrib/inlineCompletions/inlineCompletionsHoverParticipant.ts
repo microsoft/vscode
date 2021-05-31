@@ -13,7 +13,7 @@ import { GhostTextController, ShowNextInlineCompletionAction, ShowPreviousInline
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
+import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mouseTarget';
 
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
@@ -51,16 +51,19 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 				return new HoverForeignElementAnchor(1000, this, Range.fromPositions(viewZoneData.positionBefore || viewZoneData.position, viewZoneData.positionBefore || viewZoneData.position));
 			}
 		}
-		if (mouseEvent.target.type === MouseTargetType.CONTENT_EMPTY) {
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_EMPTY && mouseEvent.target.range) {
 			// handle the case where the mouse is over the empty portion of a line following ghost text
-			if (mouseEvent.target.range && controller.shouldShowHoverAt(mouseEvent.target.range)) {
+			if (controller.shouldShowHoverAt(mouseEvent.target.range)) {
 				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
 			}
 		}
-		// let mightBeForeignElement = false;
-		// 	if (mouseEvent.target.type === MouseTargetType.CONTENT_TEXT && mouseEvent.target.detail) {
-		// 		mightBeForeignElement = (<ITextContentData>mouseEvent.target.detail).mightBeForeignElement;
-		// 	}
+		if (mouseEvent.target.type === MouseTargetType.CONTENT_TEXT && mouseEvent.target.range && mouseEvent.target.detail) {
+			// handle the case where the mouse is directly over ghost text
+			const mightBeForeignElement = (<ITextContentData>mouseEvent.target.detail).mightBeForeignElement;
+			if (mightBeForeignElement && controller.shouldShowHoverAt(mouseEvent.target.range)) {
+				return new HoverForeignElementAnchor(1000, this, mouseEvent.target.range);
+			}
+		}
 		return null;
 	}
 

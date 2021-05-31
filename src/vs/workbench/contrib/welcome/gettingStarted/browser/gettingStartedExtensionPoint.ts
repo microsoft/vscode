@@ -11,7 +11,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
 		doNotSuggest: true,
-		description: localize('walkthroughs', "Contribute collections of steps to help users with your extension. Experimental, available in VS Code Insiders only."),
+		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
 		type: 'array',
 		items: {
 			type: 'object',
@@ -31,8 +31,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					description: localize('walkthroughs.description', "Description of walkthrough.")
 				},
 				primary: {
-					type: 'boolean',
-					description: localize('walkthroughs.primary', "if this is a `primary` walkthrough, hinting if it should be opened on install of the extension. The first `primary` walkthough with a `when` condition matching the current context may be opened by core on install of the extension.")
+					deprecationMessage: localize('walkthroughs.primary.deprecated', "Deprecated. The first walkthrough with a satisfied when condition will be opened on install.")
 				},
 				when: {
 					type: 'string',

@@ -70,11 +70,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	}
 
 	protected override get webviewContentEndpoint(): string {
-		const endpoint = `${Schemas.vscodeWebview}://${this.id}`;
-		if (endpoint[endpoint.length - 1] === '/') {
-			return endpoint.slice(0, endpoint.length - 1);
-		}
-		return endpoint;
+		return `${Schemas.vscodeWebview}://${this.id}`;
 	}
 
 	protected override async doPostMessage(channel: string, data?: any): Promise<void> {

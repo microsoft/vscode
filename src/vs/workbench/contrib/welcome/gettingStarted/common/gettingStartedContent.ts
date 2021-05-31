@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/workbench/contrib/welcome/gettingStarted/common/media/example_markdown_media';
 import { localize } from 'vs/nls';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -182,6 +183,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
 					description: localize('gettingStarted.pickColor.description', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n[Browse Color Themes](command:workbench.action.selectTheme)"),
+					completionEvents: ['onSettingChanged:workbench.colorTheme'],
 					media: { type: 'markdown', path: 'example_markdown_media', }
 				},
 				{
@@ -209,18 +211,17 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					},
 				},
 				{
-					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
-					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
-					when: 'syncStatus != uninitialized',
-					completionEvents: ['onEvent:sync-enabled'],
+					id: 'workspaceTrust',
+					title: localize('gettingStarted.workspaceTrust.title', "Safely browse and edit code"),
+					description: localize('gettingStarted.workspaceTrust.description', "[Workspace Trust](https://github.com/microsoft/vscode-docs/blob/workspaceTrust/docs/editor/workspace-trust.md) lets you decide whether your project folders should **allow or restrict** automatic code execution __(required for extensions, debugging, etc)__.\nOpening a file/folder will prompt to grant trust. You can always [enable trust](command:toSide:workbench.action.manageTrustedDomain) later."),
+					when: '!isWorkspaceTrusted && workspaceFolderCount == 0',
 					media: {
-						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
-							dark: 'dark/settingsSync.png',
-							light: 'light/settingsSync.png',
-							hc: 'hc/settingsSync.png',
+						type: 'image', altText: 'Workspace Trust editor in Restricted mode and a primary button for switching to Trusted mode.', path: {
+							dark: 'dark/workspaceTrust.svg',
+							light: 'light/workspaceTrust.svg',
+							hc: 'dark/workspaceTrust.svg',
 						},
-					}
+					},
 				},
 				{
 					id: 'pickAFolderTask-Mac',
@@ -250,7 +251,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'quickOpen',
-					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your file"),
+					title: localize('gettingStarted.quickOpen.title', "Quickly navigate between your files"),
 					description: localize('gettingStarted.quickOpen.description', "Navigate between files in an instant with one keystroke. Tip: Open multiple files by pressing the right arrow key.\n[Quick Open a File](command:toSide:workbench.action.quickOpen)"),
 					when: 'workspaceFolderCount != 0',
 					media: {
@@ -322,6 +323,20 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 							hc: 'hc/settings.png',
 						}
 					},
+				},
+				{
+					id: 'settingsSync',
+					title: localize('gettingStarted.settingsSync.title', "Sync your stuff across devices"),
+					description: localize('gettingStarted.settingsSync.description', "Never lose the perfect VS Code setup! Settings Sync will back up and share settings, keybindings & extensions across several installations.\n[Enable Settings Sync](command:workbench.userDataSync.actions.turnOn)"),
+					when: 'syncStatus != uninitialized',
+					completionEvents: ['onEvent:sync-enabled'],
+					media: {
+						type: 'image', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: {
+							dark: 'dark/settingsSync.png',
+							light: 'light/settingsSync.png',
+							hc: 'hc/settingsSync.png',
+						},
+					}
 				},
 				{
 					id: 'videoTutorial',

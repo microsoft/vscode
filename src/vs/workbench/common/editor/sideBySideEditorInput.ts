@@ -105,7 +105,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	override getTelemetryDescriptor(): { [key: string]: unknown } {
 		const descriptor = this.primary.getTelemetryDescriptor();
 
-		return Object.assign(descriptor, super.getTelemetryDescriptor());
+		return { ...descriptor, ...super.getTelemetryDescriptor() };
 	}
 
 	override isDirty(): boolean {
@@ -129,7 +129,7 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

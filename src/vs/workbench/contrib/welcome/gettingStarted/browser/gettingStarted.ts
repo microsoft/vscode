@@ -41,7 +41,7 @@ import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted
 import { GroupDirection, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Emitter, Event } from 'vs/base/common/event';
-import { LinkedText } from 'vs/base/common/linkedText';
+import { ILink, LinkedText } from 'vs/base/common/linkedText';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { Link } from 'vs/platform/opener/browser/link';
@@ -116,6 +116,8 @@ export class GettingStartedPage extends EditorPane {
 	private categoriesSlide!: HTMLElement;
 	private stepsContent!: HTMLElement;
 	private stepMediaComponent!: HTMLElement;
+
+	private layoutMarkdown: (() => void) | undefined;
 
 	private webviewID = generateUuid();
 
@@ -469,6 +471,17 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
 
+			this.stepDisposables.add(addDisposableListener(mediaElement, 'click', () => {
+				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				if (hrefs.length === 1) {
+					const href = hrefs[0];
+					if (href.startsWith('http')) {
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.openerService.open(href);
+					}
+				}
+			}));
+
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
 
 		} else if (stepToExpand.media.type === 'markdown') {
@@ -488,7 +501,11 @@ export class GettingStartedPage extends EditorPane {
 
 			const postTrueKeysMessage = () => {
 				const enabledContextKeys = serializedContextKeyExprs?.filter(expr => this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(expr)));
-				if (enabledContextKeys) { webview.postMessage({ enabledContextKeys }); }
+				if (enabledContextKeys) {
+					webview.postMessage({
+						enabledContextKeys
+					});
+				}
 			};
 
 			let isDisposed = false;
@@ -516,6 +533,10 @@ export class GettingStartedPage extends EditorPane {
 				this.stepDisposables.add(this.contextService.onDidChangeContext(e => {
 					if (e.affectsSome(watchingKeys)) { postTrueKeysMessage(); }
 				}));
+
+				this.layoutMarkdown = () => { webview.postMessage({ layout: true }); };
+				this.stepDisposables.add({ dispose: () => this.layoutMarkdown = undefined });
+				this.layoutMarkdown();
 
 				postTrueKeysMessage();
 
@@ -575,7 +596,8 @@ export class GettingStartedPage extends EditorPane {
 
 	private updateMediaSourceForColorMode(element: HTMLImageElement, sources: { hc: URI, dark: URI, light: URI }) {
 		const themeType = this.themeService.getColorTheme().type;
-		element.srcset = sources[themeType].toString(true).replace(/ /g, '%20') + ' 1.5x';
+		const src = sources[themeType].toString(true).replace(/ /g, '%20');
+		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {
@@ -618,6 +640,7 @@ export class GettingStartedPage extends EditorPane {
 						display: flex;
 						flex-direction: column;
 						align-items: center;
+						margin: 5px;
 						cursor: pointer;
 					}
 					checkbox.checked > img {
@@ -644,9 +667,14 @@ export class GettingStartedPage extends EditorPane {
 				});
 
 				window.addEventListener('message', event => {
-					document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
-					for (const key of event.data.enabledContextKeys) {
-						document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
+					document.querySelectorAll('vertically-centered').forEach(element => {
+						element.style.marginTop = Math.max((document.body.scrollHeight - element.scrollHeight) * 2/5, 10) + 'px';
+					})
+					if (event.data.enabledContextKeys) {
+						document.querySelectorAll('.checked').forEach(element => element.classList.remove('checked'))
+						for (const key of event.data.enabledContextKeys) {
+							document.querySelectorAll('[checked-on="' + key + '"]').forEach(element => element.classList.add('checked'))
+						}
 					}
 				});
 		</script>
@@ -927,6 +955,8 @@ export class GettingStartedPage extends EditorPane {
 		this.startList?.layout(size);
 		this.gettingStartedList?.layout(size);
 		this.recentlyOpenedList?.layout(size);
+
+		this.layoutMarkdown?.();
 
 		this.container.classList[size.height <= 600 ? 'add' : 'remove']('height-constrained');
 		this.container.classList[size.width <= 400 ? 'add' : 'remove']('width-constrained');
