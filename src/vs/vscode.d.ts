@@ -11705,6 +11705,7 @@ declare module 'vscode' {
 		 * @param id Identifier of this output.
 		 * @param metadata Optional metadata.
 		 */
+		//todo@API id-args is not used by jupyter but added with display_id in mind...
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
