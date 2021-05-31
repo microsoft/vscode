@@ -10,7 +10,6 @@ import { splitName } from 'vs/base/common/labels';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
-import { isWeb } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -37,15 +36,6 @@ export const WORKSPACE_TRUST_STORAGE_KEY = 'content.trust.model.key';
 export const WorkspaceTrustContext = {
 	IsTrusted: new RawContextKey<boolean>('isWorkspaceTrusted', false, localize('workspaceTrustCtx', "Whether the current workspace has been trusted by the user."))
 };
-
-export function isWorkspaceTrustEnabled(configurationService: IConfigurationService): boolean {
-	if (isWeb) {
-		return false;
-	}
-
-	return (configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).userValue ?? configurationService.inspect<boolean>(WORKSPACE_TRUST_ENABLED).defaultValue) ?? false;
-}
-
 
 export class CanonicalWorkspace implements IWorkspace {
 	constructor(
@@ -74,8 +64,6 @@ export class CanonicalWorkspace implements IWorkspace {
 		return this.originalWorkspace.id;
 	}
 }
-
-
 
 export class WorkspaceTrustManagementService extends Disposable implements IWorkspaceTrustManagementService {
 
@@ -220,7 +208,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private calculateWorkspaceTrust(): boolean {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustEnabled) {
 			return true;
 		}
 
@@ -233,10 +221,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
-		}
-
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise default to restricted mode
 			// Workspace may transition to trusted based on the opened editors
@@ -247,7 +231,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async updateWorkspaceTrust(trusted?: boolean): Promise<void> {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustEnabled) {
 			return;
 		}
 
@@ -284,7 +268,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private doGetUriTrustInfo(uri: URI): IWorkspaceTrustUriInfo {
 		// Return trusted when workspace trust is disabled
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustEnabled) {
 			return { trusted: true, uri };
 		}
 
@@ -334,6 +318,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	//#endregion
 
 	//#region public interface
+
+	get workspaceTrustEnabled(): boolean {
+		if (this.environmentService.disableWorkspaceTrust) {
+			return false;
+		}
+
+		return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
+	}
 
 	get workspaceTrustInitialized(): Promise<void> {
 		return this._workspaceTrustInitializedPromise;
@@ -419,7 +411,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		// Return trusted when workspace trust is disabled
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustEnabled) {
 			return { trusted: true, uri };
 		}
 

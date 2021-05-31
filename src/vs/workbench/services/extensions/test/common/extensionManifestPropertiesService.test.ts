@@ -12,11 +12,12 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
+import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 	function check(manifest: Partial<IExtensionManifest>, expected: ExtensionKind[]): void {
-		const extensionManifestPropertiesService = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService());
+		const extensionManifestPropertiesService = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustManagementService());
 		assert.deepStrictEqual(extensionManifestPropertiesService.deduceExtensionKind(<IExtensionManifest>manifest), expected);
 	}
 
