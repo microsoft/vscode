@@ -68,6 +68,11 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 		}));
 	}
 
+	public override setExpanded(expanded: boolean): void {
+		super.setExpanded(expanded);
+		this.updateFromSuggestion();
+	}
+
 	private isSuggestionPreviewEnabled(): boolean {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 		return suggestOptions.showSuggestionPreview;
