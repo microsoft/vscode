@@ -1405,6 +1405,9 @@ declare module 'vscode' {
 		 */
 		items: NotebookCellOutputItem[];
 
+		/**
+		 * Arbitrary metadata for this cell output. Must be JSON-stringifyable.
+		 */
 		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
 		metadata?: { [key: string]: any };
 
@@ -1921,6 +1924,8 @@ declare module 'vscode' {
 		 * @param cell The cell for which to return items.
 		 * @param token A token triggered if this request should be cancelled.
 		 */
+		//todo@API jsdoc for return-type
+		//todo@API should this return an item instead of an array?
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
