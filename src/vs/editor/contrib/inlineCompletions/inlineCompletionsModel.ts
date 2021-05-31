@@ -428,23 +428,35 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
+function leftTrim(str: string): string {
+	return str.replace(/^\s+/, '');
+}
+
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
 	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-	// valueToBeReplaced === ws1 + valueToBeReplacedTrimmed
-	const valueToBeReplacedTrimmed = valueToBeReplaced.trimLeft();
-	// inlineCompletion.text === ws2 + insertTextTrimmed
-	const insertTextTrimmed = inlineCompletion.text.trimLeft();
-	if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
-		// if ws1 === ws2, then inlineCompletion.text does not start with valueToBeReplaced
-		return undefined;
+
+	let remainingInsertText: string;
+
+	// Consider these cases
+	// valueToBeReplaced -> inlineCompletion.text
+	// "\t\tfoo" -> "\t\tfoobar" (+"bar")
+	// "\t" -> "\t\tfoobar" (+"\tfoobar")
+	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
+	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
+
+	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
+		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
+	} else {
+		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
+		const insertTextTrimmed = leftTrim(inlineCompletion.text);
+		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
+			return undefined;
+		}
+		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
 	}
 
 	const position = inlineCompletion.range.getEndPosition();
-	const remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
-	// if ws1 === ws2, then
-	// 		remainingInsertText === (ws2 + insertTextTrimmed).substr(ws1 + valueToBeReplacedTrimmed.length);
-	//                          === inlineCompletion.text.substr(valueToBeReplaced.length)
 
 	const lines = strings.splitLines(remainingInsertText);
 
