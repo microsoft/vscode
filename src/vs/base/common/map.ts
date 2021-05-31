@@ -499,7 +499,7 @@ export class TernarySearchTree<K, V> {
 
 	private *_entries(node: TernarySearchTreeNode<K, V> | undefined, i: number = 0): IterableIterator<[K, V]> {
 		if (i > 5000) {
-			console.trace('potential CYCLE detected');
+			console.log('potential CYCLE detected', new Error().stack);
 			return;
 		}
 		if (node) {
