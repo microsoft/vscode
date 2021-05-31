@@ -1070,6 +1070,9 @@ declare module 'vscode' {
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditor
 
+	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
 	export enum NotebookEditorRevealType {
 		/**
 		 * The range will be revealed with as little scrolling as possible.
@@ -1093,6 +1096,9 @@ declare module 'vscode' {
 		AtTop = 3
 	}
 
+	/**
+	 * Represents a notebook editor that is attached to a {@link NotebookDocument notebook}.
+	 */
 	export interface NotebookEditor {
 		/**
 		 * The document associated with this notebook editor.
@@ -1129,6 +1135,7 @@ declare module 'vscode' {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the document metadata have changed.
 		 */
+		//todo@API rename to notebook?
 		readonly document: NotebookDocument;
 	}
 
@@ -1146,6 +1153,7 @@ declare module 'vscode' {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cells have changed.
 		 */
+		//todo@API rename to notebook?
 		readonly document: NotebookDocument;
 		readonly changes: ReadonlyArray<NotebookCellsChangeData>;
 	}
@@ -1154,7 +1162,9 @@ declare module 'vscode' {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell outputs have changed.
 		 */
+		//todo@API remove? use cell.notebook instead?
 		readonly document: NotebookDocument;
+		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
 		readonly cells: NotebookCell[];
 	}
 
@@ -1162,7 +1172,9 @@ declare module 'vscode' {
 		/**
 		 * The {@link NotebookDocument notebook document} for which the cell metadata have changed.
 		 */
+		//todo@API remove? use cell.notebook instead?
 		readonly document: NotebookDocument;
+		// NotebookCellOutputsChangeEvent.cells vs NotebookCellMetadataChangeEvent.cell
 		readonly cell: NotebookCell;
 	}
 
