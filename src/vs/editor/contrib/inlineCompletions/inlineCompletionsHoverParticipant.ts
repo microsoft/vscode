@@ -82,14 +82,14 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 		);
 
 		statusBar.addAction({
-			label: nls.localize('showPreviousInlineCompletion', "Previous"),
-			commandId: ShowPreviousInlineCompletionAction.ID,
-			run: () => this._commandService.executeCommand(ShowPreviousInlineCompletionAction.ID)
-		});
-		statusBar.addAction({
 			label: nls.localize('showNextInlineCompletion', "Next"),
 			commandId: ShowNextInlineCompletionAction.ID,
 			run: () => this._commandService.executeCommand(ShowNextInlineCompletionAction.ID)
+		});
+		statusBar.addAction({
+			label: nls.localize('showPreviousInlineCompletion', "Previous"),
+			commandId: ShowPreviousInlineCompletionAction.ID,
+			run: () => this._commandService.executeCommand(ShowPreviousInlineCompletionAction.ID)
 		});
 
 		for (const [_, group] of menu.getActions()) {
