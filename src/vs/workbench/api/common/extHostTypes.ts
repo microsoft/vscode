@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { coalesceInPlace, equals } from 'vs/base/common/arrays';
+import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
-import { isFalsyOrWhitespace } from 'vs/base/common/strings';
-import { isStringArray } from 'vs/base/common/types';
+import { normalizeMimeType } from 'vs/base/common/mime';
+import { isArray, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
@@ -1547,6 +1547,29 @@ export class CompletionList {
 	}
 }
 
+@es5ClassCompat
+export class InlineSuggestion implements vscode.InlineCompletionItem {
+
+	text: string;
+	range?: Range;
+	command?: vscode.Command;
+
+	constructor(text: string, range?: Range, command?: vscode.Command) {
+		this.text = text;
+		this.range = range;
+		this.command = command;
+	}
+}
+
+@es5ClassCompat
+export class InlineSuggestions implements vscode.InlineCompletionList {
+	items: vscode.InlineCompletionItem[];
+
+	constructor(items: vscode.InlineCompletionItem[]) {
+		this.items = items;
+	}
+}
+
 export enum ViewColumn {
 	Active = -1,
 	Beside = -2,
@@ -2438,6 +2461,11 @@ export class EvaluatableExpression implements vscode.EvaluatableExpression {
 	}
 }
 
+export enum InlineCompletionTriggerKind {
+	Automatic = 0,
+	Explicit = 1,
+}
+
 @es5ClassCompat
 export class InlineValueText implements vscode.InlineValueText {
 	readonly range: Range;
@@ -3047,11 +3075,11 @@ export class NotebookCellData {
 	kind: NotebookCellKind;
 	value: string;
 	languageId: string;
-	outputs?: NotebookCellOutput[];
+	outputs?: vscode.NotebookCellOutput[];
 	metadata?: NotebookCellMetadata;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
@@ -3084,39 +3112,103 @@ export class NotebookCellOutputItem {
 		if (!obj) {
 			return false;
 		}
-		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string';
+		return typeof (<vscode.NotebookCellOutputItem>obj).mime === 'string'
+			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
-	static error(err: Error): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(
-			'application/x.notebook.error',
-			JSON.stringify({ name: err.name, message: err.message, stack: err.stack })
-		);
+	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const obj = {
+			name: err.name,
+			message: err.message,
+			stack: err.stack
+		};
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error', metadata);
+	}
+
+	static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout', metadata);
+	}
+
+	static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr', metadata);
+	}
+
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(value, mime, metadata);
+	}
+
+	static #encoder = new TextEncoder();
+
+	static text(value: string, mime: string = 'text/plain', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
+		return new NotebookCellOutputItem(bytes, mime, metadata);
+	}
+
+	static json(value: any, mime: string = 'application/json', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+		const rawStr = JSON.stringify(value, undefined, '\t');
+		return NotebookCellOutputItem.text(rawStr, mime, metadata);
 	}
 
 	constructor(
+		public data: Uint8Array,
 		public mime: string,
-		public value: unknown, // JSON'able
-		public metadata?: Record<string, any>
+		public metadata?: { [key: string]: any }
 	) {
-		if (isFalsyOrWhitespace(this.mime)) {
-			throw new Error('INVALID mime type, must not be empty or falsy');
+		const mimeNormalized = normalizeMimeType(mime, true);
+		if (!mimeNormalized) {
+			throw new Error('INVALID mime type, must not be empty or falsy: ' + mime);
 		}
+		this.mime = mimeNormalized;
 	}
 }
 
 export class NotebookCellOutput {
 
+	static isNotebookCellOutput(candidate: any): candidate is vscode.NotebookCellOutput {
+		if (candidate instanceof NotebookCellOutput) {
+			return true;
+		}
+		if (!candidate || typeof candidate !== 'object') {
+			return false;
+		}
+		return typeof (<NotebookCellOutput>candidate).id === 'string' && isArray((<NotebookCellOutput>candidate).items);
+	}
+
+	static ensureUniqueMimeTypes(items: NotebookCellOutputItem[], warn: boolean = false): NotebookCellOutputItem[] {
+		const seen = new Set<string>();
+		const removeIdx = new Set<number>();
+		for (let i = 0; i < items.length; i++) {
+			const item = items[i];
+			const normalMime = normalizeMimeType(item.mime);
+			if (!seen.has(normalMime)) {
+				seen.add(normalMime);
+				continue;
+			}
+			// duplicated mime types... first has won
+			removeIdx.add(i);
+			if (warn) {
+				console.warn(`DUPLICATED mime type '${item.mime}' will be dropped`);
+			}
+		}
+		if (removeIdx.size === 0) {
+			return items;
+		}
+		return items.filter((_item, index) => !removeIdx.has(index));
+	}
+
 	id: string;
-	outputs: NotebookCellOutputItem[];
+	items: NotebookCellOutputItem[];
 	metadata?: Record<string, any>;
 
+	get outputs() { return this.items; }
+	set outputs(value) { this.items = value; }
+
 	constructor(
-		outputs: NotebookCellOutputItem[],
+		items: NotebookCellOutputItem[],
 		idOrMetadata?: string | Record<string, any>,
 		metadata?: Record<string, any>
 	) {
-		this.outputs = outputs;
+		this.items = NotebookCellOutput.ensureUniqueMimeTypes(items, true);
 		if (typeof idOrMetadata === 'string') {
 			this.id = idOrMetadata;
 			this.metadata = metadata;
@@ -3166,14 +3258,15 @@ export enum NotebookControllerAffinity {
 	Preferred = 2
 }
 
-export class NotebookKernelPreload {
-	public readonly provides: string[];
+export class NotebookRendererScript {
+
+	public provides: string[];
 
 	constructor(
-		public readonly uri: vscode.Uri,
+		public uri: vscode.Uri,
 		provides: string | string[] = []
 	) {
-		this.provides = typeof provides === 'string' ? [provides] : provides;
+		this.provides = asArray(provides);
 	}
 }
 

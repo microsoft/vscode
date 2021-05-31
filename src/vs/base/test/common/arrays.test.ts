@@ -295,4 +295,20 @@ suite('Arrays', () => {
 		remove();
 		assert.strictEqual(array.length, 0);
 	});
+
+	test('minIndex', () => {
+		const array = ['a', 'b', 'c'];
+		assert.strictEqual(arrays.minIndex(array, value => array.indexOf(value)), 0);
+		assert.strictEqual(arrays.minIndex(array, value => -array.indexOf(value)), 2);
+		assert.strictEqual(arrays.minIndex(array, _value => 0), 0);
+		assert.strictEqual(arrays.minIndex(array, value => value === 'b' ? 0 : 5), 1);
+	});
+
+	test('maxIndex', () => {
+		const array = ['a', 'b', 'c'];
+		assert.strictEqual(arrays.maxIndex(array, value => array.indexOf(value)), 2);
+		assert.strictEqual(arrays.maxIndex(array, value => -array.indexOf(value)), 0);
+		assert.strictEqual(arrays.maxIndex(array, _value => 0), 0);
+		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
+	});
 });

@@ -51,7 +51,7 @@ import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/brows
 import { IActionableTestTreeElement, isActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
@@ -63,7 +63,7 @@ import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResu
 import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService, TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { GoToTest } from './testExplorerActions';
+import { GoToTest, internalTestActionIds } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -417,8 +417,15 @@ export class TestingExplorerViewModel extends Disposable {
 			this.revealByIdPath(getPathForTestInResult(evt.item, evt.result), false, false);
 		}));
 
-		this._register(testResults.onResultsChanged(() => {
+		this._register(testResults.onResultsChanged(evt => {
 			this.tree.resort(null);
+
+			if (followRunningTests && 'completed' in evt) {
+				const selected = this.tree.getSelection()[0];
+				if (selected) {
+					this.tree.reveal(selected, 0.5);
+				}
+			}
 		}));
 	}
 
@@ -532,7 +539,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => [
@@ -811,7 +818,14 @@ class TestExplorerActionRunner extends ActionRunner {
 		const selection = this.getSelectedTests();
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
-		await action.run(...actualContext.filter(isActionableTestTreeElement));
+		const actionable = actualContext.filter(isActionableTestTreeElement);
+
+		// Is there a better way to do this?
+		if (internalTestActionIds.has(action.id)) {
+			await action.run(...actionable);
+		} else {
+			await action.run(...actionable.map(a => a instanceof TestItemTreeElement ? a.test.item.extId : a.folder.uri));
+		}
 	}
 }
 
@@ -821,11 +835,20 @@ const getLabelForTestTreeElement = (element: IActionableTestTreeElement) => {
 		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
 	}, '{0} ({1})', element.label, testStateNames[element.state]);
 
-	if (element instanceof TestItemTreeElement && element.retired) {
-		label = localize({
-			key: 'testing.treeElementLabelOutdated',
-			comment: ['{0} is the original label in testing.treeElementLabel'],
-		}, '{0}, outdated result', label, testStateNames[element.state]);
+	if (element instanceof TestItemTreeElement) {
+		if (element.duration !== undefined) {
+			label = localize({
+				key: 'testing.treeElementLabelDuration',
+				comment: ['{0} is the original label in testing.treeElementLabel, {1} is a duration'],
+			}, '{0}, in {1}', label, formatDuration(element.duration));
+		}
+
+		if (element.retired) {
+			label = localize({
+				key: 'testing.treeElementLabelOutdated',
+				comment: ['{0} is the original label in testing.treeElementLabel'],
+			}, '{0}, outdated result', label, testStateNames[element.state]);
+		}
 	}
 
 	return label;
@@ -926,6 +949,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 		protected readonly labels: ResourceLabels,
 		private readonly actionRunner: TestExplorerActionRunner,
 		private readonly menuService: IMenuService,
+		protected readonly testService: ITestService,
 		private readonly contextKeyService: IContextKeyService,
 		private readonly instantiationService: IInstantiationService,
 	) {
@@ -983,7 +1007,7 @@ abstract class ActionableItemTemplateData<T extends IActionableTestTreeElement> 
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
@@ -998,11 +1022,11 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		labels: ResourceLabels,
 		actionRunner: TestExplorerActionRunner,
 		@IMenuService menuService: IMenuService,
+		@ITestService testService: ITestService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ITestService private readonly testService: ITestService
 	) {
-		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
+		super(labels, actionRunner, menuService, testService, contextKeyService, instantiationService);
 	}
 
 	/**
@@ -1036,22 +1060,29 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		options.title = getLabelForTestTreeElement(node.element);
 		options.fileKind = FileKind.FILE;
 		label.description = node.element.description || undefined;
+
+		if (node.element.duration) {
+			label.description = label.description
+				? `${label.description}: ${formatDuration(node.element.duration)}`
+				: formatDuration(node.element.duration);
+		}
+
 		data.label.setResource(label, options);
 	}
 }
 
+const formatDuration = (ms: number) => {
+	if (ms < 10) {
+		return `${ms.toPrecision(2)}ms`;
+	} else if (ms < 1000) {
+		return `${ms.toPrecision(3)}ms`;
+	} else {
+		return `${(ms / 1000).toPrecision(3)}s`;
+	}
+};
+
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';
-
-	constructor(
-		labels: ResourceLabels,
-		actionRunner: TestExplorerActionRunner,
-		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super(labels, actionRunner, menuService, contextKeyService, instantiationService);
-	}
 
 	/**
 	 * @inheritdoc
@@ -1080,6 +1111,7 @@ class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspa
 const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
+	testService: ITestService,
 	element: IActionableTestTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
@@ -1087,6 +1119,7 @@ const getActionableElementActions = (
 		['view', Testing.ExplorerViewId],
 		[TestingContextKeys.testItemExtId.key, test?.item.extId],
 		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excludeTests.value.has(test.item.extId)],
 		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
 		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
 	]);

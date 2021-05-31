@@ -3175,6 +3175,19 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Enable or disable the rendering of the suggestion preview.
+	 */
+	showSuggestionPreview?: boolean;
+	/**
+	 * Enable or disable the rendering of automatic inline completions.
+	*/
+	showInlineCompletions?: boolean;
+	/**
+	 * Enable or disable the default expansion of the ghost text as used
+	 * by the suggestion preview or the inline completions.
+	 */
+	ghostTextExpanded?: boolean;
+	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3190,6 +3203,10 @@ export interface ISuggestOptions {
 	 * Show constructor-suggestions.
 	 */
 	showConstructors?: boolean;
+	/**
+	 * Show deprecated-suggestions.
+	 */
+	showDeprecated?: boolean;
 	/**
 	 * Show field-suggestions.
 	 */
@@ -3301,10 +3318,14 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			showSuggestionPreview: false,
+			ghostTextExpanded: true,
+			showInlineCompletions: false,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
+			showDeprecated: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -3373,7 +3394,21 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
-
+				'editor.suggest.showSuggestionPreview': {
+					type: 'boolean',
+					default: defaults.showSuggestionPreview,
+					description: nls.localize('suggest.showSuggestionPreview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
+				'editor.suggest.showInlineCompletions': {
+					type: 'boolean',
+					default: defaults.showInlineCompletions,
+					description: nls.localize('suggest.showInlineCompletions', "Controls whether to show inline completions in the editor.")
+				},
+				'editor.suggest.ghostTextExpanded': {
+					type: 'boolean',
+					default: defaults.ghostTextExpanded,
+					description: nls.localize('suggest.ghostTextExpanded', "Controls whether the ghost text that is used by the suggestion preview or the inline completions is expanted by default.")
+				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
@@ -3401,6 +3436,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showConstructors', "When enabled IntelliSense shows `constructor`-suggestions.")
+				},
+				'editor.suggest.showDeprecated': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -3544,10 +3584,14 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			showSuggestionPreview: boolean(input.showSuggestionPreview, this.defaultValue.showSuggestionPreview),
+			ghostTextExpanded: boolean(input.ghostTextExpanded, this.defaultValue.ghostTextExpanded),
+			showInlineCompletions: boolean(input.showInlineCompletions, this.defaultValue.showInlineCompletions),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),

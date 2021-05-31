@@ -24,11 +24,11 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { EditorInput, IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane } from 'vs/workbench/common/editor';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { GroupDirection, IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, SettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { validateSettingsEditorOptions, DEFAULT_SETTINGS_EDITOR_SETTING, FOLDER_SETTINGS_PATH, getSettingsTargetName, IKeybindingsEditorOptions, IKeybindingsEditorPane, IPreferencesEditorModel, IPreferencesService, ISetting, ISettingsEditorOptions, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultSettings, DefaultSettingsEditorModel, Settings2EditorModel, SettingsEditorModel, WorkspaceConfigurationEditorModel, DefaultRawSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -42,6 +42,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -222,7 +223,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			...options,
 			focusSearch: true
 		};
-		return this.editorService.openEditor(input, options ? SettingsEditorOptions.create(options) : { override: EditorOverride.DISABLED })
+		return this.editorService.openEditor(input, validateSettingsEditorOptions(options))
 			.then(() => this.editorGroupService.activeGroup.activeEditorPane!);
 	}
 
@@ -378,7 +379,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						this.editorService.openEditor(editableSettingsEditorInput, { pinned: true, revealIfOpened: true, override: EditorOverride.DISABLED }, sideEditorGroup.id)
 					]).then(([defaultEditor, editor]) => withNullAsUndefined(editor));
 				} else {
-					return this.editorService.openEditor(editableSettingsEditorInput, SettingsEditorOptions.create(options), group);
+					return this.editorService.openEditor(editableSettingsEditorInput, validateSettingsEditorOptions(options), group);
 				}
 			});
 	}
@@ -392,7 +393,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			options = { ...options, pinned: true };
 		}
 
-		return this.editorService.openEditor(preferencesEditorInput, SettingsEditorOptions.create(options), group);
+		return this.editorService.openEditor(preferencesEditorInput, validateSettingsEditorOptions(options), group);
 	}
 
 	private createSplitJsonEditorInput(configurationTarget: ConfigurationTarget, resource: URI, editableSettingsEditorInput: IEditorInput): IEditorInput {
@@ -420,7 +421,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					return group.replaceEditors([{
 						editor: input,
 						replacement: replaceWith,
-						options: options ? SettingsEditorOptions.create(options) : undefined
+						options: validateSettingsEditorOptions(options ?? {})
 					}]).then(() => {
 						this.lastOpenedSettingsInput = replaceWith;
 						return group.activeEditorPane!;

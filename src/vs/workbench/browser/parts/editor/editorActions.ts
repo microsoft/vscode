@@ -5,7 +5,8 @@
 
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
-import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -24,6 +25,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IFilesConfigurationService, AutoSaveMode } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { Schemas } from 'vs/base/common/network';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 export class ExecuteCommandAction extends Action {
 
@@ -592,7 +595,7 @@ abstract class BaseCloseAllAction extends Action {
 
 			// Auto-save on focus change: assume to Save unless the editor is untitled
 			// because bringing up a dialog would save in this case anyway.
-			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.isUntitled()) {
+			if (this.filesConfigurationService.getAutoSaveMode() === AutoSaveMode.ON_FOCUS_CHANGE && !editor.hasCapability(EditorInputCapabilities.Untitled)) {
 				dirtyEditorsToAutoSave.add(editor);
 			}
 
@@ -1925,10 +1928,12 @@ export class ReopenResourcesAction extends Action {
 	}
 }
 
-export class ToggleEditorTypeAction extends Action {
+export class ReOpenInTextEditorAction extends Action {
 
-	static readonly ID = 'workbench.action.toggleEditorType';
-	static readonly LABEL = localize('workbench.action.toggleEditorType', "Toggle Editor Type");
+	static readonly ID = 'workbench.action.reopenTextEditor';
+	static readonly LABEL = localize('workbench.action.reopenTextEditor', "Reopen Editor With Text Editor");
+
+	private readonly fileEditorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).getFileEditorInputFactory();
 
 	constructor(
 		id: string,
@@ -1952,12 +1957,17 @@ export class ToggleEditorTypeAction extends Action {
 		const options = activeEditorPane.options;
 		const group = activeEditorPane.group;
 
-		const overrides = this.editorService.getEditorOverrides(activeEditorResource, options, group);
-		const firstNonActiveOverride = overrides.find(([_, entry]) => !entry.active);
-		if (!firstNonActiveOverride) {
+		if (this.fileEditorInputFactory.isFileEditorInput(this.editorService.activeEditor)) {
 			return;
 		}
 
-		await firstNonActiveOverride[0].open(activeEditorPane.input, { ...options, override: firstNonActiveOverride[1].id }, group)?.override;
+		// Replace the current editor with the text editor
+		await this.editorService.replaceEditors([
+			{
+				editor: activeEditorPane.input,
+				replacement: activeEditorPane.input,
+				options: { ...options, override: DEFAULT_EDITOR_ASSOCIATION.id },
+			}
+		], group);
 	}
 }

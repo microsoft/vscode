@@ -645,13 +645,13 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		this._listeners?.clear();
-		this._deliveryQueue?.clear();
-		if (this._options?.onLastListenerRemove) {
-			this._options.onLastListenerRemove();
+		if (!this._disposed) {
+			this._disposed = true;
+			this._listeners?.clear();
+			this._deliveryQueue?.clear();
+			this._options?.onLastListenerRemove?.();
+			this._leakageMon?.dispose();
 		}
-		this._leakageMon?.dispose();
-		this._disposed = true;
 	}
 }
 

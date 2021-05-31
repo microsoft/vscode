@@ -5,16 +5,23 @@
 
 import { WebviewStyles } from 'vs/workbench/contrib/webview/browser/webview';
 
-const mapping: [target: string, src: string][] = [
+const mapping: ReadonlyMap<string, string> = new Map([
 	['theme-font-family', 'vscode-font-family'],
 	['theme-font-weight', 'vscode-font-weight'],
 	['theme-font-size', 'vscode-font-size'],
 	['theme-code-font-family', 'vscode-editor-font-family'],
 	['theme-code-font-weight', 'vscode-editor-font-weight'],
 	['theme-code-font-size', 'vscode-editor-font-size'],
+	['theme-scrollbar-background', 'vscode-scrollbarSlider-background'],
+	['theme-scrollbar-hover-background', 'vscode-scrollbarSlider-hoverBackground'],
+	['theme-scrollbar-active-background', 'vscode-scrollbarSlider-activeBackground'],
+	['theme-quote-background', 'vscode-textBlockQuote-background'],
+	['theme-quote-border', 'vscode-textBlockQuote-border'],
+	['theme-code-foreground', 'vscode-textPreformat-foreground'],
 	// Editor
 	['theme-background', 'vscode-editor-background'],
 	['theme-foreground', 'vscode-editor-foreground'],
+	['theme-ui-foreground', 'vscode-foreground'],
 	['theme-link', 'vscode-textLink-foreground'],
 	['theme-link-active', 'vscode-textLink-activeForeground'],
 	// Buttons
@@ -47,7 +54,13 @@ const mapping: [target: string, src: string][] = [
 	['theme-warning-foreground', 'vscode-foreground'],
 	['theme-info-background', 'vscode-inputValidation-infoBackground'],
 	['theme-info-foreground', 'vscode-foreground'],
-];
+	// Notebook:
+	['theme-notebook-output-background', 'vscode-notebook-outputContainerBackgroundColor'],
+	['theme-notebook-cell-selected-background', 'vscode-notebook-selectedCellBackground'],
+	['theme-notebook-symbol-highlight-background', 'vscode-notebook-symbolHighlightBackground'],
+	['theme-notebook-diff-removed-background', 'vscode-diffEditor-removedTextBackground'],
+	['theme-notebook-diff-inserted-background', 'vscode-diffEditor-insertedTextBackground'],
+]);
 
 const constants: Readonly<WebviewStyles> = {
 	'theme-input-border-width': '1px',
@@ -62,7 +75,7 @@ const constants: Readonly<WebviewStyles> = {
  * @see https://github.com/microsoft/vscode/issues/107985 for context
  */
 export const transformWebviewThemeVars = (s: Readonly<WebviewStyles>): WebviewStyles => {
-	const result = { ...s, ...constants }; // todo@connor4312: remove after a period of time to allow migration
+	const result = { ...constants };
 	for (const [target, src] of mapping) {
 		result[target] = s[src];
 	}

@@ -152,60 +152,62 @@ export class WebviewViewPane extends ViewPane {
 	}
 
 	private activate() {
-		if (!this._activated) {
-			this._activated = true;
-
-			const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
-			const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
-			webview.state = this.viewState[storageKeys.webviewState];
-			this._webview.value = webview;
-
-			if (this._container) {
-				this._webview.value?.layoutWebviewOverElement(this._container);
-			}
-
-			this._webviewDisposables.add(toDisposable(() => {
-				this._webview.value?.release(this);
-			}));
-
-			this._webviewDisposables.add(webview.onDidUpdateState(() => {
-				this.viewState[storageKeys.webviewState] = webview.state;
-			}));
-
-			this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
-
-			const source = this._webviewDisposables.add(new CancellationTokenSource());
-
-			this.withProgress(async () => {
-				await this.extensionService.activateByEvent(`onView:${this.id}`);
-
-				let self = this;
-				const webviewView: WebviewView = {
-					webview,
-					onDidChangeVisibility: this.onDidChangeBodyVisibility,
-					onDispose: this.onDispose,
-
-					get title(): string | undefined { return self.setTitle; },
-					set title(value: string | undefined) { self.updateTitle(value); },
-
-					get description(): string | undefined { return self.titleDescription; },
-					set description(value: string | undefined) { self.updateTitleDescription(value); },
-
-					dispose: () => {
-						// Only reset and clear the webview itself. Don't dispose of the view container
-						this._activated = false;
-						this._webview.clear();
-						this._webviewDisposables.clear();
-					},
-
-					show: (preserveFocus) => {
-						this.viewService.openView(this.id, !preserveFocus);
-					}
-				};
-
-				await this.webviewViewService.resolve(this.id, webviewView, source.token);
-			});
+		if (this._activated) {
+			return;
 		}
+
+		this._activated = true;
+
+		const webviewId = `webviewView-${this.id.replace(/[^a-z0-9]/gi, '-')}`.toLowerCase();
+		const webview = this.webviewService.createWebviewOverlay(webviewId, {}, {}, undefined);
+		webview.state = this.viewState[storageKeys.webviewState];
+		this._webview.value = webview;
+
+		if (this._container) {
+			this._webview.value?.layoutWebviewOverElement(this._container);
+		}
+
+		this._webviewDisposables.add(toDisposable(() => {
+			this._webview.value?.release(this);
+		}));
+
+		this._webviewDisposables.add(webview.onDidUpdateState(() => {
+			this.viewState[storageKeys.webviewState] = webview.state;
+		}));
+
+		this._webviewDisposables.add(new WebviewWindowDragMonitor(() => this._webview.value));
+
+		const source = this._webviewDisposables.add(new CancellationTokenSource());
+
+		this.withProgress(async () => {
+			await this.extensionService.activateByEvent(`onView:${this.id}`);
+
+			let self = this;
+			const webviewView: WebviewView = {
+				webview,
+				onDidChangeVisibility: this.onDidChangeBodyVisibility,
+				onDispose: this.onDispose,
+
+				get title(): string | undefined { return self.setTitle; },
+				set title(value: string | undefined) { self.updateTitle(value); },
+
+				get description(): string | undefined { return self.titleDescription; },
+				set description(value: string | undefined) { self.updateTitleDescription(value); },
+
+				dispose: () => {
+					// Only reset and clear the webview itself. Don't dispose of the view container
+					this._activated = false;
+					this._webview.clear();
+					this._webviewDisposables.clear();
+				},
+
+				show: (preserveFocus) => {
+					this.viewService.openView(this.id, !preserveFocus);
+				}
+			};
+
+			await this.webviewViewService.resolve(this.id, webviewView, source.token);
+		});
 	}
 
 	protected override updateTitle(value: string | undefined) {
@@ -217,7 +219,7 @@ export class WebviewViewPane extends ViewPane {
 		return this.progressService.withProgress({ location: this.id, delay: 500 }, task);
 	}
 
-	override onRootScroll() {
+	override onDidScrollRoot() {
 		this.layoutWebview();
 	}
 

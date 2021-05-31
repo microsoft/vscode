@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { DisposableStore, IReference } from 'vs/base/common/lifecycle';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -130,10 +131,7 @@ export class WalkThroughInput extends EditorInput {
 		}
 
 		if (otherInput instanceof WalkThroughInput) {
-			let otherResourceEditorInput = <WalkThroughInput>otherInput;
-
-			// Compare by properties
-			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
+			return isEqual(otherInput.options.resource, this.options.resource);
 		}
 
 		return false;

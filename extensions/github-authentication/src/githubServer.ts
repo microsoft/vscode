@@ -49,8 +49,8 @@ export class GitHubServer {
 
 	// TODO@joaomoreno TODO@RMacfarlane
 	private async isNoCorsEnvironment(): Promise<boolean> {
-		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/did-authenticate`));
-		return uri.scheme === 'https' && /^vscode\./.test(uri.authority);
+		const uri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://vscode.github-authentication/dummy`));
+		return (uri.scheme === 'https' && /^vscode\./.test(uri.authority)) || (uri.scheme === 'http' && /^localhost/.test(uri.authority));
 	}
 
 	public async login(scopes: string): Promise<string> {
@@ -179,7 +179,8 @@ export class GitHubServer {
 
 	private updateStatusBarItem(isStart?: boolean) {
 		if (isStart && !this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+			this._statusBarItem = vscode.window.createStatusBarItem('status.git.signIn', vscode.StatusBarAlignment.Left);
+			this._statusBarItem.name = localize('status.git.signIn.name', "GitHub Sign-in");
 			this._statusBarItem.text = this.type === AuthProviderType.github
 				? localize('signingIn', "$(mark-github) Signing in to github.com...")
 				: localize('signingInEnterprise', "$(mark-github) Signing in to {0}...", this.getServerUri().authority);

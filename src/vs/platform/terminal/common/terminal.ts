@@ -8,6 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, IPtyHostProcessReplayEvent, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
+import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+
+export const enum TerminalSettingPrefix {
+	Shell = 'terminal.integrated.shell.',
+	ShellArgs = 'terminal.integrated.shellArgs.',
+	DefaultProfile = 'terminal.integrated.defaultProfile.',
+	Profiles = 'terminal.integrated.profiles.'
+}
 
 export const enum TerminalSettingId {
 	ShellLinux = 'terminal.integrated.shell.linux',
@@ -69,7 +77,7 @@ export const enum TerminalSettingId {
 	SplitCwd = 'terminal.integrated.splitCwd',
 	WindowsEnableConpty = 'terminal.integrated.windowsEnableConpty',
 	WordSeparators = 'terminal.integrated.wordSeparators',
-	ExperimentalUseTitleEvent = 'terminal.integrated.experimentalUseTitleEvent',
+	TitleMode = 'terminal.integrated.titleMode',
 	EnableFileLinks = 'terminal.integrated.enableFileLinks',
 	UnicodeVersion = 'terminal.integrated.unicodeVersion',
 	ExperimentalLinkProvider = 'terminal.integrated.experimentalLinkProvider',
@@ -77,7 +85,6 @@ export const enum TerminalSettingId {
 	LocalEchoExcludePrograms = 'terminal.integrated.localEchoExcludePrograms',
 	LocalEchoStyle = 'terminal.integrated.localEchoStyle',
 	EnablePersistentSessions = 'terminal.integrated.enablePersistentSessions',
-	AllowWorkspaceConfiguration = 'terminal.integrated.allowWorkspaceConfiguration',
 	InheritEnv = 'terminal.integrated.inheritEnv'
 }
 
@@ -102,7 +109,6 @@ export interface IRawTerminalTabLayoutInfo<T> {
 }
 
 export type ITerminalTabLayoutInfoById = IRawTerminalTabLayoutInfo<number>;
-export type ITerminalTabLayoutInfo = IRawTerminalTabLayoutInfo<IPtyHostAttachTarget | null>;
 
 export interface IRawTerminalsLayoutInfo<T> {
 	tabs: IRawTerminalTabLayoutInfo<T>[];
@@ -112,11 +118,21 @@ export interface IPtyHostAttachTarget {
 	id: number;
 	pid: number;
 	title: string;
+	titleSource: TitleEventSource;
 	cwd: string;
 	workspaceId: string;
 	workspaceName: string;
 	isOrphan: boolean;
-	icon: string | undefined;
+	icon: TerminalIcon | undefined;
+}
+
+export enum TitleEventSource {
+	/** From the API or the rename command that overrides any other type */
+	Api,
+	/** From the process name property*/
+	Process,
+	/** From the VT sequence */
+	Sequence
 }
 
 export type ITerminalsLayoutInfo = IRawTerminalsLayoutInfo<IPtyHostAttachTarget | null>;
@@ -173,8 +189,8 @@ export interface IOffProcessTerminalService {
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
 	setTerminalLayoutInfo(layoutInfo?: ITerminalsLayoutInfoById): Promise<void>;
-	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getTerminalLayoutInfo(): Promise<ITerminalsLayoutInfo | undefined>;
 	reduceConnectionGraceTime(): Promise<void>;
 }
@@ -239,8 +255,8 @@ export interface IPtyService {
 	processBinary(id: number, data: string): Promise<void>;
 	/** Confirm the process is _not_ an orphan. */
 	orphanQuestionReply(id: number): Promise<void>;
-	updateTitle(id: number, title: string): Promise<void>;
-	updateIcon(id: number, icon: string, color?: string): Promise<void>;
+	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
+	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
 	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
@@ -348,7 +364,7 @@ export interface IShellLaunchConfig {
 	/**
 	 * This is a terminal that attaches to an already running terminal.
 	 */
-	attachPersistentProcess?: { id: number; pid: number; title: string; cwd: string; icon?: string; color?: string };
+	attachPersistentProcess?: { id: number; pid: number; title: string; titleSource: TitleEventSource; cwd: string; icon?: TerminalIcon; color?: string };
 
 	/**
 	 * Whether the terminal process environment should be exactly as provided in
@@ -388,16 +404,17 @@ export interface IShellLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 
 	/**
-	 * The codicon ID to use for this terminal. If not specified it will use the default fallback
-	 * icon.
+	 * The icon for the terminal, used primarily in the terminal tab.
 	 */
-	icon?: string;
+	icon?: TerminalIcon;
 
 	/**
 	 * The color ID to use for this terminal. If not specified it will use the default fallback
 	 */
 	color?: string;
 }
+
+export type TerminalIcon = ThemeIcon | URI | { light: URI; dark: URI };
 
 export interface IShellLaunchConfigDto {
 	name?: string;
@@ -486,15 +503,20 @@ export interface ITerminalChildProcess {
 	getLatency(): Promise<number>;
 }
 
+export interface IReconnectConstants {
+	GraceTime: number,
+	ShortGraceTime: number
+}
+
 export const enum LocalReconnectConstants {
 	/**
 	 * If there is no reconnection within this time-frame, consider the connection permanently closed...
 	*/
-	ReconnectionGraceTime = 60000, // 60 seconds
+	GraceTime = 60000, // 60 seconds
 	/**
 	 * Maximal grace time between the first and the last reconnection...
 	*/
-	ReconnectionShortGraceTime = 6000, // 6 seconds
+	ShortGraceTime = 6000, // 6 seconds
 }
 
 export const enum FlowControlConstants {
@@ -549,7 +571,8 @@ export interface ITerminalProfile {
 	args?: string | string[] | undefined;
 	env?: ITerminalEnvironment;
 	overrideName?: boolean;
-	icon?: string;
+	color?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
 }
 
 export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimensions> {
@@ -558,8 +581,6 @@ export interface ITerminalDimensionsOverride extends Readonly<ITerminalDimension
 	 */
 	forceExactSize?: boolean;
 }
-
-export type SafeConfigProvider = <T>(key: string) => T | undefined;
 
 export const enum ProfileSource {
 	GitBash = 'Git Bash',
@@ -570,7 +591,8 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: string;
+	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	color?: string;
 	env?: ITerminalEnvironment;
 }
 

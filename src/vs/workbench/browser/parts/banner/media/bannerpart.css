@@ -38,6 +38,7 @@
 }
 
 .monaco-workbench .part.banner .message-actions-container a {
+	padding: 3px;
 	margin-left: 12px;
 	text-decoration: underline;
 }

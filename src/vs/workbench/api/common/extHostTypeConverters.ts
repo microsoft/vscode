@@ -1485,6 +1485,28 @@ export namespace NotebookCellKind {
 	}
 }
 
+export namespace NotebookData {
+
+	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
+		const res: notebooks.NotebookDataDto = {
+			metadata: NotebookDocumentMetadata.from(data.metadata),
+			cells: [],
+		};
+		for (let cell of data.cells) {
+			types.NotebookCellData.validate(cell);
+			res.cells.push(NotebookCellData.from(cell));
+		}
+		return res;
+	}
+
+	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
+		return {
+			metadata: NotebookDocumentMetadata.to(data.metadata),
+			cells: data.cells.map(NotebookCellData.to)
+		};
+	}
+}
+
 export namespace NotebookCellData {
 
 	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
@@ -1505,6 +1527,7 @@ export namespace NotebookCellData {
 			data.language,
 			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
 			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
 		);
 	}
 }
@@ -1512,22 +1535,22 @@ export namespace NotebookCellData {
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
 		return {
+			metadata: item.metadata,
 			mime: item.mime,
-			value: item.value,
-			metadata: item.metadata
+			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(item.mime, item.value, item.metadata);
+		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime, item.metadata);
 	}
 }
 
 export namespace NotebookCellOutput {
-	export function from(output: types.NotebookCellOutput): notebooks.IOutputDto {
+	export function from(output: vscode.NotebookCellOutput): notebooks.IOutputDto {
 		return {
 			outputId: output.id,
-			outputs: output.outputs.map(NotebookCellOutputItem.from),
+			outputs: output.items.map(NotebookCellOutputItem.from),
 			metadata: output.metadata
 		};
 	}
@@ -1646,18 +1669,15 @@ export namespace NotebookDocumentContentOptions {
 	}
 }
 
-export namespace NotebookKernelPreload {
-	export function from(preload: vscode.NotebookKernelPreload): { uri: UriComponents; provides: string[] } {
+export namespace NotebookRendererScript {
+	export function from(preload: vscode.NotebookRendererScript): { uri: UriComponents; provides: string[] } {
 		return {
 			uri: preload.uri,
-			// todo@connor4312: the conditional here can be removed after a migration period
-			provides: typeof preload.provides === 'string'
-				? [preload.provides]
-				: preload.provides ?? []
+			provides: preload.provides
 		};
 	}
-	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookKernelPreload {
-		return new types.NotebookKernelPreload(URI.revive(preload.uri), preload.provides);
+	export function to(preload: { uri: UriComponents; provides: string[] }): vscode.NotebookRendererScript {
+		return new types.NotebookRendererScript(URI.revive(preload.uri), preload.provides);
 	}
 }
 

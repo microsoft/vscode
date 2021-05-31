@@ -66,10 +66,10 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	controller.executeHandler = (cells) => {
 		for (const cell of cells) {
-			const task = controller.createNotebookCellExecutionTask(cell);
+			const task = controller.createNotebookCellExecution(cell);
 			task.start();
 			task.replaceOutput([new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+				vscode.NotebookCellOutputItem.text('test output', 'text/html', undefined)
 			])]);
 			task.end({ success: true });
 		}

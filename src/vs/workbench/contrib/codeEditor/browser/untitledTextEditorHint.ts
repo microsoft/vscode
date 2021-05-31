@@ -21,13 +21,13 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 const $ = dom.$;
 
-const untitledEditorHintSetting = 'workbench.editor.untitled.hint';
-export class UntitledEditorHintContribution implements IEditorContribution {
+const untitledTextEditorHintSetting = 'workbench.editor.untitled.hint';
+export class UntitledTextEditorHintContribution implements IEditorContribution {
 
-	public static readonly ID = 'editor.contrib.untitledHint';
+	public static readonly ID = 'editor.contrib.untitledTextEditorHint';
 
 	private toDispose: IDisposable[];
-	private untitledHintContentWidget: UntitledEditorHintContentWidget | undefined;
+	private untitledTextHintContentWidget: UntitledTextEditorHintContentWidget | undefined;
 	private experimentTreatment: 'text' | 'hidden' | undefined;
 
 	constructor(
@@ -41,7 +41,7 @@ export class UntitledEditorHintContribution implements IEditorContribution {
 		this.toDispose.push(this.editor.onDidChangeModel(() => this.update()));
 		this.toDispose.push(this.editor.onDidChangeModelLanguage(() => this.update()));
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(untitledEditorHintSetting)) {
+			if (e.affectsConfiguration(untitledTextEditorHintSetting)) {
 				this.update();
 			}
 		}));
@@ -52,24 +52,24 @@ export class UntitledEditorHintContribution implements IEditorContribution {
 	}
 
 	private update(): void {
-		this.untitledHintContentWidget?.dispose();
-		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledEditorHintSetting);
+		this.untitledTextHintContentWidget?.dispose();
+		const configValue = this.configurationService.getValue<'text' | 'hidden' | 'default'>(untitledTextEditorHintSetting);
 		const untitledHintMode = configValue === 'default' ? (this.experimentTreatment || 'text') : configValue;
 
 		const model = this.editor.getModel();
 
 		if (model && model.uri.scheme === Schemas.untitled && model.getModeId() === PLAINTEXT_MODE_ID && untitledHintMode === 'text') {
-			this.untitledHintContentWidget = new UntitledEditorHintContentWidget(this.editor, this.commandService, this.configurationService);
+			this.untitledTextHintContentWidget = new UntitledTextEditorHintContentWidget(this.editor, this.commandService, this.configurationService);
 		}
 	}
 
 	dispose(): void {
 		dispose(this.toDispose);
-		this.untitledHintContentWidget?.dispose();
+		this.untitledTextHintContentWidget?.dispose();
 	}
 }
 
-class UntitledEditorHintContentWidget implements IContentWidget {
+class UntitledTextEditorHintContentWidget implements IContentWidget {
 
 	private static readonly ID = 'editor.widget.untitledHint';
 
@@ -100,7 +100,7 @@ class UntitledEditorHintContentWidget implements IContentWidget {
 	}
 
 	getId(): string {
-		return UntitledEditorHintContentWidget.ID;
+		return UntitledTextEditorHintContentWidget.ID;
 	}
 
 	// Select a language to get started. Start typing to dismiss, or don't show this again.
@@ -134,7 +134,7 @@ class UntitledEditorHintContentWidget implements IContentWidget {
 			}));
 
 			this.toDispose.push(dom.addDisposableListener(dontShow, 'click', () => {
-				this.configurationService.updateValue(untitledEditorHintSetting, 'hidden');
+				this.configurationService.updateValue(untitledTextEditorHintSetting, 'hidden');
 				this.dispose();
 				this.editor.focus();
 			}));
@@ -175,4 +175,4 @@ registerThemingParticipant((theme, collector) => {
 	}
 });
 
-registerEditorContribution(UntitledEditorHintContribution.ID, UntitledEditorHintContribution);
+registerEditorContribution(UntitledTextEditorHintContribution.ID, UntitledTextEditorHintContribution);

@@ -5,7 +5,7 @@
 
 import { TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { SplitView, Orientation, IView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { IWorkbenchLayoutService, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -43,7 +43,7 @@ class SplitPaneContainer extends Disposable {
 		this._splitViewDisposables.add(this._splitView.onDidSashReset(() => this._splitView.distributeViewSizes()));
 	}
 
-	split(instance: ITerminalInstance, index: number = this._children.length): void {
+	split(instance: ITerminalInstance, index: number): void {
 		this._addChild(instance, index);
 	}
 
@@ -233,6 +233,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _groupElement: HTMLElement | undefined;
 	private _panelPosition: Position = Position.BOTTOM;
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
+	private _instanceDisposables: Map<number, IDisposable[]> = new Map();
 
 	private _activeInstanceIndex: number;
 	private _isVisible: boolean = false;
@@ -247,6 +248,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
 	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
 	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
+
 	constructor(
 		private _container: HTMLElement | undefined,
 		shellLaunchConfigOrInstance: IShellLaunchConfig | ITerminalInstance | undefined,
@@ -273,12 +275,18 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		} else {
 			instance = this._terminalService.createInstance(shellLaunchConfigOrInstance);
 		}
-		this._terminalInstances.push(instance);
+		if (this._terminalInstances.length === 0) {
+			this._terminalInstances.push(instance);
+		} else {
+			this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
+		}
 		this._initInstanceListeners(instance);
 
 		if (this._splitPaneContainer) {
-			this._splitPaneContainer!.split(instance);
+			this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1);
 		}
+
+		instance.setVisible(this._isVisible);
 
 		this._onInstancesChanged.fire();
 	}
@@ -316,18 +324,36 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		};
 	}
 
-	private _initInstanceListeners(instance: ITerminalInstance): void {
-		instance.addDisposable(instance.onDisposed(instance => this._onInstanceDisposed(instance)));
-		instance.addDisposable(instance.onFocused(instance => this._setActiveInstance(instance)));
+	private _initInstanceListeners(instance: ITerminalInstance) {
+		this._instanceDisposables.set(instance.instanceId, [
+			instance.onDisposed(instance => this._onInstanceDisposed(instance)),
+			instance.onFocused(instance => this._setActiveInstance(instance))
+		]);
 	}
 
-	private _onInstanceDisposed(instance: ITerminalInstance): void {
-		// Get the index of the instance and remove it from the list
-		const index = this._terminalInstances.indexOf(instance);
-		const wasActiveInstance = instance === this.activeInstance;
-		if (index !== -1) {
-			this._terminalInstances.splice(index, 1);
+	private _onInstanceDisposed(instance: ITerminalInstance) {
+		this._removeInstance(instance);
+	}
+
+	removeInstance(instance: ITerminalInstance) {
+		this._removeInstance(instance);
+
+		// Dispose instance event listeners
+		const disposables = this._instanceDisposables.get(instance.instanceId);
+		if (disposables) {
+			dispose(disposables);
+			this._instanceDisposables.delete(instance.instanceId);
 		}
+	}
+
+	private _removeInstance(instance: ITerminalInstance) {
+		const index = this._terminalInstances.indexOf(instance);
+		if (index === -1) {
+			return;
+		}
+
+		const wasActiveInstance = instance === this.activeInstance;
+		this._terminalInstances.splice(index, 1);
 
 		// Adjust focus if the instance was active
 		if (wasActiveInstance && this._terminalInstances.length > 0) {
@@ -342,10 +368,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			this._activeInstanceIndex--;
 		}
 
-		// Remove the instance from the split pane if it has been created
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.remove(instance);
-		}
+		this._splitPaneContainer?.remove(instance);
 
 		// Fire events and dispose group if it was the last instance
 		if (this._terminalInstances.length === 0) {
@@ -356,7 +379,21 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 	}
 
-	private _setActiveInstance(instance: ITerminalInstance): void {
+	moveInstance(instance: ITerminalInstance, index: number): void {
+		const sourceIndex = this.terminalInstances.indexOf(instance);
+		if (sourceIndex === -1) {
+			return;
+		}
+		this._terminalInstances.splice(sourceIndex, 1);
+		this._terminalInstances.splice(index, 0, instance);
+		if (this._splitPaneContainer) {
+			this._splitPaneContainer.remove(instance);
+			this._splitPaneContainer.split(instance, sourceIndex < index ? index - 1 : index);
+		}
+		this._onInstancesChanged.fire();
+	}
+
+	private _setActiveInstance(instance: ITerminalInstance) {
 		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
 
@@ -403,7 +440,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			const orientation = this._terminalLocation === ViewContainerLocation.Panel && this._panelPosition === Position.BOTTOM ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			const newLocal = this._instantiationService.createInstance(SplitPaneContainer, this._groupElement, orientation);
 			this._splitPaneContainer = newLocal;
-			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance));
+			this.terminalInstances.forEach(instance => this._splitPaneContainer!.split(instance, this._activeInstanceIndex + 1));
 		}
 		this.setVisible(this._isVisible);
 	}
@@ -440,14 +477,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	split(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._terminalService.createInstance(shellLaunchConfig);
-		this._terminalInstances.splice(this._activeInstanceIndex + 1, 0, instance);
-		this._initInstanceListeners(instance);
+		this.addInstance(instance);
 		this._setActiveInstance(instance);
-
-		if (this._splitPaneContainer) {
-			this._splitPaneContainer.split(instance, this._activeInstanceIndex);
-		}
-
 		return instance;
 	}
 

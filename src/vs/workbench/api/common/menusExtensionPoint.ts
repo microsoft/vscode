@@ -23,6 +23,7 @@ interface IAPIMenu {
 	readonly description: string;
 	readonly proposed?: boolean; // defaults to false
 	readonly supportsSubmenus?: boolean; // defaults to true
+	readonly deprecationMessage?: string;
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -136,7 +137,8 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.StatusBarWindowIndicatorMenu,
 		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
 		proposed: true,
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -183,6 +185,12 @@ const apiMenus: IAPIMenu[] = [
 		proposed: true
 	},
 	{
+		key: 'notebook/toolbar/right',
+		id: MenuId.NotebookRightToolbar,
+		description: localize('notebook.toolbar.right', "The contributed notebook right toolbar menu"),
+		proposed: true
+	},
+	{
 		key: 'notebook/cell/title',
 		id: MenuId.NotebookCellTitle,
 		description: localize('notebook.cell.title', "The contributed notebook cell title menu"),
@@ -223,7 +231,13 @@ const apiMenus: IAPIMenu[] = [
 		key: 'ports/item/port/inline',
 		id: MenuId.TunnelPortInline,
 		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
-	}
+	},
+	{
+		key: 'editor/inlineCompletions/actions',
+		id: MenuId.InlineCompletionsActions,
+		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
+		supportsSubmenus: false
+	},
 ];
 
 namespace schema {
@@ -411,6 +425,7 @@ namespace schema {
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
+			deprecationMessage: menu.deprecationMessage,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),
@@ -432,6 +447,7 @@ namespace schema {
 	export interface IUserFriendlyCommand {
 		command: string;
 		title: string | ILocalizedString;
+		shortTitle?: string | ILocalizedString;
 		enablement?: string;
 		category?: string | ILocalizedString;
 		icon?: IUserFriendlyIcon;
@@ -449,6 +465,9 @@ namespace schema {
 			return false;
 		}
 		if (!isValidLocalizedString(command.title, collector, 'title')) {
+			return false;
+		}
+		if (command.shortTitle && !isValidLocalizedString(command.shortTitle, collector, 'shortTitle')) {
 			return false;
 		}
 		if (command.enablement && typeof command.enablement !== 'string') {
@@ -502,6 +521,10 @@ namespace schema {
 			},
 			title: {
 				description: localize('vscode.extension.contributes.commandType.title', 'Title by which the command is represented in the UI'),
+				type: 'string'
+			},
+			shortTitle: {
+				description: localize('vscode.extension.contributes.commandType.shortTitle', 'Short title by which the command is represented in the UI'),
 				type: 'string'
 			},
 			category: {
@@ -561,7 +584,7 @@ commandsExtensionPoint.setHandler(extensions => {
 			return;
 		}
 
-		const { icon, enablement, category, title, command } = userFriendlyCommand;
+		const { icon, enablement, category, title, shortTitle, command } = userFriendlyCommand;
 
 		let absoluteIcon: { dark: URI; light?: URI; } | ThemeIcon | undefined;
 		if (icon) {
@@ -582,6 +605,7 @@ commandsExtensionPoint.setHandler(extensions => {
 		bucket.push({
 			id: command,
 			title,
+			shortTitle: extension.description.enableProposedApi ? shortTitle : undefined,
 			category,
 			precondition: ContextKeyExpr.deserialize(enablement),
 			icon: absoluteIcon
