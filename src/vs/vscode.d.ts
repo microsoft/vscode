@@ -11371,11 +11371,14 @@ declare module 'vscode' {
 		 */
 		readonly uri: Uri;
 
+		/** @deprecated	*/
+		// todo@API remove
+		readonly viewType: string;
+
 		/**
 		 * The type of notebook.
 		 */
-		// todo@API should this be called `notebookType` or `notebookKind`
-		readonly viewType: string;
+		readonly notebookType: string;
 
 		/**
 		 * The version number of this notebook (it will strictly increase after each
@@ -11872,15 +11875,14 @@ declare module 'vscode' {
 	 * A notebook controller represents an entity that can execute notebook cells. This is often referred to as a kernel.
 	 *
 	 * There can be multiple controllers and the editor will let users choose which controller to use for a certain notebook. The
-	 * {@link NotebookController.viewType `viewType`}-property defines for what kind of notebooks a controller is for and
+	 * {@link NotebookController.notebookType `notebookType`}-property defines for what kind of notebooks a controller is for and
 	 * the {@link NotebookController.updateNotebookAffinity `updateNotebookAffinity`}-function allows controllers to set a preference
-	 * for specific notebooks.
+	 * for specific notebook documents.
 	 *
 	 * When a cell is being run the editor will invoke the {@link NotebookController.executeHandler `executeHandler`} and a controller
 	 * is expected to create and finalize a {@link NotebookCellExecution notebook cell execution}. However, controllers are also free
 	 * to create executions by themselves.
 	 */
-	// todo@api adopt notebookType-rename in comment
 	export interface NotebookController {
 
 		/**
@@ -11891,11 +11893,14 @@ declare module 'vscode' {
 		 */
 		readonly id: string;
 
-		/**
-		 * The notebook view type this controller is for.
-		 */
-		// todo@api rename to notebookType
+		// todo@api remove
+		/** @deprecated */
 		readonly viewType: string;
+
+		/**
+		 * The notebook type this controller is for.
+		 */
+		readonly notebookType: string;
 
 		/**
 		 * An array of language identifiers that are supported by this
@@ -12217,11 +12222,11 @@ declare module 'vscode' {
 		 * path when the document is to be saved.
 		 *
 		 * @see {@link openNotebookDocument}
-		 * @param viewType The notebook view type that should be used.
+		 * @param notebookType The notebook type that should be used.
 		 * @param content The initial contents of the notebook.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
 		 */
-		export function openNotebookDocument(viewType: string, content?: NotebookData): Thenable<NotebookDocument>;
+		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
 
 		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
@@ -12255,17 +12260,16 @@ declare module 'vscode' {
 		 * Creates a new notebook controller.
 		 *
 		 * @param id Identifier of the controller. Must be unique per extension.
-		 * @param viewType A notebook view type for which this controller is for.
+		 * @param notebookType A notebook type for which this controller is for.
 		 * @param label The label of the controller.
 		 * @param handler The execute-handler of the controller.
 		 */
-		//todo@API adopt viewType -> notebookType rename
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler): NotebookController;
+		export function createNotebookController(id: string, notebookType: string, label: string, handler?: NotebookExecuteHandler): NotebookController;
 
 		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
 		 *
-		 * @param notebookType The notebook view type to register for.
+		 * @param notebookType The notebook type to register for.
 		 * @param provider A cell status bar provider.
 		 * @return A {@link Disposable} that unregisters this provider when being disposed.
 		 */

@@ -9,6 +9,8 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { NotebookEditorPriority, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
+	export const type = 'type';
+	/** @deprecated use type */
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
@@ -16,6 +18,8 @@ namespace NotebookEditorContribution {
 }
 
 export interface INotebookEditorContribution {
+	readonly [NotebookEditorContribution.type]: string;
+	/** @deprecated use type */
 	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
 	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
@@ -23,6 +27,7 @@ export interface INotebookEditorContribution {
 }
 
 namespace NotebookRendererContribution {
+	/** @deprecated use type */
 	export const viewType = 'viewType';
 	export const id = 'id';
 	export const displayName = 'displayName';
@@ -35,6 +40,7 @@ namespace NotebookRendererContribution {
 
 export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
+	/** @deprecated use type */
 	readonly [NotebookRendererContribution.viewType]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
@@ -47,17 +53,22 @@ export interface INotebookRendererContribution {
 const notebookProviderContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ viewType: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
+	defaultSnippets: [{ body: [{ type: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
 	items: {
 		type: 'object',
 		required: [
-			NotebookEditorContribution.viewType,
+			NotebookEditorContribution.type,
 			NotebookEditorContribution.displayName,
 			NotebookEditorContribution.selector,
 		],
 		properties: {
+			[NotebookEditorContribution.type]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
+			},
 			[NotebookEditorContribution.viewType]: {
 				type: 'string',
+				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
 				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
 			},
 			[NotebookEditorContribution.displayName]: {

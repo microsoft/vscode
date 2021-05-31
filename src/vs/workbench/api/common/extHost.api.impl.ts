@@ -1079,8 +1079,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
 				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
 			},
-			createNotebookController(id: string, viewType: string, label: string, handler?: vscode.NotebookExecuteHandler, rendererScripts?: vscode.NotebookRendererScript[]) {
-				return extHostNotebookKernels.createNotebookController(extension, id, viewType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
+			createNotebookController(id: string, notebookType: string, label: string, handler?: vscode.NotebookExecuteHandler, rendererScripts?: vscode.NotebookRendererScript[]) {
+				return extHostNotebookKernels.createNotebookController(extension, id, notebookType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
 			},
 			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
 				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);

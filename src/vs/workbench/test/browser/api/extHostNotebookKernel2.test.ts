@@ -138,7 +138,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
-		assert.strictEqual(first.viewType, '*');
+		assert.strictEqual(first.notebookType, '*');
 
 		kernel.dispose();
 		await rpcProtocol.sync();

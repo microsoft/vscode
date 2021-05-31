@@ -44,7 +44,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 
 	constructor(data: INotebookKernelDto2, private _modeService: IModeService) {
 		this.id = data.id;
-		this.viewType = data.viewType;
+		this.viewType = data.notebookType;
 		this.extension = data.extensionId;
 
 		this.implementsInterrupt = data.supportsInterrupt ?? false;
