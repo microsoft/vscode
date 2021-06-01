@@ -12121,11 +12121,9 @@ declare module 'vscode' {
 		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
 		 * @param cell The cell for which to return items.
 		 * @param token A token triggered if this request should be cancelled.
+		 * @return One or more {@link NotebookCellStatusBarItem cell statusbar items}
 		 */
-		// @rob
-		//todo@API jsdoc for return-type
-		//todo@API should this return T | T[]
-		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem | NotebookCellStatusBarItem[]>;
 	}
 
 	/**

@@ -327,7 +327,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		const disposables = new DisposableStore();
 		const cacheId = this._statusBarCache.add([disposables]);
-		const items = (result && result.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables))) ?? undefined;
+		const resultArr = Array.isArray(result) ? result : [result];
+		const items = resultArr.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables));
 		return {
 			cacheId,
 			items
