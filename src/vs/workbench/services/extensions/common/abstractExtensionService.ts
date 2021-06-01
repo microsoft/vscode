@@ -680,15 +680,23 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+	/**
+	 * @argument extensions The extensions to be checked.
+	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 */
+	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
 		// enable or disable proposed API per extension
 		this._checkEnableProposedApi(extensions);
 
 		// keep only enabled extensions
-		return extensions.filter(extension => this._isEnabled(extension));
+		return extensions.filter(extension => this._isEnabled(extension, ignoreWorkspaceTrust));
 	}
 
-	protected _isEnabled(extension: IExtensionDescription): boolean {
+	/**
+	 * @argument extension The extension to be checked.
+	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 */
+	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
 		if (extension.isUnderDevelopment) {
 			// Never disable extensions under development
 			return true;
@@ -699,12 +707,33 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return false;
 		}
 
-		return this._safeInvokeIsEnabled(toExtension(extension));
+		const ext = toExtension(extension);
+
+		const isEnabled = this._safeInvokeIsEnabled(ext);
+		if (isEnabled) {
+			return true;
+		}
+
+		if (ignoreWorkspaceTrust && this._safeInvokeIsDisabledByWorkspaceTrust(ext)) {
+			// This extension is disabled, but the reason for it being disabled
+			// is workspace trust, so we will consider it enabled
+			return true;
+		}
+
+		return false;
 	}
 
 	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
 		try {
 			return this._extensionEnablementService.isEnabled(extension);
+		} catch (err) {
+			return false;
+		}
+	}
+
+	protected _safeInvokeIsDisabledByWorkspaceTrust(extension: IExtension): boolean {
+		try {
+			return this._extensionEnablementService.isDisabledByWorkspaceTrust(extension);
 		} catch (err) {
 			return false;
 		}
