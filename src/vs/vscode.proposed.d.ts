@@ -1452,7 +1452,7 @@ declare module 'vscode' {
 
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
-	export interface NotebookRendererMessage<T = any> {
+	export interface NotebookRendererMessage<T> {
 		/**
 		 * Editor that sent the message.
 		 */
@@ -1468,18 +1468,18 @@ declare module 'vscode' {
 	 * Renderer messaging is used to communicate with a single renderer. It's
 	 * returned from {@link notebooks.createRendererMessaging}.
 	 */
-	export interface NotebookRendererMessaging {
+	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
 		/**
 		 * Events that fires when a message is received from a renderer.
 		 */
-		onDidReceiveMessage: Event<NotebookRendererMessage>;
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
 
 		/**
 		 * Sends a message to the renderer.
 		 * @param editor Editor to target with the message
 		 * @param message Message to send
 		 */
-		postMessage(editor: NotebookEditor, message: unknown): void;
+		postMessage(editor: NotebookEditor, message: TSend): void;
 	}
 
 	/**
@@ -1548,7 +1548,7 @@ declare module 'vscode' {
 		*/
 		// todo@API can ANY extension talk to renderer or is there a check that the calling extension
 		// declared the renderer in its package.json?
-		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
+		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
 	//#endregion
