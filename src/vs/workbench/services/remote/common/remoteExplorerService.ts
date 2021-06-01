@@ -55,6 +55,7 @@ export interface ITunnelItem {
 	remoteHost: string;
 	remotePort: number;
 	localAddress?: string;
+	protocol: TunnelProtocol;
 	localUri?: URI;
 	localPort?: number;
 	name?: string;
@@ -78,6 +79,7 @@ export interface Tunnel {
 	remotePort: number;
 	localAddress: string;
 	localUri: URI;
+	protocol: TunnelProtocol;
 	localPort?: number;
 	name?: string;
 	closeable?: boolean;
@@ -412,6 +414,7 @@ export class TunnelModel extends Disposable {
 						remotePort: tunnel.tunnelRemotePort,
 						remoteHost: tunnel.tunnelRemoteHost,
 						localAddress: tunnel.localAddress,
+						protocol: attributes?.get(tunnel.tunnelRemotePort)?.protocol ?? TunnelProtocol.Http,
 						localUri: await this.makeLocalUri(tunnel.localAddress, attributes?.get(tunnel.tunnelRemotePort)),
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: matchingCandidate?.detail,
@@ -432,11 +435,13 @@ export class TunnelModel extends Disposable {
 				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
+				const attributes = (await this.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort);
 				this.forwarded.set(key, {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localAddress: tunnel.localAddress,
-					localUri: await this.makeLocalUri(tunnel.localAddress, (await this.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort)),
+					protocol: attributes?.protocol ?? TunnelProtocol.Http,
+					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
 					runningProcess: matchingCandidate?.detail,
@@ -568,6 +573,7 @@ export class TunnelModel extends Disposable {
 					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
+					protocol: attributes?.protocol ?? TunnelProtocol.Http,
 					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
@@ -635,6 +641,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.remoteAddress.host,
 					remotePort: tunnel.remoteAddress.port,
 					localAddress: localAddress,
+					protocol: TunnelProtocol.Http,
 					localUri: this.makeLocalUri(localAddress),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,

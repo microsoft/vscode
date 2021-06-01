@@ -65,13 +65,6 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	}
 }
 
-function toTunnelProtocol(value: string | undefined): TunnelProtocol {
-	if (value === TunnelProtocol.Https) {
-		return TunnelProtocol.Https;
-	}
-	return TunnelProtocol.Http;
-}
-
 export interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
 	readonly all: TunnelItem[];
@@ -99,7 +92,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 		processTooltip: '',
 		originTooltip: '',
 		privacyTooltip: '',
-		source: ''
+		source: '',
+		protocol: TunnelProtocol.Http
 	};
 
 	constructor(
@@ -430,7 +424,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 				[TunnelTypeContextKey.key, element.tunnel.tunnelType],
 				[TunnelCloseableContextKey.key, element.tunnel.closeable],
 				[TunnelPrivacyContextKey.key, element.tunnel.privacy],
-				[TunnelProtocolContextKey.key, toTunnelProtocol(element.tunnel.localUri?.scheme)]
+				[TunnelProtocolContextKey.key, element.tunnel.protocol]
 			];
 		const contextKeyService = this.contextKeyService.createOverlay(context);
 		const disposableStore = new DisposableStore();
@@ -551,6 +545,7 @@ class TunnelItem implements ITunnelItem {
 			tunnel.source ?? (tunnel.userForwarded ? nls.localize('tunnel.user', "User Forwarded") :
 				(type === TunnelType.Detected ? nls.localize('tunnel.staticallyForwarded', "Statically Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded"))),
 			!!tunnel.hasRunningProcess,
+			tunnel.protocol,
 			tunnel.localUri,
 			tunnel.localAddress,
 			tunnel.localPort,
@@ -568,6 +563,7 @@ class TunnelItem implements ITunnelItem {
 		public remotePort: number,
 		public source: string,
 		public hasRunningProcess: boolean,
+		public protocol: TunnelProtocol,
 		public localUri?: URI,
 		public localAddress?: string,
 		public localPort?: number,
@@ -887,7 +883,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
 			this.tunnelPrivacyContext.set(item.privacy);
-			this.tunnelProtocolContext.set(toTunnelProtocol(item.localUri?.scheme));
+			this.tunnelProtocolContext.set(item.protocol);
 			this.portChangableContextKey.set(!!item.localPort);
 		} else {
 			this.tunnelTypeContext.reset();
@@ -923,7 +919,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
 			this.tunnelPrivacyContext.set(node.privacy);
-			this.tunnelProtocolContext.set(toTunnelProtocol(node.localUri?.scheme));
+			this.tunnelProtocolContext.set(node.protocol);
 			this.portChangableContextKey.set(!!node.localPort);
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
