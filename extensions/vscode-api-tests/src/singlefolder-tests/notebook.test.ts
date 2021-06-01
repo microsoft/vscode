@@ -69,7 +69,7 @@ class Kernel {
 		await task.replaceOutput([new vscode.NotebookCellOutput([
 			vscode.NotebookCellOutputItem.text('my output', 'text/plain')
 		])]);
-		task.end({ success: true });
+		task.end(true);
 	}
 }
 
@@ -188,7 +188,7 @@ suite('Notebook API tests', function () {
 				await task.replaceOutput([new vscode.NotebookCellOutput([
 					vscode.NotebookCellOutputItem.text('my second output', 'text/plain')
 				])]);
-				task.end({ success: true });
+				task.end(true);
 			}
 		};
 
@@ -781,7 +781,7 @@ suite('Notebook API tests', function () {
 						await task.replaceOutput([new vscode.NotebookCellOutput([
 							vscode.NotebookCellOutputItem.text('Canceled', 'text/plain')
 						])]);
-						task.end({});
+						task.end(undefined);
 					});
 
 				}
@@ -826,7 +826,7 @@ suite('Notebook API tests', function () {
 				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
 					vscode.NotebookCellOutputItem.text('Interrupted', 'text/plain')
 				])]);
-				this._task!.end({});
+				this._task!.end(undefined);
 			}
 		};
 
@@ -1188,7 +1188,7 @@ suite('Notebook API tests', function () {
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
 				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].items[0].data), 'Some output');
-				task.end({});
+				task.end(undefined);
 				called = true;
 			}
 		};

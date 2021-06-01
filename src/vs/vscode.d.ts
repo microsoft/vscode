@@ -11933,32 +11933,6 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	// todo@api jsdoc
-	// todo@api Inline unless we can come up with more (future) properties
-	export interface NotebookCellExecuteStartContext {
-		/**
-		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
-		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
-		 */
-		startTime?: number;
-	}
-
-	// todo@api jsdoc
-	// todo@api Inline unless we can come up with more (future) properties
-	export interface NotebookCellExecuteEndContext {
-		/**
-		 * If true, a green check is shown on the cell status bar.
-		 * If false, a red X is shown.
-		 * If undefined, no check or X icon is shown.
-		 */
-		success?: boolean;
-
-		/**
-		 * The time that execution finished, in milliseconds in the Unix epoch.
-		 */
-		endTime?: number;
-	}
-
 	/**
 	 * A NotebookCellExecution is how {@link NotebookController notebook controller} modify a notebook cell as
 	 * it is executing.
@@ -11988,13 +11962,23 @@ declare module 'vscode' {
 		 */
 		executionOrder: number | undefined;
 
-		// todo@API inline context object?
-		// @rob inline as arguments
-		start(context?: NotebookCellExecuteStartContext): void;
+		/**
+		 * Signal that the execution has begun.
+		 *
+		 * @param startTime The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
+		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 */
+		start(startTime?: number): void;
 
-		// todo@API inline context object?
-		// @rob inline as arguments
-		end(result?: NotebookCellExecuteEndContext): void;
+		/**
+		 * Signal that execution has ended.
+		 *
+		 * @param success If true, a green check is shown on the cell status bar.
+		 * If false, a red X is shown.
+		 * If undefined, no check or X icon is shown.
+		 * @param endTime The time that execution finished, in milliseconds in the Unix epoch.
+		 */
+		end(success: boolean | undefined, endTime?: number): void;
 
 		/**
 		 * Clears the output of the cell that is executing or of another cell that is affected by this execution.

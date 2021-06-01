@@ -447,7 +447,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			start(context?: vscode.NotebookCellExecuteStartContext): void {
+			start(startTime?: number): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
 					throw new Error('Cannot call start again');
 				}
@@ -457,11 +457,11 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: NotebookCellExecutionState.Executing,
-					runStartTime: context?.startTime ?? null
+					runStartTime: startTime ?? null
 				});
 			},
 
-			end(result?: vscode.NotebookCellExecuteEndContext): void {
+			end(success: boolean | undefined, endTime?: number): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -471,8 +471,8 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: null,
-					lastRunSuccess: result?.success ?? null,
-					runEndTime: result?.endTime ?? null,
+					lastRunSuccess: success ?? null,
+					runEndTime: endTime ?? null,
 				});
 			},
 
