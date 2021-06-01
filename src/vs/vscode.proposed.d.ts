@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-
 /**
  * This is the place for API experiments and proposals.
  * These API are NOT stable and subject to change. They are only available in the Insiders
@@ -906,14 +904,14 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
 	}
 
 	export interface ExtensionTerminalOptions {
 		/**
 		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
 		 */
-		readonly iconPath?: URI | { light: URI; dark: URI } | ThemeIcon;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
 	}
 
 	//#endregion
