@@ -3,7 +3,7 @@
 # Including: */vscode.d.ts
 # ContextLines: 1
 
-29 results - 1 file
+28 results - 1 file
 
 src/vs/vscode.d.ts:
   11374  		/** @deprecated	*/
@@ -23,7 +23,7 @@ src/vs/vscode.d.ts:
   11454  		readonly outputCollapsed?: boolean;
 
   11496  		 */
-  11497: 		// todo@API use duration instead of start/end?
+  11497: 		// todo@API use duration instead of start/end? doesn't allow for only passing one
   11498  		readonly startTime?: number;
 
   11505  
@@ -39,63 +39,65 @@ src/vs/vscode.d.ts:
   11663: 	//todo@API - add sugar function to add more outputs
   11664  	export class NotebookCellOutput {
 
-  11689  		 */
-  11690: 		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
-  11691  		metadata?: { [key: string]: any };
+  11706  		 */
+  11707: 		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
+  11708  		constructor(items: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 
-  11753  		 * @param languageId The language identifier of the source value.
-  11754: 		 * @param outputs //TODO@API remove from ctor?
-  11755: 		 * @param metadata //TODO@API remove from ctor?
-  11756: 		 * @param executionSummary //TODO@API remove from ctor?
   11757  		 */
+  11758: 		// todo@API should ctors only have the args for required properties?
+  11759  		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
 
-  11840  		*/
-  11841: 		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
-  11842  		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
+  11841  		*/
+  11842: 		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
+  11843  		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
 
-  11847  	 */
-  11848: 	//todo@API inline?
-  11849  	export interface NotebookExecuteHandler {
+  11848  	 */
+  11849: 	//todo@API inline?
+  11850  	export interface NotebookExecuteHandler {
 
-  11895  
-  11896: 		// todo@api remove
-  11897  		/** @deprecated */
+  11896  
+  11897: 		// todo@api remove
+  11898  		/** @deprecated */
 
-  11942  
-  11943: 		// todo@API remove
-  11944  		/** @deprecated */
+  11943  
+  11944: 		// todo@API remove
+  11945  		/** @deprecated */
 
-  12003  
-  12004: 	// todo@api jsdoc
-  12005: 	// todo@api Inline unless we can come up with more (future) properties
-  12006  	export interface NotebookCellExecuteStartContext {
+  11987  		 */
+  11988: 		//todo@api rename to ...NotebookDocument...
+  11989  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
-  12013  
-  12014: 	// todo@api jsdoc
-  12015: 	// todo@api Inline unless we can come up with more (future) properties
-  12016  	export interface NotebookCellExecuteEndContext {
+  12005  
+  12006: 	// todo@api jsdoc
+  12007: 	// todo@api Inline unless we can come up with more (future) properties
+  12008  	export interface NotebookCellExecuteStartContext {
 
-  12058  
-  12059: 		// todo@API inline context object?
-  12060  		start(context?: NotebookCellExecuteStartContext): void;
-  12061  
-  12062: 		// todo@API inline context object?
-  12063  		end(result?: NotebookCellExecuteEndContext): void;
+  12015  
+  12016: 	// todo@api jsdoc
+  12017: 	// todo@api Inline unless we can come up with more (future) properties
+  12018  	export interface NotebookCellExecuteEndContext {
 
-  12145  		 */
-  12146: 		//todo@API only have Command?
-  12147  		command?: string | Command;
+  12060  
+  12061: 		// todo@API inline context object?
+  12062  		start(context?: NotebookCellExecuteStartContext): void;
+  12063  
+  12064: 		// todo@API inline context object?
+  12065  		end(result?: NotebookCellExecuteEndContext): void;
 
-  12166  		 */
-  12167: 		// todo@API jsdoc for args
-  12168: 		// todo@API should ctors only have the args for required properties?
-  12169  		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+  12147  		 */
+  12148: 		//todo@API only have Command?
+  12149  		command?: string | Command;
 
-  12185  		 */
-  12186: 		//todo@API jsdoc for return-type
-  12187: 		//todo@API should this return an item instead of an array?
-  12188  		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+  12168  		 */
+  12169: 		// todo@API jsdoc for args
+  12170: 		// todo@API should ctors only have the args for required properties?
+  12171  		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 
-  12199  	 */
-  12200: 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
-  12201  	export namespace notebooks {
+  12187  		 */
+  12188: 		//todo@API jsdoc for return-type
+  12189: 		//todo@API should this return an item instead of an array?
+  12190  		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+
+  12201  	 */
+  12202: 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
+  12203  	export namespace notebooks {
