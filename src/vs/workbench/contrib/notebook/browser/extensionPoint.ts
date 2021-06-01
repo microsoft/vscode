@@ -6,7 +6,7 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
 	export const type = 'type';
@@ -47,7 +47,7 @@ export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
 	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
-	readonly [NotebookRendererContribution.requiresMessaging]: boolean | 'optional' | undefined;
+	readonly [NotebookRendererContribution.requiresMessaging]: RendererMessagingSpec;
 }
 
 const notebookProviderContribution: IJSONSchema = {
@@ -178,16 +178,17 @@ const notebookRendererContribution: IJSONSchema = {
 				markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
 			},
 			[NotebookRendererContribution.requiresMessaging]: {
-				default: false,
+				default: 'never',
 				enum: [
-					true,
-					false,
-					'optional'
+					'always',
+					'optional',
+					'never',
 				],
+
 				enumDescriptions: [
-					nls.localize('contributes.notebook.renderer.requiresMessaging.true', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
 					nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.false', 'The renderer does not require messaging.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
 				],
 				description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
 			},

@@ -1452,7 +1452,7 @@ declare module 'vscode' {
 
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
-	export interface NotebookRendererMessage<T> {
+	export interface NotebookRendererMessage<T = any> {
 		/**
 		 * Editor that sent the message.
 		 */
@@ -1466,20 +1466,20 @@ declare module 'vscode' {
 
 	/**
 	 * Renderer messaging is used to communicate with a single renderer. It's
-	 * returned from {@link notebook.createRendererMessaging}.
+	 * returned from {@link notebooks.createRendererMessaging}.
 	 */
-	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
+	export interface NotebookRendererMessaging {
 		/**
 		 * Events that fires when a message is received from a renderer.
 		 */
-		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
+		onDidReceiveMessage: Event<NotebookRendererMessage>;
 
 		/**
 		 * Sends a message to the renderer.
 		 * @param editor Editor to target with the message
 		 * @param message Message to send
 		 */
-		postMessage(editor: NotebookEditor, message: TSend): void;
+		postMessage(editor: NotebookEditor, message: unknown): void;
 	}
 
 	/**
@@ -1541,15 +1541,14 @@ declare module 'vscode' {
 		/**
 		 * Creates a new messaging instance used to communicate with a specific
 		 * renderer. The renderer only has access to messaging if `requiresMessaging`
-		 * is set in its contribution.
+		 * is set to `always` or `optional` in its `notebookRenderer ` contribution.
 		 *
 		 * @see https://github.com/microsoft/vscode/issues/123601
 		 * @param rendererId The renderer ID to communicate with
 		*/
 		// todo@API can ANY extension talk to renderer or is there a check that the calling extension
 		// declared the renderer in its package.json?
-		// todo@API align with vscode.Webview -> remove generics
-		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
+		export function createRendererMessaging(rendererId: string): NotebookRendererMessaging;
 	}
 
 	//#endregion

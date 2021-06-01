@@ -137,7 +137,11 @@ export const enum NotebookRendererMatch {
  * activation" of extensions is a very tricky problem, which could allow
  * solving this. But for now, optional is mostly only honored for aznb.
  */
-export type RendererMessagingSpec = true | false | 'optional';
+export const enum RendererMessagingSpec {
+	Always = 'always',
+	Never = 'never',
+	Optional = 'optional',
+}
 
 export interface INotebookRendererInfo {
 	id: string;
