@@ -12,7 +12,7 @@ const imageSize = 400;
 export default () => `
 &nbsp;
 <checklist>
-	<checkbox on-checked="command:notebook.setProfile?${profileArg('default')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarPosition == 'both' && config.notebook.globalToolbar == false && config.notebook.compactView == true && config.notebook.showCellStatusBar == true">
+	<checkbox on-checked="command:notebook.setProfile?${profileArg('default')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarPosition == 'both' && config.notebook.globalToolbar == true && config.notebook.compactView == true && config.notebook.showCellStatusBar == true">
 		<img width="${imageSize}" src="./notebookThemes/default.png"/>
 		${escape(localize('default', "Default"))}
 	</checkbox>
@@ -20,7 +20,7 @@ export default () => `
 		<img width="${imageSize}" src="./notebookThemes/jupyter.png"/>
 		${escape(localize('jupyter', "Jupyter"))}
 	</checkbox>
-	<checkbox on-checked="command:notebook.setProfile?${profileArg('colab')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarPosition == 'betweenCells' && config.notebook.globalToolbar == false && config.notebook.compactView == false && config.notebook.showCellStatusBar == false">
+	<checkbox on-checked="command:notebook.setProfile?${profileArg('colab')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarPosition == 'betweenCells' && config.notebook.globalToolbar == true && config.notebook.compactView == false && config.notebook.showCellStatusBar == false">
 		<img width="${imageSize}" src="./notebookThemes/colab.png"/>
 		${escape(localize('colab', "Colab"))}
 	</checkbox>

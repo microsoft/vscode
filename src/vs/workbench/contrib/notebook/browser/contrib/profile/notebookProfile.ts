@@ -19,7 +19,7 @@ const profiles = {
 	[NotebookProfileType.default]: {
 		[FocusIndicator]: 'border',
 		[InsertToolbarPosition]: 'both',
-		[GlobalToolbar]: false,
+		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: true,
 		[ShowCellStatusBarKey]: true,
@@ -36,7 +36,7 @@ const profiles = {
 	[NotebookProfileType.colab]: {
 		[FocusIndicator]: 'border',
 		[InsertToolbarPosition]: 'betweenCells',
-		[GlobalToolbar]: false,
+		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: false,
 		[ShowCellStatusBarKey]: false,
