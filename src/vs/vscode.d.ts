@@ -11494,7 +11494,7 @@ declare module 'vscode' {
 		/**
 		 * The unix timestamp at which execution started.
 		 */
-		// todo@API use duration instead of start/end?
+		// todo@API use duration instead of start/end? doesn't allow for only passing one
 		readonly startTime?: number;
 
 		/**
@@ -11685,9 +11685,8 @@ declare module 'vscode' {
 		items: NotebookCellOutputItem[];
 
 		/**
-		 * Arbitrary metadata for this cell output. Must be JSON-stringifyable.
+		 * Arbitrary metadata for this cell output. .
 		 */
-		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
 		metadata?: { [key: string]: any };
 
 		/**
@@ -11736,7 +11735,7 @@ declare module 'vscode' {
 		outputs?: NotebookCellOutput[];
 
 		/**
-		 * The metadata of this cell data.
+		 * Arbitrary metadata of this cell data. Can be anything but must be JSON-stringifyable.
 		 */
 		metadata?: NotebookCellMetadata;
 
