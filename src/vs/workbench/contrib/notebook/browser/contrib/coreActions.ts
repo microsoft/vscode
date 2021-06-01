@@ -418,10 +418,17 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 			id: EXECUTE_CELLS_ABOVE,
 			precondition: executeCellCondition,
 			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
-			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+				}
+			],
 			icon: icons.executeAboveIcon
 		});
 	}
@@ -452,10 +459,17 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 			id: EXECUTE_CELL_AND_BELOW,
 			precondition: executeCellCondition,
 			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
-			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition,
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition,
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+				}
+			],
 			icon: icons.executeBelowIcon
 		});
 	}
