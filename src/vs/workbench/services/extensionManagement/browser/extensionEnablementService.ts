@@ -269,7 +269,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 	}
 
 	isDisabledByWorkspaceTrust(extension: IExtension): boolean {
-		return this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) === false;
+		return this._isEnabled(extension) && this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) === false;
 	}
 
 	private _isDisabledByWorkspaceTrust(extension: IExtension): boolean {
