@@ -3,118 +3,97 @@
 # Including: */vscode.d.ts
 # ContextLines: 1
 
-32 results - 1 file
+26 results - 1 file
 
 src/vs/vscode.d.ts:
   11374  		/** @deprecated	*/
   11375: 		// todo@API remove
   11376  		readonly viewType: string;
 
-  11440  
-  11441: 	// todo@API jsdoc
-  11442  	export class NotebookCellMetadata {
+  11459  		// @rob
+  11460: 		//todo@API think about invalid state (no end, but start and vice versa)
+  11461  		readonly startTime?: number;
 
-  11446  		 */
-  11447: 		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-  11448  		readonly inputCollapsed?: boolean;
+  11593  	 */
+  11594: 	//todo@API - add sugar function to add more outputs
+  11595  	export class NotebookCellOutput {
 
-  11452  		 */
-  11453: 		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-  11454  		readonly outputCollapsed?: boolean;
+  11637  		 */
+  11638: 		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
+  11639  		// @jupyter check if needed
 
-  11497  		// @rob
-  11498: 		//todo@API think about invalid state (no end, but start and vice versa)
-  11499  		readonly startTime?: number;
+  11689  		 */
+  11690: 		// todo@API should ctors only have the args for required properties?
+  11691  		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: { [key: string]: any }, executionSummary?: NotebookCellExecutionSummary);
 
-  11506  
-  11507: 	// todo@API jsdoc
-  11508: 	// todo@API remove this and use simple {}?
-  11509  	export class NotebookDocumentMetadata {
+  11778  	 */
+  11779: 	//todo@API inline?
+  11780  	export interface NotebookExecuteHandler {
 
-  11645  
-  11646: 		//todo@API remove in favour of NotebookCellOutput#metadata
-  11647  		metadata?: { [key: string]: any };
+  11826  
+  11827: 		// todo@api remove
+  11828  		/** @deprecated */
 
-  11663  	 */
-  11664: 	//todo@API - add sugar function to add more outputs
-  11665  	export class NotebookCellOutput {
+  11873  
+  11874: 		// todo@API remove
+  11875  		/** @deprecated */
 
-  11707  		 */
-  11708: 		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
-  11709  		// @jupyter check if needed
+  11917  		 */
+  11918: 		//todo@api selected vs associated, jsdoc
+  11919  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
-  11759  		 */
-  11760: 		// todo@API should ctors only have the args for required properties?
-  11761  		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
+  11935  
+  11936: 	// todo@api jsdoc
+  11937: 	// todo@api Inline unless we can come up with more (future) properties
+  11938  	export interface NotebookCellExecuteStartContext {
 
-  11849  	 */
-  11850: 	//todo@API inline?
-  11851  	export interface NotebookExecuteHandler {
+  11945  
+  11946: 	// todo@api jsdoc
+  11947: 	// todo@api Inline unless we can come up with more (future) properties
+  11948  	export interface NotebookCellExecuteEndContext {
 
-  11897  
-  11898: 		// todo@api remove
-  11899  		/** @deprecated */
+  11990  
+  11991: 		// todo@API inline context object?
+  11992  		// @rob inline as arguments
 
-  11944  
-  11945: 		// todo@API remove
-  11946  		/** @deprecated */
+  11994  
+  11995: 		// todo@API inline context object?
+  11996  		// @rob inline as arguments
 
-  11988  		 */
-  11989: 		//todo@api selected vs associated, jsdoc
-  11990  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
+  12105  		// @rob
+  12106: 		// todo@API jsdoc for args
+  12107: 		// todo@API should ctors only have the args for required properties?
+  12108  		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
 
-  12006  
-  12007: 	// todo@api jsdoc
-  12008: 	// todo@api Inline unless we can come up with more (future) properties
-  12009  	export interface NotebookCellExecuteStartContext {
+  12125  		// @rob
+  12126: 		//todo@API jsdoc for return-type
+  12127: 		//todo@API should this return T | T[]
+  12128  		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 
-  12016  
-  12017: 	// todo@api jsdoc
-  12018: 	// todo@api Inline unless we can come up with more (future) properties
-  12019  	export interface NotebookCellExecuteEndContext {
+  12139  	 */
+  12140: 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
+  12141  	export namespace notebooks {
 
-  12061  
-  12062: 		// todo@API inline context object?
-  12063  		// @rob inline as arguments
+  12145  		 */
+  12146: 		// todo@api move to workspace
+  12147  		export const notebookDocuments: readonly NotebookDocument[];
 
-  12065  
-  12066: 		// todo@API inline context object?
-  12067  		// @rob inline as arguments
+  12161  		 */
+  12162: 		// todo@api move to workspace
+  12163  		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
-  12176  		// @rob
-  12177: 		// todo@API jsdoc for args
-  12178: 		// todo@API should ctors only have the args for required properties?
-  12179  		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+  12173  		 */
+  12174: 		// todo@api move to workspace
+  12175  		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
 
-  12196  		// @rob
-  12197: 		//todo@API jsdoc for return-type
-  12198: 		//todo@API should this return T | T[]
-  12199  		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+  12179  		 */
+  12180: 		// todo@api move to workspace
+  12181  		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 
-  12210  	 */
-  12211: 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
-  12212  	export namespace notebooks {
+  12190  		 */
+  12191: 		// todo@api move to workspace
+  12192  		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
-  12216  		 */
-  12217: 		// todo@api move to workspace
-  12218  		export const notebookDocuments: readonly NotebookDocument[];
-
-  12232  		 */
-  12233: 		// todo@api move to workspace
-  12234  		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
-
-  12244  		 */
-  12245: 		// todo@api move to workspace
-  12246  		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
-
-  12250  		 */
-  12251: 		// todo@api move to workspace
-  12252  		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-
-  12261  		 */
-  12262: 		// todo@api move to workspace
-  12263  		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-
-  12275  		 */
-  12276: 		// todo@api move to workspace
-  12277  		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+  12204  		 */
+  12205: 		// todo@api move to workspace
+  12206  		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
