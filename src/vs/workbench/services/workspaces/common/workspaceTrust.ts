@@ -156,11 +156,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					// After resolving the remote authority, if the workspace is trusted we need
 					// to execute the workspace trust transition participants and fire the event
 					if (this.calculateWorkspaceTrust()) {
-						// TODO: @lszomoru - remove after CLI flag to disable trust is added
-						if (!this.environmentService.extensionTestsLocationURI) {
-							// Run workspace trust transition participants
-							await this._trustTransitionManager.participate(true);
-						}
+						// Run workspace trust transition participants
+						await this._trustTransitionManager.participate(true);
 
 						// Fire workspace trust change event
 						this._onDidChangeTrust.fire(true);
