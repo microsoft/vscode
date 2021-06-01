@@ -9857,7 +9857,7 @@ declare module 'vscode' {
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
 		/**
-		 * Items to pick from.
+		 * Items to pick from. This can be read and updated by the extension.
 		 */
 		items: readonly T[];
 
