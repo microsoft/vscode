@@ -12101,11 +12101,10 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new NotebookCellStatusBarItem.
+		 * @param text The text to show for the item.
+		 * @param alignment Whether the item is aligned to the left or right.
 		 */
-		// @rob
-		// todo@API jsdoc for args
-		// todo@API should ctors only have the args for required properties?
-		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+		constructor(text: string, alignment: NotebookCellStatusBarAlignment);
 	}
 
 	/**

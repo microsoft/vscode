@@ -3177,11 +3177,7 @@ export enum NotebookEditorRevealType {
 export class NotebookCellStatusBarItem {
 	constructor(
 		public text: string,
-		public alignment: NotebookCellStatusBarAlignment,
-		public command?: string | vscode.Command,
-		public tooltip?: string,
-		public priority?: number,
-		public accessibilityInformation?: vscode.AccessibilityInformation) { }
+		public alignment: NotebookCellStatusBarAlignment) { }
 }
 
 
