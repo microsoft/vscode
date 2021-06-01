@@ -821,7 +821,7 @@ export class TerminalService implements ITerminalService {
 		if (!group) {
 			return false;
 		}
-		return group.terminalInstances.length > 1 || false;
+		return group.terminalInstances.length > 1;
 	}
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {

@@ -176,7 +176,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(this._terminalService.instanceIsSplit(instance[0]));
+		this._isSplitContextKey.set(instance.length > 0 && this._terminalService.instanceIsSplit(instance[0]));
 	}
 }
 
