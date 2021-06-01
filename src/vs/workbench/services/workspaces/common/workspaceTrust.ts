@@ -132,6 +132,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Resolve the workspace uris and resolve the initialization promise
 		this.resolveCanonicalWorkspaceUris().then(async () => {
+			this._initialized = true;
+
 			if (this.environmentService.remoteAuthority) {
 				// For the remote scenario we have to set workspace trust without executing the workspace trust
 				// transition participants as the workbench would hang. Participants will be executed after the
@@ -139,7 +141,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				await this.resolveCanonicalWorkspaceUris();
 				this._trustState.isTrusted = this.calculateWorkspaceTrust();
 			} else {
-				this._initialized = true;
 				await this.updateWorkspaceTrust();
 			}
 
@@ -155,8 +156,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					// After resolving the remote authority, if the workspace is trusted we need
 					// to execute the workspace trust transition participants and fire the event
 					if (this.calculateWorkspaceTrust()) {
-						// Run workspace trust transition participants
-						await this._trustTransitionManager.participate(true);
+						// TODO: @lszomoru - remove after CLI flag to disable trust is added
+						if (!this.environmentService.extensionTestsLocationURI) {
+							// Run workspace trust transition participants
+							await this._trustTransitionManager.participate(true);
+						}
 
 						// Fire workspace trust change event
 						this._onDidChangeTrust.fire(true);
@@ -664,11 +668,9 @@ class WorkspaceTrustTransitionManager extends Disposable {
 	}
 
 	async participate(trusted: boolean): Promise<void> {
-		console.log('participate start...');
 		for (const participant of this.participants) {
 			await participant.participate(trusted);
 		}
-		console.log('participate end...');
 	}
 
 	override dispose(): void {
