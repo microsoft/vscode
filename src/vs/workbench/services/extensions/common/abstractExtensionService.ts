@@ -51,7 +51,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 class DeltaExtensionsQueueItem {
 	constructor(
 		public readonly toAdd: IExtension[],
-		public readonly toRemove: string[]
+		public readonly toRemove: string[] | IExtension[]
 	) { }
 }
 
@@ -151,14 +151,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
 			let toAdd: IExtension[] = [];
-			let toRemove: string[] = [];
+			let toRemove: IExtension[] = [];
 			for (const extension of extensions) {
 				if (this._safeInvokeIsEnabled(extension)) {
 					// an extension has been enabled
 					toAdd.push(extension);
 				} else {
 					// an extension has been disabled
-					toRemove.push(extension.identifier.id);
+					toRemove.push(extension);
 				}
 			}
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
@@ -220,7 +220,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._onDidFinishHandleDeltaExtensions.fire();
 	}
 
-	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
+	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
 		let toAdd: IExtensionDescription[] = [];
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
@@ -240,10 +240,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		let toRemove: IExtensionDescription[] = [];
 		for (let i = 0, len = _toRemove.length; i < len; i++) {
-			const extensionId = _toRemove[i];
+			const extensionOrId = _toRemove[i];
+			const extensionId = (typeof extensionOrId === 'string' ? extensionOrId : extensionOrId.identifier.id);
+			const extension = (typeof extensionOrId === 'string' ? null : extensionOrId);
 			const extensionDescription = this._registry.getExtensionDescription(extensionId);
 			if (!extensionDescription) {
 				// ignore disabling/uninstalling an extension which is not running
+				continue;
+			}
+
+			if (extension && extensionDescription.extensionLocation.scheme !== extension.location.scheme) {
+				// this event is for a different extension than mine (maybe for the local extension, while I have the remote extension)
 				continue;
 			}
 
