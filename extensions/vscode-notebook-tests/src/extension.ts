@@ -69,7 +69,7 @@ export function activate(context: vscode.ExtensionContext): any {
 			const task = controller.createNotebookCellExecution(cell);
 			task.start();
 			task.replaceOutput([new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('test output', 'text/html', undefined)
+				vscode.NotebookCellOutputItem.text('test output', 'text/html')
 			])]);
 			task.end({ success: true });
 		}
