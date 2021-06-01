@@ -132,8 +132,17 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Resolve the workspace uris and resolve the initialization promise
 		this.resolveCanonicalWorkspaceUris().then(async () => {
-			this._initialized = true;
-			await this.updateWorkspaceTrust();
+			if (this.environmentService.remoteAuthority) {
+				// For the remote scenario we have to set workspace trust without executing the workspace trust
+				// transition participants as the workbench would hang. Participants will be executed after the
+				// authority has been resolved.
+				await this.resolveCanonicalWorkspaceUris();
+				this._trustState.isTrusted = this.calculateWorkspaceTrust();
+			} else {
+				this._initialized = true;
+				await this.updateWorkspaceTrust();
+			}
+
 			this._workspaceTrustInitializedPromiseResolve();
 		});
 
@@ -142,7 +151,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
 				.then(async result => {
 					this._remoteAuthority = result;
-					await this.updateWorkspaceTrust();
+
+					// After resolving the remote authority, if the workspace is trusted we need
+					// to execute the workspace trust transition participants and fire the event
+					if (this.calculateWorkspaceTrust()) {
+						// Run workspace trust transition participants
+						await this._trustTransitionManager.participate(true);
+
+						// Fire workspace trust change event
+						this._onDidChangeTrust.fire(true);
+					}
 				});
 		}
 
@@ -253,7 +271,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (trusted === undefined) {
 			await this.resolveCanonicalWorkspaceUris();
-			trusted = await this.calculateWorkspaceTrust();
+			trusted = this.calculateWorkspaceTrust();
 		}
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
@@ -646,9 +664,11 @@ class WorkspaceTrustTransitionManager extends Disposable {
 	}
 
 	async participate(trusted: boolean): Promise<void> {
+		console.log('participate start...');
 		for (const participant of this.participants) {
 			await participant.participate(trusted);
 		}
+		console.log('participate end...');
 	}
 
 	override dispose(): void {
