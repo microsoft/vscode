@@ -122,7 +122,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [],
 							metadata: { custom: { testCellMetadata: 123 } },
-							executionSummary: { startTime: 10, endTime: 20 }
+							executionSummary: { timing: { startTime: 10, endTime: 20 } }
 						},
 						{
 							value: 'test2',
@@ -1223,8 +1223,8 @@ suite('Notebook API tests', function () {
 		const cell = document.cellAt(0);
 
 		assert.strictEqual(cell.executionSummary?.success, undefined);
-		assert.strictEqual(cell.executionSummary?.startTime, 10);
-		assert.strictEqual(cell.executionSummary?.endTime, 20);
+		assert.strictEqual(cell.executionSummary?.timing?.startTime, 10);
+		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
 
 	});
 

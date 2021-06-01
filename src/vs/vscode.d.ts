@@ -11454,16 +11454,9 @@ declare module 'vscode' {
 		readonly success?: boolean;
 
 		/**
-		 * The unix timestamp at which execution started.
+		 * The times at which execution started and ended, as unix timestamps
 		 */
-		// @rob
-		//todo@API think about invalid state (no end, but start and vice versa)
-		readonly startTime?: number;
-
-		/**
-		 * The unix timestamp at which execution ended.
-		 */
-		readonly endTime?: number;
+		readonly timing?: { startTime: number, endTime: number };
 	}
 
 	/**
