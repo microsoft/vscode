@@ -493,12 +493,12 @@ class NotebookCellExecutionTask extends Disposable {
 
 			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, true);
+				return that.updateOutputItems(items, output, true);
 			},
 
 			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, false);
+				return that.updateOutputItems(items, output, false);
 			}
 		};
 		return Object.freeze(result);
