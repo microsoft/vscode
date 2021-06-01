@@ -13,7 +13,6 @@ suite('Notebook Document', function () {
 		deserializeNotebook(_data: Uint8Array): vscode.NotebookData | Thenable<vscode.NotebookData> {
 			return new vscode.NotebookData(
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// SIMPLE', 'javascript')],
-				new vscode.NotebookDocumentMetadata()
 			);
 		}
 		serializeNotebook(_data: vscode.NotebookData): Uint8Array | Thenable<Uint8Array> {
@@ -25,7 +24,6 @@ suite('Notebook Document', function () {
 		async openNotebook(uri: vscode.Uri, _openContext: vscode.NotebookDocumentOpenContext): Promise<vscode.NotebookData> {
 			return new vscode.NotebookData(
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, uri.toString(), 'javascript')],
-				new vscode.NotebookDocumentMetadata()
 			);
 		}
 		async saveNotebook(_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) {

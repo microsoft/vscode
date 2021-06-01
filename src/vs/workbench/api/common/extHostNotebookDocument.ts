@@ -45,7 +45,7 @@ export class ExtHostCell {
 	}
 
 	private _outputs: vscode.NotebookCellOutput[];
-	private _metadata: extHostTypes.NotebookCellMetadata;
+	private _metadata: NotebookCellMetadata;
 	private _previousResult: vscode.NotebookCellExecutionSummary | undefined;
 
 	private _internalMetadata: NotebookCellInternalMetadata;
@@ -65,7 +65,7 @@ export class ExtHostCell {
 		this.cellKind = _cellData.cellKind;
 		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
 		this._internalMetadata = _cellData.internalMetadata ?? {};
-		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
+		this._metadata = _cellData.metadata ?? {};
 		this._previousResult = extHostTypeConverters.NotebookCellExecutionSummary.to(_cellData.internalMetadata ?? {});
 	}
 
@@ -109,7 +109,7 @@ export class ExtHostCell {
 	}
 
 	setMetadata(newMetadata: NotebookCellMetadata): void {
-		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
+		this._metadata = newMetadata;
 	}
 
 	setInternalMetadata(newInternalMetadata: NotebookCellInternalMetadata): void {
@@ -145,7 +145,7 @@ export class ExtHostNotebookDocument {
 		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
 		private readonly _notebookType: string,
-		private _metadata: extHostTypes.NotebookDocumentMetadata,
+		private _metadata: Record<string, any>,
 		readonly uri: URI,
 	) { }
 
@@ -194,7 +194,7 @@ export class ExtHostNotebookDocument {
 
 	acceptDocumentPropertiesChanged(data: INotebookDocumentPropertiesChangeData) {
 		if (data.metadata) {
-			this._metadata = this._metadata.with(data.metadata);
+			this._metadata = { ...this._metadata, ...data.metadata };
 		}
 	}
 

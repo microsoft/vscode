@@ -9,7 +9,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import * as marked from 'vs/base/common/marked/marked';
 import { parse } from 'vs/base/common/marshalling';
 import { cloneAndChange } from 'vs/base/common/objects';
-import { isDefined, isNumber, isString } from 'vs/base/common/types';
+import { isDefined, isEmptyObject, isNumber, isString } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -1415,34 +1415,6 @@ export namespace NotebookRange {
 	}
 }
 
-export namespace NotebookCellMetadata {
-
-	export function to(data: notebooks.NotebookCellMetadata): types.NotebookCellMetadata {
-		return new types.NotebookCellMetadata().with({
-			...data,
-			...{
-				executionOrder: null,
-				lastRunSuccess: null,
-				runState: null,
-				runStartTime: null,
-				runStartTimeAdjustment: null,
-				runEndTime: null
-			}
-		});
-	}
-}
-
-export namespace NotebookDocumentMetadata {
-
-	export function from(data: types.NotebookDocumentMetadata): notebooks.NotebookDocumentMetadata {
-		return data;
-	}
-
-	export function to(data: notebooks.NotebookDocumentMetadata): types.NotebookDocumentMetadata {
-		return new types.NotebookDocumentMetadata().with(data);
-	}
-}
-
 export namespace NotebookCellExecutionSummary {
 	export function to(data: notebooks.NotebookCellInternalMetadata): vscode.NotebookCellExecutionSummary {
 		return {
@@ -1489,7 +1461,7 @@ export namespace NotebookData {
 
 	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
 		const res: notebooks.NotebookDataDto = {
-			metadata: NotebookDocumentMetadata.from(data.metadata),
+			metadata: Object.create(null),
 			cells: [],
 		};
 		for (let cell of data.cells) {
@@ -1500,10 +1472,13 @@ export namespace NotebookData {
 	}
 
 	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
-		return {
-			metadata: NotebookDocumentMetadata.to(data.metadata),
-			cells: data.cells.map(NotebookCellData.to)
-		};
+		const res = new types.NotebookData(
+			data.cells.map(NotebookCellData.to),
+		);
+		if (!isEmptyObject(data.metadata)) {
+			res.metadata = data.metadata;
+		}
+		return res;
 	}
 }
 
@@ -1526,7 +1501,7 @@ export namespace NotebookCellData {
 			data.source,
 			data.language,
 			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
-			data.metadata ? NotebookCellMetadata.to(data.metadata) : undefined,
+			data.metadata,
 			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
 		);
 	}

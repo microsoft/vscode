@@ -1253,15 +1253,15 @@ declare module 'vscode' {
 
 	export interface WorkspaceEdit {
 		// todo@API add NotebookEdit-type which handles all these cases?
-		replaceNotebookMetadata(uri: Uri, value: NotebookDocumentMetadata): void;
+		replaceNotebookMetadata(uri: Uri, value: { [key: string]: any }): void;
 		replaceNotebookCells(uri: Uri, range: NotebookRange, cells: NotebookCellData[], metadata?: WorkspaceEditEntryMetadata): void;
-		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: NotebookCellMetadata, metadata?: WorkspaceEditEntryMetadata): void;
+		replaceNotebookCellMetadata(uri: Uri, index: number, cellMetadata: { [key: string]: any }, metadata?: WorkspaceEditEntryMetadata): void;
 	}
 
 	export interface NotebookEditorEdit {
-		replaceMetadata(value: NotebookDocumentMetadata): void;
+		replaceMetadata(value: { [key: string]: any }): void;
 		replaceCells(start: number, end: number, cells: NotebookCellData[]): void;
-		replaceCellMetadata(index: number, metadata: NotebookCellMetadata): void;
+		replaceCellMetadata(index: number, metadata: { [key: string]: any }): void;
 	}
 
 	export interface NotebookEditor {
