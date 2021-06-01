@@ -258,7 +258,7 @@ export class GhostTextWidget extends Disposable {
 		button.className = 'button suggest-preview-text';
 		button.append(`+${remainingLinesLength} lines…`);
 
-		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
+		disposableStore.add(dom.addStandardDisposableListener(button, 'mousedown', (e) => {
 			this.model?.setExpanded(true);
 			e.preventDefault();
 			this.editor.focus();

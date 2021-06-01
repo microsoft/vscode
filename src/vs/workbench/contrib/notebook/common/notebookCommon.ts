@@ -744,6 +744,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	isDirty(): boolean;
 	isReadonly(): boolean;
 	isOrphaned(): boolean;
+	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
