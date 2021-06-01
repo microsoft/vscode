@@ -1169,12 +1169,11 @@ export function prepareI18nPackFiles(externalExtensions: Map<string>, resultingT
 	let mainPack: I18nPack = { version: i18nPackVersion, contents: {} };
 	let extensionsPacks: Map<I18nPack> = {};
 	let errors: any[] = [];
-	log('im in here');
 	return through(function (this: ThroughStream, xlf: File) {
 		let project = path.basename(path.dirname(path.dirname(xlf.relative)));
 		let resource = path.basename(xlf.relative, '.xlf');
 		let contents = xlf.contents.toString();
-		log(`Found ${project}:${resource}`);
+		log(`Found ${project}: ${resource}`);
 		let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
 		parsePromises.push(parsePromise);
 		parsePromise.then(

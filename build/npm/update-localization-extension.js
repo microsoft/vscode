@@ -11,7 +11,6 @@ let fs = require("fs");
 let path = require("path");
 
 let gulp = require('gulp');
-let debug = require('gulp-debug');
 let vfs = require("vinyl-fs");
 let rimraf = require('rimraf');
 let minimist = require('minimist');
@@ -77,7 +76,6 @@ function update(options) {
 			})
 			.pipe(vfs.dest(translationDataFolder))
 			.on('end', function () {
-				console.log(`did anything happen?`);
 				if (translationPaths !== undefined) {
 					localization.translations = [];
 					for (let tp of translationPaths) {
