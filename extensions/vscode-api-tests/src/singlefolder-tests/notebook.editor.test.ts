@@ -13,7 +13,6 @@ suite('Notebook Editor', function () {
 		deserializeNotebook() {
 			return new vscode.NotebookData(
 				[new vscode.NotebookCellData(vscode.NotebookCellKind.Code, '// code cell', 'javascript')],
-				new vscode.NotebookDocumentMetadata()
 			);
 		}
 		serializeNotebook() {

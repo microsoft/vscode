@@ -29,7 +29,7 @@ import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEd
 import { PreloadOptions, preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { INotebookKernel, INotebookRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
@@ -801,7 +801,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 				entrypoint,
 				mimeTypes: renderer.mimeTypes,
 				extends: renderer.extends,
-				messaging: !!renderer.messaging,
+				messaging: renderer.messaging !== RendererMessagingSpec.Never,
 			};
 		});
 	}
@@ -1523,7 +1523,7 @@ var requirejs = (function() {
 					outputId: output.outputId,
 					mimeType: content.mimeType,
 					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
-					metadata: outputDto?.metadata,
+					metadata: output.metadata,
 					metadata2: output.metadata
 				},
 			};

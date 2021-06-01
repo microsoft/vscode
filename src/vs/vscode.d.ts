@@ -11340,9 +11340,9 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 
 		/**
-		 * The metadata of this cell.
+		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: NotebookCellMetadata
+		readonly metadata: { [key: string]: any }
 
 		/**
 		 * The outputs of this cell.
@@ -11403,9 +11403,9 @@ declare module 'vscode' {
 		readonly isClosed: boolean;
 
 		/**
-		 * The {@link NotebookDocumentMetadata metadata} for this notebook.
+		 * Arbitrary metadata for this notebook. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: NotebookDocumentMetadata;
+		readonly metadata: { [key: string]: any };
 
 		/**
 		 * The number of cells in the notebook.
@@ -11438,44 +11438,6 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
-	// todo@API jsdoc
-	export class NotebookCellMetadata {
-
-		/**
-		 * Whether a code cell's editor is collapsed
-		 */
-		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-		readonly inputCollapsed?: boolean;
-
-		/**
-		 * Whether a code cell's outputs are collapsed
-		 */
-		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-		readonly outputCollapsed?: boolean;
-
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		readonly [key: string]: any;
-
-		/**
-		 * Create a new notebook cell metadata.
-		 *
-		 * @param inputCollapsed Whether a code cell's editor is collapsed
-		 * @param outputCollapsed Whether a code cell's outputs are collapsed
-		 */
-		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
-
-		/**
-		 * Derived a new cell metadata from this metadata.
-		 *
-		 * @param change An object that describes a change to this NotebookCellMetadata.
-		 * @return A new NotebookCellMetadata that reflects the given change. Will return `this` NotebookCellMetadata if the change
-		 *  is not changing anything.
-		 */
-		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
-	}
-
 	/**
 	 * The summary of a notebook cell execution.
 	 */
@@ -11494,36 +11456,14 @@ declare module 'vscode' {
 		/**
 		 * The unix timestamp at which execution started.
 		 */
-		// todo@API use duration instead of start/end?
+		// @rob
+		//todo@API think about invalid state (no end, but start and vice versa)
 		readonly startTime?: number;
 
 		/**
 		 * The unix timestamp at which execution ended.
 		 */
 		readonly endTime?: number;
-	}
-
-	// todo@API jsdoc
-	// todo@API remove this and use simple {}?
-	export class NotebookDocumentMetadata {
-		/**
-		 * Additional attributes of the document metadata.
-		 */
-		readonly [key: string]: any;
-
-		/**
-		 * Create a new notebook document metadata
-		 */
-		constructor();
-
-		/**
-		 * Derived a new document metadata from this metadata.
-		 *
-		 * @param change An object that describes a change to this NotebookDocumentMetadata.
-		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
-		 *  is not changing anything.
-		 */
-		with(change: { [key: string]: any }): NotebookDocumentMetadata
 	}
 
 	/**
@@ -11578,10 +11518,9 @@ declare module 'vscode' {
 		 *
 		 * @param value A string.
 		 * @param mime Optional MIME type, defaults to `text/plain`.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static text(value: string, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static text(value: string, mime?: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` from
@@ -11593,40 +11532,36 @@ declare module 'vscode' {
 		 *
 		 * @param value A JSON-stringifyable value.
 		 * @param mime Optional MIME type, defaults to `application/json`
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static json(value: any, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static json(value: any, mime?: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stdout` mime type.
 		 *
 		 * @param value A string.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static stdout(value: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stderr` mime type.
 		 *
 		 * @param value A string.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static stderr(value: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.error` mime type.
 		 *
 		 * @param value An error object.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static error(value: Error, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static error(value: Error): NotebookCellOutputItem;
 
 		/**
 		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
@@ -11642,17 +11577,13 @@ declare module 'vscode' {
 		 */
 		data: Uint8Array;
 
-		//todo@API remove in favour of NotebookCellOutput#metadata
-		metadata?: { [key: string]: any };
-
 		/**
 		 * Create a new notbook cell output item.
 		 *
 		 * @param data The value of the output item.
 		 * @param mime The mime type of the output item.
-		 * @param metadata Optional metadata for this output item.
 		 */
-		constructor(data: Uint8Array, mime: string, metadata?: { [key: string]: any });
+		constructor(data: Uint8Array, mime: string);
 	}
 
 	/**
@@ -11685,9 +11616,8 @@ declare module 'vscode' {
 		items: NotebookCellOutputItem[];
 
 		/**
-		 * Arbitrary metadata for this cell output. Must be JSON-stringifyable.
+		 * Arbitrary metadata for this cell output. Can be anything but must be JSON-stringifyable.
 		 */
-		//todo@API have this OR NotebookCellOutputItem#metadata but not both? Preference for this.
 		metadata?: { [key: string]: any };
 
 		/**
@@ -11706,6 +11636,7 @@ declare module 'vscode' {
 		 * @param metadata Optional metadata.
 		 */
 		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
+		// @jupyter check if needed
 		constructor(items: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
@@ -11736,9 +11667,9 @@ declare module 'vscode' {
 		outputs?: NotebookCellOutput[];
 
 		/**
-		 * The metadata of this cell data.
+		 * Arbitrary metadata of this cell data. Can be anything but must be JSON-stringifyable.
 		 */
-		metadata?: NotebookCellMetadata;
+		metadata?: { [key: string]: any };
 
 		/**
 		 * The execution summary of this cell data.
@@ -11757,7 +11688,7 @@ declare module 'vscode' {
 		 * @param executionSummary Optional execution summary.
 		 */
 		// todo@API should ctors only have the args for required properties?
-		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: { [key: string]: any }, executionSummary?: NotebookCellExecutionSummary);
 	}
 
 	/**
@@ -11775,17 +11706,16 @@ declare module 'vscode' {
 		cells: NotebookCellData[];
 
 		/**
-		 * The metadata of this notebook data.
+		 * Arbitrary metadata of notebook data.
 		 */
-		metadata: NotebookDocumentMetadata;
+		metadata?: { [key: string]: any };
 
 		/**
 		 * Create new notebook data.
 		 *
 		 * @param cells An array of cell data.
-		 * @param metadata Notebook metadata.
 		 */
-		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
+		constructor(cells: NotebookCellData[]);
 	}
 
 	/**
@@ -11834,14 +11764,13 @@ declare module 'vscode' {
 		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		 */
-		transientCellMetadata?: { [K in keyof NotebookCellMetadata]?: boolean };
+		transientCellMetadata?: { [key: string]: boolean | undefined };
 
 		/**
 		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		*/
-		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
-		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
+		transientDocumentMetadata?: { [key: string]: boolean | undefined };
 	}
 
 	/**
@@ -11854,7 +11783,7 @@ declare module 'vscode' {
 		 * @param notebook The notebook for which the execute handler is being called.
 		 * @param controller The controller that the handler is attached to
 		 */
-		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
+		(cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
 	/**
@@ -11979,14 +11908,14 @@ declare module 'vscode' {
 		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
 		 * only be used when tokens cannot be supported.
 		 */
-		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
+		interruptHandler?: (notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
 		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
 		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
 		 * controller was suggested.
 		 */
-		//todo@api rename to ...NotebookDocument...
+		//todo@api selected vs associated, jsdoc
 		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
 		/**
@@ -12060,9 +11989,11 @@ declare module 'vscode' {
 		executionOrder: number | undefined;
 
 		// todo@API inline context object?
+		// @rob inline as arguments
 		start(context?: NotebookCellExecuteStartContext): void;
 
 		// todo@API inline context object?
+		// @rob inline as arguments
 		end(result?: NotebookCellExecuteEndContext): void;
 
 		/**
@@ -12144,9 +12075,13 @@ declare module 'vscode' {
 		alignment: NotebookCellStatusBarAlignment;
 
 		/**
-		 * An optional command to execute when the item is clicked.
+		 * An optional {@link Command `Command`} or identifier of a command to run on click.
+		 *
+		 * The command must be {@link commands.getCommands known}.
+		 *
+		 * Note that if this is a {@link Command `Command`} object, only the {@link Command.command `command`} and {@link Command.arguments `arguments`}
+		 * are used by VS Code.
 		 */
-		//todo@API only have Command?
 		command?: string | Command;
 
 		/**
@@ -12167,6 +12102,7 @@ declare module 'vscode' {
 		/**
 		 * Creates a new NotebookCellStatusBarItem.
 		 */
+		// @rob
 		// todo@API jsdoc for args
 		// todo@API should ctors only have the args for required properties?
 		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
@@ -12186,8 +12122,9 @@ declare module 'vscode' {
 		 * @param cell The cell for which to return items.
 		 * @param token A token triggered if this request should be cancelled.
 		 */
+		// @rob
 		//todo@API jsdoc for return-type
-		//todo@API should this return an item instead of an array?
+		//todo@API should this return T | T[]
 		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
 	}
 
@@ -12206,6 +12143,7 @@ declare module 'vscode' {
 		/**
 		 * All notebook documents currently known to the editor.
 		 */
+		// todo@api move to workspace
 		export const notebookDocuments: readonly NotebookDocument[];
 
 		/**
@@ -12221,6 +12159,7 @@ declare module 'vscode' {
 		 * @param uri The resource to open.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
 		 */
+		// todo@api move to workspace
 		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
 		/**
@@ -12232,11 +12171,13 @@ declare module 'vscode' {
 		 * @param content The initial contents of the notebook.
 		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
 		 */
+		// todo@api move to workspace
 		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
 
 		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
 		 */
+		// todo@api move to workspace
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -12247,6 +12188,7 @@ declare module 'vscode' {
 		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
 		 * for a notebook that has not been shown in an editor.
 		 */
+		// todo@api move to workspace
 		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
 
 		/**
@@ -12260,6 +12202,7 @@ declare module 'vscode' {
 		 * @param options Optional context options that define what parts of a notebook should be persisted
 		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
 		 */
+		// todo@api move to workspace
 		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 
 		/**

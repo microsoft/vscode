@@ -7,7 +7,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CompactView, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -24,6 +24,7 @@ const profiles = {
 		[CompactView]: true,
 		[ShowCellStatusBarKey]: true,
 		[ShowCellStatusBarAfterExecuteKey]: false,
+		[ConsolidatedRunButton]: true
 	},
 	[NotebookProfileType.jupyter]: {
 		[FocusIndicator]: 'gutter',
@@ -32,6 +33,7 @@ const profiles = {
 		[CellToolbarLocation]: { default: 'left' },
 		[CompactView]: true,
 		[ShowCellStatusBarKey]: true,
+		[ConsolidatedRunButton]: false
 	},
 	[NotebookProfileType.colab]: {
 		[FocusIndicator]: 'border',
@@ -40,6 +42,7 @@ const profiles = {
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: false,
 		[ShowCellStatusBarKey]: false,
+		[ConsolidatedRunButton]: true
 	}
 };
 

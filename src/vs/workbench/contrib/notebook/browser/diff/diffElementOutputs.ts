@@ -89,7 +89,7 @@ export class OutputElement extends Disposable {
 				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
 			}
 
-			this.output.pickedMimeType = pick;
+			this.output.pickedMimeType = pickedMimeTypeRenderer;
 		}
 
 		this.domNode = outputItemDiv;
@@ -201,7 +201,7 @@ export class OutputElement extends Disposable {
 				);
 			}
 
-			viewModel.pickedMimeType = pick;
+			viewModel.pickedMimeType = mimeTypes[pick];
 			this.render(index, nextElement as HTMLElement);
 		}
 	}
