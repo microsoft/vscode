@@ -1028,6 +1028,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
