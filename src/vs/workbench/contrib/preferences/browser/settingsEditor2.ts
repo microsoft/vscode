@@ -91,9 +91,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	private static readonly SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
-		'@tag:usesOnlineServices',
-		'@tag:sync',
+		'@tag:notebookLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
+		'@tag:sync',
+		'@tag:usesOnlineServices',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
