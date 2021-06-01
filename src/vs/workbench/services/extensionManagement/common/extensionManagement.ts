@@ -82,6 +82,11 @@ export interface IWorkbenchExtensionEnablementService {
 	isDisabledGlobally(extension: IExtension): boolean;
 
 	/**
+	 * Returns `true` if the given extension identifier is disabled in restricted mode.
+	 */
+	isDisabledByWorkspaceTrust(extension: IExtension): boolean;
+
+	/**
 	 * Enable or disable the given extension.
 	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
 	 *
