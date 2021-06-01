@@ -363,11 +363,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			if (this.remoteAuthority) {
 				return new RegExp(`^remote_\\d\\d_${getRemoteName(this.remoteAuthority)}_`);
 			} else if (this.virtualWorkspaceScheme) {
-				if (this.virtualWorkspaceScheme === 'vscode-vfs') {
-					return new RegExp(`^remote_\\d\\d_vfs_`);
-				} else {
-					return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceScheme}_`);
-				}
+				return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceScheme}_`);
 			}
 			return undefined;
 		};
