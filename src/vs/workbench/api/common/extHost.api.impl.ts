@@ -1268,8 +1268,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookRange: extHostTypes.NotebookRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
 			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
-			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
-			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,
 			NotebookData: extHostTypes.NotebookData,
 			NotebookRendererScript: extHostTypes.NotebookRendererScript,

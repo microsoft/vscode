@@ -612,7 +612,7 @@ export interface IFileCellEdit {
 	_type: FileEditType.Cell;
 	uri: URI;
 	edit?: ICellEditOperation;
-	notebookMetadata?: vscode.NotebookDocumentMetadata;
+	notebookMetadata?: Record<string, any>;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -631,7 +631,7 @@ export interface ICellOutputEdit {
 	index: number;
 	append: boolean;
 	newOutputs?: NotebookCellOutput[];
-	newMetadata?: vscode.NotebookCellMetadata;
+	newMetadata?: Record<string, any>;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
 
@@ -674,7 +674,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	// --- notebook
 
-	replaceNotebookMetadata(uri: URI, value: vscode.NotebookDocumentMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	replaceNotebookMetadata(uri: URI, value: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.DocumentMetadata, metadata: value }, notebookMetadata: value });
 	}
 
@@ -707,7 +707,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		}
 	}
 
-	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: vscode.NotebookCellMetadata, metadata?: vscode.WorkspaceEditEntryMetadata): void {
+	replaceNotebookCellMetadata(uri: URI, index: number, cellMetadata: Record<string, any>, metadata?: vscode.WorkspaceEditEntryMetadata): void {
 		this._edits.push({ _type: FileEditType.Cell, metadata, uri, edit: { editType: CellEditType.PartialMetadata, index, metadata: cellMetadata } });
 	}
 
@@ -2983,72 +2983,6 @@ export class NotebookRange {
 	}
 }
 
-export class NotebookCellMetadata {
-	readonly inputCollapsed?: boolean;
-	readonly outputCollapsed?: boolean;
-	readonly [key: string]: any;
-
-	constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
-	constructor(data: Record<string, any>);
-	constructor(inputCollapsedOrData: (boolean | undefined) | Record<string, any>, outputCollapsed?: boolean) {
-		if (typeof inputCollapsedOrData === 'object') {
-			Object.assign(this, inputCollapsedOrData);
-		} else {
-			this.inputCollapsed = inputCollapsedOrData;
-			this.outputCollapsed = outputCollapsed;
-		}
-	}
-
-	with(change: {
-		inputCollapsed?: boolean | null,
-		outputCollapsed?: boolean | null,
-		[key: string]: any
-	}): NotebookCellMetadata {
-
-		let { inputCollapsed, outputCollapsed, ...remaining } = change;
-
-		if (inputCollapsed === undefined) {
-			inputCollapsed = this.inputCollapsed;
-		} else if (inputCollapsed === null) {
-			inputCollapsed = undefined;
-		}
-		if (outputCollapsed === undefined) {
-			outputCollapsed = this.outputCollapsed;
-		} else if (outputCollapsed === null) {
-			outputCollapsed = undefined;
-		}
-
-		if (inputCollapsed === this.inputCollapsed &&
-			outputCollapsed === this.outputCollapsed &&
-			Object.keys(remaining).length === 0
-		) {
-			return this;
-		}
-
-		return new NotebookCellMetadata(
-			{
-				inputCollapsed,
-				outputCollapsed,
-				...remaining
-			}
-		);
-	}
-}
-
-export class NotebookDocumentMetadata {
-	readonly [key: string]: any;
-
-	constructor(data: Record<string, any> = {}) {
-		Object.assign(this, data);
-	}
-
-	with(change: {
-		[key: string]: any
-	}): NotebookDocumentMetadata {
-		return new NotebookDocumentMetadata(change);
-	}
-}
-
 export class NotebookCellData {
 
 	static validate(data: NotebookCellData): void {
@@ -3076,10 +3010,10 @@ export class NotebookCellData {
 	value: string;
 	languageId: string;
 	outputs?: vscode.NotebookCellOutput[];
-	metadata?: NotebookCellMetadata;
+	metadata?: Record<string, any>;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
@@ -3094,11 +3028,10 @@ export class NotebookCellData {
 export class NotebookData {
 
 	cells: NotebookCellData[];
-	metadata: NotebookDocumentMetadata;
+	metadata?: { [key: string]: any };
 
-	constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata) {
+	constructor(cells: NotebookCellData[]) {
 		this.cells = cells;
-		this.metadata = metadata ?? new NotebookDocumentMetadata();
 	}
 }
 

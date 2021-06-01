@@ -11340,9 +11340,9 @@ declare module 'vscode' {
 		readonly document: TextDocument;
 
 		/**
-		 * The metadata of this cell.
+		 * The metadata of this cell. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: NotebookCellMetadata
+		readonly metadata: { [key: string]: any }
 
 		/**
 		 * The outputs of this cell.
@@ -11403,9 +11403,9 @@ declare module 'vscode' {
 		readonly isClosed: boolean;
 
 		/**
-		 * The {@link NotebookDocumentMetadata metadata} for this notebook.
+		 * Arbitrary metadata for this notebook. Can be anything but must be JSON-stringifyable.
 		 */
-		readonly metadata: NotebookDocumentMetadata;
+		readonly metadata: { [key: string]: any };
 
 		/**
 		 * The number of cells in the notebook.
@@ -11438,44 +11438,6 @@ declare module 'vscode' {
 		save(): Thenable<boolean>;
 	}
 
-	// todo@API jsdoc
-	export class NotebookCellMetadata {
-
-		/**
-		 * Whether a code cell's editor is collapsed
-		 */
-		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-		readonly inputCollapsed?: boolean;
-
-		/**
-		 * Whether a code cell's outputs are collapsed
-		 */
-		// todo@API decouple from metadata? extract as dedicated field or inside an options object and leave metadata purely for extensions?
-		readonly outputCollapsed?: boolean;
-
-		/**
-		 * Additional attributes of a cell metadata.
-		 */
-		readonly [key: string]: any;
-
-		/**
-		 * Create a new notebook cell metadata.
-		 *
-		 * @param inputCollapsed Whether a code cell's editor is collapsed
-		 * @param outputCollapsed Whether a code cell's outputs are collapsed
-		 */
-		constructor(inputCollapsed?: boolean, outputCollapsed?: boolean);
-
-		/**
-		 * Derived a new cell metadata from this metadata.
-		 *
-		 * @param change An object that describes a change to this NotebookCellMetadata.
-		 * @return A new NotebookCellMetadata that reflects the given change. Will return `this` NotebookCellMetadata if the change
-		 *  is not changing anything.
-		 */
-		with(change: { inputCollapsed?: boolean | null, outputCollapsed?: boolean | null, [key: string]: any }): NotebookCellMetadata;
-	}
-
 	/**
 	 * The summary of a notebook cell execution.
 	 */
@@ -11501,29 +11463,6 @@ declare module 'vscode' {
 		 * The unix timestamp at which execution ended.
 		 */
 		readonly endTime?: number;
-	}
-
-	// todo@API jsdoc
-	// todo@API remove this and use simple {}?
-	export class NotebookDocumentMetadata {
-		/**
-		 * Additional attributes of the document metadata.
-		 */
-		readonly [key: string]: any;
-
-		/**
-		 * Create a new notebook document metadata
-		 */
-		constructor();
-
-		/**
-		 * Derived a new document metadata from this metadata.
-		 *
-		 * @param change An object that describes a change to this NotebookDocumentMetadata.
-		 * @return A new NotebookDocumentMetadata that reflects the given change. Will return `this` NotebookDocumentMetadata if the change
-		 *  is not changing anything.
-		 */
-		with(change: { [key: string]: any }): NotebookDocumentMetadata
 	}
 
 	/**
@@ -11737,7 +11676,7 @@ declare module 'vscode' {
 		/**
 		 * Arbitrary metadata of this cell data. Can be anything but must be JSON-stringifyable.
 		 */
-		metadata?: NotebookCellMetadata;
+		metadata?: { [key: string]: any };
 
 		/**
 		 * The execution summary of this cell data.
@@ -11756,7 +11695,7 @@ declare module 'vscode' {
 		 * @param executionSummary Optional execution summary.
 		 */
 		// todo@API should ctors only have the args for required properties?
-		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: NotebookCellMetadata, executionSummary?: NotebookCellExecutionSummary);
+		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: { [key: string]: any }, executionSummary?: NotebookCellExecutionSummary);
 	}
 
 	/**
@@ -11774,17 +11713,16 @@ declare module 'vscode' {
 		cells: NotebookCellData[];
 
 		/**
-		 * The metadata of this notebook data.
+		 * Arbitrary metadata of notebook data.
 		 */
-		metadata: NotebookDocumentMetadata;
+		metadata?: { [key: string]: any };
 
 		/**
 		 * Create new notebook data.
 		 *
 		 * @param cells An array of cell data.
-		 * @param metadata Notebook metadata.
 		 */
-		constructor(cells: NotebookCellData[], metadata?: NotebookDocumentMetadata);
+		constructor(cells: NotebookCellData[]);
 	}
 
 	/**
@@ -11833,14 +11771,14 @@ declare module 'vscode' {
 		 * Controls if a cell metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		 * Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		 */
-		transientCellMetadata?: { [K in keyof NotebookCellMetadata]?: boolean };
+		transientCellMetadata?: { [key: string]: boolean | undefined };
 
 		/**
 		* Controls if a document metadata property change will trigger notebook document content change and if it will be used in the diff editor
 		* Default to false. If the content provider doesn't persisit a metadata property in the file document, it should be set to true.
 		*/
-		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above
-		transientDocumentMetadata?: { [K in keyof NotebookDocumentMetadata]?: boolean };
+		// todo@API ...NotebookDocument... or just ...Notebook... just like...Cell... above?
+		transientDocumentMetadata?: { [key: string]: boolean | undefined };
 	}
 
 	/**
