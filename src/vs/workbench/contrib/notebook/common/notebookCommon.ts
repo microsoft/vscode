@@ -174,7 +174,6 @@ export interface IOrderedMimeType {
 export interface IOutputItemDto {
 	readonly mime: string;
 	readonly valueBytes: number[];
-	readonly metadata?: Record<string, unknown>;
 }
 
 export interface IOutputDto {

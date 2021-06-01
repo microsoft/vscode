@@ -3116,43 +3116,42 @@ export class NotebookCellOutputItem {
 			&& (<vscode.NotebookCellOutputItem>obj).data instanceof Uint8Array;
 	}
 
-	static error(err: Error | { name: string, message?: string, stack?: string }, metadata?: { [key: string]: any }): NotebookCellOutputItem {
+	static error(err: Error | { name: string, message?: string, stack?: string }): NotebookCellOutputItem {
 		const obj = {
 			name: err.name,
 			message: err.message,
 			stack: err.stack
 		};
-		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error', metadata);
+		return NotebookCellOutputItem.json(obj, 'application/vnd.code.notebook.error');
 	}
 
-	static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout', metadata);
+	static stdout(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stdout');
 	}
 
-	static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem {
-		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr', metadata);
+	static stderr(value: string): NotebookCellOutputItem {
+		return NotebookCellOutputItem.text(value, 'application/vnd.code.notebook.stderr');
 	}
 
-	static bytes(value: Uint8Array, mime: string = 'application/octet-stream', metadata?: { [key: string]: any }): NotebookCellOutputItem {
-		return new NotebookCellOutputItem(value, mime, metadata);
+	static bytes(value: Uint8Array, mime: string = 'application/octet-stream'): NotebookCellOutputItem {
+		return new NotebookCellOutputItem(value, mime);
 	}
 
 	static #encoder = new TextEncoder();
 
-	static text(value: string, mime: string = 'text/plain', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+	static text(value: string, mime: string = 'text/plain'): NotebookCellOutputItem {
 		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
-		return new NotebookCellOutputItem(bytes, mime, metadata);
+		return new NotebookCellOutputItem(bytes, mime);
 	}
 
-	static json(value: any, mime: string = 'application/json', metadata?: { [key: string]: any }): NotebookCellOutputItem {
+	static json(value: any, mime: string = 'application/json'): NotebookCellOutputItem {
 		const rawStr = JSON.stringify(value, undefined, '\t');
-		return NotebookCellOutputItem.text(rawStr, mime, metadata);
+		return NotebookCellOutputItem.text(rawStr, mime);
 	}
 
 	constructor(
 		public data: Uint8Array,
 		public mime: string,
-		public metadata?: { [key: string]: any }
 	) {
 		const mimeNormalized = normalizeMimeType(mime, true);
 		if (!mimeNormalized) {

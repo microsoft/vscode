@@ -96,7 +96,6 @@ suite('ExtHostTypeConverter', function () {
 		const item2 = NotebookCellOutputItem.to(dto);
 
 		assert.strictEqual(item2.mime, item.mime);
-		assert.strictEqual(item2.metadata, item.metadata);
 		assert.deepStrictEqual(item2.data, item.data);
 	});
 });
