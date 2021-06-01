@@ -816,6 +816,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	instanceIsSplit(instance: ITerminalInstance): boolean {
+		const group = this.getGroupForInstance(instance);
+		if (!group) {
+			return false;
+		}
+		return group.terminalInstances.length > 1 || false;
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this._terminalGroups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
