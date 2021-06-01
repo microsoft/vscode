@@ -1523,7 +1523,7 @@ var requirejs = (function() {
 					outputId: output.outputId,
 					mimeType: content.mimeType,
 					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
-					metadata: outputDto?.metadata,
+					metadata: output.metadata,
 					metadata2: output.metadata
 				},
 			};

@@ -11578,10 +11578,9 @@ declare module 'vscode' {
 		 *
 		 * @param value A string.
 		 * @param mime Optional MIME type, defaults to `text/plain`.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static text(value: string, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static text(value: string, mime?: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` from
@@ -11593,40 +11592,36 @@ declare module 'vscode' {
 		 *
 		 * @param value A JSON-stringifyable value.
 		 * @param mime Optional MIME type, defaults to `application/json`
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static json(value: any, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static json(value: any, mime?: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stdout` mime type.
 		 *
 		 * @param value A string.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static stdout(value: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.stderr` mime type.
 		 *
 		 * @param value A string.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static stderr(value: string): NotebookCellOutputItem;
 
 		/**
 		 * Factory function to create a `NotebookCellOutputItem` that uses
 		 * uses the `application/vnd.code.notebook.error` mime type.
 		 *
 		 * @param value An error object.
-		 * @param metadata Optional metadata.
 		 * @returns A new output item object.
 		 */
-		static error(value: Error, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+		static error(value: Error): NotebookCellOutputItem;
 
 		/**
 		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
@@ -11642,17 +11637,13 @@ declare module 'vscode' {
 		 */
 		data: Uint8Array;
 
-		//todo@API remove in favour of NotebookCellOutput#metadata
-		metadata?: { [key: string]: any };
-
 		/**
 		 * Create a new notbook cell output item.
 		 *
 		 * @param data The value of the output item.
 		 * @param mime The mime type of the output item.
-		 * @param metadata Optional metadata for this output item.
 		 */
-		constructor(data: Uint8Array, mime: string, metadata?: { [key: string]: any });
+		constructor(data: Uint8Array, mime: string);
 	}
 
 	/**
@@ -11685,7 +11676,7 @@ declare module 'vscode' {
 		items: NotebookCellOutputItem[];
 
 		/**
-		 * Arbitrary metadata for this cell output. .
+		 * Arbitrary metadata for this cell output. Can be anything but must be JSON-stringifyable.
 		 */
 		metadata?: { [key: string]: any };
 

@@ -1535,14 +1535,13 @@ export namespace NotebookCellData {
 export namespace NotebookCellOutputItem {
 	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
 		return {
-			metadata: item.metadata,
 			mime: item.mime,
 			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
 		};
 	}
 
 	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
-		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime, item.metadata);
+		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime);
 	}
 }
 
