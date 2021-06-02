@@ -10,7 +10,7 @@ const profileArg = (profile: string) => encodeURIComponent(JSON.stringify({ prof
 const imageSize = 400;
 
 export default () => `
-&nbsp;
+<vertically-centered>
 <checklist>
 	<checkbox on-checked="command:notebook.setProfile?${profileArg('default')}" checked-on="config.notebook.cellFocusIndicator == 'border' && config.notebook.insertToolbarPosition == 'both' && config.notebook.globalToolbar == false && config.notebook.compactView == true && config.notebook.showCellStatusBar == true">
 		<img width="${imageSize}" src="./notebookThemes/default.png"/>
@@ -25,4 +25,5 @@ export default () => `
 		${escape(localize('colab', "Colab"))}
 	</checkbox>
 </checklist>
+</vertically-centered>
 `;
