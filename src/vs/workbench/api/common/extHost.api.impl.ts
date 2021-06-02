@@ -1138,7 +1138,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			extensions,
 			languages,
 			notebooks,
-			notebook: notebooks, //todo@jrieken remove after grace
 			scm,
 			tasks,
 			test,

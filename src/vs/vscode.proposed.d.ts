@@ -1065,11 +1065,6 @@ declare module 'vscode' {
 		id: string;
 	}
 
-	/**
-	 * @deprecated use notebooks instead
-	 */
-	export const notebook: typeof notebooks;
-
 	//#endregion
 
 	//#region https://github.com/microsoft/vscode/issues/106744, NotebookEditor
