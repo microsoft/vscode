@@ -20,23 +20,31 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 	) {
 		super();
 
-		if (!isWorkspaceTrustEnabled(configurationService)) {
-			const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
-				async participate(trusted: boolean): Promise<void> {
-					if (trusted) {
-						// Untrusted -> Trusted
-						await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-					} else {
-						// Trusted -> Untrusted
-						extensionService.stopExtensionHosts();
-						await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-						extensionService.startExtensionHosts();
+		if (isWorkspaceTrustEnabled(configurationService)) {
+			workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+				const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
+					async participate(trusted: boolean): Promise<void> {
+						if (trusted) {
+							// Untrusted -> Trusted
+							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+						} else {
+							// Trusted -> Untrusted
+							extensionService.stopExtensionHosts();
+							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+							extensionService.startExtensionHosts();
+						}
 					}
-				}
-			};
+				};
 
-			// Execute BEFORE the workspace trust transition completes
-			this._register(workspaceTrustManagementService.addWorkspaceTrustTransitionParticipant(workspaceTrustTransitionParticipant));
+				// If the workspace has already transitioned to a trusted state, we will manually run the
+				// workspace trust transition participants as they did not run when the transition happened.
+				if (workspaceTrustManagementService.isWorkpaceTrusted()) {
+					workspaceTrustTransitionParticipant.participate(true);
+				}
+
+				// Execute BEFORE the workspace trust transition completes
+				this._register(workspaceTrustManagementService.addWorkspaceTrustTransitionParticipant(workspaceTrustTransitionParticipant));
+			});
 		}
 	}
 }

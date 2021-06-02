@@ -253,7 +253,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (trusted === undefined) {
 			await this.resolveCanonicalWorkspaceUris();
-			trusted = await this.calculateWorkspaceTrust();
+			trusted = this.calculateWorkspaceTrust();
 		}
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
