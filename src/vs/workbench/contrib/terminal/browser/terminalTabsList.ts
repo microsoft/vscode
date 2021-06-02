@@ -213,7 +213,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 						actions: context.hoverActions,
 						hideOnHover: true
 					});
-				}
+				},
+				placement: 'mouse'
 			}
 		});
 
