@@ -111,7 +111,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const controller: vscode.NotebookController = {
 			get id() { return id; },
-			get viewType() { return data.notebookType; },
 			get notebookType() { return data.notebookType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
@@ -140,13 +139,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			set supportedLanguages(value) {
 				data.supportedLanguages = value;
-				_update();
-			},
-			get hasExecutionOrder() {
-				return data.supportsExecutionOrder ?? false;
-			},
-			set hasExecutionOrder(value) {
-				data.supportsExecutionOrder = value;
 				_update();
 			},
 			get supportsExecutionOrder() {
@@ -447,7 +439,7 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			start(context?: vscode.NotebookCellExecuteStartContext): void {
+			start(startTime?: number): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved || that._state === NotebookCellExecutionTaskState.Started) {
 					throw new Error('Cannot call start again');
 				}
@@ -457,11 +449,11 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: NotebookCellExecutionState.Executing,
-					runStartTime: context?.startTime ?? null
+					runStartTime: startTime ?? null
 				});
 			},
 
-			end(result?: vscode.NotebookCellExecuteEndContext): void {
+			end(success: boolean | undefined, endTime?: number): void {
 				if (that._state === NotebookCellExecutionTaskState.Resolved) {
 					throw new Error('Cannot call resolve twice');
 				}
@@ -471,8 +463,8 @@ class NotebookCellExecutionTask extends Disposable {
 
 				that.mixinMetadata({
 					runState: null,
-					lastRunSuccess: result?.success ?? null,
-					runEndTime: result?.endTime ?? null,
+					lastRunSuccess: success ?? null,
+					runEndTime: endTime ?? null,
 				});
 			},
 
@@ -481,24 +473,24 @@ class NotebookCellExecutionTask extends Disposable {
 				return that.updateOutputs([], cell, false);
 			},
 
-			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, true);
 			},
 
-			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, false);
 			},
 
-			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, true);
+				return that.updateOutputItems(items, output, true);
 			},
 
-			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, false);
+				return that.updateOutputItems(items, output, false);
 			}
 		};
 		return Object.freeze(result);

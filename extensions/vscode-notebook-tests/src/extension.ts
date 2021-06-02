@@ -20,7 +20,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(notebookPath));
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
+	context.subscriptions.push(vscode.workspace.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
 				metadata: {},
@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	const controller = vscode.notebook.createNotebookController(
+	const controller = vscode.notebooks.createNotebookController(
 		'notebookSmokeTest',
 		'notebookSmokeTest',
 		'notebookSmokeTest'
@@ -71,7 +71,7 @@ export function activate(context: vscode.ExtensionContext): any {
 			task.replaceOutput([new vscode.NotebookCellOutput([
 				vscode.NotebookCellOutputItem.text('test output', 'text/html')
 			])]);
-			task.end({ success: true });
+			task.end(true);
 		}
 	};
 

@@ -29,19 +29,19 @@ suite('Notebook Editor', function () {
 		utils.disposeAll(disposables);
 		disposables.length = 0;
 
-		for (let doc of vscode.notebook.notebookDocuments) {
+		for (let doc of vscode.workspace.notebookDocuments) {
 			assert.strictEqual(doc.isDirty, false, doc.uri.toString());
 		}
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookSerializer('notebook.nbdtest', contentSerializer));
+		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdtest', contentSerializer));
 	});
 
 
 	test('showNotebookDocment', async function () {
 
-		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument);
+		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument);
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
 		const editor = await vscode.window.showNotebookDocument(uri);
@@ -50,7 +50,7 @@ suite('Notebook Editor', function () {
 		const event = await p;
 		assert.strictEqual(event.uri.toString(), uri.toString());
 
-		const includes = vscode.notebook.notebookDocuments.includes(editor.document);
+		const includes = vscode.workspace.notebookDocuments.includes(editor.document);
 		assert.strictEqual(true, includes);
 	});
 

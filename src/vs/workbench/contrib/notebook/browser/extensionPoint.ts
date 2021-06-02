@@ -10,8 +10,6 @@ import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSp
 
 namespace NotebookEditorContribution {
 	export const type = 'type';
-	/** @deprecated use type */
-	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
 	export const priority = 'priority';
@@ -19,16 +17,13 @@ namespace NotebookEditorContribution {
 
 export interface INotebookEditorContribution {
 	readonly [NotebookEditorContribution.type]: string;
-	/** @deprecated use type */
-	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
 	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
 	readonly [NotebookEditorContribution.priority]?: string;
 }
 
 namespace NotebookRendererContribution {
-	/** @deprecated use type */
-	export const viewType = 'viewType';
+
 	export const id = 'id';
 	export const displayName = 'displayName';
 	export const mimeTypes = 'mimeTypes';
@@ -40,8 +35,6 @@ namespace NotebookRendererContribution {
 
 export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
-	/** @deprecated use type */
-	readonly [NotebookRendererContribution.viewType]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
 	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
@@ -64,12 +57,7 @@ const notebookProviderContribution: IJSONSchema = {
 		properties: {
 			[NotebookEditorContribution.type]: {
 				type: 'string',
-				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
-			},
-			[NotebookEditorContribution.viewType]: {
-				type: 'string',
-				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
-				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
+				description: nls.localize('contributes.notebook.provider.viewType', 'Type of the notebook.'),
 			},
 			[NotebookEditorContribution.displayName]: {
 				type: 'string',
@@ -124,11 +112,6 @@ const notebookRendererContribution: IJSONSchema = {
 		properties: {
 			[NotebookRendererContribution.id]: {
 				type: 'string',
-				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
-			},
-			[NotebookRendererContribution.viewType]: {
-				type: 'string',
-				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
 				description: nls.localize('contributes.notebook.renderer.viewType', 'Unique identifier of the notebook output renderer.'),
 			},
 			[NotebookRendererContribution.displayName]: {

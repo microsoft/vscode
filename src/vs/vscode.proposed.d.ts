@@ -1059,12 +1059,11 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated
+	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated & misc
 
-	/**
-	 * @deprecated use notebooks instead
-	 */
-	export const notebook: typeof notebooks;
+	export interface NotebookCellOutput {
+		id: string;
+	}
 
 	//#endregion
 
@@ -1391,7 +1390,7 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export namespace notebooks {
+	export namespace workspace {
 
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
@@ -1408,7 +1407,7 @@ declare module 'vscode' {
 		exclusive?: boolean;
 	}
 
-	export namespace notebooks {
+	export namespace workspace {
 		// SPECIAL overload with NotebookRegistrationData
 		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
 		// SPECIAL overload with NotebookRegistrationData
