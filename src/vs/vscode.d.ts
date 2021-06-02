@@ -10640,6 +10640,65 @@ declare module 'vscode' {
 		export const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
+		 * All notebook documents currently known to the editor.
+		 */
+		export const notebookDocuments: readonly NotebookDocument[];
+
+		/**
+		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
+		 *
+		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
+		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
+		 *
+		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
+		 * can be showns in a notebook editor but it can also be used for other things.
+		 *
+		 * @param uri The resource to open.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 */
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
+		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param notebookType The notebook type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
+		 * Register a {@link NotebookSerializer notebook serializer}.
+		 *
+		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
+		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
+		 *
+		 * @param notebookType A notebook.
+		 * @param serializer A notebook serialzier.
+		 * @param options Optional context options that define what parts of a notebook should be persisted
+		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
+		 */
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 */
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 *
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 *
+		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
+		 * for a notebook that has not been shown in an editor.
+		 */
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * An event that is emitted when files are being created.
 		 *
 		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
@@ -12101,71 +12160,6 @@ declare module 'vscode' {
 	 */
 	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
 	export namespace notebooks {
-
-		/**
-		 * All notebook documents currently known to the editor.
-		 */
-		// todo@api move to workspace
-		export const notebookDocuments: readonly NotebookDocument[];
-
-		/**
-		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
-		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
-		 *
-		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
-		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
-		 *
-		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
-		 *
-		 * @param uri The resource to open.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
-		 */
-		// todo@api move to workspace
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
-
-		/**
-		 * Open an untitled notebook. The editor will prompt the user for a file
-		 * path when the document is to be saved.
-		 *
-		 * @see {@link openNotebookDocument}
-		 * @param notebookType The notebook type that should be used.
-		 * @param content The initial contents of the notebook.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
-		 */
-		// todo@api move to workspace
-		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
-
-		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
-		 */
-		// todo@api move to workspace
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
-		 *
-		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
-		 *
-		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
-		 * for a notebook that has not been shown in an editor.
-		 */
-		// todo@api move to workspace
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * Register a {@link NotebookSerializer notebook serializer}.
-		 *
-		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
-		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
-		 *
-		 * @param notebookType A notebook.
-		 * @param serializer A notebook serialzier.
-		 * @param options Optional context options that define what parts of a notebook should be persisted
-		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
-		 */
-		// todo@api move to workspace
-		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 
 		/**
 		 * Creates a new notebook controller.

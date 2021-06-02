@@ -15,7 +15,7 @@ async function createRandomNotebookFile() {
 
 async function openRandomNotebookDocument() {
 	const uri = await createRandomNotebookFile();
-	return vscode.notebook.openNotebookDocument(uri);
+	return vscode.workspace.openNotebookDocument(uri);
 }
 
 async function saveAllFilesAndCloseAll() {
@@ -104,7 +104,7 @@ suite('Notebook API tests', function () {
 	});
 
 	suiteSetup(function () {
-		suiteDisposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
+		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', {
 			openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
 				if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
 					return {
@@ -166,7 +166,7 @@ suite('Notebook API tests', function () {
 
 		kernel1 = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
 
-		const listener = vscode.notebook.onDidOpenNotebookDocument(async notebook => {
+		const listener = vscode.workspace.onDidOpenNotebookDocument(async notebook => {
 			if (notebook.notebookType === kernel1.controller.notebookType) {
 				await vscode.commands.executeCommand('notebook.selectKernel', {
 					extension: 'vscode.vscode-api-tests',
@@ -204,7 +204,7 @@ suite('Notebook API tests', function () {
 
 	test('shared document in notebook editors', async function () {
 		let counter = 0;
-		testDisposables.push(vscode.notebook.onDidOpenNotebookDocument(() => {
+		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(() => {
 			counter++;
 		}));
 
@@ -1149,7 +1149,7 @@ suite('Notebook API tests', function () {
 
 	test('#115855 onDidSaveNotebookDocument', async function () {
 		const resource = await createRandomNotebookFile();
-		const notebook = await vscode.notebook.openNotebookDocument(resource);
+		const notebook = await vscode.workspace.openNotebookDocument(resource);
 		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);

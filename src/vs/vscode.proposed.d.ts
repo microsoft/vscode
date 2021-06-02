@@ -1391,7 +1391,7 @@ declare module 'vscode' {
 		backupNotebook(document: NotebookDocument, context: NotebookDocumentBackupContext, token: CancellationToken): Thenable<NotebookDocumentBackup>;
 	}
 
-	export namespace notebooks {
+	export namespace workspace {
 
 		// TODO@api use NotebookDocumentFilter instead of just notebookType:string?
 		// TODO@API options duplicates the more powerful variant on NotebookContentProvider
@@ -1408,7 +1408,7 @@ declare module 'vscode' {
 		exclusive?: boolean;
 	}
 
-	export namespace notebooks {
+	export namespace workspace {
 		// SPECIAL overload with NotebookRegistrationData
 		export function registerNotebookContentProvider(notebookType: string, provider: NotebookContentProvider, options?: NotebookDocumentContentOptions, registrationData?: NotebookRegistrationData): Disposable;
 		// SPECIAL overload with NotebookRegistrationData

@@ -48,22 +48,22 @@ suite('Notebook Document', function () {
 	});
 
 	suiteSetup(function () {
-		disposables.push(vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider));
-		disposables.push(vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider));
+		disposables.push(vscode.workspace.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider));
+		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider));
 	});
 
 	test('cannot register sample provider multiple times', function () {
 		assert.throws(() => {
-			vscode.notebook.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider);
+			vscode.workspace.registerNotebookContentProvider('notebook.nbdtest', complexContentProvider);
 		});
 		// assert.throws(() => {
-		// 	vscode.notebook.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider);
+		// 	vscode.workspace.registerNotebookSerializer('notebook.nbdserializer', simpleContentProvider);
 		// });
 	});
 
 	test('cannot open unknown types', async function () {
 		try {
-			await vscode.notebook.openNotebookDocument(vscode.Uri.parse('some:///thing.notTypeKnown'));
+			await vscode.workspace.openNotebookDocument(vscode.Uri.parse('some:///thing.notTypeKnown'));
 			assert.ok(false);
 		} catch {
 			assert.ok(true);
@@ -72,7 +72,7 @@ suite('Notebook Document', function () {
 
 	test('document basics', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
 
 		assert.strictEqual(notebook.uri.toString(), uri.toString());
 		assert.strictEqual(notebook.isDirty, false);
@@ -92,7 +92,7 @@ suite('Notebook Document', function () {
 					// ignore other open events
 					return;
 				}
-				const notebook = vscode.notebook.notebookDocuments.find(notebook => {
+				const notebook = vscode.workspace.notebookDocuments.find(notebook => {
 					const cell = notebook.getCells().find(cell => cell.document === doc);
 					return Boolean(cell);
 				});
@@ -108,7 +108,7 @@ suite('Notebook Document', function () {
 			}, 15000);
 		});
 
-		await vscode.notebook.openNotebookDocument(uri);
+		await vscode.workspace.openNotebookDocument(uri);
 		await p;
 		assert.strictEqual(didHappen, true);
 	});
@@ -116,7 +116,7 @@ suite('Notebook Document', function () {
 	test('notebook open/close, all cell-documents are ready', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
-		const p = utils.asPromise(vscode.notebook.onDidOpenNotebookDocument).then(notebook => {
+		const p = utils.asPromise(vscode.workspace.onDidOpenNotebookDocument).then(notebook => {
 			for (let i = 0; i < notebook.cellCount; i++) {
 				let cell = notebook.cellAt(i);
 
@@ -130,12 +130,12 @@ suite('Notebook Document', function () {
 			}
 		});
 
-		await vscode.notebook.openNotebookDocument(uri);
+		await vscode.workspace.openNotebookDocument(uri);
 		await p;
 	});
 
 	test('open untitled notebook', async function () {
-		const nb = await vscode.notebook.openNotebookDocument('notebook.nbdserializer');
+		const nb = await vscode.workspace.openNotebookDocument('notebook.nbdserializer');
 		assert.strictEqual(nb.isUntitled, true);
 		assert.strictEqual(nb.isClosed, false);
 		assert.strictEqual(nb.uri.scheme, 'untitled');
@@ -143,7 +143,7 @@ suite('Notebook Document', function () {
 	});
 
 	test('open untitled with data', async function () {
-		const nb = await vscode.notebook.openNotebookDocument(
+		const nb = await vscode.workspace.openNotebookDocument(
 			'notebook.nbdserializer',
 			new vscode.NotebookData([
 				new vscode.NotebookCellData(vscode.NotebookCellKind.Code, 'console.log()', 'javascript'),
@@ -162,7 +162,7 @@ suite('Notebook Document', function () {
 	test('workspace edit API (replaceCells)', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 
-		const document = await vscode.notebook.openNotebookDocument(uri);
+		const document = await vscode.workspace.openNotebookDocument(uri);
 		assert.strictEqual(document.cellCount, 1);
 
 		// inserting two new cells
@@ -237,7 +237,7 @@ suite('Notebook Document', function () {
 
 	test('workspace edit API (replaceCells, event)', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const document = await vscode.notebook.openNotebookDocument(uri);
+		const document = await vscode.workspace.openNotebookDocument(uri);
 		assert.strictEqual(document.cellCount, 1);
 
 		const edit = new vscode.WorkspaceEdit();
@@ -279,7 +279,7 @@ suite('Notebook Document', function () {
 
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
 
 		assert.strictEqual(notebook.uri.toString(), uri.toString());
 		assert.strictEqual(notebook.isDirty, false);
@@ -314,7 +314,7 @@ suite('Notebook Document', function () {
 	test('setTextDocumentLanguage for notebook cells', async function () {
 
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		const first = notebook.cellAt(0);
 		assert.strictEqual(first.document.languageId, 'javascript');
 
@@ -334,7 +334,7 @@ suite('Notebook Document', function () {
 
 	test('setTextDocumentLanguage when notebook editor is not open', async function () {
 		const uri = await utils.createRandomFile('', undefined, '.nbdtest');
-		const notebook = await vscode.notebook.openNotebookDocument(uri);
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
 		const firstCelUri = notebook.cellAt(0).document.uri;
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
@@ -345,7 +345,7 @@ suite('Notebook Document', function () {
 
 	test('dirty state - complex', async function () {
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
-		const document = await vscode.notebook.openNotebookDocument(resource);
+		const document = await vscode.workspace.openNotebookDocument(resource);
 		assert.strictEqual(document.isDirty, false);
 
 		const edit = new vscode.WorkspaceEdit();
@@ -360,7 +360,7 @@ suite('Notebook Document', function () {
 
 	test('dirty state - serializer', async function () {
 		const resource = await utils.createRandomFile(undefined, undefined, '.nbdserializer');
-		const document = await vscode.notebook.openNotebookDocument(resource);
+		const document = await vscode.workspace.openNotebookDocument(resource);
 		assert.strictEqual(document.isDirty, false);
 
 		const edit = new vscode.WorkspaceEdit();
