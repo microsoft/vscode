@@ -64,8 +64,7 @@ suite('colorization', () => {
 
 	for (const fixture of fs.readdirSync(fixturesPath)) {
 		test(`colorize: ${fixture}`, function (done) {
-			commands.executeCommand('workbench.action.closeAllEditors')
-				.then(() => assertUnchangedTokens(fixturesPath, resultsPath, fixture, done));
+			assertUnchangedTokens(fixturesPath, resultsPath, fixture, done);
 		});
 	}
 });
