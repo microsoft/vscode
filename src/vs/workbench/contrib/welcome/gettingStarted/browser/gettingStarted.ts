@@ -652,6 +652,9 @@ export class GettingStartedPage extends EditorPane {
 						outline: 2px solid var(--vscode-focusBorder);
 						outline-offset: 2px;
 					}
+					blockquote > p:first-child {
+						margin-top: 0;
+					}
 					html {
 						height: 100%;
 					}
