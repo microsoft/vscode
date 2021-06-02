@@ -6,4 +6,5 @@
 .monaco-aria-container {
 	position: absolute; /* try to hide from window but not from screen readers */
 	left:-999em;
+	top: 0; /* avoid being placed underneath a sibling element */
 }
