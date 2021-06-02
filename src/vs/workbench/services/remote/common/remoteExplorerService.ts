@@ -596,7 +596,7 @@ export class TunnelModel extends Disposable {
 				this._onForwardPort.fire();
 			}
 			// Remove tunnel provider check when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
-			if (!this.tunnelService.hasTunnelProvider && attributes?.protocol && (attributes.protocol !== existingTunnel.localUri.scheme)) {
+			if (!this.tunnelService.hasTunnelProvider && attributes?.protocol && (attributes.protocol !== existingTunnel.protocol)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}
@@ -740,7 +740,7 @@ export class TunnelModel extends Disposable {
 			if (attributes.label && attributes.label !== forwarded.name) {
 				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
 			}
-			if (attributes.protocol && attributes.protocol !== forwarded.localUri.scheme) {
+			if (attributes.protocol && attributes.protocol !== forwarded.protocol) {
 				await this.forward({ host: forwarded.remoteHost, port: forwarded.remotePort }, forwarded.localPort, forwarded.name, forwarded.source, undefined, undefined, undefined, attributes);
 			}
 		}
