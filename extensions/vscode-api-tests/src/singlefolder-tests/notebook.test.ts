@@ -36,9 +36,9 @@ class Kernel {
 	readonly associatedNotebooks = new Set<string>();
 
 	constructor(id: string, label: string) {
-		this.controller = vscode.notebook.createNotebookController(id, 'notebookCoreTest', label);
+		this.controller = vscode.notebooks.createNotebookController(id, 'notebookCoreTest', label);
 		this.controller.executeHandler = this._execute.bind(this);
-		this.controller.hasExecutionOrder = true;
+		this.controller.supportsExecutionOrder = true;
 		this.controller.supportedLanguages = ['typescript', 'javascript'];
 		this.controller.onDidChangeNotebookAssociation(e => {
 			if (e.selected) {
@@ -167,7 +167,7 @@ suite('Notebook API tests', function () {
 		kernel1 = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
 
 		const listener = vscode.notebook.onDidOpenNotebookDocument(async notebook => {
-			if (notebook.viewType === kernel1.controller.viewType) {
+			if (notebook.notebookType === kernel1.controller.notebookType) {
 				await vscode.commands.executeCommand('notebook.selectKernel', {
 					extension: 'vscode.vscode-api-tests',
 					id: kernel1.controller.id
@@ -179,7 +179,7 @@ suite('Notebook API tests', function () {
 		kernel2 = new class extends Kernel {
 			constructor() {
 				super('secondaryKernel', 'Notebook Secondary Test Kernel');
-				this.controller.hasExecutionOrder = false;
+				this.controller.supportsExecutionOrder = false;
 			}
 
 			override async _runCell(cell: vscode.NotebookCell) {

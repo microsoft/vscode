@@ -111,7 +111,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const controller: vscode.NotebookController = {
 			get id() { return id; },
-			get viewType() { return data.notebookType; },
 			get notebookType() { return data.notebookType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
@@ -140,13 +139,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			set supportedLanguages(value) {
 				data.supportedLanguages = value;
-				_update();
-			},
-			get hasExecutionOrder() {
-				return data.supportsExecutionOrder ?? false;
-			},
-			set hasExecutionOrder(value) {
-				data.supportsExecutionOrder = value;
 				_update();
 			},
 			get supportsExecutionOrder() {

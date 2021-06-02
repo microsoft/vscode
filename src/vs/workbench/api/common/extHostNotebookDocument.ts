@@ -159,7 +159,6 @@ export class ExtHostNotebookDocument {
 			this._notebook = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
-				get viewType() { return that._notebookType; },
 				get notebookType() { return that._notebookType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },

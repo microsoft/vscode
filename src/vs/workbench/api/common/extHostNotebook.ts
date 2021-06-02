@@ -293,7 +293,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.viewType, resolvedOptions);
+		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.notebookType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
 		if (editor) {

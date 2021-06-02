@@ -11371,10 +11371,6 @@ declare module 'vscode' {
 		 */
 		readonly uri: Uri;
 
-		/** @deprecated	*/
-		// todo@API remove
-		readonly viewType: string;
-
 		/**
 		 * The type of notebook.
 		 */
@@ -11817,10 +11813,6 @@ declare module 'vscode' {
 		 */
 		readonly id: string;
 
-		// todo@api remove
-		/** @deprecated */
-		readonly viewType: string;
-
 		/**
 		 * The notebook type this controller is for.
 		 */
@@ -11863,10 +11855,6 @@ declare module 'vscode' {
 		 * editor can render placeholders for them.
 		 */
 		supportsExecutionOrder?: boolean;
-
-		// todo@API remove
-		/** @deprecated */
-		hasExecutionOrder?: boolean;
 
 		/**
 		 * Create a cell execution task.

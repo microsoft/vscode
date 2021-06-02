@@ -79,7 +79,7 @@ suite('Notebook Document', function () {
 		assert.strictEqual(notebook.isUntitled, false);
 		assert.strictEqual(notebook.cellCount, 1);
 
-		assert.strictEqual(notebook.viewType, 'notebook.nbdtest');
+		assert.strictEqual(notebook.notebookType, 'notebook.nbdtest');
 	});
 
 	test('notebook open/close, notebook ready when cell-document open event is fired', async function () {
@@ -285,7 +285,7 @@ suite('Notebook Document', function () {
 		assert.strictEqual(notebook.isDirty, false);
 		assert.strictEqual(notebook.isUntitled, false);
 		assert.strictEqual(notebook.cellCount, 1);
-		assert.strictEqual(notebook.viewType, 'notebook.nbdtest');
+		assert.strictEqual(notebook.notebookType, 'notebook.nbdtest');
 
 		const edit = new vscode.WorkspaceEdit();
 		edit.replaceNotebookCells(notebook.uri, new vscode.NotebookRange(0, 0), [{
