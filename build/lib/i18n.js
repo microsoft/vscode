@@ -119,6 +119,7 @@ class XLF {
             for (const item of items) {
                 this.addStringItem(file, item);
             }
+            this.appendNewLine('</body></file>');
         }
         this.appendFooter();
         return this.buffer.join('\r\n');
