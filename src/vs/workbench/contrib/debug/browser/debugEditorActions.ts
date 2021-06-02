@@ -26,6 +26,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { raceTimeout } from 'vs/base/common/async';
 import { registerAction2, MenuId } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 
 class ToggleBreakpointAction extends EditorAction2 {
 	constructor() {
@@ -129,6 +130,33 @@ class LogPointAction extends EditorAction2 {
 		const position = editor.getPosition();
 		if (position && editor.hasModel() && debugService.canSetBreakpointsIn(editor.getModel())) {
 			editor.getContribution<IBreakpointEditorContribution>(BREAKPOINT_EDITOR_CONTRIBUTION_ID).showBreakpointWidget(position.lineNumber, position.column, BreakpointWidgetContext.LOG_MESSAGE);
+		}
+	}
+}
+
+class GoToDisassemblyAction extends EditorAction {
+
+	public static readonly ID = 'editor.debug.action.goToDisassembly';
+	public static readonly LABEL = nls.localize('goToDisassembly', "Go to Disassembly");
+
+	constructor() {
+		super({
+			id: GoToDisassemblyAction.ID,
+			label: GoToDisassemblyAction.LABEL,
+			alias: 'Debug: Go to Disassembly',
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			contextMenuOpts: {
+				group: 'debug',
+				order: 5
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
+		const position = editor.getPosition();
+		if (position && editor.hasModel()) {
+			const editorService = accessor.get(IEditorService);
+			editorService.openEditor(DisassemblyViewInput.instance);
 		}
 	}
 }
@@ -504,6 +532,7 @@ class CloseExceptionWidgetAction extends EditorAction {
 registerAction2(ToggleBreakpointAction);
 registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
+registerEditorAction(GoToDisassemblyAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);

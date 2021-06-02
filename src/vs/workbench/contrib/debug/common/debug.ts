@@ -34,6 +34,7 @@ export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
 export const LOADED_SCRIPTS_VIEW_ID = 'workbench.debug.loadedScriptsView';
 export const BREAKPOINTS_VIEW_ID = 'workbench.debug.breakPointsView';
+export const DISASSEMBLY_VIEW_ID = 'workbench.debug.disassemblyView';
 export const DEBUG_PANEL_ID = 'workbench.panel.repl';
 export const REPL_VIEW_ID = 'workbench.panel.repl.view';
 export const DEBUG_SERVICE_ID = 'debugService';
@@ -80,6 +81,7 @@ export const CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT = new RawContextKey<boolean>
 export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exceptionWidgetVisible', false, { type: 'boolean', description: nls.localize('exceptionWidgetVisible', "True when the exception widget is visible.") });
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
 export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
+export const CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED = new RawContextKey<boolean>('disassembleRequestSupported', false, { type: 'boolean', description: nls.localize('disassembleRequestSupported', "True when the focused sessions supports disassemble request.") });
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
