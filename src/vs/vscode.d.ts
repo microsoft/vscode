@@ -12168,7 +12168,7 @@ declare module 'vscode' {
 		/**
 		 * Register a {@link NotebookSerializer notebook serializer}.
 		 *
-		 * A notebook serializer must to be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
+		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
 		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
 		 *
 		 * @param notebookType A notebook.
