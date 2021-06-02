@@ -130,7 +130,7 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -164,7 +164,7 @@ class NotebookEditorSerializer implements IEditorInputSerializer {
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, viewType: string, group: number };
+		type Data = { resource: URI, viewType: string, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -571,7 +571,7 @@ for (const editorOption of editorOptionsRegistry) {
 }
 
 const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
-	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Notebook Cell editor options customization.'),
+	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Settings for code editors used in notebooks. This can be used to customize most editor.* settings.'),
 	default: {},
 	allOf: [
 		{
