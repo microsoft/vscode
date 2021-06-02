@@ -157,6 +157,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (!instance) {
 				return;
 			}
+			if (e.editorOptions.pinned) {
+				return;
+			}
 			this._terminalService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
@@ -304,6 +307,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 		// Kill terminal on middle click
 		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
+			e.stopImmediatePropagation();
 			if (e.button === 1/*middle*/) {
 				instance.dispose();
 			}
