@@ -68,6 +68,7 @@ const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
+const FILTER_VALUE_STORAGE_KEY = 'debug.repl.filterValue';
 const DECORATION_KEY = 'replinputdecoration';
 const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
@@ -132,6 +133,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
+		this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 		this.multiSessionRepl.set(this.isMultiSessionView);
 
@@ -271,9 +273,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	getFilterStats(): { total: number, filtered: number } {
+		// This could be called before the tree is created when setting this.filterState.filterText value
 		return {
-			total: this.tree.getNode().children.length,
-			filtered: this.tree.getNode().children.filter(c => c.visible).length
+			total: this.tree?.getNode().children.length ?? 0,
+			filtered: this.tree?.getNode().children.filter(c => c.visible).length ?? 0
 		};
 	}
 
@@ -690,6 +693,12 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				this.storageService.store(FILTER_HISTORY_STORAGE_KEY, JSON.stringify(filterHistory), StorageScope.WORKSPACE, StorageTarget.USER);
 			} else {
 				this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
+			const filterValue = this.filterState.filterText;
+			if (filterValue) {
+				this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.USER);
+			} else {
+				this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
 			}
 		}
 
