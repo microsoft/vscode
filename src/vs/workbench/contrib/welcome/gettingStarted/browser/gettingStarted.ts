@@ -1192,6 +1192,7 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedStep = undefined;
 			this.selectStep(undefined);
 			this.setSlide('categories');
+			this.container.focus();
 		});
 	}
 
@@ -1241,7 +1242,6 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = false);
-			this.container.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
@@ -1249,6 +1249,10 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
 		}
+	}
+
+	override focus() {
+		this.container.focus();
 	}
 }
 
