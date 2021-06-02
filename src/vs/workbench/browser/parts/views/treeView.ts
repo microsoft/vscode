@@ -872,7 +872,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 					}
 				});
 			},
-			delay: <number>this.configurationService.getValue('workbench.hover.delay')
+			delay: <number>this.configurationService.getValue('workbench.hover.delay'),
+			placement: 'mouse'
 		};
 	}
 

@@ -356,7 +356,8 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 					showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
 						return this.hoverService.showHover(options);
 					},
-					delay: <number>this.configurationService.getValue('workbench.hover.delay')
+					delay: <number>this.configurationService.getValue('workbench.hover.delay'),
+					placement: 'mouse'
 				}
 			});
 		const actionsContainer = dom.append(cell, dom.$('.actions'));

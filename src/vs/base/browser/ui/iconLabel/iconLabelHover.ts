@@ -120,7 +120,7 @@ function getTooltipForCustom(markdownTooltip: string | IIconLabelMarkdownString)
 
 function adjustXAndShowCustomHover(hoverOptions: IHoverDelegateOptions | undefined, mouseX: number | undefined, hoverDelegate: IHoverDelegate, isHovering: boolean): IDisposable | undefined {
 	if (hoverOptions && isHovering) {
-		if (mouseX !== undefined) {
+		if (mouseX !== undefined && hoverDelegate.placement === 'mouse') {
 			(<IHoverDelegateTarget>hoverOptions.target).x = mouseX + 10;
 		}
 		return hoverDelegate.showHover(hoverOptions);
