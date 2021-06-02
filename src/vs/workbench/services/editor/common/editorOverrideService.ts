@@ -178,6 +178,6 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
 	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(globPattern, target.toLowerCase());
+	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
 }
 //#endregion
