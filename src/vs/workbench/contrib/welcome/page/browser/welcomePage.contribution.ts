@@ -31,7 +31,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStarted' }, "Open the new Welcome Page with content to aid in getting started with VS Code and extensions."),
 					localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.startupEditor.gettingStartedInEmptyWorkbench' }, "When opening an empty workbench, open the new Welcome Page with content to aid in getting started with VS Code and extensions.")
 				],
-				'default': 'welcomePage',
+				'default': 'gettingStarted',
 				'description': localize('workbench.startupEditor', "Controls which editor is shown at startup, if none are restored from the previous session.")
 			},
 		}
