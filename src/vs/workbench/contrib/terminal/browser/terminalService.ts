@@ -220,6 +220,16 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 	}
 
+	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+		if (this.configHelper.config.confirmOnExit) {
+			const confirmed = await this._showTerminalCloseConfirmation();
+			if (!confirmed) {
+				return;
+			}
+		}
+		instance.dispose();
+	}
+
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();

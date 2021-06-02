@@ -214,6 +214,7 @@ export interface ITerminalService {
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	instanceIsSplit(instance: ITerminalInstance): boolean;
+	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

@@ -309,7 +309,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		template.elementDispoables.add(DOM.addDisposableListener(template.element, DOM.EventType.AUXCLICK, e => {
 			e.stopImmediatePropagation();
 			if (e.button === 1/*middle*/) {
-				instance.dispose();
+				this._terminalService.safeDisposeTerminal(instance);
 			}
 		}));
 

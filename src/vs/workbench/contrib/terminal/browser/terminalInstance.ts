@@ -31,7 +31,7 @@ import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
-import { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
+import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
 import type { Unicode11Addon } from 'xterm-addon-unicode11';
 import type { WebglAddon } from 'xterm-addon-webgl';
@@ -60,7 +60,6 @@ import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -252,8 +251,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 		@IProductService private readonly _productService: IProductService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IDialogService private readonly _dialogService: IDialogService
+		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService
 	) {
 		super();
 
@@ -934,66 +932,46 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._terminalAltBufferActiveContextKey.set(!!(this._xterm && this._xterm.buffer.active === this._xterm.buffer.alternate));
 	}
 
-	override dispose(immediate?: boolean, confirmed?: boolean): void {
-		if (this._configHelper.config.confirmOnExit && !confirmed) {
-			this._confirmDisposal();
-		} else {
-			this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
-			dispose(this._linkManager);
-			this._linkManager = undefined;
-			dispose(this._commandTrackerAddon);
-			this._commandTrackerAddon = undefined;
-			dispose(this._widgetManager);
+	override dispose(immediate?: boolean): void {
+		this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
+		dispose(this._linkManager);
+		this._linkManager = undefined;
+		dispose(this._commandTrackerAddon);
+		this._commandTrackerAddon = undefined;
+		dispose(this._widgetManager);
 
-			if (this._xterm && this._xterm.element) {
-				this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
-			}
-			if (this._wrapperElement) {
-				if (this._wrapperElement.xterm) {
-					this._wrapperElement.xterm = undefined;
-				}
-				if (this._wrapperElement.parentElement && this._container) {
-					this._container.removeChild(this._wrapperElement);
-				}
-			}
-			if (this._xterm) {
-				const buffer = this._xterm.buffer;
-				this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
-				this._xterm.dispose();
-			}
-
-			if (this._pressAnyKeyToCloseListener) {
-				this._pressAnyKeyToCloseListener.dispose();
-				this._pressAnyKeyToCloseListener = undefined;
-			}
-
-			this._processManager.dispose(immediate);
-			// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
-			// hasn't happened yet
-			this._onProcessExit(undefined);
-
-			if (!this._isDisposed) {
-				this._isDisposed = true;
-				this._onDisposed.fire(this);
-			}
-			super.dispose();
+		if (this._xterm && this._xterm.element) {
+			this._hadFocusOnExit = this._xterm.element.classList.contains('focus');
 		}
-	}
-
-	private async _confirmDisposal(): Promise<void> {
-		const result = await this._showTerminalCloseConfirmation();
-		if (result) {
-			return this.dispose(undefined, true);
+		if (this._wrapperElement) {
+			if (this._wrapperElement.xterm) {
+				this._wrapperElement.xterm = undefined;
+			}
+			if (this._wrapperElement.parentElement && this._container) {
+				this._container.removeChild(this._wrapperElement);
+			}
 		}
-	}
+		if (this._xterm) {
+			const buffer = this._xterm.buffer;
+			this._sendLineData(buffer.active, buffer.active.baseY + buffer.active.cursorY);
+			this._xterm.dispose();
+		}
 
-	private async _showTerminalCloseConfirmation(): Promise<boolean> {
-		const message = nls.localize('terminalService.terminalCloseConfirmationSingular', "This is an active terminal session, do you want to kill it?");
-		const res = await this._dialogService.confirm({
-			message,
-			type: 'warning',
-		});
-		return res.confirmed;
+		if (this._pressAnyKeyToCloseListener) {
+			this._pressAnyKeyToCloseListener.dispose();
+			this._pressAnyKeyToCloseListener = undefined;
+		}
+
+		this._processManager.dispose(immediate);
+		// Process manager dispose/shutdown doesn't fire process exit, trigger with undefined if it
+		// hasn't happened yet
+		this._onProcessExit(undefined);
+
+		if (!this._isDisposed) {
+			this._isDisposed = true;
+			this._onDisposed.fire(this);
+		}
+		super.dispose();
 	}
 
 	detachFromProcess(): void {
@@ -1264,7 +1242,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 			});
 		} else {
-			this.dispose(undefined, true);
+			this.dispose();
 			if (exitCodeMessage) {
 				const failedDuringLaunch = this._processManager.processState === ProcessState.KilledDuringLaunch;
 				if (failedDuringLaunch || this._configHelper.config.showExitAlert) {
