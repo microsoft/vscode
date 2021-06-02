@@ -53,6 +53,8 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
+export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+
 export enum NotebookRunState {
 	Running = 1,
 	Idle = 2
@@ -129,13 +131,23 @@ export const enum NotebookRendererMatch {
 	Never = 3,
 }
 
+/**
+ * Renderer messaging requirement. While this allows for 'optional' messaging,
+ * VS Code effectively treats it the same as true right now. "Partial
+ * activation" of extensions is a very tricky problem, which could allow
+ * solving this. But for now, optional is mostly only honored for aznb.
+ */
+export type RendererMessagingSpec = true | false | 'optional';
+
 export interface INotebookRendererInfo {
 	id: string;
 	displayName: string;
+	extends?: string;
 	entrypoint: URI;
 	preloads: ReadonlyArray<URI>;
 	extensionLocation: URI;
 	extensionId: ExtensionIdentifier;
+	messaging: RendererMessagingSpec;
 
 	readonly mimeTypes: readonly string[];
 
@@ -161,7 +173,7 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly value: unknown;
+	readonly valueBytes: number[];
 	readonly metadata?: Record<string, unknown>;
 }
 
@@ -182,6 +194,7 @@ export interface ICellOutput {
 
 export interface CellInternalMetadataChangedEvent {
 	readonly runStateChanged?: boolean;
+	readonly lastRunSuccessChanged?: boolean;
 }
 
 export interface ICell {
@@ -475,7 +488,11 @@ export interface INotebookContributionData {
 }
 
 
-export function getCellUndoRedoComparisonKey(uri: URI) {
+export function getCellUndoRedoComparisonKey(uri: URI, undoRedoPerCell: boolean) {
+	if (undoRedoPerCell) {
+		return uri.toString();
+	}
+
 	const data = CellUri.parse(uri);
 	if (!data) {
 		return uri.toString();
@@ -567,20 +584,24 @@ type MimeTypeInfo = {
 };
 
 const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
+	['application/javascript', { supportedByCore: true }],
+	['image/png', { alwaysSecure: true, supportedByCore: true }],
+	['image/jpeg', { alwaysSecure: true, supportedByCore: true }],
+	['image/git', { alwaysSecure: true, supportedByCore: true }],
+	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
-	['image/png', { alwaysSecure: true, supportedByCore: true }],
 	['text/plain', { alwaysSecure: true, supportedByCore: true }],
-	['application/javascript', { supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
-	['image/svg+xml', { supportedByCore: true }],
-	['image/jpeg', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
+	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	// old, todo@jrieken remove these...
 	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
+	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -887,8 +908,19 @@ export const DisplayOrderKey = 'notebook.displayOrder';
 export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
 export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
 export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
+export const ShowCellStatusBarAfterExecuteKey = 'notebook.showCellStatusBarAfterExecute';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
+export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
+export const CompactView = 'notebook.compactView';
+export const FocusIndicator = 'notebook.cellFocusIndicator';
+export const InsertToolbarPosition = 'notebook.insertToolbarPosition';
+export const GlobalToolbar = 'notebook.globalToolbar';
+export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
+export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
+export const ShowFoldingControls = 'notebook.showFoldingControls';
+export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
+export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,
@@ -906,7 +938,7 @@ export class NotebookWorkingCopyTypeIdentifier {
 	private static _prefix = 'notebook/';
 
 	static create(viewType: string): string {
-		return `${NotebookWorkingCopyTypeIdentifier._prefix}/${viewType}`;
+		return `${NotebookWorkingCopyTypeIdentifier._prefix}${viewType}`;
 	}
 
 	static parse(candidate: string): string | undefined {

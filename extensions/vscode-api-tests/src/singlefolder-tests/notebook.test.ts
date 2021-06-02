@@ -7,6 +7,7 @@ import 'mocha';
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, asPromise, disposeAll, closeAllEditors, revertAllDirty, saveAllEditors, assertNoRpc } from '../utils';
+import { TextDecoder } from 'util';
 
 async function createRandomNotebookFile() {
 	return createRandomFile('', undefined, '.vsctestnb');
@@ -55,18 +56,18 @@ class Kernel {
 	}
 
 	protected async _runCell(cell: vscode.NotebookCell) {
-		const task = this.controller.createNotebookCellExecutionTask(cell);
+		const task = this.controller.createNotebookCellExecution(cell);
 		task.start();
 		task.executionOrder = 1;
 		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
 			await task.replaceOutput([new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/custom', ['test'], undefined)
+				vscode.NotebookCellOutputItem.text('test', 'text/custom', undefined)
 			])]);
 			return;
 		}
 
 		await task.replaceOutput([new vscode.NotebookCellOutput([
-			new vscode.NotebookCellOutputItem('text/plain', ['my output'], undefined)
+			vscode.NotebookCellOutputItem.text('my output', 'text/plain', undefined)
 		])]);
 		task.end({ success: true });
 	}
@@ -104,8 +105,8 @@ suite('Notebook API tests', function () {
 
 	suiteSetup(function () {
 		suiteDisposables.push(vscode.notebook.registerNotebookContentProvider('notebookCoreTest', {
-			openNotebook: async (_resource: vscode.Uri): Promise<vscode.NotebookData> => {
-				if (/.*empty\-.*\.vsctestnb$/.test(_resource.path)) {
+			openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
+				if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
 					return {
 						metadata: new vscode.NotebookDocumentMetadata(),
 						cells: []
@@ -129,7 +130,7 @@ suite('Notebook API tests', function () {
 							kind: vscode.NotebookCellKind.Code,
 							outputs: [
 								new vscode.NotebookCellOutput([
-									new vscode.NotebookCellOutputItem('text/plain', 'Hello World', { testOutputItemMetadata: true })
+									vscode.NotebookCellOutputItem.text('Hello World', 'text/plain', { testOutputItemMetadata: true })
 								],
 									{ testOutputMetadata: true })
 							],
@@ -179,10 +180,10 @@ suite('Notebook API tests', function () {
 			}
 
 			override async _runCell(cell: vscode.NotebookCell) {
-				const task = this.controller.createNotebookCellExecutionTask(cell);
+				const task = this.controller.createNotebookCellExecution(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['my second output'], undefined)
+					vscode.NotebookCellOutputItem.text('my second output', 'text/plain', undefined)
 				])]);
 				task.end({ success: true });
 			}
@@ -476,7 +477,7 @@ suite('Notebook API tests', function () {
 		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true });
 		assert.strictEqual(secondCell!.outputs[0].outputs.length, 1);
 		assert.strictEqual(secondCell!.outputs[0].outputs[0].mime, 'text/plain');
-		assert.strictEqual(secondCell!.outputs[0].outputs[0].value, 'Hello World');
+		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].outputs[0].data), 'Hello World');
 		assert.deepStrictEqual(secondCell!.outputs[0].outputs[0].metadata, { testOutputItemMetadata: true });
 		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
 		assert.strictEqual(secondCell!.executionSummary?.success, true);
@@ -747,9 +748,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'my output'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my output');
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebook.onDidChangeCellOutputs, async (event) => {
@@ -759,9 +758,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'my second output'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'my second output');
 		});
 	});
 
@@ -775,11 +772,11 @@ suite('Notebook API tests', function () {
 
 			override async _execute(cells: vscode.NotebookCell[]) {
 				for (const cell of cells) {
-					const task = this.controller.createNotebookCellExecutionTask(cell);
+					const task = this.controller.createNotebookCellExecution(cell);
 					task.start();
 					task.token.onCancellationRequested(async () => {
 						await task.replaceOutput([new vscode.NotebookCellOutput([
-							new vscode.NotebookCellOutputItem('text/plain', ['Canceled'], undefined)
+							vscode.NotebookCellOutputItem.text('Canceled', 'text/plain', undefined)
 						])]);
 						task.end({});
 					});
@@ -801,9 +798,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'Canceled'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Canceled');
 		});
 
 		cancelableKernel.controller.dispose();
@@ -817,16 +812,16 @@ suite('Notebook API tests', function () {
 				this.controller.interruptHandler = this.interrupt.bind(this);
 			}
 
-			private _task: vscode.NotebookCellExecutionTask | undefined;
+			private _task: vscode.NotebookCellExecution | undefined;
 
 			override async _execute(cells: vscode.NotebookCell[]) {
-				this._task = this.controller.createNotebookCellExecutionTask(cells[0]);
+				this._task = this.controller.createNotebookCellExecution(cells[0]);
 				this._task.start();
 			}
 
 			async interrupt() {
 				await this._task!.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['Interrupted'], undefined)
+					vscode.NotebookCellOutputItem.text('Interrupted', 'text/plain', undefined)
 				])]);
 				this._task!.end({});
 			}
@@ -845,9 +840,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].outputs.length, 1);
 			assert.strictEqual(cell.outputs[0].outputs[0].mime, 'text/plain');
-			assert.deepStrictEqual(cell.outputs[0].outputs[0].value, [
-				'Interrupted'
-			]);
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].outputs[0].data), 'Interrupted');
 		});
 
 		interruptableKernel.controller.dispose();
@@ -1008,7 +1001,7 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test.skip('multiple tabs: different editors with same document', async function () {
+	test('multiple tabs: different editors with same document', async function () {
 
 		const notebook = await openRandomNotebookDocument();
 		const firstNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.One });
@@ -1018,7 +1011,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
 
-		const secondNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Two });
+		const secondNotebookEditor = await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
 		assert.strictEqual(secondNotebookEditor !== undefined, true, 'notebook first');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.getText(), 'test');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor!)?.document.languageId, 'typescript');
@@ -1185,13 +1178,13 @@ suite('Notebook API tests', function () {
 
 			override async _execute(cells: vscode.NotebookCell[]) {
 				const [cell] = cells;
-				const task = this.controller.createNotebookCellExecutionTask(cell);
+				const task = this.controller.createNotebookCellExecution(cell);
 				task.start();
 				await task.replaceOutput([new vscode.NotebookCellOutput([
-					new vscode.NotebookCellOutputItem('text/plain', ['Some output'], undefined)
+					vscode.NotebookCellOutputItem.text('Some output', 'text/plain', undefined)
 				])]);
 				assert.strictEqual(cell.notebook.cellAt(0).outputs.length, 1);
-				assert.deepStrictEqual(cell.notebook.cellAt(0).outputs[0].outputs[0].value, ['Some output']);
+				assert.deepStrictEqual(new TextDecoder().decode(cell.notebook.cellAt(0).outputs[0].outputs[0].data), 'Some output');
 				task.end({});
 				called = true;
 			}

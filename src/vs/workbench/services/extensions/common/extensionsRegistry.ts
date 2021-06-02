@@ -321,6 +321,16 @@ export const schema: IJSONSchema = {
 						description: nls.localize('vscode.extension.activationEvents.onAuthenticationRequest', 'An activation event emitted whenever sessions are requested from the specified authentication provider.')
 					},
 					{
+						label: 'onRenderer',
+						description: nls.localize('vscode.extension.activationEvents.onRenderer', 'An activation event emitted whenever a notebook output renderer is used.'),
+						body: 'onRenderer:${11:rendererId}'
+					},
+					{
+						label: 'onTerminalProfile',
+						body: 'onTerminalProfile:${1:terminalType}',
+						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
+					},
+					{
 						label: '*',
 						description: nls.localize('vscode.extension.activationEvents.star', 'An activation event emitted on VS Code startup. To ensure a great end user experience, please use this activation event in your extension only when no other activation events combination works in your use-case.'),
 						body: '*'
@@ -421,8 +431,28 @@ export const schema: IJSONSchema = {
 			properties: {
 				virtualWorkspaces: {
 					description: nls.localize('vscode.extension.capabilities.virtualWorkspaces', "Declares whether the extension should be enabled in virtual workspaces. A virtual workspace is a workspace which is not backed by any on-disk resources. When false, this extension will be automatically disabled in virtual workspaces. Default is true."),
-					type: 'boolean',
-					default: true
+					type: ['boolean', 'object'],
+					defaultSnippets: [
+						{ label: 'limited', body: { supported: '${1:limited}', description: '${2}' } },
+						{ label: 'false', body: { supported: false, description: '${2}' } },
+					],
+					default: true.valueOf,
+					properties: {
+						supported: {
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported', "Declares the level of support for virtual workspaces by the extension."),
+							type: ['string', 'boolean'],
+							enum: ['limited', true, false],
+							enumDescriptions: [
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.limited', "The extension will be enabled in virtual workspaces with some functionality disabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.true', "The extension will be enabled in virtual workspaces with all functionality enabled."),
+								nls.localize('vscode.extension.capabilities.virtualWorkspaces.supported.false', "The extension will not be enabled in virtual workspaces."),
+							]
+						},
+						description: {
+							type: 'string',
+							markdownDescription: nls.localize('vscode.extension.capabilities.virtualWorkspaces.description', "A description of how virtual workspaces affects the extensions behavior and why it is needed. This only applies when `supported` is not `true`."),
+						}
+					}
 				},
 				untrustedWorkspaces: {
 					description: nls.localize('vscode.extension.capabilities.untrustedWorkspaces', 'Declares how the extension should be handled in untrusted workspaces.'),

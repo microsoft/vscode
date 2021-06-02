@@ -316,3 +316,20 @@ export function getExtensionForMimeType(mimeType: string): string | undefined {
 
 	return undefined;
 }
+
+const _simplePattern = /^(.+)\/(.+?)(;.+)?$/;
+
+export function normalizeMimeType(mimeType: string): string;
+export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
+export function normalizeMimeType(mimeType: string, strict?: true): string | undefined {
+
+	const match = _simplePattern.exec(mimeType);
+	if (!match) {
+		return strict
+			? undefined
+			: mimeType;
+	}
+	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
+	// media and subtype must ALWAYS be lowercase, parameter not
+	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
+}

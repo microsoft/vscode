@@ -41,6 +41,8 @@ export interface ICustomEditorService {
 }
 
 export interface ICustomEditorModelManager {
+	getAllModels(resource: URI): Promise<ICustomEditorModel[]>
+
 	get(resource: URI, viewType: string): Promise<ICustomEditorModel | undefined>;
 
 	tryRetain(resource: URI, viewType: string): Promise<IReference<ICustomEditorModel>> | undefined;
@@ -56,6 +58,7 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly backupId: string | undefined;
 
 	isEditable(): boolean;
+	readonly onDidChangeEditable: Event<void>;
 	isOnReadonlyFileSystem(): boolean;
 
 	isOrphaned(): boolean;

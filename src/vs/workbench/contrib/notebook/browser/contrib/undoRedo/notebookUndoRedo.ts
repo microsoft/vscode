@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CellEditState, getNotebookEditorFromEditorPane, NotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 
 class NotebookUndoRedoContribution extends Disposable {
@@ -29,7 +29,7 @@ class NotebookUndoRedoContribution extends Disposable {
 							}
 						});
 
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
+						editor?.setOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true });
 					}
 				});
 			}
@@ -48,7 +48,7 @@ class NotebookUndoRedoContribution extends Disposable {
 							}
 						});
 
-						editor?.setOptions(new NotebookEditorOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true }));
+						editor?.setOptions({ cellOptions: { resource: cellResources[0] }, preserveFocus: true });
 					}
 				});
 			}

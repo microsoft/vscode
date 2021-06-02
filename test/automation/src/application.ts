@@ -71,6 +71,7 @@ export class Application {
 	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
+		await this.dismissTrustDialog();
 
 		// https://github.com/microsoft/vscode/issues/118748
 		// if (expectWalkthroughPart) {
@@ -82,6 +83,21 @@ export class Application {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
+		await this.code.waitForElement('.explorer-folders-view');
+		await this.dismissTrustDialog();
+	}
+
+	private async dismissTrustDialog(): Promise<void> {
+		if (this.options.web) {
+			return;
+		}
+
+		try {
+			// Dismiss workspace trust dialog, if found
+			await this.code.waitAndClick(`.monaco-workbench .dialog-buttons-row a:nth-child(1)`, 10, 10, 50);
+		} catch {
+			// there musn't be any trust dialog, maybe workspace is trusted?
+		}
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {

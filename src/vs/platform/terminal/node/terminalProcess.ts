@@ -9,7 +9,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { timeout } from 'vs/base/common/async';
+import { Promises } from 'vs/base/node/pfs';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -99,8 +100,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
@@ -182,7 +183,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await fs.promises.stat(this._initialCwd);
+			const result = await Promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -200,7 +201,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 		try {
-			const result = await fs.promises.stat(slc.executable);
+			const result = await Promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}
@@ -324,7 +325,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {

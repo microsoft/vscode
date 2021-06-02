@@ -132,8 +132,8 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
 		await editorService.openEditor({
-			leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
-			rightResource: resource,
+			originalInput: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
+			modifiedInput: { resource },
 			label,
 			options
 		});

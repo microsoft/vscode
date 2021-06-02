@@ -3,40 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { groupBy } from 'vs/base/common/collections';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
+import { dirname } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
+import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IModelDecorationOptions, IModelDeltaDecoration, TrackedRangeStickiness, IReadonlyTextBuffer, EndOfLinePreference } from 'vs/editor/common/model';
+import { EndOfLinePreference, IModelDecorationOptions, IModelDeltaDecoration, IReadonlyTextBuffer, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
 import { IntervalNode, IntervalTree } from 'vs/editor/common/model/intervalTree';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { WorkspaceTextEdit } from 'vs/editor/common/modes';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditState, CellFindMatch, ICellViewModel, NotebookLayoutInfo, INotebookDeltaDecoration, INotebookDeltaCellStatusBarItems, CellFocusMode, CellFindMatchWithIndex } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
+import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFocusMode, ICellViewModel, INotebookDeltaCellStatusBarItems, INotebookDeltaDecoration, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { CellFoldingState, EditorFoldingStateDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookSearchOptions, NotebookCellsChangeType, ICell, NotebookCellTextModelSplice, CellEditType, IOutputDto, SelectionStateType, ISelectionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ICellRange, cellIndexesToRanges, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
-import { FoldingRegions } from 'vs/editor/contrib/folding/foldingRanges';
-import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { dirname } from 'vs/base/common/resources';
-import { IPosition, Position } from 'vs/editor/common/core/position';
-import { MultiModelEditStackElement, SingleModelEditStackElement } from 'vs/editor/common/model/editStack';
-import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
-import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
-import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { groupByNumber } from 'vs/base/common/collections';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellEditType, CellKind, ICell, INotebookSearchOptions, IOutputDto, ISelectionState, NotebookCellMetadata, NotebookCellsChangeType, NotebookCellTextModelSplice, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { cellIndexesToRanges, cellRangesToIndexes, ICellRange, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 
 export interface INotebookEditorViewState {
 	editingCells: { [key: number]: boolean };
@@ -123,10 +123,10 @@ class DecorationsTree {
 }
 
 const TRACKED_RANGE_OPTIONS = [
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
-	ModelDecorationOptions.register({ stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-always-grows-when-typing-at-edges', stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-never-grows-when-typing-at-edges', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-grows-only-when-typing-before', stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ description: 'notebook-view-model-tracked-range-grows-only-when-typing-after', stickiness: TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
 ];
 
 function _normalizeOptions(options: IModelDecorationOptions): ModelDecorationOptions {
@@ -730,13 +730,13 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 
 	deltaCellStatusBarItems(oldItems: string[], newItems: INotebookDeltaCellStatusBarItems[]): string[] {
-		const deletesByHandle = groupByNumber(oldItems, id => this._statusBarItemIdToCellMap.get(id) ?? -1);
+		const deletesByHandle = groupBy(oldItems, id => this._statusBarItemIdToCellMap.get(id) ?? -1);
 
 		const result: string[] = [];
 		newItems.forEach(itemDelta => {
 			const cell = this.getCellByHandle(itemDelta.handle);
-			const deleted = deletesByHandle.get(itemDelta.handle) ?? [];
-			deletesByHandle.delete(itemDelta.handle);
+			const deleted = deletesByHandle[itemDelta.handle] ?? [];
+			delete deletesByHandle[itemDelta.handle];
 			const ret = cell?.deltaCellStatusBarItems(deleted, itemDelta.items) || [];
 			ret.forEach(id => {
 				this._statusBarItemIdToCellMap.set(id, itemDelta.handle);
@@ -745,10 +745,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			result.push(...ret);
 		});
 
-		deletesByHandle.forEach((ids, handle) => {
+		for (let _handle in deletesByHandle) {
+			const handle = parseInt(_handle);
+			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);
 			cell?.deltaCellStatusBarItems(ids, []);
-		});
+		}
 
 		return result;
 	}

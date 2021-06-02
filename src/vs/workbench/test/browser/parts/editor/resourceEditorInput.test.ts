@@ -10,9 +10,9 @@ import { workbenchInstantiationService } from 'vs/workbench/test/browser/workben
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
 
-suite('Resource editors', () => {
+suite('ResourceEditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 
@@ -34,7 +34,7 @@ suite('Resource editors', () => {
 	});
 
 	test('basics', async () => {
-		const resource = URI.from({ scheme: 'testResource', path: 'thePath' });
+		const resource = URI.from({ scheme: 'testResource', path: 'thePath/of/the/resource.txt' });
 
 		const input = instantiationService.createInstance(TestResourceEditorInput, resource);
 
@@ -48,8 +48,8 @@ suite('Resource editors', () => {
 		assert.ok(input.getTitle(Verbosity.MEDIUM).length > 0);
 		assert.ok(input.getTitle(Verbosity.LONG).length > 0);
 
-		assert.strictEqual(input.isReadonly(), false);
-		assert.strictEqual(input.isUntitled(), true);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Readonly), false);
+		assert.strictEqual(input.hasCapability(EditorInputCapabilities.Untitled), true);
 		assert.strictEqual(input.isOrphaned(), false);
 	});
 });

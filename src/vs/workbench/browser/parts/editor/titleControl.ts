@@ -4,16 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/titlecontrol';
+import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
-import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { localize } from 'vs/nls';
 import { createActionViewItem, createAndFillInActionBarActions, createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -26,18 +25,17 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { BreadcrumbsControl, IBreadcrumbsControlOptions } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
 import { IEditorGroupsAccessor, IEditorGroupTitleHeight, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
-import { EditorCommandsContextActionRunner, IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, IEditorInput, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, ActiveEditorPinnedContext, ActiveEditorStickyContext, EditorsOrder } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IFileService } from 'vs/platform/files/common/files';
 import { withNullAsUndefined, withUndefinedAsNull, assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
-import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export interface IToolbarActions {
@@ -57,6 +55,19 @@ export interface ITitleControlDimensions {
 	 * other controls that are positioned inside the container.
 	 */
 	available: Dimension;
+}
+
+export class EditorCommandsContextActionRunner extends ActionRunner {
+
+	constructor(
+		private context: IEditorCommandsContext
+	) {
+		super();
+	}
+
+	override run(action: IAction): Promise<void> {
+		return super.run(action, this.context);
+	}
 }
 
 export abstract class TitleControl extends Themable {
@@ -254,11 +265,16 @@ export abstract class TitleControl extends Themable {
 				e.dataTransfer.effectAllowed = 'copyMove';
 			}
 
-			// If tabs are disabled, treat dragging as if an editor tab was dragged
+			// Drag all tabs of the group if tabs are enabled
 			let hasDataTransfer = false;
-			if (!this.accessor.partOptions.showTabs) {
+			if (this.accessor.partOptions.showTabs) {
+				hasDataTransfer = this.doFillResourceDataTransfers(this.group.getEditors(EditorsOrder.SEQUENTIAL), e);
+			}
+
+			// Otherwise only drag the active editor
+			else {
 				if (this.group.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers(this.group.activeEditor, e);
+					hasDataTransfer = this.doFillResourceDataTransfers([this.group.activeEditor], e);
 				}
 			}
 
@@ -284,29 +300,14 @@ export abstract class TitleControl extends Themable {
 		}));
 	}
 
-	protected doFillResourceDataTransfers(editor: IEditorInput, e: DragEvent): boolean {
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		if (!resource) {
-			return false;
+	protected doFillResourceDataTransfers(editors: readonly IEditorInput[], e: DragEvent): boolean {
+		if (editors.length) {
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.group.id })), e);
+
+			return true;
 		}
 
-		const editorOptions: ITextEditorOptions = {
-			viewState: (() => {
-				if (this.group.activeEditor === editor) {
-					const activeControl = this.group.activeEditorPane?.getControl();
-					if (isCodeEditor(activeControl)) {
-						return withNullAsUndefined(activeControl.saveViewState());
-					}
-				}
-
-				return undefined;
-			})(),
-			sticky: this.group.isSticky(editor)
-		};
-
-		this.instantiationService.invokeFunction(fillResourceDataTransfers, [resource], () => editorOptions, e);
-
-		return true;
+		return false;
 	}
 
 	protected onContextMenu(editor: IEditorInput, e: Event, node: HTMLElement): void {
@@ -379,6 +380,8 @@ export abstract class TitleControl extends Themable {
 	abstract setActive(isActive: boolean): void;
 
 	abstract updateEditorLabel(editor: IEditorInput): void;
+
+	abstract updateEditorCapabilities(editor: IEditorInput): void;
 
 	abstract updateEditorLabels(): void;
 

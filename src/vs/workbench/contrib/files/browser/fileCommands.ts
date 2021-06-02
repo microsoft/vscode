@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -243,8 +244,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				leftResource: resources[0],
-				rightResource: resources[1],
+				originalInput: { resource: resources[0] },
+				modifiedInput: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -262,8 +263,8 @@ CommandsRegistry.registerCommand({
 		const rightResource = getResourceForCommand(resource, listService, editorService);
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
-				leftResource: globalResourceToCompare,
-				rightResource,
+				originalInput: { resource: globalResourceToCompare },
+				modifiedInput: { resource: rightResource },
 				options: { pinned: true }
 			});
 		}
@@ -386,7 +387,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// See also https://github.com/microsoft/vscode/issues/106330
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -550,7 +551,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		try {
-			await editorService.revert(editors.filter(({ editor }) => !editor.isUntitled() /* all except untitled */), { force: true });
+			await editorService.revert(editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled */), { force: true });
 		} catch (error) {
 			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}

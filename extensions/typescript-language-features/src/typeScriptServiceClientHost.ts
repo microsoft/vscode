@@ -30,6 +30,7 @@ import * as typeConverters from './utils/typeConverters';
 import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
 import * as ProjectStatus from './utils/largeProjectStatus';
 import { ActiveJsTsEditorTracker } from './utils/activeJsTsEditorTracker';
+import { LogLevelMonitor } from './utils/logLevelMonitor';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = new Set([
@@ -147,6 +148,7 @@ export default class TypeScriptServiceClientHost extends Disposable {
 
 		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this._disposables);
 		this.configurationChanged();
+		this._register(new LogLevelMonitor(context));
 	}
 
 	private registerExtensionLanguageProvider(description: LanguageDescription, onCompletionAccepted: (item: vscode.CompletionItem) => void) {

@@ -65,6 +65,7 @@ import './mainThreadComments';
 import './mainThreadNotebook';
 import './mainThreadNotebookKernels';
 import './mainThreadNotebookDocumentsAndEditors';
+import './mainThreadNotebookRenderers';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';

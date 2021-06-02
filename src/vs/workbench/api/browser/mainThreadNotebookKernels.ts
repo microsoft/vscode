@@ -185,7 +185,6 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 				await that._proxy.$cancelCells(handle, uri, handles);
 			}
 		}(data, this._modeService);
-		const registration = this._notebookKernelService.registerKernel(kernel);
 
 		const listener = this._notebookKernelService.onDidChangeNotebookKernelBinding(e => {
 			if (e.oldKernel === kernel.id) {
@@ -195,6 +194,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			}
 		});
 
+		const registration = this._notebookKernelService.registerKernel(kernel);
 		this._kernels.set(handle, [kernel, combinedDisposable(listener, registration)]);
 	}
 

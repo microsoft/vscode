@@ -56,7 +56,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -1239,7 +1239,7 @@ class ViewModel {
 	}
 
 	focus() {
-		if (this.tree.getFocus().length === 0) {
+		if (this.tree.getFocus().length === 0 && !platform.isIOS) {
 			for (const repository of this.scmViewService.visibleRepositories) {
 				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
 
@@ -2161,6 +2161,11 @@ registerThemingParticipant((theme, collector) => {
 		.scm-view .scm-editor-container .monaco-editor,
 		.scm-view .scm-editor-container .monaco-editor .margin
 		{ background-color: ${inputBackgroundColor} !important; }`);
+	}
+
+	const selectionBackgroundColor = theme.getColor(selectionBackground) ?? theme.getColor(editorSelectionBackground);
+	if (selectionBackgroundColor) {
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	}
 
 	const inputForegroundColor = theme.getColor(inputForeground);

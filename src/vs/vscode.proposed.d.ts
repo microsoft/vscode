@@ -80,16 +80,10 @@ declare module 'vscode' {
 		constructor(host: string, port: number, connectionToken?: string);
 	}
 
-	export enum RemoteTrustOption {
-		Unknown = 0,
-		DisableTrust = 1,
-		MachineTrusted = 2
-	}
-
 	export interface ResolvedOptions {
 		extensionHostEnv?: { [key: string]: string | null; };
 
-		trust?: RemoteTrustOption;
+		isTrusted?: boolean;
 	}
 
 	export interface TunnelOptions {
@@ -150,7 +144,24 @@ declare module 'vscode' {
 	}
 
 	export interface RemoteAuthorityResolver {
+		/**
+		 * Resolve the authority part of the current opened `vscode-remote://` URI.
+		 *
+		 * This method will be invoked once during the startup of VS Code and again each time
+		 * VS Code detects a disconnection.
+		 *
+		 * @param authority The authority part of the current opened `vscode-remote://` URI.
+		 * @param context A context indicating if this is the first call or a subsequent call.
+		 */
 		resolve(authority: string, context: RemoteAuthorityResolverContext): ResolverResult | Thenable<ResolverResult>;
+
+		/**
+		 * Get the canonical URI (if applicable) for a `vscode-remote://` URI.
+		 *
+		 * @returns The canonical URI or undefined if the uri is already canonical.
+		 */
+		getCanonicalURI?(uri: Uri): ProviderResult<Uri>;
+
 		/**
 		 * Can be optionally implemented if the extension can forward ports better than the core.
 		 * When not implemented, the core will use its default forwarding logic.
@@ -891,9 +902,37 @@ declare module 'vscode' {
 
 	export interface TerminalOptions {
 		/**
-		 * A codicon ID to associate with this terminal.
+		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		readonly icon?: string;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
+	}
+
+	export interface ExtensionTerminalOptions {
+		/**
+		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
+		 */
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | { id: string, color?: { id: string } };
+	}
+
+	//#endregion
+
+	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
+
+	export namespace window {
+		/**
+		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
+		 */
+		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
+	}
+
+	export interface TerminalProfileProvider {
+		/**
+		 * Provide terminal profile options for the requested terminal.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 */
+		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
 	//#endregion
@@ -945,59 +984,6 @@ declare module 'vscode' {
 		 */
 		group?: string;
 	}
-	//#endregion
-
-	//#region Status bar item with ID and Name: https://github.com/microsoft/vscode/issues/74972
-
-	/**
-	 * Options to configure the status bar item.
-	 */
-	export interface StatusBarItemOptions {
-
-		/**
-		 * A unique identifier of the status bar item. The identifier
-		 * is for example used to allow a user to show or hide the
-		 * status bar item in the UI.
-		 */
-		id: string;
-
-		/**
-		 * A human readable name of the status bar item. The name is
-		 * for example used as a label in the UI to show or hide the
-		 * status bar item.
-		 */
-		name: string;
-
-		/**
-		 * Accessibility information used when screen reader interacts with this status bar item.
-		 */
-		accessibilityInformation?: AccessibilityInformation;
-
-		/**
-		 * The alignment of the status bar item.
-		 */
-		alignment?: StatusBarAlignment;
-
-		/**
-		 * The priority of the status bar item. Higher value means the item should
-		 * be shown more to the left.
-		 */
-		priority?: number;
-	}
-
-	export namespace window {
-
-		/**
-		 * Creates a status bar {@link StatusBarItem item}.
-		 *
-		 * @param options The options of the item. If not provided, some default values
-		 * will be assumed. For example, the `StatusBarItemOptions.id` will be the id
-		 * of the extension and the `StatusBarItemOptions.name` will be the extension name.
-		 * @return A new status bar item.
-		 */
-		export function createStatusBarItem(options?: StatusBarItemOptions): StatusBarItem;
-	}
-
 	//#endregion
 
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
@@ -1060,7 +1046,6 @@ declare module 'vscode' {
 	 *
 	 * NotebookCell instances are immutable and are kept in sync for as long as they are part of their notebook.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export interface NotebookCell {
 
 		/**
@@ -1283,49 +1268,138 @@ declare module 'vscode' {
 		with(change: { start?: number, end?: number }): NotebookRange;
 	}
 
-	// code specific mime types
-	// application/x.notebook.error-traceback
-	// application/x.notebook.stdout
-	// application/x.notebook.stderr
-	// application/x.notebook.stream
+	/**
+	 * One representation of a {@link NotebookCellOutput notebook output}, defined by MIME type and data.
+	 */
+	// todo@API document which mime types are supported out of the box and
+	// which are considered secure
 	export class NotebookCellOutputItem {
 
-		// todo@API
-		// add factory functions for common mime types
-		// static textplain(value:string): NotebookCellOutputItem;
-		// static errortrace(value:any): NotebookCellOutputItem;
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` from a string.
+		 *
+		 * *Note* that an UTF-8 encoder is used to create bytes for the string.
+		 *
+		 * @param value A string.
+		 * @param mime Optional MIME type, defaults to `text/plain`.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static text(value: string, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
 		/**
-		 * Creates `application/x.notebook.error`
+		 * Factory function to create a `NotebookCellOutputItem` from
+		 * a JSON object.
 		 *
-		 * @param err An error for which an output item is wanted
+		 * *Note* that this function is not expecting "stringified JSON" but
+		 * an object that can be stringified. This function will throw an error
+		 * when the passed value cannot be JSON-stringified.
+		 *
+		 * @param value A JSON-stringifyable value.
+		 * @param mime Optional MIME type, defaults to `application/json`
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
 		 */
-		static error(err: Error): NotebookCellOutputItem;
+		static json(value: any, mime?: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
 
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.stdout` mime type.
+		 *
+		 * @param value A string.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static stdout(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.stderr` mime type.
+		 *
+		 * @param value A string.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static stderr(value: string, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * Factory function to create a `NotebookCellOutputItem` that uses
+		 * uses the `application/vnd.code.notebook.error` mime type.
+		 *
+		 * @param value An error object.
+		 * @param metadata Optional metadata.
+		 * @returns A new output item object.
+		 */
+		static error(value: Error, metadata?: { [key: string]: any }): NotebookCellOutputItem;
+
+		/**
+		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
+		 * is interpreted.
+		 *
+		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
+		 * types and override existing types.
+		 */
 		mime: string;
 
-		//todo@API string or Unit8Array?
-		// value: string | Uint8Array | unknown;
-		value: unknown;
+		/**
+		 * The data of this output item. Must always be an array of unsigned 8-bit integers.
+		 */
+		data: Uint8Array;
 
+		//todo@API
 		metadata?: { [key: string]: any };
 
-		constructor(mime: string, value: unknown, metadata?: { [key: string]: any });
+		/**
+		 * Create a new notbook cell output item.
+		 *
+		 * @param data The value of the output item.
+		 * @param mime The mime type of the output item.
+		 * @param metadata Optional metadata for this output item.
+		 */
+		constructor(data: Uint8Array, mime: string, metadata?: { [key: string]: any });
 	}
 
-	// @jrieken transient
+	/**
+	 * Notebook cell output represents a result of executing a cell. It is a container type for multiple
+	 * {@link NotebookCellOutputItem output items} where contained items represent the same result but
+	 * use different MIME types.
+	 */
+	//todo@API - add sugar function to add more outputs
 	export class NotebookCellOutput {
+
+		/**
+		 * Identifier for this output. Using the identifier allows a subsequent execution to modify
+		 * existing output. Defaults to a fresh UUID.
+		 */
 		id: string;
+
+		/**
+		 * The output items of this output. Each item must represent the same result. _Note_ that repeated
+		 * MIME types per output is invalid and that the editor will just pick one of them.
+		 *
+		 * ```ts
+		 * new vscode.NotebookCellOutput([
+		 * 	vscode.NotebookCellOutputItem.text('Hello', 'text/plain'),
+		 * 	vscode.NotebookCellOutputItem.text('<i>Hello</i>', 'text/html'),
+		 * 	vscode.NotebookCellOutputItem.text('_Hello_', 'text/markdown'),
+		 * 	vscode.NotebookCellOutputItem.text('Hey', 'text/plain'), // INVALID: repeated type, editor will pick just one
+		 * ])
+		 * ```
+		 */
+		//todo@API rename to items
 		outputs: NotebookCellOutputItem[];
+
+		//todo@API
 		metadata?: { [key: string]: any };
+
 		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+
 		constructor(outputs: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
 	/**
 	 * NotebookCellData is the raw representation of notebook cells. Its is part of {@link NotebookData `NotebookData`}.
 	 */
-	// todo@API support ids https://github.com/jupyter/enhancement-proposals/blob/master/62-cell-id/cell-id.md
 	export class NotebookCellData {
 
 		/**
@@ -1459,31 +1533,25 @@ declare module 'vscode' {
 		(this: NotebookController, cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
 	}
 
-	export interface NotebookInterruptHandler {
-		/**
-		 * @param notebook The notebook for which the interrupt handler is being called.
-		 */
-		(this: NotebookController, notebook: NotebookDocument): void | Thenable<void>;
-	}
-
 	export enum NotebookControllerAffinity {
 		Default = 1,
 		Preferred = 2
 	}
 
-	// todo@API this is called Controller
-	export class NotebookKernelPreload {
+
+	export class NotebookRendererScript {
+
 		/**
 		 * APIs that the preload provides to the renderer. These are matched
 		 * against the `dependencies` and `optionalDependencies` arrays in the
 		 * notebook renderer contribution point.
 		 */
-		readonly provides: string[];
+		provides: string[];
 
 		/**
 		 * URI for the file to preload
 		 */
-		readonly uri: Uri;
+		uri: Uri;
 
 		/**
 		 * @param uri URI for the file to preload
@@ -1513,31 +1581,53 @@ declare module 'vscode' {
 		endTime?: number;
 	}
 
-	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecutionTask
+	// todo@API jsdoc slightly outdated: kernel, notebook.createNotebookCellExecution
 	/**
-	 * A NotebookCellExecutionTask is how the kernel modifies a notebook cell as it is executing. When
-	 * {@link notebook.createNotebookCellExecutionTask `createNotebookCellExecutionTask`} is called, the cell
+	 * A NotebookCellExecution is how the kernel modifies a notebook cell as it is executing. When
+	 * {@link notebook.createNotebookCellExecution `createNotebookCellExecution`} is called, the cell
 	 * enters the Pending state. When `start()` is called on the execution task, it enters the Executing state. When
 	 * `end()` is called, it enters the Idle state. While in the Executing state, cell outputs can be
 	 * modified with the methods on the run task.
 	 *
-	 * All outputs methods operate on this NotebookCellExecutionTask's cell by default. They optionally take
+	 * All outputs methods operate on this NotebookCellExecution's cell by default. They optionally take
 	 * a cellIndex parameter that allows them to modify the outputs of other cells. `appendOutputItems` and
 	 * `replaceOutputItems` operate on the output with the given ID, which can be an output on any cell. They
 	 * all resolve once the output edit has been applied.
 	 */
-	export interface NotebookCellExecutionTask {
-		readonly document: NotebookDocument;
+	export interface NotebookCellExecution {
+
+		/**
+		 * The {@link NotebookCell cell} for which this execution has been created.
+		 */
 		readonly cell: NotebookCell;
+
+		/**
+		 * A cancellation token which will be triggered when the cell execution is canceled
+		 * from the UI.
+		 *
+		 * _Note_ that the cancellation token will not be triggered when the {@link NotebookController controller}
+		 * that created this execution uses an {@link NotebookController.interruptHandler interrupt-handler}.
+		 */
 		readonly token: CancellationToken;
 
-		start(context?: NotebookCellExecuteStartContext): void;
+		//todo@API remove? use cell.notebook instead?
+		readonly document: NotebookDocument;
+
+		/**
+		 * Set and unset the order of this cell execution.
+		 */
 		executionOrder: number | undefined;
+
+		// todo@API inline context object?
+		start(context?: NotebookCellExecuteStartContext): void;
+		// todo@API inline context object?
 		end(result?: NotebookCellExecuteEndContext): void;
 
+		// todo@API use object instead of index? FF
 		clearOutput(cellIndex?: number): Thenable<void>;
 		appendOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
 		replaceOutput(out: NotebookCellOutput | NotebookCellOutput[], cellIndex?: number): Thenable<void>;
+		// todo@API use object instead of index?
 		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], outputId: string): Thenable<void>;
 	}
@@ -1546,6 +1636,9 @@ declare module 'vscode' {
 
 		/**
 		 * The identifier of this notebook controller.
+		 *
+		 * _Note_ that controllers are remembered by their identifier and that extensions should use
+		 * stable identifiers across sessions.
 		 */
 		readonly id: string;
 
@@ -1595,16 +1688,23 @@ declare module 'vscode' {
 
 		/**
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
-		 * Run Selection etc.
+		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
 		executeHandler: NotebookExecuteHandler;
 
 		/**
-		 * The interrupt handler is invoked the interrupt all execution. This is contrary to cancellation (available via
-		 * [`NotebookCellExecutionTask#token`](NotebookCellExecutionTask#token)) and should only be used when
-		 * execution-level cancellation is supported
+		 * Optional interrupt handler.
+		 *
+		 * By default cell execution is canceled via {@link NotebookCellExecution.token tokens}. Cancellation
+		 * tokens require that a controller can keep track of its execution so that it can cancel a specific execution at a later
+		 * point. Not all scenarios allow for that, eg. REPL-style controllers often work by interrupting whatever is currently
+		 * running. For those cases the {@link NotebookInterruptHandler interrupt handler} exists - it can be thought of as the
+		 * equivalent of `SIGINT` or `Control+C` in terminals.
+		 *
+		 * _Note_ that supporting {@link NotebookCellExecution.token cancellation tokens} is preferred and that interrupt handlers should
+		 * only be used when tokens cannot be supported.
 		 */
-		interruptHandler?: NotebookInterruptHandler
+		interruptHandler?: (this: NotebookController, notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
 		 * Dispose and free associated resources.
@@ -1637,12 +1737,10 @@ declare module 'vscode' {
 		 * @param cell The notebook cell for which to create the execution.
 		 * @returns A notebook cell execution.
 		 */
-		createNotebookCellExecutionTask(cell: NotebookCell): NotebookCellExecutionTask;
+		createNotebookCellExecution(cell: NotebookCell): NotebookCellExecution;
 
-		// todo@API find a better name than "preloads"
 		// todo@API allow add, not remove
-		// ipc
-		readonly preloads: NotebookKernelPreload[];
+		readonly rendererScripts: NotebookRendererScript[];
 
 		/**
 		 * An event that fires when a renderer (see `preloads`) has send a message to the controller.
@@ -1742,6 +1840,17 @@ declare module 'vscode' {
 		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
 
 		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param viewType The notebook view type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(viewType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
 		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
 		 */
 		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
@@ -1776,9 +1885,9 @@ declare module 'vscode' {
 		 * @param viewType A notebook view type for which this controller is for.
 		 * @param label The label of the controller
 		 * @param handler
-		 * @param preloads
+		 * @param rendererScripts
 		 */
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, preloads?: NotebookKernelPreload[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
 		// todo@API what is this used for?
 		// todo@API qualify cell, ...NotebookCell...
@@ -2154,6 +2263,52 @@ declare module 'vscode' {
 		 * The return-type of a function or type of a property/variable. Rendered rightmost.
 		 */
 		type?: string;
+	}
+
+	//#endregion
+
+	//#region @connor4312 - notebook messaging: https://github.com/microsoft/vscode/issues/123601
+
+	export interface NotebookRendererMessage<T> {
+		/**
+		 * Editor that sent the message.
+		 */
+		editor: NotebookEditor;
+
+		/**
+		 * Message sent from the webview.
+		 */
+		message: T;
+	}
+
+	/**
+	 * Renderer messaging is used to communicate with a single renderer. It's
+	 * returned from {@link notebook.createRendererMessaging}.
+	 */
+	export interface NotebookRendererMessaging<TSend = any, TReceive = TSend> {
+		/**
+		 * Events that fires when a message is received from a renderer.
+		 */
+		onDidReceiveMessage: Event<NotebookRendererMessage<TReceive>>;
+
+		/**
+		 * Sends a message to the renderer.
+		 * @param editor Editor to target with the message
+		 * @param message Message to send
+		 */
+		postMessage(editor: NotebookEditor, message: TSend): void;
+	}
+
+	export namespace notebook {
+		/**
+		 * Creates a new messaging instance used to communicate with a specific
+		 * renderer. The renderer only has access to messaging if `requiresMessaging`
+		 * is set in its contribution.
+		 *
+		 * @see https://github.com/microsoft/vscode/issues/123601
+		 * @param rendererId The renderer ID to communicate with
+		 */
+		export function createRendererMessaging<TSend = any, TReceive = TSend>(rendererId: string): NotebookRendererMessaging<TSend, TReceive>;
 	}
 
 	//#endregion
@@ -3190,6 +3345,69 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region @joaomoreno https://github.com/microsoft/vscode/issues/124263
+	// This API change only affects behavior and documentation, not API surface.
+
+	namespace env {
+
+		/**
+		 * Resolves a uri to form that is accessible externally.
+		 *
+		 * #### `http:` or `https:` scheme
+		 *
+		 * Resolves an *external* uri, such as a `http:` or `https:` link, from where the extension is running to a
+		 * uri to the same resource on the client machine.
+		 *
+		 * This is a no-op if the extension is running on the client machine.
+		 *
+		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
+		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
+		 * the port forwarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 *
+		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
+		 *
+		 * #### `vscode.env.uriScheme`
+		 *
+		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
+		 * to trigger.
+		 *
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
+		 * argument to the server to authenticate to.
+		 *
+		 * *Note* that if the server decides to add additional query parameters to the uri (e.g. a token or secret), it
+		 * will appear in the uri that is passed to the {@link UriHandler}.
+		 *
+		 * **Example** of an authentication flow:
+		 * ```typescript
+		 * vscode.window.registerUriHandler({
+		 *   handleUri(uri: vscode.Uri): vscode.ProviderResult<void> {
+		 *     if (uri.path === '/did-authenticate') {
+		 *       console.log(uri.toString());
+		 *     }
+		 *   }
+		 * });
+		 *
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * await vscode.env.openExternal(callableUri);
+		 * ```
+		 *
+		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
+		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
+		 * `asExternalUri`.
+		 *
+		 * #### Any other scheme
+		 *
+		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
+		 * a URI which, when handled, will make VS Code open the workspace.
+		 *
+		 * @return A uri that can be used on the client machine.
+		 */
+		export function asExternalUri(target: Uri): Thenable<Uri>;
+	}
+
+	//#endregion
+
 	//#region https://github.com/Microsoft/vscode/issues/15178
 
 	// TODO@API must be a class
@@ -3298,6 +3516,93 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region https://github.com/microsoft/vscode/issues/124024 @hediet @alexdima
+
+	export namespace languages {
+		export function registerInlineCompletionItemProvider(selector: DocumentSelector, provider: InlineCompletionItemProvider): Disposable;
+	}
+
+	export interface InlineCompletionItemProvider<T extends InlineCompletionItem = InlineCompletionItem> {
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T>>;
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
+	}
+
+	/**
+	 * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1,
+	}
+
+	export class InlineCompletionList<T extends InlineCompletionItem = InlineCompletionItem> {
+		items: T[];
+
+		constructor(items: T[]);
+	}
+
+	export class InlineCompletionItem {
+		/**
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
+		text: string;
+
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		*/
+		range?: Range;
+
+		/**
+		 * An optional {@link Command} that is executed *after* inserting this completion.
+		 */
+		command?: Command;
+
+		constructor(text: string, range?: Range, command?: Command);
+	}
+
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export namespace window {
+		export function getInlineCompletionItemController<T extends InlineCompletionItem>(provider: InlineCompletionItemProvider<T>): InlineCompletionController<T>;
+	}
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionController<T extends InlineCompletionItem> {
+		// eslint-disable-next-line vscode-dts-event-naming
+		readonly onDidShowCompletionItem: Event<InlineCompletionItemDidShowEvent<T>>;
+	}
+
+	/**
+	 * Be aware that this API will not ever be finalized.
+	 */
+	export interface InlineCompletionItemDidShowEvent<T extends InlineCompletionItem> {
+		completionItem: T;
+	}
+
+	//#endregion
+
 	//#region FileSystemProvider stat readonly - https://github.com/microsoft/vscode/issues/73122
 
 	export enum FilePermission {
@@ -3323,6 +3628,18 @@ declare module 'vscode' {
 		 * *Note:* This value might be a bitmask, e.g. `FilePermission.Readonly | FilePermission.Other`.
 		 */
 		permissions?: FilePermission;
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/87110 @eamodio
+
+	export interface Memento {
+
+		/**
+		 * The stored keys.
+		 */
+		readonly keys: readonly string[];
 	}
 
 	//#endregion

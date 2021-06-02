@@ -33,6 +33,9 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
 	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
+	private readonly _onDidChangeEditable = this._register(new Emitter<void>());
+	public readonly onDidChangeEditable = this._onDidChangeEditable.event;
+
 	constructor(
 		public readonly viewType: string,
 		private readonly _resource: URI,
@@ -47,6 +50,7 @@ export class CustomTextEditorModel extends Disposable implements ICustomEditorMo
 		this._textFileModel = this.textFileService.files.get(_resource);
 		if (this._textFileModel) {
 			this._register(this._textFileModel.onDidChangeOrphaned(() => this._onDidChangeOrphaned.fire()));
+			this._register(this._textFileModel.onDidChangeReadonly(() => this._onDidChangeEditable.fire()));
 		}
 
 		this._register(this.textFileService.files.onDidChangeDirty(e => {

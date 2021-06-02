@@ -35,10 +35,9 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ScrollEvent } from 'vs/base/common/scrollable';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -408,7 +407,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		options.orientation = this.orientation;
 		this.paneview = this._register(new PaneView(parent, this.options));
 		this._register(this.paneview.onDidDrop(({ from, to }) => this.movePane(from as ViewPane, to as ViewPane)));
-		this._register(this.paneview.onScroll(e => this.onPaneScroll(e)));
+		this._register(this.paneview.onDidScroll(_ => this.onDidScrollPane()));
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, (e: MouseEvent) => this.showContextMenu(new StandardMouseEvent(e))));
 
 		this._menuActions = this._register(this.instantiationService.createInstance(ViewContainerMenuActions, this.paneview.element, this.viewContainer));
@@ -1066,9 +1065,9 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 		return true;
 	}
 
-	private onPaneScroll(e: ScrollEvent) {
+	private onDidScrollPane() {
 		for (const pane of this.panes) {
-			pane.onRootScroll();
+			pane.onDidScrollRoot();
 		}
 	}
 

@@ -26,8 +26,8 @@ import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/cont
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { EditorOptions, IEditorPane } from 'vs/workbench/common/editor';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorPane } from 'vs/workbench/common/editor';
+import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
@@ -49,6 +49,7 @@ export const NOTEBOOK_CELL_LIST_FOCUSED = new RawContextKey<boolean>('notebookCe
 export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutputFocused', false);
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
+export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
@@ -67,6 +68,8 @@ export const NOTEBOOK_CELL_OUTPUT_COLLAPSED = new RawContextKey<boolean>('notebo
 export const NOTEBOOK_KERNEL_COUNT = new RawContextKey<number>('notebookKernelCount', 0);
 export const NOTEBOOK_KERNEL_SELECTED = new RawContextKey<boolean>('notebookKernelSelected', false);
 export const NOTEBOOK_INTERRUPTIBLE_KERNEL = new RawContextKey<boolean>('notebookInterruptibleKernel', false);
+
+export const NOTEBOOK_HAS_OUTPUTS = new RawContextKey<boolean>('notebookHasOutputs', false);
 
 //#endregion
 
@@ -89,6 +92,7 @@ export interface IRenderMainframeOutput {
 	type: RenderOutputType.Mainframe;
 	supportAppend?: boolean;
 	initHeight?: number;
+	disposable?: IDisposable;
 }
 
 export interface IRenderPlainHtmlOutput {
@@ -116,6 +120,7 @@ export interface ICellOutputViewModel {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
 	pickedMimeType: number;
 	supportAppend(): boolean;
+	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
 }
 
@@ -170,16 +175,16 @@ export interface ICommonNotebookEditor {
 	triggerScroll(event: IMouseWheelEvent): void;
 	getCellByInfo(cellInfo: ICommonCellInfo): IGenericCellViewModel;
 	getCellById(cellId: string): IGenericCellViewModel | undefined;
-	toggleNotebookCellSelection(cell: IGenericCellViewModel): void;
+	toggleNotebookCellSelection(cell: IGenericCellViewModel, selectFromPrevious: boolean): void;
 	focusNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, position: { clientY: number }): void;
-	markdownCellDrag(cellId: string, position: { clientY: number }): void;
-	markdownCellDrop(cellId: string, position: { clientY: number, ctrlKey: boolean, altKey: boolean }): void;
+	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
+	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
 	markdownCellDragEnd(cellId: string): void;
 }
 
@@ -232,6 +237,7 @@ export interface MarkdownCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
+	readonly previewHeight: number;
 	readonly bottomToolbarOffset: number;
 	readonly totalHeight: number;
 }
@@ -239,6 +245,8 @@ export interface MarkdownCellLayoutInfo {
 export interface MarkdownCellLayoutChangeEvent {
 	font?: FontInfo;
 	outerWidth?: number;
+	editorHeight?: number;
+	previewHeight?: number;
 	totalHeight?: number;
 }
 
@@ -317,23 +325,10 @@ export interface INotebookDeltaCellStatusBarItems {
 	items: INotebookCellStatusBarItem[];
 }
 
-export class NotebookEditorOptions extends EditorOptions {
-
-	readonly cellOptions?: IResourceEditorInput;
+export interface INotebookEditorOptions extends ITextEditorOptions {
+	readonly cellOptions?: ITextResourceEditorInput;
 	readonly cellSelections?: ICellRange[];
 	readonly isReadOnly?: boolean;
-
-	constructor(options: Partial<NotebookEditorOptions>) {
-		super();
-		this.overwrite(options);
-		this.cellOptions = options.cellOptions;
-		this.cellSelections = options.cellSelections;
-		this.isReadOnly = options.isReadOnly;
-	}
-
-	with(options: Partial<NotebookEditorOptions>): NotebookEditorOptions {
-		return new NotebookEditorOptions({ ...this, ...options });
-	}
 }
 
 export type INotebookEditorContributionCtor = IConstructorSignature1<INotebookEditor, INotebookEditorContribution>;
@@ -403,7 +398,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
-	setOptions(options: NotebookEditorOptions | undefined): Promise<void>;
+	setOptions(options: INotebookEditorOptions | undefined): Promise<void>;
 
 	/**
 	 * Select & focus cell

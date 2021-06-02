@@ -33,6 +33,15 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 		super();
 	}
 
+	hasMultiMimeType() {
+		if (this._outputRawData.outputs.length < 2) {
+			return false;
+		}
+
+		const firstMimeType = this._outputRawData.outputs[0].mime;
+		return this._outputRawData.outputs.some(output => output.mime !== firstMimeType);
+	}
+
 	supportAppend() {
 		// if there is any mime type that's not mergeable then the whole output is not mergeable.
 		return this._outputRawData.outputs.every(op => mimeTypeIsMergeable(op.mime));
