@@ -291,6 +291,10 @@ export class CodeCell extends Disposable {
 	}
 
 	private onCellWidthChange(): void {
+		if (!this.templateData.editor.hasModel()) {
+			return;
+		}
+
 		const realContentHeight = this.templateData.editor.getContentHeight();
 		this.viewCell.editorHeight = realContentHeight;
 		this.relayoutCell();
