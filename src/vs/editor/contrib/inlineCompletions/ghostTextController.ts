@@ -104,11 +104,33 @@ export class GhostTextController extends Disposable {
 	}
 }
 
+// TODO: This should be local state to the editor.
+// The global state should depend on the local state of the currently focused editor.
+// Currently the global state is updated directly, which may lead to conflicts if multiple ghost texts are active.
 class GhostTextContextKeys {
-	public readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
-	public readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineCompletionSuggestsIndentation.bindTo(this.contextKeyService);
+	private lastInlineCompletionVisibleValue = false;
+	private readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
+
+	private lastInlineCompletionSuggestsIndentationValue = false;
+	private readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineCompletionSuggestsIndentation.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
+	}
+
+	public setInlineCompletionVisible(value: boolean): void {
+		// Only modify the context key if we actually changed it.
+		// Thus, we don't overwrite values set by someone else.
+		if (value !== this.lastInlineCompletionVisibleValue) {
+			this.inlineCompletionVisible.set(value);
+			this.lastInlineCompletionVisibleValue = value;
+		}
+	}
+
+	public setInlineCompletionSuggestsIndentation(value: boolean): void {
+		if (value !== this.lastInlineCompletionSuggestsIndentationValue) {
+			this.inlineCompletionSuggestsIndentation.set(value);
+			this.lastInlineCompletionSuggestsIndentationValue = value;
+		}
 	}
 }
 
@@ -143,8 +165,8 @@ export class ActiveGhostTextController extends Disposable {
 			if (widget.model === this.suggestWidgetAdapterModel || widget.model === this.inlineCompletionsModel) {
 				widget.setModel(undefined);
 			}
-			this.contextKeys.inlineCompletionVisible.set(false);
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+			this.contextKeys.setInlineCompletionVisible(false);
+			this.contextKeys.setInlineCompletionSuggestsIndentation(false);
 		}));
 
 		if (this.inlineCompletionsModel) {
@@ -155,7 +177,7 @@ export class ActiveGhostTextController extends Disposable {
 	}
 
 	private updateContextKeys(): void {
-		this.contextKeys.inlineCompletionVisible.set(
+		this.contextKeys.setInlineCompletionVisible(
 			this.activeInlineCompletionsModel?.ghostText !== undefined
 		);
 
@@ -166,12 +188,12 @@ export class ActiveGhostTextController extends Disposable {
 			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(p.lineNumber);
 			const inIndentation = p.column <= indentationEndColumn;
 
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(
+			this.contextKeys.setInlineCompletionSuggestsIndentation(
 				this.widget.model === this.inlineCompletionsModel
 				&& suggestionStartsWithWs && inIndentation
 			);
 		} else {
-			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
+			this.contextKeys.setInlineCompletionSuggestsIndentation(false);
 		}
 	}
 
