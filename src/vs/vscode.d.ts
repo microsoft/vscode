@@ -11612,7 +11612,7 @@ declare module 'vscode' {
 		static error(value: Error): NotebookCellOutputItem;
 
 		/**
-		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
+		 * The mime type which determines how the {@link NotebookCellOutputItem.data `data`}-property
 		 * is interpreted.
 		 *
 		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
@@ -11731,12 +11731,8 @@ declare module 'vscode' {
 		 * @param kind The kind.
 		 * @param value The source value.
 		 * @param languageId The language identifier of the source value.
-		 * @param outputs Optional outputs.
-		 * @param metadata Optional metadata.
-		 * @param executionSummary Optional execution summary.
 		 */
-		// todo@API should ctors only have the args for required properties?
-		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: { [key: string]: any }, executionSummary?: NotebookCellExecutionSummary);
+		constructor(kind: NotebookCellKind, value: string, languageId: string);
 	}
 
 	/**
@@ -12158,7 +12154,6 @@ declare module 'vscode' {
 	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
 	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
 	 */
-	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
 	export namespace notebooks {
 
 		/**
