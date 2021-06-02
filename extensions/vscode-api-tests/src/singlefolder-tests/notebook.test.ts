@@ -971,7 +971,7 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test('multiple tabs: two dirty tabs and switching', async function () {
+	test.skip('multiple tabs: two dirty tabs and switching', async function () {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
