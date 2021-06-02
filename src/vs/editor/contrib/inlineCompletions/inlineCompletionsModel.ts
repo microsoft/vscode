@@ -33,14 +33,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	) {
 		super();
 
-		this._register(this.editor.onDidType((e) => {
-			if (this.session && !this.session.isValid) {
-				this.hide();
+		this._register(commandService.onDidExecuteCommand(e => {
+			// These commands don't trigger onDidType.
+			const commands = new Set(['undo', 'redo', 'tab']);
+			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				this.handleUserInput();
 			}
-			setTimeout(() => {
-				// Wait for the cursor update that happens in the same iteration loop iteration
-				this.startSessionIfTriggered();
-			}, 0);
+		}));
+
+		this._register(this.editor.onDidType((e) => {
+			this.handleUserInput();
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
@@ -48,6 +50,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 		}));
+	}
+
+	private handleUserInput() {
+		if (this.session && !this.session.isValid) {
+			this.hide();
+		}
+		setTimeout(() => {
+			// Wait for the cursor update that happens in the same iteration loop iteration
+			this.startSessionIfTriggered();
+		}, 0);
 	}
 
 	private get session(): InlineCompletionsSession | undefined {
