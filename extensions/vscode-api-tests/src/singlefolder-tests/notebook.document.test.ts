@@ -255,7 +255,7 @@ suite('Notebook Document', function () {
 			value: 'new_code'
 		}]);
 
-		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebook.onDidChangeNotebookCells);
+		const event = utils.asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
 
 		const success = await vscode.workspace.applyEdit(edit);
 		assert.strictEqual(success, true);
