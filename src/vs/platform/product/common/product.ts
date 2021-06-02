@@ -66,10 +66,10 @@ else {
 			extensionAllowedProposedApi: [
 				'ms-vscode.vscode-js-profile-flame',
 				'ms-vscode.vscode-js-profile-table',
-				'ms-vscode.github-browser',
-				'ms-vscode.github-richnav',
 				'ms-vscode.remotehub',
-				'ms-vscode.remotehub-insiders'
+				'ms-vscode.remotehub-insiders',
+				'GitHub.remotehub',
+				'GitHub.remotehub-insiders'
 			],
 		});
 	}
