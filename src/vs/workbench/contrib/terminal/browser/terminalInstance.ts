@@ -936,7 +936,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	override dispose(immediate?: boolean, confirmed?: boolean): void {
 		if (this._configHelper.config.confirmOnExit && !confirmed) {
-			this._disposeAsync();
+			this._confirmDisposal();
 		} else {
 			this._logService.trace(`terminalInstance#dispose (instanceId: ${this.instanceId})`);
 			dispose(this._linkManager);
@@ -980,7 +980,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	private async _disposeAsync(): Promise<void> {
+	private async _confirmDisposal(): Promise<void> {
 		const result = await this._showTerminalCloseConfirmation();
 		if (result) {
 			return this.dispose(undefined, true);
