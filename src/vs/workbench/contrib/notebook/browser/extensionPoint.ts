@@ -64,12 +64,11 @@ const notebookProviderContribution: IJSONSchema = {
 		properties: {
 			[NotebookEditorContribution.type]: {
 				type: 'string',
-				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
+				description: nls.localize('contributes.notebook.provider.viewType', 'Type of the notebook.'),
 			},
 			[NotebookEditorContribution.viewType]: {
 				type: 'string',
-				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
-				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
+				deprecationMessage: nls.localize('viewType.deprecated2', 'Rename `viewType` to `type`.'),
 			},
 			[NotebookEditorContribution.displayName]: {
 				type: 'string',
