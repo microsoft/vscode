@@ -746,22 +746,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
-		const resources = this.extractEditorResources(editors);
+		const { resources, diffMode } = this.extractEditorResources(editors);
 
 		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(resources);
 		switch (trustResult) {
 			case WorkspaceTrustUriResponse.Open:
 				return true;
 			case WorkspaceTrustUriResponse.OpenInNewWindow:
-				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true });
+				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode });
 				return false;
 			case WorkspaceTrustUriResponse.Cancel:
 				return false;
 		}
 	}
 
-	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): URI[] {
+	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): { resources: URI[], diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
+		let diffMode = false;
 
 		for (const editor of editors) {
 
@@ -778,6 +779,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (resource.secondary) {
 						resources.set(resource.secondary, true);
 					}
+
+					diffMode = editor.editor instanceof DiffEditorInput;
 				}
 			}
 
@@ -794,6 +797,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (URI.isUri(modifiedResourceEditor.resource)) {
 						resources.set(modifiedResourceEditor.resource, true);
 					}
+
+					diffMode = true;
 				}
 
 				const resourceEditor = editor as IResourceEditorInput;
@@ -803,7 +808,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return Array.from(resources.keys());
+		return {
+			resources: Array.from(resources.keys()),
+			diffMode
+		};
 	}
 
 	//#endregion
