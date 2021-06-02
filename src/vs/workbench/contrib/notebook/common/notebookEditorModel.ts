@@ -498,7 +498,7 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 		if (!this._workingCopy) {
 			if (this.resource.scheme === Schemas.untitled) {
-				this._workingCopy = await this._workingCopyManager.resolve({ untitledResource: this.resource });
+				this._workingCopy = await this._workingCopyManager.resolve({ associatedResource: this.resource });
 			} else {
 				this._workingCopy = await this._workingCopyManager.resolve(this.resource, { forceReadFromFile: options?.forceReadFromFile });
 				this._workingCopyListeners.add(this._workingCopy.onDidSave(() => this._onDidSave.fire()));
