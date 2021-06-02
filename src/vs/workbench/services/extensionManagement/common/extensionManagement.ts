@@ -82,6 +82,12 @@ export interface IWorkbenchExtensionEnablementService {
 	isDisabledGlobally(extension: IExtension): boolean;
 
 	/**
+	 * Returns `true` if the given extension identifier is enabled by the user but it it
+	 * disabled due to the fact that the current window/folder/workspace is not trusted.
+	 */
+	isDisabledByWorkspaceTrust(extension: IExtension): boolean;
+
+	/**
 	 * Enable or disable the given extension.
 	 * if `workspace` is `true` then enablement is done for workspace, otherwise globally.
 	 *

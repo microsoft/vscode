@@ -1848,7 +1848,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
 		}
 		const result = await this._quickInputService.pick(items, {
-			title: nls.localize('changeTerminalIcon', "Change Icon"),
 			matchOnDescription: true
 		});
 		if (result && result.description) {
@@ -1894,7 +1893,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
-		quickPick.title = nls.localize('changeTerminalColor', "Change Color");
 		quickPick.show();
 		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {

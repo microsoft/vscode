@@ -11,7 +11,7 @@ import { workbenchInstantiationService, TestServiceAccessor, TestEditorService, 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputFactoryRegistry, Verbosity, EditorExtensions, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EncodingMode, TextFileOperationError, TextFileOperationResult } from 'vs/workbench/services/textfile/common/textfiles';
-import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { FileOperationResult, FileOperationError, NotModifiedSinceFileOperationError, FileSystemProviderCapabilities } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { timeout } from 'vs/base/common/async';
 import { ModesRegistry, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
@@ -20,6 +20,7 @@ import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel'
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInputSerializer } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
+import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFilesystemProvider';
 
 suite('Files - FileEditorInput', () => {
 
@@ -56,6 +57,11 @@ suite('Files - FileEditorInput', () => {
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
 		assert.ok(input.getTitle(Verbosity.SHORT));
+
+		assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input.hasCapability(EditorInputCapabilities.Singleton));
+		assert.ok(!input.hasCapability(EditorInputCapabilities.RequiresTrust));
 
 		const untypedInput = input.asResourceEditorInput(0);
 		assert.strictEqual(untypedInput.resource.toString(), input.resource.toString());
@@ -99,6 +105,30 @@ suite('Files - FileEditorInput', () => {
 			assert(stat !== getLastResolvedFileStat(resolved)); // Different stat, because resolve always goes to the server for refresh
 		} finally {
 			DisposableStore.DISABLE_DISPOSED_WARNING = false;
+		}
+	});
+
+	test('reports as untitled without supported file scheme', async function () {
+		let input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingScheme' }));
+
+		assert.ok(input.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(!input.hasCapability(EditorInputCapabilities.Readonly));
+	});
+
+	test('reports as readonly with readonly file scheme', async function () {
+
+		class ReadonlyInMemoryFileSystemProvider extends InMemoryFileSystemProvider {
+			override readonly capabilities: FileSystemProviderCapabilities = FileSystemProviderCapabilities.Readonly;
+		}
+
+		const disposable = accessor.fileService.registerProvider('someTestingReadonlyScheme', new ReadonlyInMemoryFileSystemProvider());
+		try {
+			let input = createFileInput(toResource.call(this, '/foo/bar/file.js').with({ scheme: 'someTestingReadonlyScheme' }));
+
+			assert.ok(!input.hasCapability(EditorInputCapabilities.Untitled));
+			assert.ok(input.hasCapability(EditorInputCapabilities.Readonly));
+		} finally {
+			disposable.dispose();
 		}
 	});
 

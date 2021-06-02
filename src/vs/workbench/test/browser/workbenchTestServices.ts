@@ -980,7 +980,9 @@ export class TestFileService implements IFileService {
 			return true;
 		}
 
-		return false;
+		const provider = this.getProvider(resource.scheme);
+
+		return !!(provider && (provider.capabilities & capability));
 	}
 
 	async del(_resource: URI, _options?: { useTrash?: boolean, recursive?: boolean; }): Promise<void> { }
@@ -1212,7 +1214,6 @@ export class TestInMemoryFileSystemProvider extends InMemoryFileSystemProvider i
 		FileSystemProviderCapabilities.FileReadWrite
 		| FileSystemProviderCapabilities.PathCaseSensitive
 		| FileSystemProviderCapabilities.FileReadStream;
-
 
 	readFileStream(resource: URI): ReadableStreamEvents<Uint8Array> {
 		const BUFFER_SIZE = 64 * 1024;

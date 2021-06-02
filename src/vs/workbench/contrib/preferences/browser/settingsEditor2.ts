@@ -29,8 +29,7 @@ import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/config
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -81,7 +80,6 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
-const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends EditorPane {
 
@@ -93,9 +91,10 @@ export class SettingsEditor2 extends EditorPane {
 
 	private static readonly SUGGESTIONS: string[] = [
 		`@${MODIFIED_SETTING_TAG}`,
-		'@tag:usesOnlineServices',
-		'@tag:sync',
+		'@tag:notebookLayout',
 		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
+		'@tag:sync',
+		'@tag:usesOnlineServices',
 		`@${ID_SETTING_TAG}`,
 		`@${EXTENSION_SETTING_TAG}`,
 		`@${FEATURE_SETTING_TAG}scm`,
@@ -190,8 +189,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
@@ -793,16 +791,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private notifyNoSaveNeeded() {
-		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
-			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
-			this.notificationService.info(localize('settingsNoSaveNeeded', "Changes to settings are saved automatically."));
-		}
-	}
-
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
-		this.notifyNoSaveNeeded();
-
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);
 		}

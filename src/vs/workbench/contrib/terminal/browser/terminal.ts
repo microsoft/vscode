@@ -211,8 +211,9 @@ export interface ITerminalService {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	getEditableData(stat: ITerminalInstance): IEditableData | undefined;
-	setEditable(stat: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
+	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	instanceIsSplit(instance: ITerminalInstance): boolean;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

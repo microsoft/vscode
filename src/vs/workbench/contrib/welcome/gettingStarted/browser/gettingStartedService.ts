@@ -133,6 +133,8 @@ export interface IGettingStartedService {
 
 	getCategories(): IGettingStartedCategoryWithProgress[]
 
+	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void;
+
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
@@ -684,7 +686,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidAddCategory.fire();
 	}
 
-	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
+	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
 			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);

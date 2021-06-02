@@ -72,7 +72,7 @@ export class CellEditorOptions extends Disposable {
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
 		const editorOptionsOverrideRaw = this.notebookOptions.getLayoutConfiguration().editorOptionsCustomizations ?? {};
-		let editorOptionsOverride: { [key: string]: any } = {};
+		let editorOptionsOverride: { [key: string]: any; } = {};
 		for (let key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
 				editorOptionsOverride[key.substr(7)] = editorOptionsOverrideRaw[key];
@@ -145,7 +145,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			menu: [{
 				id: MenuId.EditorTitle,
 				group: 'notebookLayout',
-				order: 0,
+				order: 2,
 				when: ContextKeyExpr.and(
 					NOTEBOOK_IS_ACTIVE_EDITOR,
 					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
@@ -153,6 +153,7 @@ registerAction2(class ToggleLineNumberAction extends Action2 {
 			}, {
 				id: MenuId.NotebookToolbar,
 				group: 'notebookLayout',
+				order: 2,
 				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
 			}],
 			category: NOTEBOOK_ACTIONS_CATEGORY,

@@ -54,7 +54,8 @@ suite('Notebook Editor', function () {
 		assert.strictEqual(true, includes);
 	});
 
-	test('notebook editor has viewColumn', async function () {
+	// TODO@rebornix deal with getting started
+	test.skip('notebook editor has viewColumn', async function () {
 
 		const uri1 = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const editor1 = await vscode.window.showNotebookDocument(uri1);
