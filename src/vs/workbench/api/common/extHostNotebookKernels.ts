@@ -481,24 +481,24 @@ class NotebookCellExecutionTask extends Disposable {
 				return that.updateOutputs([], cell, false);
 			},
 
-			async appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, true);
 			},
 
-			async replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, false);
 			},
 
-			async appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, true);
+				return that.updateOutputItems(items, output, true);
 			},
 
-			async replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
 				that.verifyStateForOutput();
-				that.updateOutputItems(items, output, false);
+				return that.updateOutputItems(items, output, false);
 			}
 		};
 		return Object.freeze(result);
