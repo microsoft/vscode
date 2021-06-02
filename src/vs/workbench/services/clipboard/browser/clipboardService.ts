@@ -13,13 +13,15 @@ import { once } from 'vs/base/common/functional';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isSafari } from 'vs/base/browser/browser';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class BrowserClipboardService extends BaseBrowserClipboardService {
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
@@ -32,6 +34,8 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		try {
 			return await navigator.clipboard.readText();
 		} catch (error) {
+			this.logService.error(error);
+
 			if (!!this.environmentService.extensionTestsLocationURI) {
 				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
 			}

@@ -703,7 +703,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			let openEditorsPromise: Promise<unknown> | undefined = undefined;
 			if (editors.length) {
-				openEditorsPromise = this.editorService.openEditors(editors);
+				openEditorsPromise = this.editorService.openEditors(editors, undefined, { validateTrust: true });
 			}
 
 			// do not block the overall layout ready flow from potentially

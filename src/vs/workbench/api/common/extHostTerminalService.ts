@@ -607,6 +607,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		}
 		if ('pty' in options) {
 			this.createExtensionTerminal(options, { isSplitTerminal });
+			return;
 		}
 		this.createTerminalFromOptions(options, { isSplitTerminal });
 	}

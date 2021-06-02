@@ -2762,7 +2762,7 @@ declare module 'vscode' {
 	}
 
 	export interface InlineCompletionItemProvider<T extends InlineCompletionItem = InlineCompletionItem> {
-		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T>>;
+		provideInlineCompletionItems(document: TextDocument, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<InlineCompletionList<T> | T[]>;
 	}
 
 	export interface InlineCompletionContext {
