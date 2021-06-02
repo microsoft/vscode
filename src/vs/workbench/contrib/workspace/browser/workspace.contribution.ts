@@ -93,7 +93,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 				this.createStatusbarEntry();
 
 				// Set empty workspace trust state
-				this.setEmptyWorkspaceTrustState();
+				await this.setEmptyWorkspaceTrustState();
 
 				// Show modal dialog
 				if (this.hostService.hasFocus) {
