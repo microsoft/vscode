@@ -174,7 +174,7 @@ export class ResourcesDropHandler {
 				pinned: true,
 				index: targetIndex
 			}
-		})), targetGroup);
+		})), targetGroup, { validateTrust: true });
 
 		// Finish with provided function
 		afterDrop(targetGroup);

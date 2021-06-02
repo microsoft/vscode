@@ -686,6 +686,6 @@ export class NativeWindow extends Disposable {
 		}
 
 		// Open as editors
-		return this.editorService.openEditors(editors);
+		return this.editorService.openEditors(editors, undefined, { validateTrust: true });
 	}
 }
