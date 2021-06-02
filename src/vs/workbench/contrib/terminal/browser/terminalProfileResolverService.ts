@@ -77,7 +77,10 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			shellLaunchConfig.icon = this._getCustomIcon(shellLaunchConfig.icon) || Codicon.terminal;
 			return;
 		}
-
+		if (shellLaunchConfig.customPtyImplementation) {
+			shellLaunchConfig.icon = Codicon.terminal;
+			return;
+		}
 		if (shellLaunchConfig.executable) {
 			return;
 		}
