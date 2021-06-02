@@ -11639,7 +11639,6 @@ declare module 'vscode' {
 	 * {@link NotebookCellOutputItem output items} where contained items represent the same result but
 	 * use different MIME types.
 	 */
-	//todo@API - add sugar function to add more outputs
 	export class NotebookCellOutput {
 
 		/**
@@ -11665,10 +11664,10 @@ declare module 'vscode' {
 		/**
 		 * Create new notebook output.
 		 *
-		 * @param outputs Notebook output items.
+		 * @param items Notebook output items.
 		 * @param metadata Optional metadata.
 		 */
-		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
+		constructor(items: NotebookCellOutputItem[], metadata?: { [key: string]: any });
 	}
 
 	/**
