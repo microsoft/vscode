@@ -450,8 +450,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		this.hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions) => hoverService.showHover(options),
-			delay: <number>configurationService.getValue('workbench.hover.delay'),
-			placement: 'element'
+			delay: <number>configurationService.getValue('workbench.hover.delay')
 		};
 	}
 
