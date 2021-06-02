@@ -173,7 +173,7 @@ suite('NotebookKernel', function () {
 		const cell1 = notebook.apiNotebook.cellAt(0);
 		const task = kernel.createNotebookCellExecution(cell1);
 		task.start();
-		task.end();
+		task.end(undefined);
 	});
 
 	test('createNotebookCellExecution, must be selected/associated', function () {
