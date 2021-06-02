@@ -45,8 +45,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
@@ -79,8 +77,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
-		@IWorkbenchEnvironmentService private readonly workbenchEnvironmentService: IWorkbenchEnvironmentService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IBannerService private readonly bannerService: IBannerService,
 		@IHostService private readonly hostService: IHostService,
 	) {
@@ -91,11 +87,6 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		(async () => {
 
 			await this.workspaceTrustManagementService.workspaceTrustInitialized;
-
-			// Workaround until isTrusted from resolver is available pre-resolution
-			if (this.workbenchEnvironmentService.remoteAuthority) {
-				await this.remoteAuthorityResolverService.resolveAuthority(this.workbenchEnvironmentService.remoteAuthority);
-			}
 
 			if (isWorkspaceTrustEnabled(configurationService)) {
 				this.registerListeners();

@@ -40,6 +40,7 @@ export interface IWorkspaceTrustManagementService {
 	onDidChangeTrust: Event<boolean>;
 	onDidChangeTrustedFolders: Event<void>;
 
+	readonly workspaceResolved: Promise<void>;
 	readonly workspaceTrustInitialized: Promise<void>;
 
 	acceptsOutOfWorkspaceFiles: boolean;
