@@ -79,6 +79,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return Promise.resolve();
 	}
 
+	get workspaceResolved(): Promise<void> {
+		return Promise.resolve();
+	}
+
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {
 		if (this.trusted !== trusted) {
 			this.trusted = trusted;

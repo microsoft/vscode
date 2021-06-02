@@ -137,7 +137,11 @@ export const enum NotebookRendererMatch {
  * activation" of extensions is a very tricky problem, which could allow
  * solving this. But for now, optional is mostly only honored for aznb.
  */
-export type RendererMessagingSpec = true | false | 'optional';
+export const enum RendererMessagingSpec {
+	Always = 'always',
+	Never = 'never',
+	Optional = 'optional',
+}
 
 export interface INotebookRendererInfo {
 	id: string;
@@ -174,7 +178,6 @@ export interface IOrderedMimeType {
 export interface IOutputItemDto {
 	readonly mime: string;
 	readonly valueBytes: number[];
-	readonly metadata?: Record<string, unknown>;
 }
 
 export interface IOutputDto {
@@ -744,6 +747,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	isDirty(): boolean;
 	isReadonly(): boolean;
 	isOrphaned(): boolean;
+	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;

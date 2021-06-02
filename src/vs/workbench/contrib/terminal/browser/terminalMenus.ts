@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -324,6 +324,16 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
 					},
 					when: KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext, item: {
+					group: ContextMenuGroup.Config,
+					command: {
+						id: TerminalCommandId.UnsplitInstance,
+						title: localize('workbench.action.terminal.unsplitInstance', "Unsplit Terminal")
+					},
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, IS_SPLIT_TERMINAL_CONTEXT_KEY)
 				}
 			},
 			{

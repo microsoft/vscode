@@ -194,14 +194,16 @@ export class XLF {
 	public toString(): string {
 		this.appendHeader();
 
-		for (let file in this.files) {
+		const files = Object.keys(this.files).sort();
+		for (const file of files) {
 			this.appendNewLine(`<file original="${file}" source-language="en" datatype="plaintext"><body>`, 2);
-			for (let item of this.files[file]) {
+			const items = this.files[file].sort((a: Item, b: Item) => {
+				return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+			});
+			for (const item of items) {
 				this.addStringItem(file, item);
 			}
-			this.appendNewLine('</body></file>', 2);
 		}
-
 		this.appendFooter();
 		return this.buffer.join('\r\n');
 	}

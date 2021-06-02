@@ -18,22 +18,28 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 		super();
 
 		if (workspaceTrustManagementService.workspaceTrustEnabled) {
-			const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
-				async participate(trusted: boolean): Promise<void> {
-					if (trusted) {
-						// Untrusted -> Trusted
-						await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-					} else {
-						// Trusted -> Untrusted
-						extensionService.stopExtensionHosts();
-						await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-						extensionService.startExtensionHosts();
+			// The extension enablement participant will be registered only after the
+			// workspace trust state has been initialized. There is no need to execute
+			// the participant as part of the initialization process, as the workspace
+			// trust state is initialized before starting the extension host.
+			workspaceTrustManagementService.workspaceTrustInitialized.then(() => {
+				const workspaceTrustTransitionParticipant = new class implements IWorkspaceTrustTransitionParticipant {
+					async participate(trusted: boolean): Promise<void> {
+						if (trusted) {
+							// Untrusted -> Trusted
+							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+						} else {
+							// Trusted -> Untrusted
+							extensionService.stopExtensionHosts();
+							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+							extensionService.startExtensionHosts();
+						}
 					}
-				}
-			};
+				};
 
-			// Execute BEFORE the workspace trust transition completes
-			this._register(workspaceTrustManagementService.addWorkspaceTrustTransitionParticipant(workspaceTrustTransitionParticipant));
+				// Execute BEFORE the workspace trust transition completes
+				this._register(workspaceTrustManagementService.addWorkspaceTrustTransitionParticipant(workspaceTrustTransitionParticipant));
+			});
 		}
 	}
 }

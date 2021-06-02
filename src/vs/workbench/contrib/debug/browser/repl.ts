@@ -33,7 +33,7 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -657,7 +657,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		const decorations: IDecorationOptions[] = [];
 		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
-			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getColorTheme());
+			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			decorations.push({
 				range: {
 					startLineNumber: 0,

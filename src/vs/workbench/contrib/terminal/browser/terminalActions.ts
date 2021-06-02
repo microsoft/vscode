@@ -1437,6 +1437,29 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.UnsplitInstance,
+				title: { value: localize('workbench.action.terminal.unsplit', "Unsplit Terminal"), original: 'Unsplit Terminal' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			const instances = getSelectedInstances(accessor);
+			// should not even need this check given the context key
+			// but TS complains
+			if (instances?.length === 1) {
+				const group = terminalService.getGroupForInstance(instances[0]);
+				if (group && group?.terminalInstances.length > 1) {
+					terminalService.unsplitInstance(instances[0]);
+				}
+			}
+		}
+	});
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.JoinInstance,
 				title: { value: localize('workbench.action.terminal.joinInstance', "Join Terminals"), original: 'Join Terminals' },
 				category,

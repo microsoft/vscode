@@ -11,6 +11,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import * as nls from 'vs/nls';
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { assertNever } from 'vs/base/common/types';
 
 //  ------ API types
 
@@ -24,10 +25,20 @@ export interface ColorContribution {
 	readonly deprecationMessage: string | undefined;
 }
 
-
-export interface ColorFunction {
-	(theme: IColorTheme): Color | undefined;
+export const enum ColorTransformType {
+	Darken,
+	Lighten,
+	Transparent,
+	OneOf,
+	LessProminent,
 }
+
+export type ColorTransform =
+	| { op: ColorTransformType.Darken; value: ColorValue; factor: number }
+	| { op: ColorTransformType.Lighten; value: ColorValue; factor: number }
+	| { op: ColorTransformType.Transparent; value: ColorValue; factor: number }
+	| { op: ColorTransformType.OneOf; values: readonly ColorValue[] }
+	| { op: ColorTransformType.LessProminent; value: ColorValue; background: ColorValue; factor: number; transparency: number };
 
 export interface ColorDefaults {
 	light: ColorValue | null;
@@ -38,7 +49,7 @@ export interface ColorDefaults {
 /**
  * A Color Value is either a color literal, a reference to an other color or a derived color
  */
-export type ColorValue = Color | string | ColorIdentifier | ColorFunction;
+export type ColorValue = Color | string | ColorIdentifier | ColorTransform;
 
 // color registry
 export const Extensions = {
@@ -495,63 +506,63 @@ export const chartsPurple = registerColor('charts.purple', { dark: '#B180D7', li
 
 // ----- color functions
 
-export function darken(colorValue: ColorValue, factor: number): ColorFunction {
-	return (theme) => {
-		let color = resolveColorValue(colorValue, theme);
-		if (color) {
-			return color.darken(factor);
-		}
-		return undefined;
-	};
-}
+export function executeTransform(transform: ColorTransform, theme: IColorTheme) {
+	switch (transform.op) {
+		case ColorTransformType.Darken:
+			return resolveColorValue(transform.value, theme)?.darken(transform.factor);
 
-export function lighten(colorValue: ColorValue, factor: number): ColorFunction {
-	return (theme) => {
-		let color = resolveColorValue(colorValue, theme);
-		if (color) {
-			return color.lighten(factor);
-		}
-		return undefined;
-	};
-}
+		case ColorTransformType.Lighten:
+			return resolveColorValue(transform.value, theme)?.lighten(transform.factor);
 
-export function transparent(colorValue: ColorValue, factor: number): ColorFunction {
-	return (theme) => {
-		let color = resolveColorValue(colorValue, theme);
-		if (color) {
-			return color.transparent(factor);
-		}
-		return undefined;
-	};
-}
+		case ColorTransformType.Transparent:
+			return resolveColorValue(transform.value, theme)?.transparent(transform.factor);
 
-export function oneOf(...colorValues: ColorValue[]): ColorFunction {
-	return (theme) => {
-		for (let colorValue of colorValues) {
-			let color = resolveColorValue(colorValue, theme);
-			if (color) {
-				return color;
-			}
-		}
-		return undefined;
-	};
-}
-
-function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorFunction {
-	return (theme) => {
-		let from = resolveColorValue(colorValue, theme);
-		if (from) {
-			let backgroundColor = resolveColorValue(backgroundColorValue, theme);
-			if (backgroundColor) {
-				if (from.isDarkerThan(backgroundColor)) {
-					return Color.getLighterColor(from, backgroundColor, factor).transparent(transparency);
+		case ColorTransformType.OneOf:
+			for (const candidate of transform.values) {
+				const color = resolveColorValue(candidate, theme);
+				if (color) {
+					return color;
 				}
-				return Color.getDarkerColor(from, backgroundColor, factor).transparent(transparency);
 			}
-			return from.transparent(factor * transparency);
-		}
-		return undefined;
-	};
+			return undefined;
+
+		case ColorTransformType.LessProminent:
+			const from = resolveColorValue(transform.value, theme);
+			if (!from) {
+				return undefined;
+			}
+
+			const backgroundColor = resolveColorValue(transform.background, theme);
+			if (!backgroundColor) {
+				return from.transparent(transform.factor * transform.transparency);
+			}
+
+			return from.isDarkerThan(backgroundColor)
+				? Color.getLighterColor(from, backgroundColor, transform.factor).transparent(transform.transparency)
+				: Color.getDarkerColor(from, backgroundColor, transform.factor).transparent(transform.transparency);
+		default:
+			throw assertNever(transform);
+	}
+}
+
+export function darken(colorValue: ColorValue, factor: number): ColorTransform {
+	return { op: ColorTransformType.Darken, value: colorValue, factor };
+}
+
+export function lighten(colorValue: ColorValue, factor: number): ColorTransform {
+	return { op: ColorTransformType.Lighten, value: colorValue, factor };
+}
+
+export function transparent(colorValue: ColorValue, factor: number): ColorTransform {
+	return { op: ColorTransformType.Transparent, value: colorValue, factor };
+}
+
+export function oneOf(...colorValues: ColorValue[]): ColorTransform {
+	return { op: ColorTransformType.OneOf, values: colorValues };
+}
+
+function lessProminent(colorValue: ColorValue, backgroundColorValue: ColorValue, factor: number, transparency: number): ColorTransform {
+	return { op: ColorTransformType.LessProminent, value: colorValue, background: backgroundColorValue, factor, transparency };
 }
 
 // ----- implementation
@@ -569,8 +580,8 @@ export function resolveColorValue(colorValue: ColorValue | null, theme: IColorTh
 		return theme.getColor(colorValue);
 	} else if (colorValue instanceof Color) {
 		return colorValue;
-	} else if (typeof colorValue === 'function') {
-		return colorValue(theme);
+	} else if (typeof colorValue === 'object') {
+		return executeTransform(colorValue, theme);
 	}
 	return undefined;
 }

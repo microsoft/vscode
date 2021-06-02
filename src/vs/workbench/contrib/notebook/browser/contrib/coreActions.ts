@@ -418,10 +418,17 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 			id: EXECUTE_CELLS_ABOVE,
 			precondition: executeCellCondition,
 			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
-			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+				}
+			],
 			icon: icons.executeAboveIcon
 		});
 	}
@@ -452,10 +459,17 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 			id: EXECUTE_CELL_AND_BELOW,
 			precondition: executeCellCondition,
 			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
-			menu: {
-				id: MenuId.NotebookCellExecute,
-				when: executeCellCondition,
-			},
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition,
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+				}
+			],
 			icon: icons.executeBelowIcon
 		});
 	}
@@ -1845,20 +1859,50 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Editor Layout Settings"),
+			id: 'workbench.notebook.layout.select',
+			title: localize('workbench.notebook.layout.select.label', "Select Notebook Layout"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
 					id: MenuId.EditorTitle,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					order: 0
+				}
+			]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+	}
+});
+
+registerAction2(class NotebookConfigureLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.configure',
+			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Layout Settings"),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+					order: 1
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					order: 1
 				}
 			]
 		});

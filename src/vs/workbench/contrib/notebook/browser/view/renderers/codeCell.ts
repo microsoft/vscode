@@ -15,7 +15,6 @@ import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 export class CodeCell extends Disposable {
@@ -31,8 +30,7 @@ export class CodeCell extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService
+		@IOpenerService readonly openerService: IOpenerService
 	) {
 		super();
 

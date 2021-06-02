@@ -73,6 +73,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 
 	private _initialized: boolean;
+	private _workspaceResolvedPromise: Promise<void>;
+	private _workspaceResolvedPromiseResolve!: () => void;
 	private _workspaceTrustInitializedPromise: Promise<void>;
 	private _workspaceTrustInitializedPromiseResolve!: () => void;
 	private _remoteAuthority: ResolverResult | undefined;
@@ -102,6 +104,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		this._canonicalWorkspace = this.workspaceService.getWorkspace();
 		this._initialized = false;
+		this._workspaceResolvedPromise = new Promise((resolve) => {
+			this._workspaceResolvedPromiseResolve = resolve;
+		});
 		this._workspaceTrustInitializedPromise = new Promise((resolve) => {
 			this._workspaceTrustInitializedPromiseResolve = resolve;
 		});
@@ -123,7 +128,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this.resolveCanonicalWorkspaceUris().then(async () => {
 			this._initialized = true;
 			await this.updateWorkspaceTrust();
-			this._workspaceTrustInitializedPromiseResolve();
+
+			this._workspaceResolvedPromiseResolve();
+			if (!this.environmentService.remoteAuthority) {
+				this._workspaceTrustInitializedPromiseResolve();
+			}
 		});
 
 		// Remote - resolve remote authority
@@ -132,6 +141,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				.then(async result => {
 					this._remoteAuthority = result;
 					await this.updateWorkspaceTrust();
+
+					this._workspaceTrustInitializedPromiseResolve();
 				});
 		}
 
@@ -238,7 +249,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (trusted === undefined) {
 			await this.resolveCanonicalWorkspaceUris();
-			trusted = await this.calculateWorkspaceTrust();
+			trusted = this.calculateWorkspaceTrust();
 		}
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
@@ -319,6 +330,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	//#endregion
 
 	//#region public interface
+
+	get workspaceResolved(): Promise<void> {
+		return this._workspaceResolvedPromise;
+	}
 
 	get workspaceTrustEnabled(): boolean {
 		if (this.environmentService.disableWorkspaceTrust) {

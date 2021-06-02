@@ -146,6 +146,20 @@ suite('Replace Pattern test', () => {
 		assert.strictEqual('aLlGoODMen', actual);
 	});
 
+	test('case operations - no false positive', () => {
+		let testObject = new ReplacePattern('\\left $1', { pattern: '(pattern)', isRegExp: true });
+		let actual = testObject.getReplaceString('pattern');
+		assert.strictEqual('\\left pattern', actual);
+
+		testObject = new ReplacePattern('\\hi \\left $1', { pattern: '(pattern)', isRegExp: true });
+		actual = testObject.getReplaceString('pattern');
+		assert.strictEqual('\\hi \\left pattern', actual);
+
+		testObject = new ReplacePattern('\\left \\L$1', { pattern: 'PATT(ERN)', isRegExp: true });
+		actual = testObject.getReplaceString('PATTERN');
+		assert.strictEqual('\\left ern', actual);
+	});
+
 	test('get replace string for no matches', () => {
 		let testObject = new ReplacePattern('hello', { pattern: 'bla', isRegExp: true });
 		let actual = testObject.getReplaceString('foo');
