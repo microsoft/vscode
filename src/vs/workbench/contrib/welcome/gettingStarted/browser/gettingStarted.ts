@@ -655,6 +655,9 @@ export class GettingStartedPage extends EditorPane {
 					blockquote > p:first-child {
 						margin-top: 0;
 					}
+					body > * {
+						margin-block-end: 0;
+					}
 					html {
 						height: 100%;
 					}
