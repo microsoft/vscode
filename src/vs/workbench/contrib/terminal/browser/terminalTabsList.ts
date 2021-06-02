@@ -523,6 +523,10 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}).toString();
 	}
 
+	getDragLabel?(elements: ITerminalInstance[], originalEvent: DragEvent): string | undefined {
+		return elements.length === 1 ? elements[0].title : undefined;
+	}
+
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (!originalEvent.dataTransfer) {
 			return;
