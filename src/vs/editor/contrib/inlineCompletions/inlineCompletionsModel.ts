@@ -33,14 +33,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	) {
 		super();
 
-		this._register(this.editor.onDidChangeModelContent((e) => {
-			if (this.session && !this.session.isValid) {
-				this.hide();
+		this._register(commandService.onDidExecuteCommand(e => {
+			// These commands don't trigger onDidType.
+			const commands = new Set(['undo', 'redo', 'tab']);
+			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				this.handleUserInput();
 			}
-			setTimeout(() => {
-				// Wait for the cursor update that happens in the same iteration loop iteration
-				this.startSessionIfTriggered();
-			}, 0);
+		}));
+
+		this._register(this.editor.onDidType((e) => {
+			this.handleUserInput();
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
@@ -48,6 +50,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 		}));
+	}
+
+	private handleUserInput() {
+		if (this.session && !this.session.isValid) {
+			this.hide();
+		}
+		setTimeout(() => {
+			// Wait for the cursor update that happens in the same iteration loop iteration
+			this.startSessionIfTriggered();
+		}, 0);
 	}
 
 	private get session(): InlineCompletionsSession | undefined {
@@ -428,22 +440,50 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
+function leftTrim(str: string): string {
+	return str.replace(/^\s+/, '');
+}
+
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
+	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-	if (!inlineCompletion.text.startsWith(valueToBeReplaced)) {
+
+	let remainingInsertText: string;
+
+	// Consider these cases
+	// valueToBeReplaced -> inlineCompletion.text
+	// "\t\tfoo" -> "\t\tfoobar" (+"bar")
+	// "\t" -> "\t\tfoobar" (+"\tfoobar")
+	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
+	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
+
+	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
+		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
+	} else {
+		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
+		const insertTextTrimmed = leftTrim(inlineCompletion.text);
+		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
+			return undefined;
+		}
+		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
+	}
+
+	const position = inlineCompletion.range.getEndPosition();
+
+	const lines = strings.splitLines(remainingInsertText);
+
+	if (lines.length > 1 && textModel.getLineMaxColumn(position.lineNumber) !== position.column) {
+		// Such ghost text is not supported.
 		return undefined;
 	}
 
-	const lines = strings.splitLines(inlineCompletion.text.substr(valueToBeReplaced.length));
-
 	return {
 		lines,
-		position: inlineCompletion.range.getEndPosition()
+		position
 	};
 }
 
-export interface LiveInlineCompletion extends InlineCompletion {
-	range: Range;
+export interface LiveInlineCompletion extends NormalizedInlineCompletion {
 	sourceProvider: InlineCompletionsProvider;
 	sourceInlineCompletion: InlineCompletion;
 	sourceInlineCompletions: InlineCompletions;
@@ -504,6 +544,10 @@ async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item
 			}))) {
+				if (item.range.startLineNumber !== item.range.endLineNumber) {
+					// Ignore invalid ranges.
+					continue;
+				}
 				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
 			}
 		}

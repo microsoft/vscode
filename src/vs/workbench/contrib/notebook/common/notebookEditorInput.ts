@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -78,6 +78,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 
 		return capabilities;
+	}
+
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
+		if (!this.hasCapability(EditorInputCapabilities.Untitled) || this._editorModelReference?.object.hasAssociatedFilePath()) {
+			return super.getDescription(verbosity);
+		}
+
+		return undefined; // no description for untitled notebooks without associated file path
 	}
 
 	override isDirty() {

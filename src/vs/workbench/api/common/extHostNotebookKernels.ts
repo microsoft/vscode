@@ -21,6 +21,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookCellOutput } from 'vs/workbench/api/common/extHostTypes';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 interface IKernelData {
 	extensionId: ExtensionIdentifier,
@@ -71,7 +72,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const data: INotebookKernelDto2 = {
 			id: `${extension.identifier.value}/${id}`,
-			viewType,
+			notebookType: viewType,
 			extensionId: extension.identifier,
 			extensionLocation: extension.extensionLocation,
 			label: label || extension.identifier.value,
@@ -110,7 +111,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 		const controller: vscode.NotebookController = {
 			get id() { return id; },
-			get viewType() { return data.viewType; },
+			get viewType() { return data.notebookType; },
+			get notebookType() { return data.notebookType; },
 			onDidChangeNotebookAssociation: onDidChangeSelection.event,
 			get label() {
 				return data.label;
@@ -141,10 +143,17 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			get hasExecutionOrder() {
-				return data.hasExecutionOrder ?? false;
+				return data.supportsExecutionOrder ?? false;
 			},
 			set hasExecutionOrder(value) {
-				data.hasExecutionOrder = value;
+				data.supportsExecutionOrder = value;
+				_update();
+			},
+			get supportsExecutionOrder() {
+				return data.supportsExecutionOrder ?? false;
+			},
+			set supportsExecutionOrder(value) {
+				data.supportsExecutionOrder = value;
 				_update();
 			},
 			get rendererScripts() {
@@ -185,18 +194,20 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					this._proxy.$removeKernel(handle);
 				}
 			},
-			// --- ipc
-			onDidReceiveMessage: onDidReceiveMessage.event,
-			postMessage(message, editor) {
-				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
-			},
-			asWebviewUri(uri: URI) {
-				return asWebviewUri(uri, that._initData.remote);
-			},
 			// --- priority
 			updateNotebookAffinity(notebook, priority) {
 				that._proxy.$updateNotebookPriority(handle, notebook.uri, priority);
-			}
+			},
+			// --- ipc
+			onDidReceiveMessage: onDidReceiveMessage.event,
+			postMessage(message, editor) {
+				checkProposedApiEnabled(extension);
+				return that._proxy.$postMessage(handle, editor && that._extHostNotebook.getIdByEditor(editor), message);
+			},
+			asWebviewUri(uri: URI) {
+				checkProposedApiEnabled(extension);
+				return asWebviewUri(uri, that._initData.remote);
+			},
 		};
 
 		this._kernelData.set(handle, {

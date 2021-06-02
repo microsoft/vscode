@@ -816,6 +816,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	instanceIsSplit(instance: ITerminalInstance): boolean {
+		const group = this.getGroupForInstance(instance);
+		if (!group) {
+			return false;
+		}
+		return group.terminalInstances.length > 1;
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this._terminalGroups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
@@ -1028,6 +1036,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

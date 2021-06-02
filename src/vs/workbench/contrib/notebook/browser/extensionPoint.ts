@@ -6,9 +6,11 @@
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { NotebookEditorPriority, NotebookRendererEntrypoint } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookEditorPriority, NotebookRendererEntrypoint, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 namespace NotebookEditorContribution {
+	export const type = 'type';
+	/** @deprecated use type */
 	export const viewType = 'viewType';
 	export const displayName = 'displayName';
 	export const selector = 'selector';
@@ -16,6 +18,8 @@ namespace NotebookEditorContribution {
 }
 
 export interface INotebookEditorContribution {
+	readonly [NotebookEditorContribution.type]: string;
+	/** @deprecated use type */
 	readonly [NotebookEditorContribution.viewType]: string;
 	readonly [NotebookEditorContribution.displayName]: string;
 	readonly [NotebookEditorContribution.selector]?: readonly { filenamePattern?: string; excludeFileNamePattern?: string; }[];
@@ -23,6 +27,7 @@ export interface INotebookEditorContribution {
 }
 
 namespace NotebookRendererContribution {
+	/** @deprecated use type */
 	export const viewType = 'viewType';
 	export const id = 'id';
 	export const displayName = 'displayName';
@@ -35,29 +40,35 @@ namespace NotebookRendererContribution {
 
 export interface INotebookRendererContribution {
 	readonly [NotebookRendererContribution.id]?: string;
+	/** @deprecated use type */
 	readonly [NotebookRendererContribution.viewType]?: string;
 	readonly [NotebookRendererContribution.displayName]: string;
 	readonly [NotebookRendererContribution.mimeTypes]?: readonly string[];
 	readonly [NotebookRendererContribution.entrypoint]: NotebookRendererEntrypoint;
 	readonly [NotebookRendererContribution.hardDependencies]: readonly string[];
 	readonly [NotebookRendererContribution.optionalDependencies]: readonly string[];
-	readonly [NotebookRendererContribution.requiresMessaging]: boolean | 'optional' | undefined;
+	readonly [NotebookRendererContribution.requiresMessaging]: RendererMessagingSpec;
 }
 
 const notebookProviderContribution: IJSONSchema = {
 	description: nls.localize('contributes.notebook.provider', 'Contributes notebook document provider.'),
 	type: 'array',
-	defaultSnippets: [{ body: [{ viewType: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
+	defaultSnippets: [{ body: [{ type: '', displayName: '', 'selector': [{ 'filenamePattern': '' }] }] }],
 	items: {
 		type: 'object',
 		required: [
-			NotebookEditorContribution.viewType,
+			NotebookEditorContribution.type,
 			NotebookEditorContribution.displayName,
 			NotebookEditorContribution.selector,
 		],
 		properties: {
+			[NotebookEditorContribution.type]: {
+				type: 'string',
+				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
+			},
 			[NotebookEditorContribution.viewType]: {
 				type: 'string',
+				deprecationMessage: nls.localize('contributes.notebook.provider.viewType.deprecated', 'Rename `viewType` to `id`.'),
 				description: nls.localize('contributes.notebook.provider.viewType', 'Unique identifier of the notebook.'),
 			},
 			[NotebookEditorContribution.displayName]: {
@@ -167,16 +178,17 @@ const notebookRendererContribution: IJSONSchema = {
 				markdownDescription: nls.localize('contributes.notebook.renderer.optionalDependencies', 'List of soft kernel dependencies the renderer can make use of. If any of the dependencies are present in the `NotebookKernel.preloads`, the renderer will be preferred over renderers that don\'t interact with the kernel.'),
 			},
 			[NotebookRendererContribution.requiresMessaging]: {
-				default: false,
+				default: 'never',
 				enum: [
-					true,
-					false,
-					'optional'
+					'always',
+					'optional',
+					'never',
 				],
+
 				enumDescriptions: [
-					nls.localize('contributes.notebook.renderer.requiresMessaging.true', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.always', 'Messaging is required. The renderer will only be used when it\'s part of an extension that can be run in an extension host.'),
 					nls.localize('contributes.notebook.renderer.requiresMessaging.optional', 'The renderer is better with messaging available, but it\'s not requried.'),
-					nls.localize('contributes.notebook.renderer.requiresMessaging.false', 'The renderer does not require messaging.'),
+					nls.localize('contributes.notebook.renderer.requiresMessaging.never', 'The renderer does not require messaging.'),
 				],
 				description: nls.localize('contributes.notebook.renderer.requiresMessaging', 'Defines how and if the renderer needs to communicate with an extension host, via `createRendererMessaging`. Renderers with stronger messaging requirements may not work in all environments.'),
 			},
