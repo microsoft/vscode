@@ -139,7 +139,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		) as WorkbenchTable<ITrustedUriItem>;
 
 		this._register(this.table.onDidOpen(item => {
-			if (item && item.element) {
+			// default prevented when input box is double clicked #125052
+			if (item && item.element && !item.browserEvent?.defaultPrevented) {
 				this.edit(item.element);
 			}
 		}));
@@ -380,6 +381,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 				templateData.pathInput.select();
 				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
+		}));
+
+		// stop double click action from re-rendering the element on the table #125052
+		templateData.renderDisposables.add(addDisposableListener(templateData.pathInput.element, EventType.DBLCLICK, e => {
+			EventHelper.stop(e);
 		}));
 
 
