@@ -133,7 +133,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
-		this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
+		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 		this.multiSessionRepl.set(this.isMultiSessionView);
 
