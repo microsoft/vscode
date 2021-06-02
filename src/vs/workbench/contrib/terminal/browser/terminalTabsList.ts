@@ -243,23 +243,14 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	}
 
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
-		const editableData = this._terminalService.getEditableData(instance);
-		if (editableData) {
-			template.label.element.style.display = 'none';
-			this._renderInputBox(template.label.element.parentElement!, instance, editableData);
-			return;
-		}
+		const hasText = !this.shouldHideText();
+
 		const group = this._terminalService.getGroupForInstance(instance);
 		if (!group) {
 			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
 
-		const hasText = !this.shouldHideText();
 		template.element.classList.toggle('has-text', hasText);
-
-		if (template.label.element.style.display = 'none') {
-			template.label.element.style.display = '';
-		}
 
 		let prefix: string = '';
 		if (group.terminalInstances.length > 1) {
@@ -343,6 +334,12 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			},
 			extraClasses
 		});
+		const editableData = this._terminalService.getEditableData(instance);
+		template.label.element.classList.toggle('editable-tab', !!editableData);
+		if (editableData) {
+			this._renderInputBox(template.label.element.querySelector('.monaco-icon-label-container')!, instance, editableData);
+			template.actionBar.clear();
+		}
 	}
 
 	private _renderInputBox(container: HTMLElement, instance: ITerminalInstance, editableData: IEditableData): IDisposable {
@@ -350,7 +347,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const label = this._labels.create(container);
 		const value = instance.title || '';
 
-		const inputBox = new InputBox(label.element, this._contextViewService, {
+		const inputBox = new InputBox(container, this._contextViewService, {
 			validationOptions: {
 				validation: (value) => {
 					const message = editableData.validationMessage(value);
@@ -368,7 +365,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			ariaLabel: localize('terminalInputAriaLabel', "Type terminal name. Press Enter to confirm or Escape to cancel.")
 		});
 		const styler = attachInputBoxStyler(inputBox, this._themeService);
-
+		inputBox.element.style.height = '22px';
 		inputBox.value = value;
 		inputBox.focus();
 		inputBox.select({ start: 0, end: value.length });
@@ -402,6 +399,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const toDispose = [
 			inputBox,
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+				e.stopPropagation();
 				if (e.equals(KeyCode.Enter)) {
 					done(inputBox.isInputValid(), true);
 				} else if (e.equals(KeyCode.Escape)) {
