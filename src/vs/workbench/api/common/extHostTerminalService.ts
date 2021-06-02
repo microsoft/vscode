@@ -10,7 +10,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { IDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
-import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType } from './extHostTypes';
+import { Disposable as VSCodeDisposable, EnvironmentVariableMutatorType, ThemeColor } from './extHostTypes';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { localize } from 'vs/nls';
 import { NotSupportedError } from 'vs/base/common/errors';
@@ -18,7 +18,7 @@ import { serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/ter
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IProcessReadyEvent, IShellLaunchConfigDto, ITerminalChildProcess, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalProfile, TerminalIcon, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { withNullAsUndefined } from 'vs/base/common/types';
@@ -133,7 +133,7 @@ export class ExtHostTerminal {
 			shellArgs: withNullAsUndefined(options.shellArgs),
 			cwd: withNullAsUndefined(options.cwd),
 			env: withNullAsUndefined(options.env),
-			icon: withNullAsUndefined(options.iconPath),
+			icon: withNullAsUndefined(asTerminalIcon(options.iconPath)),
 			initialText: withNullAsUndefined(options.message),
 			strictEnv: withNullAsUndefined(options.strictEnv),
 			hideFromUser: withNullAsUndefined(options.hideFromUser),
@@ -369,7 +369,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public createExtensionTerminal(options: vscode.ExtensionTerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		const terminal = new ExtHostTerminal(this._proxy, generateUuid(), options, options.name);
 		const p = new ExtHostPseudoterminal(options.pty);
-		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, options.iconPath).then(id => {
+		terminal.createExtensionTerminal(internalOptions?.isSplitTerminal, asTerminalIcon(options.iconPath)).then(id => {
 			const disposable = this._setupExtHostProcessListeners(id, p);
 			this._terminalProcessDisposables[id] = disposable;
 		});
@@ -836,4 +836,17 @@ export class WorkerExtHostTerminalService extends BaseExtHostTerminalService {
 	public createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal {
 		throw new NotSupportedError();
 	}
+}
+
+function asTerminalIcon(iconPath?: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon): TerminalIcon | undefined {
+	if (!iconPath) {
+		return undefined;
+	}
+	if (!('id' in iconPath)) {
+		return iconPath;
+	}
+	return {
+		id: iconPath.id,
+		color: iconPath.color as ThemeColor
+	};
 }
