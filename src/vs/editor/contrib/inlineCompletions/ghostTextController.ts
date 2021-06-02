@@ -241,7 +241,8 @@ registerEditorCommand(new GhostTextCommand({
 	id: 'commitInlineCompletion',
 	precondition: ContextKeyExpr.and(
 		GhostTextController.inlineCompletionsVisible,
-		GhostTextController.inlineCompletionSuggestsIndentation.toNegated()
+		GhostTextController.inlineCompletionSuggestsIndentation.toNegated(),
+		EditorContextKeys.tabMovesFocus.toNegated()
 	),
 	kbOpts: {
 		weight: 100,
