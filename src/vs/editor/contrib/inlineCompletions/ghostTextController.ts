@@ -143,6 +143,8 @@ export class ActiveGhostTextController extends Disposable {
 			if (widget.model === this.suggestWidgetAdapterModel || widget.model === this.inlineCompletionsModel) {
 				widget.setModel(undefined);
 			}
+			this.contextKeys.inlineCompletionVisible.set(false);
+			this.contextKeys.inlineCompletionSuggestsIndentation.set(false);
 		}));
 
 		if (this.inlineCompletionsModel) {
