@@ -34,6 +34,8 @@ suite('WorkingCopyService', () => {
 		// resource 1
 		const resource1 = URI.file('/some/folder/file.txt');
 		assert.strictEqual(service.has(resource1), false);
+		assert.strictEqual(service.has({ resource: resource1, typeId: 'testWorkingCopyType' }), false);
+		assert.strictEqual(service.get({ resource: resource1, typeId: 'testWorkingCopyType' }), undefined);
 		const copy1 = new TestWorkingCopy(resource1);
 		const unregister1 = service.registerWorkingCopy(copy1);
 
@@ -44,6 +46,8 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(service.dirtyCount, 0);
 		assert.strictEqual(service.isDirty(resource1), false);
 		assert.strictEqual(service.has(resource1), true);
+		assert.strictEqual(service.has(copy1), true);
+		assert.strictEqual(service.get(copy1), copy1);
 		assert.strictEqual(service.hasDirty, false);
 
 		copy1.setDirty(true);

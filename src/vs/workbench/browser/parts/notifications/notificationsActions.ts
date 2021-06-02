@@ -122,7 +122,7 @@ export class ConfigureNotificationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		public readonly configurationActions: readonly IAction[]
+		readonly configurationActions: readonly IAction[]
 	) {
 		super(id, label, ThemeIcon.asClassName(configureIcon));
 	}

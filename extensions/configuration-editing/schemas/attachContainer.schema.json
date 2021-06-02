@@ -54,6 +54,19 @@
 									"type": "string",
 									"description": "Label that will be shown in the UI for this port.",
 									"default": "Application"
+								},
+								"requireLocalPort": {
+									"type": "boolean",
+									"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+									"default": false
+								},
+								"protocol": {
+									"type": "string",
+									"enum": [
+										"http",
+										"https"
+									],
+									"description": "The protocol to use when forwarding this port."
 								}
 							},
 							"default": {
@@ -80,7 +93,13 @@
 					"properties": {
 						"onAutoForward": {
 							"type": "string",
-							"enum": ["notify", "openBrowser", "openPreview", "silent", "ignore"],
+							"enum": [
+								"notify",
+								"openBrowser",
+								"openPreview",
+								"silent",
+								"ignore"
+							],
 							"enumDescriptions": [
 								"Shows a notification when a port is automatically forwarded.",
 								"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
@@ -100,9 +119,28 @@
 							"type": "string",
 							"description": "Label that will be shown in the UI for this port.",
 							"default": "Application"
+						},
+						"requireLocalPort": {
+							"type": "boolean",
+							"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+							"default": false
+						},
+						"protocol": {
+							"type": "string",
+							"enum": [
+								"http",
+								"https"
+							],
+							"description": "The protocol to use when forwarding this port."
 						}
 					},
-					"defaultSnippets": [{ "body": { "onAutoForward": "ignore" } }],
+					"defaultSnippets": [
+						{
+							"body": {
+								"onAutoForward": "ignore"
+							}
+						}
+					],
 					"markdownDescription": "Set default properties that are applied to all ports that don't get properties from the setting `remote.portsAttributes`. For example:\n\n```\n{\n  \"onAutoForward\": \"ignore\"\n}\n```",
 					"additionalProperties": false
 				},

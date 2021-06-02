@@ -40,7 +40,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		}
 	}
 
-	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
+	replaceMetadata(value: { [key: string]: any }): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
@@ -48,7 +48,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Metadata,
@@ -72,6 +72,8 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 }
 
 export class ExtHostNotebookEditor {
+
+	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
 
 	private _selections: vscode.NotebookRange[] = [];
 	private _visibleRanges: vscode.NotebookRange[] = [];
@@ -127,6 +129,8 @@ export class ExtHostNotebookEditor {
 					return that.setDecorations(decorationType, range);
 				}
 			};
+
+			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
 		}
 		return this._editor;
 	}

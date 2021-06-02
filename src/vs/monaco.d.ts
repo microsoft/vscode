@@ -1984,6 +1984,11 @@ declare namespace monaco.editor {
 		 */
 		onDidChangeLanguageConfiguration(listener: (e: IModelLanguageConfigurationChangedEvent) => void): IDisposable;
 		/**
+		 * An event emitted when the model has been attached to the first editor or detached from the last editor.
+		 * @event
+		 */
+		onDidChangeAttached(listener: () => void): IDisposable;
+		/**
 		 * An event emitted right before disposing the model.
 		 * @event
 		 */
@@ -1993,6 +1998,10 @@ declare namespace monaco.editor {
 		 * and make all necessary clean-up to release this object to the GC.
 		 */
 		dispose(): void;
+		/**
+		 * Returns if this model is attached to an editor or not.
+		 */
+		isAttachedToEditor(): boolean;
 	}
 
 	/**
@@ -2965,7 +2974,7 @@ declare namespace monaco.editor {
 		 */
 		suggest?: ISuggestOptions;
 		/**
-		 * Smart select opptions;
+		 * Smart select options.
 		 */
 		smartSelect?: ISmartSelectOptions;
 		/**
@@ -3220,6 +3229,10 @@ declare namespace monaco.editor {
 		 * Control the behavior and rendering of the inline hints.
 		 */
 		inlayHints?: IEditorInlayHintsOptions;
+		/**
+		 * Control if the editor should use shadow DOM.
+		 */
+		useShadowDOM?: boolean;
 	}
 
 	/**
@@ -3832,6 +3845,19 @@ declare namespace monaco.editor {
 		 */
 		showStatusBar?: boolean;
 		/**
+		 * Enable or disable the rendering of the suggestion preview.
+		 */
+		showSuggestionPreview?: boolean;
+		/**
+		 * Enable or disable the rendering of automatic inline completions.
+		*/
+		showInlineCompletions?: boolean;
+		/**
+		 * Enable or disable the default expansion of the ghost text as used
+		 * by the suggestion preview or the inline completions.
+		 */
+		ghostTextExpanded?: boolean;
+		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;
@@ -3847,6 +3873,10 @@ declare namespace monaco.editor {
 		 * Show constructor-suggestions.
 		 */
 		showConstructors?: boolean;
+		/**
+		 * Show deprecated-suggestions.
+		 */
+		showDeprecated?: boolean;
 		/**
 		 * Show field-suggestions.
 		 */
@@ -4094,23 +4124,24 @@ declare namespace monaco.editor {
 		tabCompletion = 108,
 		tabIndex = 109,
 		unusualLineTerminators = 110,
-		useTabStops = 111,
-		wordSeparators = 112,
-		wordWrap = 113,
-		wordWrapBreakAfterCharacters = 114,
-		wordWrapBreakBeforeCharacters = 115,
-		wordWrapColumn = 116,
-		wordWrapOverride1 = 117,
-		wordWrapOverride2 = 118,
-		wrappingIndent = 119,
-		wrappingStrategy = 120,
-		showDeprecated = 121,
-		inlayHints = 122,
-		editorClassName = 123,
-		pixelRatio = 124,
-		tabFocusMode = 125,
-		layoutInfo = 126,
-		wrappingInfo = 127
+		useShadowDOM = 111,
+		useTabStops = 112,
+		wordSeparators = 113,
+		wordWrap = 114,
+		wordWrapBreakAfterCharacters = 115,
+		wordWrapBreakBeforeCharacters = 116,
+		wordWrapColumn = 117,
+		wordWrapOverride1 = 118,
+		wordWrapOverride2 = 119,
+		wrappingIndent = 120,
+		wrappingStrategy = 121,
+		showDeprecated = 122,
+		inlayHints = 123,
+		editorClassName = 124,
+		pixelRatio = 125,
+		tabFocusMode = 126,
+		layoutInfo = 127,
+		wrappingInfo = 128
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4226,6 +4257,7 @@ declare namespace monaco.editor {
 		tabCompletion: IEditorOption<EditorOption.tabCompletion, 'on' | 'off' | 'onlySnippets'>;
 		tabIndex: IEditorOption<EditorOption.tabIndex, number>;
 		unusualLineTerminators: IEditorOption<EditorOption.unusualLineTerminators, 'auto' | 'off' | 'prompt'>;
+		useShadowDOM: IEditorOption<EditorOption.useShadowDOM, boolean>;
 		useTabStops: IEditorOption<EditorOption.useTabStops, boolean>;
 		wordSeparators: IEditorOption<EditorOption.wordSeparators, string>;
 		wordWrap: IEditorOption<EditorOption.wordWrap, 'on' | 'off' | 'wordWrapColumn' | 'bounded'>;
@@ -5299,6 +5331,11 @@ declare namespace monaco.languages {
 	export function registerDocumentRangeSemanticTokensProvider(languageId: string, provider: DocumentRangeSemanticTokensProvider): IDisposable;
 
 	/**
+	 * Register an inline completions provider.
+	 */
+	export function registerInlineCompletionsProvider(languageId: string, provider: InlineCompletionsProvider): IDisposable;
+
+	/**
 	 * Contains additional diagnostic information about the context in which
 	 * a [code action](#CodeActionProvider.provideCodeActions) is run.
 	 */
@@ -5802,6 +5839,60 @@ declare namespace monaco.languages {
 		 * The editor will only resolve a completion item once.
 		 */
 		resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
+	}
+
+	/**
+	 * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+	 */
+	export enum InlineCompletionTriggerKind {
+		/**
+		 * Completion was triggered automatically while editing.
+		 * It is sufficient to return a single completion item in this case.
+		 */
+		Automatic = 0,
+		/**
+		 * Completion was triggered explicitly by a user gesture.
+		 * Return multiple completion items to enable cycling through them.
+		 */
+		Explicit = 1
+	}
+
+	export interface InlineCompletionContext {
+		/**
+		 * How the completion was triggered.
+		 */
+		readonly triggerKind: InlineCompletionTriggerKind;
+	}
+
+	export interface InlineCompletion {
+		/**
+		 * The text to insert.
+		 * If the text contains a line break, the range must end at the end of a line.
+		 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+		*/
+		readonly text: string;
+		/**
+		 * The range to replace.
+		 * Must begin and end on the same line.
+		*/
+		readonly range?: IRange;
+		readonly command?: Command;
+	}
+
+	export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
+		readonly items: readonly TItem[];
+	}
+
+	export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
+		provideInlineCompletions(model: editor.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+		/**
+		 * Will be called when an item is shown.
+		*/
+		handleItemDidShow?(completions: T, item: T['items'][number]): void;
+		/**
+		 * Will be called when a completions list is no longer in use and can be garbage-collected.
+		*/
+		freeInlineCompletions(completions: T): void;
 	}
 
 	export interface CodeAction {

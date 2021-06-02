@@ -525,6 +525,21 @@ export class NativeWindow extends Disposable {
 						}
 					}
 				}
+
+				// Assume `uri` this is a workspace uri, let's see if we can handle it
+				await this.fileService.activateProvider(uri.scheme);
+
+				if (this.fileService.canHandleResource(uri)) {
+					return {
+						resolved: URI.from({
+							scheme: this.productService.urlProtocol,
+							path: 'workspace',
+							query: uri.toString()
+						}),
+						dispose() { }
+					};
+				}
+
 				return undefined;
 			}
 		});
@@ -658,15 +673,14 @@ export class NativeWindow extends Disposable {
 
 		// In diffMode we open 2 resources as diff
 		if (diffMode && resources.length === 2 && resources[0].resource && resources[1].resource) {
-			return this.editorService.openEditor({ leftResource: resources[0].resource, rightResource: resources[1].resource, options: { pinned: true } });
+			return this.editorService.openEditor({
+				originalInput: { resource: resources[0].resource },
+				modifiedInput: { resource: resources[1].resource },
+				options: { pinned: true }
+			});
 		}
 
-		// For one file, just put it into the current active editor
-		if (resources.length === 1) {
-			return this.editorService.openEditor(resources[0]);
-		}
-
-		// Otherwise open all
+		// Open resource(s)
 		return this.editorService.openEditors(resources);
 	}
 }

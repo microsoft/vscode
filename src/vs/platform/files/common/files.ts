@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isNumber, isUndefinedOrNull } from 'vs/base/common/types';
+import { isNumber } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -315,6 +315,14 @@ export enum FileType {
 	SymbolicLink = 64
 }
 
+export enum FilePermission {
+
+	/**
+	 * File is readonly.
+	 */
+	Readonly = 1
+}
+
 export interface IStat {
 
 	/**
@@ -335,7 +343,12 @@ export interface IStat {
 	/**
 	 * The size of the file in bytes.
 	 */
-	size: number;
+	readonly size: number;
+
+	/**
+	 * The file permissions.
+	 */
+	readonly permissions?: FilePermission;
 }
 
 export interface IWatchOptions {
@@ -475,7 +488,7 @@ export enum FileSystemProviderErrorCode {
 
 export class FileSystemProviderError extends Error {
 
-	constructor(message: string, public readonly code: FileSystemProviderErrorCode) {
+	constructor(message: string, readonly code: FileSystemProviderErrorCode) {
 		super(message);
 	}
 }
@@ -592,7 +605,7 @@ export class FileOperationEvent {
 
 	constructor(resource: URI, operation: FileOperation.DELETE);
 	constructor(resource: URI, operation: FileOperation.CREATE | FileOperation.MOVE | FileOperation.COPY, target: IFileStatWithMetadata);
-	constructor(public readonly resource: URI, public readonly operation: FileOperation, public readonly target?: IFileStatWithMetadata) { }
+	constructor(readonly resource: URI, readonly operation: FileOperation, readonly target?: IFileStatWithMetadata) { }
 
 	isOperation(operation: FileOperation.DELETE): boolean;
 	isOperation(operation: FileOperation.MOVE | FileOperation.COPY | FileOperation.CREATE): this is { readonly target: IFileStatWithMetadata };
@@ -868,6 +881,11 @@ interface IBaseStat {
 	 * it is optional.
 	 */
 	readonly etag?: string;
+
+	/**
+	 * The file is read-only.
+	 */
+	readonly readonly?: boolean;
 }
 
 export interface IBaseStatWithMetadata extends Required<IBaseStat> { }
@@ -906,6 +924,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseStatWithMetadata 
 	readonly ctime: number;
 	readonly etag: string;
 	readonly size: number;
+	readonly readonly: boolean;
 	readonly children?: IFileStatWithMetadata[];
 }
 
@@ -956,7 +975,7 @@ export interface IReadFileOptions extends IBaseReadFileOptions {
 	 *
 	 * Typically you should not need to use this flag but if
 	 * for example you are quickly reading a file right after
-	 * a file event occured and the file changes a lot, there
+	 * a file event occurred and the file changes a lot, there
 	 * is a chance that a read returns an empty or partial file
 	 * because a pending write has not finished yet.
 	 *
@@ -1019,12 +1038,23 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions) {
+	constructor(
+		message: string,
+		readonly fileOperationResult: FileOperationResult,
+		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+	) {
 		super(message);
 	}
+}
 
-	static isFileOperationError(obj: unknown): obj is FileOperationError {
-		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
+export class NotModifiedSinceFileOperationError extends FileOperationError {
+
+	constructor(
+		message: string,
+		readonly stat: IFileStatWithMetadata,
+		options?: IReadFileOptions
+	) {
+		super(message, FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
 	}
 }
 

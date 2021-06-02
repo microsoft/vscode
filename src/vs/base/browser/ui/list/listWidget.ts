@@ -660,9 +660,15 @@ export class MouseController<T> implements IDisposable {
 
 	private changeSelection(e: IListMouseEvent<T> | IListTouchEvent<T>): void {
 		const focus = e.index!;
-		const anchor = this.list.getAnchor();
+		let anchor = this.list.getAnchor();
 
-		if (this.isSelectionRangeChangeEvent(e) && typeof anchor === 'number') {
+		if (this.isSelectionRangeChangeEvent(e)) {
+			if (typeof anchor === 'undefined') {
+				const currentFocus = this.list.getFocus()[0];
+				anchor = currentFocus ?? focus;
+				this.list.setAnchor(anchor);
+			}
+
 			const min = Math.min(anchor, focus);
 			const max = Math.max(anchor, focus);
 			const rangeSelection = range(min, max + 1);

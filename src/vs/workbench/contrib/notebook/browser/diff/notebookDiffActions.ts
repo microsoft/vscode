@@ -45,15 +45,17 @@ registerAction2(class extends Action2 {
 		const activeEditor = editorService.activeEditorPane;
 		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
 			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
-			const leftResource = diffEditorInput.originalResource;
-			const rightResource = diffEditorInput.resource;
-			const options = {
-				preserveFocus: false
-			};
 
-			const label = diffEditorInput.textDiffName;
-			const input = editorService.createEditorInput({ leftResource, rightResource, label, options });
-			await editorService.openEditor(input, { override: EditorOverride.DISABLED }, viewColumnToEditorGroup(editorGroupService, undefined));
+			await editorService.openEditor(
+				{
+					originalInput: { resource: diffEditorInput.originalResource },
+					modifiedInput: { resource: diffEditorInput.resource },
+					label: diffEditorInput.textDiffName,
+					options: {
+						preserveFocus: false,
+						override: EditorOverride.DISABLED
+					}
+				}, viewColumnToEditorGroup(editorGroupService, undefined));
 		}
 	}
 });

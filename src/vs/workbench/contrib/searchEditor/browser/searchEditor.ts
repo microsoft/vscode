@@ -33,11 +33,11 @@ import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progre
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { inputBorder, registerColor, searchEditorFindMatch, searchEditorFindMatchBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachLinkStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import { InputBoxFocusedKey } from 'vs/workbench/contrib/search/common/constants';
@@ -55,6 +55,11 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Link } from 'vs/platform/opener/browser/link';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Schemas } from 'vs/base/common/network';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/searchExtTypes';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 const RESULT_LINE_REGEX = /^(\s+)(\d+)(:| )(\s+)(.*)$/;
 const FILE_LINE_REGEX = /^(\S.*):$/;
@@ -97,6 +102,8 @@ export class SearchEditor extends BaseTextEditor {
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IOpenerService readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
 		@IEditorProgressService readonly progressService: IEditorProgressService,
 		@ITextResourceConfigurationService textResourceService: ITextResourceConfigurationService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -557,7 +564,7 @@ export class SearchEditor extends BaseTextEditor {
 		if (searchOperation && searchOperation.messages) {
 			for (const message of searchOperation.messages) {
 				if (message.type === TextSearchCompleteMessageType.Information) {
-					this.addMessage(message.text);
+					this.addMessage(message);
 				}
 				else if (message.type === TextSearchCompleteMessageType.Warning) {
 					warningMessage += (warningMessage ? ' - ' : '') + message.text;
@@ -572,12 +579,12 @@ export class SearchEditor extends BaseTextEditor {
 			});
 		}
 
-		input.setDirty(!input.isUntitled());
+		input.setDirty(!input.hasCapability(EditorInputCapabilities.Untitled));
 		input.setMatchRanges(results.matchRanges);
 	}
 
-	private addMessage(message: string) {
-		const linkedText = parseLinkedText(message);
+	private addMessage(message: TextSearchCompleteMessage) {
+		const linkedText = parseLinkedText(message.text);
 
 		let messageBox: HTMLElement;
 		if (this.messageBox.firstChild) {
@@ -594,10 +601,27 @@ export class SearchEditor extends BaseTextEditor {
 			if (typeof node === 'string') {
 				DOM.append(messageBox, document.createTextNode(node));
 			} else {
-				const link = this.instantiationService.createInstance(Link, node);
+				const link = this.instantiationService.createInstance(Link, node, {
+					opener: async href => {
+						const parsed = URI.parse(href, true);
+						if (parsed.scheme === Schemas.command && message.trusted) {
+							const result = await this.commandService.executeCommand(parsed.path);
+							if ((result as any)?.triggerSearch) {
+								this.triggerSearch();
+							}
+						} else if (parsed.scheme === Schemas.https) {
+							this.openerService.open(parsed);
+						} else {
+							if (parsed.scheme === Schemas.command && !message.trusted) {
+								this.notificationService.error(localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
+							} else {
+								this.notificationService.error(localize('unable to open', "Unable to open unknown link: {0}", href));
+							}
+						}
+					}
+				});
 				DOM.append(messageBox, link.el);
 				this.messageDisposables.add(link);
-				this.messageDisposables.add(attachLinkStyler(link, this.themeService));
 			}
 		}
 	}
@@ -648,11 +672,13 @@ export class SearchEditor extends BaseTextEditor {
 		if (config.showIncludesExcludes !== undefined) { this.toggleIncludesExcludes(config.showIncludesExcludes); }
 	}
 
-	override async setInput(newInput: SearchEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(newInput: SearchEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.saveViewState();
 
 		await super.setInput(newInput, options, context, token);
-		if (token.isCancellationRequested) { return; }
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		const { configurationModel, resultsModel } = await newInput.getModels();
 		if (token.isCancellationRequested) { return; }

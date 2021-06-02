@@ -523,7 +523,7 @@ export namespace Color {
 			/**
 			 * The default format will use HEX if opaque and RGBA otherwise.
 			 */
-			export function format(color: Color): string | null {
+			export function format(color: Color): string {
 				if (color.isOpaque()) {
 					return Color.Format.CSS.formatHex(color);
 				}

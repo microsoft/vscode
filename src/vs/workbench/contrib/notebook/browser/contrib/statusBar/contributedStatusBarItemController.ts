@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten } from 'vs/base/common/arrays';
-import { Throttler } from 'vs/base/common/async';
+import { disposableTimeout, Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
@@ -69,7 +69,7 @@ class CellStatusBarHelper extends Disposable {
 	private _currentItemIds: string[] = [];
 	private _currentItemLists: INotebookCellStatusBarItemList[] = [];
 
-	private readonly _cancelTokenSource: CancellationTokenSource;
+	private _activeToken: CancellationTokenSource | undefined;
 
 	private readonly _updateThrottler = new Throttler();
 
@@ -80,29 +80,31 @@ class CellStatusBarHelper extends Disposable {
 	) {
 		super();
 
-		this._cancelTokenSource = new CancellationTokenSource();
-		this._register(toDisposable(() => this._cancelTokenSource.dispose(true)));
-
+		this._register(toDisposable(() => this._activeToken?.dispose(true)));
 		this._updateSoon();
 		this._register(this._cell.model.onDidChangeContent(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeLanguage(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeMetadata(() => this._updateSoon()));
+		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._updateSoon()));
 		this._register(this._cell.model.onDidChangeOutputs(() => this._updateSoon()));
 	}
 
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
-		setTimeout(() => {
+		this._register(disposableTimeout(() => {
 			this._updateThrottler.queue(() => this._update());
-		}, 0);
+		}, 0));
 	}
 
 	private async _update() {
 		const cellIndex = this._notebookViewModel.getCellIndex(this._cell);
 		const docUri = this._notebookViewModel.notebookDocument.uri;
 		const viewType = this._notebookViewModel.notebookDocument.viewType;
-		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, this._cancelTokenSource.token);
-		if (this._cancelTokenSource.token.isCancellationRequested) {
+
+		this._activeToken?.dispose(true);
+		const tokenSource = this._activeToken = new CancellationTokenSource();
+		const itemLists = await this._notebookCellStatusBarService.getStatusBarItemsForCell(docUri, cellIndex, viewType, tokenSource.token);
+		if (tokenSource.token.isCancellationRequested) {
 			itemLists.forEach(itemList => itemList.dispose && itemList.dispose());
 			return;
 		}

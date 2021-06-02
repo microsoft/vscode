@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ICommand, IConfiguration } from 'vs/editor/common/editorCommon';
-import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
+import { ITextModel, PositionNormalizationAffinity, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { LanguageIdentifier } from 'vs/editor/common/modes';
 import { AutoClosingPairs, IAutoClosingPair } from 'vs/editor/common/modes/languageConfiguration';
@@ -221,6 +221,12 @@ export interface ICursorSimpleModel {
 	getLineMaxColumn(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	 */
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 /**
@@ -449,6 +455,55 @@ export class CursorColumns {
 				}
 			}
 		}
+		return result;
+	}
+
+	/**
+	 * Returns an array that maps one based columns to one based visible columns. The entry at position 0 is -1.
+	*/
+	public static visibleColumnsByColumns(lineContent: string, tabSize: number): number[] {
+		const endOffset = lineContent.length;
+
+		let result = new Array<number>();
+		result.push(-1);
+		let pos = 0;
+		let i = 0;
+		while (i < endOffset) {
+			const codePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+			i += (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+			result.push(pos);
+			if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
+				result.push(pos);
+			}
+
+			if (codePoint === CharCode.Tab) {
+				pos = CursorColumns.nextRenderTabStop(pos, tabSize);
+			} else {
+				let graphemeBreakType = strings.getGraphemeBreakType(codePoint);
+				while (i < endOffset) {
+					const nextCodePoint = strings.getNextCodePoint(lineContent, endOffset, i);
+					const nextGraphemeBreakType = strings.getGraphemeBreakType(nextCodePoint);
+					if (strings.breakBetweenGraphemeBreakType(graphemeBreakType, nextGraphemeBreakType)) {
+						break;
+					}
+					i += (nextCodePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN ? 2 : 1);
+
+					result.push(pos);
+					if (codePoint >= Constants.UNICODE_SUPPLEMENTARY_PLANE_BEGIN) {
+						result.push(pos);
+					}
+
+					graphemeBreakType = nextGraphemeBreakType;
+				}
+				if (strings.isFullWidthCharacter(codePoint) || strings.isEmojiImprecise(codePoint)) {
+					pos = pos + 2;
+				} else {
+					pos = pos + 1;
+				}
+			}
+		}
+		result.push(pos);
 		return result;
 	}
 

@@ -23,6 +23,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { isIOS } from 'vs/base/common/platform';
 
 export class ContextMenuController implements IEditorContribution {
 
@@ -209,10 +210,12 @@ export class ContextMenuController implements IEditorContribution {
 			anchor = { x: posx, y: posy };
 		}
 
+		const useShadowDOM = this._editor.getOption(EditorOption.useShadowDOM) && !isIOS; // Do not use shadow dom on IOS #122035
+
 		// Show menu
 		this._contextMenuIsBeingShownCount++;
 		this._contextMenuService.showContextMenu({
-			domForShadowRoot: this._editor.getDomNode(),
+			domForShadowRoot: useShadowDOM ? this._editor.getDomNode() : undefined,
 
 			getAnchor: () => anchor!,
 

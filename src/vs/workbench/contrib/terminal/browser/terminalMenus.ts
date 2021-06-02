@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, TerminalCommandId, TerminalSettingId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const enum ContextMenuGroup {
 	Create = '1_create',
@@ -210,20 +211,6 @@ export function setupTerminalMenus(): void {
 		[
 			{
 				id: MenuId.ViewTitle, item: {
-					group: 'navigation',
-					command: {
-						id: TerminalCommandId.Split,
-						title: localize('workbench.action.terminal.split', "Split Terminal")
-					},
-					order: 2,
-					when: ContextKeyAndExpr.create([
-						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
-					])
-				}
-			},
-			{
-				id: MenuId.ViewTitle, item: {
 					command: {
 						id: TerminalCommandId.SwitchTerminal,
 						title: { value: localize('workbench.action.terminal.switchTerminal', "Switch Terminal"), original: 'Switch Terminal' }
@@ -243,6 +230,15 @@ export function setupTerminalMenus(): void {
 		[
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
+					group: ContextMenuGroup.Create,
+					command: {
+						id: TerminalCommandId.Split,
+						title: localize('workbench.action.terminal.split', "Split Terminal")
+					}
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
 						id: TerminalCommandId.ChangeIcon,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
@@ -254,19 +250,20 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
 					command: {
-						id: TerminalCommandId.Rename,
-						title: localize('workbench.action.terminal.rename', "Rename...")
+						id: TerminalCommandId.ChangeColor,
+						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
-					group: ContextMenuGroup.Edit
+					group: ContextMenuGroup.Edit,
+					order: 4
 				}
 			},
 			{
 				id: MenuId.TerminalInlineTabContext, item: {
-					group: ContextMenuGroup.Create,
 					command: {
-						id: TerminalCommandId.Split,
-						title: localize('workbench.action.terminal.split', "Split Terminal")
-					}
+						id: TerminalCommandId.Rename,
+						title: localize('workbench.action.terminal.rename', "Rename...")
+					},
+					group: ContextMenuGroup.Edit
 				}
 			},
 			{
@@ -283,6 +280,15 @@ export function setupTerminalMenus(): void {
 
 	MenuRegistry.appendMenuItems(
 		[
+			{
+				id: MenuId.TerminalTabContext, item: {
+					command: {
+						id: TerminalCommandId.SplitInstance,
+						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
+					},
+					group: ContextMenuGroup.Create
+				}
+			},
 			{
 				id: MenuId.TerminalTabContext, item: {
 					command: {
@@ -304,10 +310,30 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalTabContext, item: {
 					command: {
-						id: TerminalCommandId.SplitInstance,
-						title: localize('workbench.action.terminal.splitInstance', "Split Terminal"),
+						id: TerminalCommandId.ChangeColorInstance,
+						title: localize('workbench.action.terminal.changeColor', "Change Color...")
 					},
-					group: ContextMenuGroup.Create
+					group: ContextMenuGroup.Edit
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext, item: {
+					group: ContextMenuGroup.Config,
+					command: {
+						id: TerminalCommandId.JoinInstance,
+						title: localize('workbench.action.terminal.joinInstance', "Join Terminals")
+					},
+					when: KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION.toNegated()
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext, item: {
+					group: ContextMenuGroup.Config,
+					command: {
+						id: TerminalCommandId.UnsplitInstance,
+						title: localize('workbench.action.terminal.unsplitInstance', "Unsplit Terminal")
+					},
+					when: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, IS_SPLIT_TERMINAL_CONTEXT_KEY)
 				}
 			},
 			{

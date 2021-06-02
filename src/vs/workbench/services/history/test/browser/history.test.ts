@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorOptions } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { workbenchInstantiationService, TestFileEditorInput, registerTestEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
@@ -53,11 +52,11 @@ suite('HistoryService', function () {
 		const [part, historyService, editorService] = await createServices();
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input1, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 
 		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input2, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
@@ -78,10 +77,10 @@ suite('HistoryService', function () {
 		assert.strictEqual(history.length, 0);
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input1, { pinned: true });
 
 		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input2, { pinned: true });
 
 		history = historyService.getHistory();
 		assert.strictEqual(history.length, 2);
@@ -98,7 +97,7 @@ suite('HistoryService', function () {
 		assert.ok(!historyService.getLastActiveFile('foo'));
 
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input1, { pinned: true });
 
 		assert.strictEqual(historyService.getLastActiveFile('foo')?.toString(), input1.resource.toString());
 	});
@@ -109,10 +108,10 @@ suite('HistoryService', function () {
 		const input1 = new TestFileEditorInput(URI.parse('foo://bar1'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
 
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input1, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input1);
 
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input2, { pinned: true });
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
@@ -145,8 +144,8 @@ suite('HistoryService', function () {
 
 		const sideGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
-		await rootGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await sideGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
+		await rootGroup.openEditor(input1, { pinned: true });
+		await sideGroup.openEditor(input2, { pinned: true });
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
 		historyService.openPreviouslyUsedEditor();
@@ -169,9 +168,9 @@ suite('HistoryService', function () {
 		const input3 = new TestFileEditorInput(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
 		const input4 = new TestFileEditorInput(URI.parse('foo://bar4'), TEST_EDITOR_INPUT_ID);
 
-		await part.activeGroup.openEditor(input1, EditorOptions.create({ pinned: true }));
-		await part.activeGroup.openEditor(input2, EditorOptions.create({ pinned: true }));
-		await part.activeGroup.openEditor(input3, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input1, { pinned: true });
+		await part.activeGroup.openEditor(input2, { pinned: true });
+		await part.activeGroup.openEditor(input3, { pinned: true });
 
 		let editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
 		historyService.openPreviouslyUsedEditor();
@@ -179,7 +178,7 @@ suite('HistoryService', function () {
 		assert.strictEqual(part.activeGroup.activeEditor, input2);
 
 		await timeout(0);
-		await part.activeGroup.openEditor(input4, EditorOptions.create({ pinned: true }));
+		await part.activeGroup.openEditor(input4, { pinned: true });
 
 		editorChangePromise = Event.toPromise(editorService.onDidActiveEditorChange);
 		historyService.openPreviouslyUsedEditor();

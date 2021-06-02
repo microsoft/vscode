@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ColorId, LanguageId, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
+import { ColorId, FontStyle, LanguageId, MetadataConsts, StandardTokenType, TokenMetadata } from 'vs/editor/common/modes';
 
 export interface IViewLineTokens {
 	equals(other: IViewLineTokens): boolean;
@@ -21,6 +21,20 @@ export class LineTokens implements IViewLineTokens {
 	private readonly _tokens: Uint32Array;
 	private readonly _tokensCount: number;
 	private readonly _text: string;
+
+	public static createEmpty(lineContent: string): LineTokens {
+		const defaultMetadata = (
+			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+		) >>> 0;
+
+		const tokens = new Uint32Array(2);
+		tokens[0] = lineContent.length;
+		tokens[1] = defaultMetadata;
+
+		return new LineTokens(tokens, lineContent);
+	}
 
 	constructor(tokens: Uint32Array, text: string) {
 		this._tokens = tokens;

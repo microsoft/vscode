@@ -228,13 +228,13 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		};
 	}
 
-	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, selector: vscode.NotebookSelector, provider: vscode.NotebookCellStatusBarItemProvider) {
+	registerNotebookCellStatusBarItemProvider(extension: IExtensionDescription, notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) {
 
 		const handle = ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++;
 		const eventHandle = typeof provider.onDidChangeCellStatusBarItems === 'function' ? ExtHostNotebookController._notebookStatusBarItemProviderHandlePool++ : undefined;
 
 		this._notebookStatusBarItemProviders.set(handle, provider);
-		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, selector);
+		this._notebookProxy.$registerNotebookCellStatusBarItemProvider(handle, eventHandle, notebookType);
 
 		let subscription: vscode.Disposable | undefined;
 		if (eventHandle !== undefined) {
@@ -254,12 +254,20 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		return new NotebookEditorDecorationType(this._notebookEditorsProxy, options).value;
 	}
 
+	async createNotebookDocument(options: { viewType: string, content?: vscode.NotebookData }): Promise<URI> {
+		const canonicalUri = await this._notebookDocumentsProxy.$tryCreateNotebook({
+			viewType: options.viewType,
+			content: options.content && typeConverters.NotebookData.from(options.content)
+		});
+		return URI.revive(canonicalUri);
+	}
+
 	async openNotebookDocument(uri: URI): Promise<vscode.NotebookDocument> {
 		const cached = this._documents.get(uri);
 		if (cached) {
 			return cached.apiNotebook;
 		}
-		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenDocument(uri);
+		const canonicalUri = await this._notebookDocumentsProxy.$tryOpenNotebook(uri);
 		const document = this._documents.get(URI.revive(canonicalUri));
 		return assertIsDefined(document?.apiNotebook);
 	}
@@ -293,9 +301,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		}
 
 		if (editorId) {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.toString()}" because another editor opened in the meantime.`);
+			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}" because another editor opened in the meantime.`);
 		} else {
-			throw new Error(`Could NOT open editor for "${notebookOrUri.toString()}".`);
+			throw new Error(`Could NOT open editor for "${notebookOrUri.uri.toString()}".`);
 		}
 	}
 
@@ -359,10 +367,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			throw new Error('NO serializer found');
 		}
 		const data = await serializer.deserializeNotebook(bytes.buffer, token);
-		return {
-			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
-			cells: data.cells.map(typeConverters.NotebookCellData.from),
-		};
+		return typeConverters.NotebookData.from(data);
 	}
 
 	async $notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer> {
@@ -370,10 +375,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		if (!serializer) {
 			throw new Error('NO serializer found');
 		}
-		const bytes = await serializer.serializeNotebook({
-			metadata: typeConverters.NotebookDocumentMetadata.to(data.metadata),
-			cells: data.cells.map(typeConverters.NotebookCellData.to)
-		}, token);
+		const bytes = await serializer.serializeNotebook(typeConverters.NotebookData.to(data), token);
 		return VSBuffer.wrap(bytes);
 	}
 
@@ -383,7 +385,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const { provider } = this._getProviderData(viewType);
 		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
 		return {
-			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
+			metadata: data.metadata ?? Object.create(null),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		};
 	}
@@ -554,7 +556,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						}
 					},
 					viewType,
-					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
+					modelData.metadata ?? Object.create({}),
 					uri,
 				);
 

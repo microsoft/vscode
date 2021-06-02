@@ -194,15 +194,17 @@ export default class PHPValidationProvider {
 			if (vscode.workspace.isTrusted) {
 				trigger();
 			}
-		} else if (this.config!.executableIsUserDefined !== undefined && !this.config!.executableIsUserDefined) {
-			const checkedExecutablePath = this.workspaceStore.get<string | undefined>(Setting.CheckedExecutablePath, undefined);
-			if (!checkedExecutablePath || checkedExecutablePath !== this.config!.executable) {
-				if (await this.showCustomTrustDialog()) {
-					this.workspaceStore.update(Setting.CheckedExecutablePath, this.config!.executable);
-					vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
-				} else {
-					this.pauseValidation = true;
-					return;
+		} else {
+			if (this.config!.executableIsUserDefined !== undefined && !this.config!.executableIsUserDefined) {
+				const checkedExecutablePath = this.workspaceStore.get<string | undefined>(Setting.CheckedExecutablePath, undefined);
+				if (!checkedExecutablePath || checkedExecutablePath !== this.config!.executable) {
+					if (await this.showCustomTrustDialog()) {
+						this.workspaceStore.update(Setting.CheckedExecutablePath, this.config!.executable);
+						vscode.commands.executeCommand('setContext', 'php.untrustValidationExecutableContext', true);
+					} else {
+						this.pauseValidation = true;
+						return;
+					}
 				}
 			}
 

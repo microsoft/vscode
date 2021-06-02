@@ -9,7 +9,9 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { EditorInput, SideBySideEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -46,7 +48,7 @@ export class DefaultPreferencesEditorInput extends TextResourceEditorInput {
 		@IFileService fileService: IFileService,
 		@ILabelService labelService: ILabelService
 	) {
-		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, textModelResolverService, textFileService, editorService, fileService, labelService);
+		super(defaultSettingsResource, nls.localize('settingsEditorName', "Default Settings"), '', undefined, undefined, textModelResolverService, textFileService, editorService, fileService, labelService);
 	}
 
 	override get typeId(): string {

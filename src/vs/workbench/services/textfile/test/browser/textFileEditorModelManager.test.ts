@@ -72,7 +72,7 @@ suite('Files - TextFileEditorModelManager', () => {
 		results = manager.models;
 		assert.strictEqual(2, results.length);
 
-		manager.clear();
+		manager.dispose();
 		results = manager.models;
 		assert.strictEqual(0, results.length);
 

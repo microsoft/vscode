@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 
 suite('Untitled text editors', () => {
 
@@ -42,8 +43,17 @@ suite('Untitled text editors', () => {
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
 
+		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
+
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);
+
+		// asResourceEditorInput()
+		const untypedInput = input1.asResourceEditorInput(0);
+		assert.strictEqual(untypedInput.forceUntitled, true);
 
 		// get()
 		assert.strictEqual(service.get(input1.resource), input1.model);
@@ -70,6 +80,9 @@ suite('Untitled text editors', () => {
 		assert.strictEqual(resource.toString(), input2.resource.toString());
 
 		assert.ok(input2.isDirty());
+
+		const dirtyUntypedInput = input2.asResourceEditorInput(0);
+		assert.strictEqual(dirtyUntypedInput.contents, 'foo bar');
 
 		assert.ok(workingCopyService.isDirty(input2.resource));
 		assert.strictEqual(workingCopyService.dirtyCount, 1);
@@ -101,22 +114,6 @@ suite('Untitled text editors', () => {
 			});
 		});
 	}
-
-	test('setValue()', async () => {
-		const service = accessor.untitledTextEditorService;
-		const untitled = instantiationService.createInstance(UntitledTextEditorInput, service.create());
-
-		const model = await untitled.resolve();
-
-		model.setValue('not dirty', true);
-		assert.ok(!model.isDirty());
-
-		model.setValue('dirty');
-		assert.ok(model.isDirty());
-
-		untitled.dispose();
-		model.dispose();
-	});
 
 	test('associated resource is dirty', async () => {
 		const service = accessor.untitledTextEditorService;

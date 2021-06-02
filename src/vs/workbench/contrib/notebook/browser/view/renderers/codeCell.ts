@@ -10,13 +10,11 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { EDITOR_BOTTOM_PADDING } from 'vs/workbench/contrib/notebook/browser/constants';
-import { CellFocusMode, CodeCellRenderTemplate, getEditorTopPadding, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFocusMode, CodeCellRenderTemplate, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellOutput';
 import { ClickTargetType } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 export class CodeCell extends Disposable {
@@ -32,16 +30,17 @@ export class CodeCell extends Disposable {
 		private templateData: CodeCellRenderTemplate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@INotebookCellStatusBarService readonly notebookCellStatusBarService: INotebookCellStatusBarService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService
+		@IOpenerService readonly openerService: IOpenerService
 	) {
 		super();
 
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
-			? lineNum * lineHeight + getEditorTopPadding() + EDITOR_BOTTOM_PADDING
+			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
 			: this.viewCell.layoutInfo.editorHeight;
 
 		this.layoutEditor(
@@ -224,11 +223,11 @@ export class CodeCell extends Disposable {
 
 		this.viewCell.layoutChange({});
 
-		if (this.viewCell.metadata?.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
+		if (this.viewCell.metadata.inputCollapsed && this.viewCell.metadata.outputCollapsed) {
 			this.viewUpdateAllCollapsed();
-		} else if (this.viewCell.metadata?.inputCollapsed) {
+		} else if (this.viewCell.metadata.inputCollapsed) {
 			this.viewUpdateInputCollapsed();
-		} else if (this.viewCell.metadata?.outputCollapsed && this.viewCell.outputsViewModels.length) {
+		} else if (this.viewCell.metadata.outputCollapsed && this.viewCell.outputsViewModels.length) {
 			this.viewUpdateOutputCollapsed();
 		} else {
 			this.viewUpdateExpanded();

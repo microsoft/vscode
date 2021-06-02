@@ -237,7 +237,7 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 	private _onDidSashReset = this._register(new Emitter<number>());
 	readonly onDidSashReset = this._onDidSashReset.event;
 
-	readonly onScroll: Event<ScrollEvent>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	get length(): number {
 		return this.viewItems.length;
@@ -319,8 +319,8 @@ export class SplitView<TLayoutContext = undefined> extends Disposable {
 			horizontal: this.orientation === Orientation.HORIZONTAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden
 		}, this.scrollable));
 
-		this.onScroll = this.scrollableElement.onScroll;
-		this._register(this.onScroll(e => {
+		this.onDidScroll = this.scrollableElement.onScroll;
+		this._register(this.onDidScroll(e => {
 			this.viewContainer.scrollTop = e.scrollTop;
 			this.viewContainer.scrollLeft = e.scrollLeft;
 		}));

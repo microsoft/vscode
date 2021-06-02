@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { EditorInput, IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorModel } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
@@ -14,6 +16,7 @@ import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebo
 import { IReference } from 'vs/base/common/lifecycle';
 import { INotebookDiffEditorModel, IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Schemas } from 'vs/base/common/network';
+import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -68,7 +71,8 @@ export class NotebookDiffEditorInput extends EditorInput {
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
-		@IFileDialogService private readonly _fileDialogService: IFileDialogService
+		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		super();
 		this._defaultDirtyState = !!options.startDirty;
@@ -76,6 +80,26 @@ export class NotebookDiffEditorInput extends EditorInput {
 
 	override get typeId(): string {
 		return NotebookDiffEditorInput.ID;
+	}
+
+	override get capabilities(): EditorInputCapabilities {
+		let capabilities = EditorInputCapabilities.None;
+
+		if (this._modifiedTextModel?.object.resource.scheme === Schemas.untitled) {
+			capabilities |= EditorInputCapabilities.Untitled;
+		}
+
+		if (this._modifiedTextModel) {
+			if (this._modifiedTextModel.object.isReadonly()) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		} else {
+			if (this._fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+				capabilities |= EditorInputCapabilities.Readonly;
+			}
+		}
+
+		return capabilities;
 	}
 
 	override getName(): string {
@@ -89,18 +113,10 @@ export class NotebookDiffEditorInput extends EditorInput {
 		return this._modifiedTextModel.object.isDirty();
 	}
 
-	override isUntitled(): boolean {
-		return this._modifiedTextModel?.object.resource.scheme === Schemas.untitled;
-	}
-
-	override isReadonly() {
-		return false;
-	}
-
 	override async save(group: GroupIdentifier, options?: ISaveOptions): Promise<IEditorInput | undefined> {
 		if (this._modifiedTextModel) {
 
-			if (this.isUntitled()) {
+			if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 				return this.saveAs(group, options);
 			} else {
 				await this._modifiedTextModel.object.save();
@@ -199,8 +215,18 @@ ${patterns}
 		return new NotebookDiffEditorModel(this._originalTextModel.object, this._modifiedTextModel.object);
 	}
 
+	override asResourceEditorInput(group: GroupIdentifier): IResourceDiffEditorInput {
+		return {
+			originalInput: { resource: this.originalResource },
+			modifiedInput: { resource: this.resource },
+			options: {
+				override: this.viewType
+			}
+		};
+	}
+
 	override matches(otherInput: unknown): boolean {
-		if (this === otherInput) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookDiffEditorInput) {

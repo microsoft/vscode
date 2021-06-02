@@ -34,7 +34,7 @@
         "icon": "$(debug)"
       }
     ],
-    "notebookProvider": [
+    "notebooks": [
       {
         "viewType": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
@@ -46,7 +46,7 @@
         ]
       }
     ],
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",

@@ -37,17 +37,17 @@ export interface IEditorModel {
 export interface IBaseResourceEditorInput {
 
 	/**
-	 * Optional options to use when opening the text input.
+	 * Optional options to use when opening the input.
 	 */
-	options?: ITextEditorOptions;
+	options?: IEditorOptions;
 
 	/**
-	 * Label to show for the diff editor
+	 * Label to show for the input.
 	 */
 	readonly label?: string;
 
 	/**
-	 * Description to show for the diff editor
+	 * Description to show for the input.
 	 */
 	readonly description?: string;
 
@@ -70,6 +70,48 @@ export interface IBaseResourceEditorInput {
 	readonly forceUntitled?: boolean;
 }
 
+export interface IBaseTextResourceEditorInput extends IBaseResourceEditorInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+
+	/**
+	 * The contents of the text input if known. If provided,
+	 * the input will not attempt to load the contents from
+	 * disk and may appear dirty.
+	 */
+	contents?: string;
+
+	/**
+	 * The encoding of the text input if known.
+	 */
+	encoding?: string;
+
+	/**
+	 * The identifier of the language mode of the text input
+	 * if known to use when displaying the contents.
+	 */
+	mode?: string;
+}
+
+export interface IResourceEditorInput extends IBaseResourceEditorInput {
+
+	/**
+	 * The resource URI of the resource to open.
+	 */
+	readonly resource: URI;
+}
+
+export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
+
+	/**
+	 * Optional options to use when opening the text input.
+	 */
+	options?: ITextEditorOptions;
+}
+
 /**
  * This identifier allows to uniquely identify an editor with a
  * resource and type identifier.
@@ -85,25 +127,6 @@ export interface IResourceEditorInputIdentifier {
 	 * The type of the editor.
 	 */
 	readonly typeId: string;
-}
-
-export interface IResourceEditorInput extends IBaseResourceEditorInput {
-
-	/**
-	 * The resource URI of the resource to open.
-	 */
-	readonly resource: URI;
-
-	/**
-	 * The encoding of the text input if known.
-	 */
-	readonly encoding?: string;
-
-	/**
-	 * The identifier of the language mode of the text input
-	 * if known to use when displaying the contents.
-	 */
-	readonly mode?: string;
 }
 
 export enum EditorActivation {
@@ -169,7 +192,7 @@ export interface IEditorOptions {
 	 * Will also not activate the group the editor opens in unless the group is already
 	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
-	readonly preserveFocus?: boolean;
+	preserveFocus?: boolean;
 
 	/**
 	 * This option is only relevant if an editor is opened into a group that is not active
@@ -179,14 +202,14 @@ export interface IEditorOptions {
 	 * By default, the editor group will become active unless `preserveFocus` or `inactive`
 	 * is specified.
 	 */
-	readonly activation?: EditorActivation;
+	activation?: EditorActivation;
 
 	/**
 	 * Tells the editor to reload the editor input in the editor even if it is identical to the one
 	 * already showing. By default, the editor will not reload the input if it is identical to the
 	 * one showing.
 	 */
-	readonly forceReload?: boolean;
+	forceReload?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened and visible in any of the opened editor groups.
@@ -194,7 +217,7 @@ export interface IEditorOptions {
 	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
-	readonly revealIfVisible?: boolean;
+	revealIfVisible?: boolean;
 
 	/**
 	 * Will reveal the editor if it is already opened (even when not visible) in any of the opened editor groups.
@@ -202,24 +225,24 @@ export interface IEditorOptions {
 	 * Note that this option is just a hint that might be ignored if the user wants to open an editor explicitly
 	 * to the side of another one or into a specific editor group.
 	 */
-	readonly revealIfOpened?: boolean;
+	revealIfOpened?: boolean;
 
 	/**
 	 * An editor that is pinned remains in the editor stack even when another editor is being opened.
 	 * An editor that is not pinned will always get replaced by another editor that is not pinned.
 	 */
-	readonly pinned?: boolean;
+	pinned?: boolean;
 
 	/**
 	 * An editor that is sticky moves to the beginning of the editors list within the group and will remain
 	 * there unless explicitly closed. Operations such as "Close All" will not close sticky editors.
 	 */
-	readonly sticky?: boolean;
+	sticky?: boolean;
 
 	/**
 	 * The index in the document stack where to insert the editor into when opening.
 	 */
-	readonly index?: number;
+	index?: number;
 
 	/**
 	 * An active editor that is opened will show its contents directly. Set to true to open an editor
@@ -228,13 +251,13 @@ export interface IEditorOptions {
 	 * Will also not activate the group the editor opens in unless the group is already
 	 * the active one. This behaviour can be overridden via the `activation` option.
 	 */
-	readonly inactive?: boolean;
+	inactive?: boolean;
 
 	/**
 	 * Will not show an error in case opening the editor fails and thus allows to show a custom error
 	 * message as needed. By default, an error will be presented as notification if opening was not possible.
 	 */
-	readonly ignoreError?: boolean;
+	ignoreError?: boolean;
 
 	/**
 	 * Allows to override the editor that should be used to display the input:
@@ -242,7 +265,7 @@ export interface IEditorOptions {
 	 * - `string`: specific override by id
 	 * - `EditorOverride`: specific override handling
 	 */
-	readonly override?: string | EditorOverride;
+	override?: string | EditorOverride;
 
 	/**
 	 * A optional hint to signal in which context the editor opens.
@@ -254,7 +277,7 @@ export interface IEditorOptions {
 	 * some background task, the notification would show in the background,
 	 * not as a modal dialog.
 	 */
-	readonly context?: EditorOpenContext;
+	context?: EditorOpenContext;
 }
 
 export interface ITextEditorSelection {
@@ -269,14 +292,17 @@ export const enum TextEditorSelectionRevealType {
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically.
 	 */
 	Center = 0,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range centered vertically only if it lies outside the viewport.
 	 */
 	CenterIfOutsideViewport = 1,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 */
 	NearTop = 2,
+
 	/**
 	 * Option to scroll vertically or horizontally as necessary and reveal a range close to the top of the viewport, but not quite at the top.
 	 * Only if it lies outside the viewport
@@ -289,16 +315,16 @@ export interface ITextEditorOptions extends IEditorOptions {
 	/**
 	 * Text editor selection.
 	 */
-	readonly selection?: ITextEditorSelection;
+	selection?: ITextEditorSelection;
 
 	/**
 	 * Text editor view state.
 	 */
-	readonly viewState?: object;
+	viewState?: object;
 
 	/**
 	 * Option to control the text editor selection reveal type.
 	 * Defaults to TextEditorSelectionRevealType.Center
 	 */
-	readonly selectionRevealType?: TextEditorSelectionRevealType;
+	selectionRevealType?: TextEditorSelectionRevealType;
 }

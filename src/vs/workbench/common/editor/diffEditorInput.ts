@@ -3,7 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EditorModel, EditorInput, SideBySideEditorInput, TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity } from 'vs/workbench/common/editor';
+import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -14,6 +17,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -32,8 +36,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
-		public readonly originalInput: EditorInput,
-		public readonly modifiedInput: EditorInput,
+		readonly originalInput: EditorInput,
+		readonly modifiedInput: EditorInput,
 		private readonly forceOpenAsBinary: boolean | undefined,
 		@ILabelService private readonly labelService: ILabelService,
 		@IFileService private readonly fileService: IFileService
@@ -104,8 +108,12 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return this.cachedModel;
 	}
 
-	override getPreferredEditorId(candidates: string[]): string {
-		return this.forceOpenAsBinary ? BINARY_DIFF_EDITOR_ID : TEXT_DIFF_EDITOR_ID;
+	override prefersEditor<T extends IEditorDescriptor<IEditorPane>>(editors: T[]): T | undefined {
+		if (this.forceOpenAsBinary) {
+			return editors.find(editor => editor.typeId === BINARY_DIFF_EDITOR_ID);
+		}
+
+		return editors.find(editor => editor.typeId === TEXT_DIFF_EDITOR_ID);
 	}
 
 	private async createModel(): Promise<DiffEditorModel> {
@@ -123,6 +131,22 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 		// Otherwise return normal diff model
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
+	}
+
+	override asResourceEditorInput(groupId: GroupIdentifier): IResourceDiffEditorInput | undefined {
+		const originalResourceEditorInput = this.secondary.asResourceEditorInput(groupId);
+		const modifiedResourceEditorInput = this.primary.asResourceEditorInput(groupId);
+
+		if (originalResourceEditorInput && modifiedResourceEditorInput) {
+			return {
+				label: this.name,
+				description: this.description,
+				originalInput: originalResourceEditorInput,
+				modifiedInput: modifiedResourceEditorInput
+			};
+		}
+
+		return undefined;
 	}
 
 	override matches(otherInput: unknown): boolean {
@@ -144,5 +168,12 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		}
 
 		super.dispose();
+	}
+}
+
+export class DiffEditorInputSerializer extends AbstractSideBySideEditorInputSerializer {
+
+	protected createEditorInput(instantiationService: IInstantiationService, name: string, description: string | undefined, secondaryInput: EditorInput, primaryInput: EditorInput): EditorInput {
+		return instantiationService.createInstance(DiffEditorInput, name, description, secondaryInput, primaryInput, undefined);
 	}
 }

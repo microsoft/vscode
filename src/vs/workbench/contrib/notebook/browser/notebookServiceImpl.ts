@@ -27,14 +27,14 @@ import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.pr
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { Memento } from 'vs/workbench/common/memento';
-import { INotebookEditorContribution, notebookMarkupRendererExtensionPoint, notebookProviderExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
-import { NotebookEditorOptions, updateEditorTopPadding } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditorContribution, notebooksExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
+import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookMarkupRendererInfo, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { NotebookMarkupRendererInfo as NotebookMarkupRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookMarkdownRenderer';
+import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
@@ -80,7 +80,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			}
 		}));
 
-		notebookProviderExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
+		notebooksExtensionPoint.setHandler(extensions => this._setupHandler(extensions));
 	}
 
 	override dispose(): void {
@@ -96,7 +96,7 @@ export class NotebookProviderInfoStore extends Disposable {
 			for (const notebookContribution of extension.value) {
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
-					id: notebookContribution.viewType,
+					id: notebookContribution.type || notebookContribution.viewType,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
@@ -148,10 +148,10 @@ export class NotebookProviderInfoStore extends Disposable {
 
 				if (data) {
 					notebookUri = data.notebook;
-					cellOptions = { resource: resource, options: options };
+					cellOptions = { resource, options };
 				}
 
-				const notebookOptions = new NotebookEditorOptions({ ...options, cellOptions });
+				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
 			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options, group) => {
@@ -249,6 +249,10 @@ export class NotebookOutputRendererInfoStore {
 		return this.contributedRenderers.get(rendererId);
 	}
 
+	getAll(): NotebookOutputRendererInfo[] {
+		return Array.from(this.contributedRenderers.values());
+	}
+
 	add(info: NotebookOutputRendererInfo): void {
 		if (this.contributedRenderers.has(info.id)) {
 			return;
@@ -301,7 +305,6 @@ export class NotebookService extends Disposable implements INotebookService {
 	private readonly _notebookProviders = new Map<string, ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>();
 	private readonly _notebookProviderInfoStore: NotebookProviderInfoStore;
 	private readonly _notebookRenderersInfoStore = this._instantiationService.createInstance(NotebookOutputRendererInfoStore);
-	private readonly _markdownRenderersInfos = new Set<INotebookMarkupRendererInfo>();
 	private readonly _models = new ResourceMap<ModelData>();
 
 	private readonly _onWillAddNotebookDocument = this._register(new Emitter<NotebookTextModel>());
@@ -346,13 +349,13 @@ export class NotebookService extends Disposable implements INotebookService {
 			for (const extension of renderers) {
 				for (const notebookContribution of extension.value) {
 					if (!notebookContribution.entrypoint) { // avoid crashing
-						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
+						extension.collector.error(`Notebook renderer does not specify entry point`);
 						continue;
 					}
 
 					const id = notebookContribution.id ?? notebookContribution.viewType;
 					if (!id) {
-						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
+						extension.collector.error(`Notebook renderer does not specify id-property`);
 						continue;
 					}
 
@@ -364,38 +367,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						mimeTypes: notebookContribution.mimeTypes || [],
 						dependencies: notebookContribution.dependencies,
 						optionalDependencies: notebookContribution.optionalDependencies,
-					}));
-				}
-			}
-		});
-		notebookMarkupRendererExtensionPoint.setHandler((renderers) => {
-			this._markdownRenderersInfos.clear();
-
-			for (const extension of renderers) {
-				if (!extension.description.enableProposedApi && !extension.description.isBuiltin) {
-					// Only allow proposed extensions to use this extension point
-					return;
-				}
-
-				for (const notebookContribution of extension.value) {
-					if (!notebookContribution.entrypoint) { // avoid crashing
-						console.error(`Cannot register renderer for ${extension.description.identifier.value} since it did not have an entrypoint. This is now required: https://github.com/microsoft/vscode/issues/102644`);
-						continue;
-					}
-
-					const id = notebookContribution.id;
-					if (!id) {
-						console.error(`Notebook renderer from ${extension.description.identifier.value} is missing an 'id'`);
-						continue;
-					}
-
-					this._markdownRenderersInfos.add(new NotebookMarkupRendererInfo({
-						id,
-						extension: extension.description,
-						entrypoint: notebookContribution.entrypoint,
-						displayName: notebookContribution.displayName,
-						mimeTypes: notebookContribution.mimeTypes,
-						dependsOn: notebookContribution.dependsOn,
+						requiresMessaging: notebookContribution.requiresMessaging,
 					}));
 				}
 			}
@@ -551,8 +523,8 @@ export class NotebookService extends Disposable implements INotebookService {
 		this._notebookRenderersInfoStore.setPreferred(mimeType, rendererId);
 	}
 
-	getMarkupRendererInfo(): INotebookMarkupRendererInfo[] {
-		return Array.from(this._markdownRenderersInfos);
+	getRenderers(): INotebookRendererInfo[] {
+		return this._notebookRenderersInfoStore.getAll();
 	}
 
 	// --- notebook documents: create, destory, retrieve, enumerate

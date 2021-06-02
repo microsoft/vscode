@@ -16,7 +16,7 @@ import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resour
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -35,7 +35,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
@@ -51,6 +51,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _editorProviders = new Map<string, IDisposable>();
 
+	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
+
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
@@ -61,7 +63,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -90,6 +92,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
+
+		// Working copy operations
+		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
 	}
 
 	override dispose() {
@@ -138,9 +143,18 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
+				// If there's an old resource this was a move and we must resolve the backup at the same time as the webview
+				// This is because the backup must be ready upon model creation, and the input resolve method comes after
+				let backupId = webviewInput.backupId;
+				if (webviewInput.oldResource && !webviewInput.backupId) {
+					const backup = this._editorRenameBackups.get(webviewInput.oldResource.toString());
+					backupId = backup?.backupId;
+					this._editorRenameBackups.delete(webviewInput.oldResource.toString());
+				}
+
 				let modelRef: IReference<ICustomEditorModel>;
 				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId: webviewInput.backupId }, cancellation);
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
@@ -253,6 +267,31 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}
 		return model;
 	}
+
+	//#region Working Copy
+	private async onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent) {
+		if (e.operation !== FileOperation.MOVE) {
+			return;
+		}
+		e.waitUntil((async () => {
+			const models = [];
+			for (const file of e.files) {
+				if (file.source) {
+					models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+				}
+			}
+			for (const model of models) {
+				if (model instanceof MainThreadCustomEditorModel && model.isDirty()) {
+					const workingCopy = await model.backup(CancellationToken.None);
+					if (workingCopy.meta) {
+						// This cast is safe because we do an instanceof check above and a custom document backup data is always returned
+						this._editorRenameBackups.set(model.editorResource.toString(), workingCopy.meta as CustomDocumentBackupData);
+					}
+				}
+			}
+		})());
+	}
+	//#endregion
 }
 
 namespace HotExitState {
@@ -406,14 +445,12 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	readonly onDidChangeReadonly = Event.None;
+
 	//#endregion
 
-	public isEditable(): boolean {
-		return this._editable;
-	}
-
-	public isOnReadonlyFileSystem(): boolean {
-		return this.fileService.hasCapability(this.editorResource, FileSystemProviderCapabilities.Readonly);
+	public isReadonly(): boolean {
+		return !this._editable;
 	}
 
 	public get viewType() {
@@ -506,7 +543,7 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 		}
 	}
 
-	public async revert(_options?: IRevertOptions) {
+	public async revert(options?: IRevertOptions) {
 		if (!this._editable) {
 			return;
 		}
@@ -515,7 +552,10 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 			return;
 		}
 
-		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		if (!options?.soft) {
+			this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		}
+
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._fromBackup = false;

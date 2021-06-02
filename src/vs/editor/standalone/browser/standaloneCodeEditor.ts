@@ -34,6 +34,7 @@ import { StandaloneThemeServiceImpl } from 'vs/editor/standalone/browser/standal
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILanguageSelection, IModeService } from 'vs/editor/common/services/modeService';
 import { URI } from 'vs/base/common/uri';
+import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 
 /**
  * Description of an action contribution
@@ -362,6 +363,20 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		}));
 
 		return toDispose;
+	}
+
+	protected override _triggerCommand(handlerId: string, payload: any): void {
+		if (this._codeEditorService instanceof StandaloneCodeEditorServiceImpl) {
+			// Help commands find this editor as the active editor
+			try {
+				this._codeEditorService.setActiveCodeEditor(this);
+				super._triggerCommand(handlerId, payload);
+			} finally {
+				this._codeEditorService.setActiveCodeEditor(null);
+			}
+		} else {
+			super._triggerCommand(handlerId, payload);
+		}
 	}
 }
 

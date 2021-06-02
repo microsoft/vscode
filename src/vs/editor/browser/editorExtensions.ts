@@ -349,14 +349,16 @@ export abstract class EditorAction extends EditorCommand {
 	public abstract run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void>;
 }
 
+export type EditorActionImplementation = (accessor: ServicesAccessor, editor: ICodeEditor, args: any) => boolean | Promise<void>;
+
 export class MultiEditorAction extends EditorAction {
 
-	private readonly _implementations: [number, CommandImplementation][] = [];
+	private readonly _implementations: [number, EditorActionImplementation][] = [];
 
 	/**
 	 * A higher priority gets to be looked at first
 	 */
-	public addImplementation(priority: number, implementation: CommandImplementation): IDisposable {
+	public addImplementation(priority: number, implementation: EditorActionImplementation): IDisposable {
 		this._implementations.push([priority, implementation]);
 		this._implementations.sort((a, b) => b[0] - a[0]);
 		return {
@@ -373,7 +375,7 @@ export class MultiEditorAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | Promise<void> {
 		for (const impl of this._implementations) {
-			const result = impl[1](accessor, args);
+			const result = impl[1](accessor, editor, args);
 			if (result) {
 				if (typeof result === 'boolean') {
 					return;

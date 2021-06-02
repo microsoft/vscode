@@ -685,6 +685,65 @@ export interface CompletionItemProvider {
 	resolveCompletionItem?(item: CompletionItem, token: CancellationToken): ProviderResult<CompletionItem>;
 }
 
+/**
+ * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
+ */
+export enum InlineCompletionTriggerKind {
+	/**
+	 * Completion was triggered automatically while editing.
+	 * It is sufficient to return a single completion item in this case.
+	 */
+	Automatic = 0,
+
+	/**
+	 * Completion was triggered explicitly by a user gesture.
+	 * Return multiple completion items to enable cycling through them.
+	 */
+	Explicit = 1,
+}
+
+export interface InlineCompletionContext {
+	/**
+	 * How the completion was triggered.
+	 */
+	readonly triggerKind: InlineCompletionTriggerKind;
+}
+
+export interface InlineCompletion {
+	/**
+	 * The text to insert.
+	 * If the text contains a line break, the range must end at the end of a line.
+	 * If existing text should be replaced, the existing text must be a prefix of the text to insert.
+	*/
+	readonly text: string;
+
+	/**
+	 * The range to replace.
+	 * Must begin and end on the same line.
+	*/
+	readonly range?: IRange;
+
+	readonly command?: Command;
+}
+
+export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
+	readonly items: readonly TItem[];
+}
+
+export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
+	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
+
+	/**
+	 * Will be called when an item is shown.
+	*/
+	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Will be called when a completions list is no longer in use and can be garbage-collected.
+	*/
+	freeInlineCompletions(completions: T): void;
+}
+
 export interface CodeAction {
 	title: string;
 	command?: Command;
@@ -1769,6 +1828,11 @@ export const RenameProviderRegistry = new LanguageFeatureRegistry<RenameProvider
  * @internal
  */
 export const CompletionProviderRegistry = new LanguageFeatureRegistry<CompletionItemProvider>();
+
+/**
+ * @internal
+ */
+export const InlineCompletionsProviderRegistry = new LanguageFeatureRegistry<InlineCompletionsProvider>();
 
 /**
  * @internal
