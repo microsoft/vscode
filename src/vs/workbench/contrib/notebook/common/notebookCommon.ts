@@ -53,7 +53,7 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { extends: string; path: string; };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -65,7 +65,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 };
 
 export interface NotebookDocumentMetadata {
-	custom?: { [key: string]: unknown };
+	custom?: { [key: string]: unknown; };
 	[key: string]: unknown;
 }
 
@@ -166,7 +166,7 @@ export interface NotebookCellOutputMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	custom?: { [key: string]: unknown };
+	custom?: { [key: string]: unknown; };
 }
 
 export interface IOrderedMimeType {
@@ -216,7 +216,7 @@ export interface ICell {
 
 export interface INotebookTextModel {
 	readonly viewType: string;
-	metadata: NotebookDocumentMetadata
+	metadata: NotebookDocumentMetadata;
 	readonly uri: URI;
 	readonly versionId: number;
 
@@ -400,14 +400,14 @@ export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
 	outputs: IOutputDto[];
-	append?: boolean
+	append?: boolean;
 }
 
 export interface ICellOutputEditByHandle {
 	editType: CellEditType.Output;
 	handle: number;
 	outputs: IOutputDto[];
-	append?: boolean
+	append?: boolean;
 }
 
 export interface ICellOutputItemEdit {
@@ -518,7 +518,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
+	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -764,7 +764,7 @@ export interface INotebookDiffEditorModel extends IEditorModel {
 export interface INotebookTextModelBackup {
 	metadata: NotebookDocumentMetadata;
 	languages: string[];
-	cells: ICellDto2[]
+	cells: ICellDto2[];
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -781,7 +781,7 @@ export enum NotebookEditorPriority {
 export interface INotebookSearchOptions {
 	regex?: boolean;
 	wholeWord?: boolean;
-	caseSensitive?: boolean
+	caseSensitive?: boolean;
 	wordSeparators?: string;
 }
 
@@ -856,7 +856,7 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	supportedLanguages: string[]
+	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
@@ -887,7 +887,7 @@ export class CellSequence implements ISequence {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
+	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
 }
 
 export interface INotebookCellStatusBarItem {
@@ -918,7 +918,7 @@ export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdow
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
 export const CompactView = 'notebook.compactView';
 export const FocusIndicator = 'notebook.cellFocusIndicator';
-export const InsertToolbarPosition = 'notebook.insertToolbarPosition';
+export const InsertToolbarLocation = 'notebook.insertToolbarLocation';
 export const GlobalToolbar = 'notebook.globalToolbar';
 export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
 export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';

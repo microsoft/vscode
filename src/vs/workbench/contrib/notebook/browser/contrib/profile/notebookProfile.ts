@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -24,7 +24,7 @@ export enum NotebookProfileType {
 const profiles = {
 	[NotebookProfileType.default]: {
 		[FocusIndicator]: 'border',
-		[InsertToolbarPosition]: 'both',
+		[InsertToolbarLocation]: 'both',
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: true,
@@ -35,7 +35,7 @@ const profiles = {
 	},
 	[NotebookProfileType.jupyter]: {
 		[FocusIndicator]: 'gutter',
-		[InsertToolbarPosition]: 'notebookToolbar',
+		[InsertToolbarLocation]: 'notebookToolbar',
 		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'left' },
 		[CompactView]: true,
@@ -45,7 +45,7 @@ const profiles = {
 	},
 	[NotebookProfileType.colab]: {
 		[FocusIndicator]: 'border',
-		[InsertToolbarPosition]: 'betweenCells',
+		[InsertToolbarLocation]: 'betweenCells',
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: false,
@@ -104,7 +104,7 @@ export class NotebookProfileContribution extends Disposable {
 				} else {
 					// check if settings are already modified
 					const focusIndicator = configService.getValue(FocusIndicator);
-					const insertToolbarPosition = configService.getValue(InsertToolbarPosition);
+					const insertToolbarPosition = configService.getValue(InsertToolbarLocation);
 					const globalToolbar = configService.getValue(GlobalToolbar);
 					// const cellToolbarLocation = configService.getValue(CellToolbarLocation);
 					const compactView = configService.getValue(CompactView);
