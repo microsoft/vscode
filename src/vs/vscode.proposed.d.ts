@@ -1059,7 +1059,11 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated
+	//#region https://github.com/microsoft/vscode/issues/106744, Notebook, deprecated & misc
+
+	export interface NotebookCellOutput {
+		id: string;
+	}
 
 	/**
 	 * @deprecated use notebooks instead

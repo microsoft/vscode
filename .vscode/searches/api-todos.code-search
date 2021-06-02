@@ -1,22 +1,18 @@
-# Query: todo@API
+# Query: //todo@API
 # Including: */vscode.d.ts
 # ContextLines: 1
 
-4 results - 1 file
+3 results - 1 file
 
 src/vs/vscode.d.ts:
   11641  	 */
   11642: 	//todo@API - add sugar function to add more outputs
   11643  	export class NotebookCellOutput {
 
-  11685  		 */
-  11686: 		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
-  11687  		// @jupyter check if needed
+  11805  	 */
+  11806: 	//todo@API inline?
+  11807  	export interface NotebookExecuteHandler {
 
-  11822  	 */
-  11823: 	//todo@API inline?
-  11824  	export interface NotebookExecuteHandler {
-
-  11953  		 */
-  11954: 		//todo@api selected vs associated, jsdoc
-  11955  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
+  11936  		 */
+  11937: 		//todo@api selected vs associated, jsdoc
+  11938  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;

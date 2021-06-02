@@ -11643,12 +11643,6 @@ declare module 'vscode' {
 	export class NotebookCellOutput {
 
 		/**
-		 * Identifier for this output. Using the identifier allows a subsequent execution to modify
-		 * existing output. Defaults to a fresh UUID.
-		 */
-		id: string;
-
-		/**
 		 * The output items of this output. Each item must represent the same result. _Note_ that repeated
 		 * MIME types per output is invalid and that the editor will just pick one of them.
 		 *
@@ -11675,17 +11669,6 @@ declare module 'vscode' {
 		 * @param metadata Optional metadata.
 		 */
 		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
-
-		/**
-		 * Create new notebook output.
-		 *
-		 * @param items Notebook output items.
-		 * @param id Identifier of this output.
-		 * @param metadata Optional metadata.
-		 */
-		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
-		// @jupyter check if needed
-		constructor(items: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
 	}
 
 	/**
@@ -12049,19 +12032,19 @@ declare module 'vscode' {
 		 * Replace all output items of existing cell output.
 		 *
 		 * @param items Output items that replace the items of existing output.
-		 * @param output Output object or the identifier of one.
+		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 
 		/**
 		 * Append output items to existing cell output.
 		 *
 		 * @param items Output items that are append to existing output.
-		 * @param output Output object or the identifier of one.
+		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 	}
 
 	/**

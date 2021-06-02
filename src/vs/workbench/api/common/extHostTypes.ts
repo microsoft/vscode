@@ -3132,9 +3132,6 @@ export class NotebookCellOutput {
 	items: NotebookCellOutputItem[];
 	metadata?: Record<string, any>;
 
-	get outputs() { return this.items; }
-	set outputs(value) { this.items = value; }
-
 	constructor(
 		items: NotebookCellOutputItem[],
 		idOrMetadata?: string | Record<string, any>,
