@@ -478,7 +478,6 @@ suite('Notebook API tests', function () {
 		const secondCell = vscode.window.activeNotebookEditor!.document.cellAt(1);
 		assert.strictEqual(secondCell!.outputs.length, 1);
 		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true, ['text/plain']: { testOutputItemMetadata: true } });
-		assert.strictEqual((<any>secondCell!.outputs[0]).outputs.length, 1); //todo@jrieken will FAIL once the backwards compatibility is gone
 		assert.strictEqual(secondCell!.outputs[0].items.length, 1);
 		assert.strictEqual(secondCell!.outputs[0].items[0].mime, 'text/plain');
 		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].items[0].data), 'Hello World');
