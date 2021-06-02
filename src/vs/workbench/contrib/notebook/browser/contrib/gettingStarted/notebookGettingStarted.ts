@@ -4,11 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { Memento } from 'vs/workbench/common/memento';
 import { HAS_OPENED_NOTEBOOK } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -38,16 +42,23 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
 		} else {
+			const updateMemento = () => {
+				hasOpenedNotebook.set(true);
+				storedValue[hasOpenedNotebookKey] = true;
+				memento.saveMemento();
+				_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+			};
+
+			if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
+				// active editor is notebook
+				updateMemento();
+				return;
+			}
+
 			const listener = this._register(_editorService.onDidActiveEditorChange(() => {
 				if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
-					hasOpenedNotebook.set(true);
-					storedValue[hasOpenedNotebookKey] = true;
-					memento.saveMemento();
 					listener.dispose();
-
-					if (_configurationService.getValue('notebook.experimental.openGettingStarted')) {
-						_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
-					}
+					updateMemento();
 				}
 			}));
 		}
@@ -55,3 +66,22 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(NotebookGettingStarted, LifecyclePhase.Restored);
+
+registerAction2(class NotebookClearNotebookLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.gettingStarted',
+			title: localize('workbench.notebook.layout.gettingStarted.label', "Reset notebook getting started"),
+			f1: true,
+			category: CATEGORIES.Developer,
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		const memento = new Memento('notebookGettingStarted', storageService);
+
+		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
+		storedValue[hasOpenedNotebookKey] = undefined;
+		memento.saveMemento();
+	}
+});
