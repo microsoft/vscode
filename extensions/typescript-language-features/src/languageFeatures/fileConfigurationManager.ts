@@ -17,16 +17,16 @@ namespace ExperimentalProto {
 	export interface UserPreferences extends Proto.UserPreferences {
 		displayPartsForJSDoc: true
 
-		includeInlineParameterNameHints?: boolean;
-		includeInlineFunctionParameterTypeHints?: boolean;
-		includeInlineVariableTypeHints?: boolean;
-		includeInlineNonLiteralParameterNameHints?: boolean;
-		includeInlineDuplicatedParameterNameHints?: boolean;
-		includeInlineRequireAssignedVariableTypeHints?: boolean;
-		includeInlinePropertyDeclarationTypeHints?: boolean;
-		includeInlineFunctionLikeReturnTypeHints?: boolean;
-		includeInlineEnumMemberValueHints?: boolean;
-		includeInlineCallChainsHints?: boolean;
+		includeInlayParameterNameHints?: boolean;
+		includeInlayFunctionParameterTypeHints?: boolean;
+		includeInlayVariableTypeHints?: boolean;
+		includeInlayNonLiteralParameterNameHints?: boolean;
+		includeInlayDuplicatedParameterNameHints?: boolean;
+		includeInlayRequireAssignedVariableTypeHints?: boolean;
+		includeInlayPropertyDeclarationTypeHints?: boolean;
+		includeInlayFunctionLikeReturnTypeHints?: boolean;
+		includeInlayEnumMemberValueHints?: boolean;
+		includeInlayCallChainsHints?: boolean;
 	}
 }
 
@@ -203,7 +203,7 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			displayPartsForJSDoc: true,
-			...getInlineHintsPreferences(config),
+			...getInlayHintsPreferences(config),
 		};
 
 		return preferences;
@@ -218,18 +218,18 @@ export default class FileConfigurationManager extends Disposable {
 	}
 }
 
-export function getInlineHintsPreferences(config: vscode.WorkspaceConfiguration) {
+export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) {
 	return {
-		includeInlineParameterNameHints: config.get<boolean>('inlineHints.includeInlineParameterNameHints', false),
-		includeInlineFunctionParameterTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionParameterTypeHints', false),
-		includeInlineVariableTypeHints: config.get<boolean>('inlineHints.includeInlineVariableTypeHints', false),
-		includeInlineNonLiteralParameterNameHints: config.get<boolean>('inlineHints.includeInlineNonLiteralParameterNameHints', false),
-		includeInlineDuplicatedParameterNameHints: config.get<boolean>('inlineHints.includeInlineDuplicatedParameterNameHints', false),
-		includeInlineRequireAssignedVariableTypeHints: config.get<boolean>('inlineHints.includeInlineRequireAssignedVariableTypeHints', false),
-		includeInlinePropertyDeclarationTypeHints: config.get<boolean>('inlineHints.includeInlinePropertyDeclarationTypeHints', false),
-		includeInlineFunctionLikeReturnTypeHints: config.get<boolean>('inlineHints.includeInlineFunctionLikeReturnTypeHints', false),
-		includeInlineEnumMemberValueHints: config.get<boolean>('inlineHints.includeInlineEnumMemberValueHints', false),
-		includeInlineCallChainsHints: config.get<boolean>('inlineHints.includeInlineCallChainsHints', false)
+		includeInlayParameterNameHints: config.get<boolean>('inlayHints.includeInlayParameterNameHints', false),
+		includeInlayFunctionParameterTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionParameterTypeHints', false),
+		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.includeInlayVariableTypeHints', false),
+		includeInlayNonLiteralParameterNameHints: config.get<boolean>('inlayHints.includeInlayNonLiteralParameterNameHints', false),
+		includeInlayDuplicatedParameterNameHints: config.get<boolean>('inlayHints.includeInlayDuplicatedParameterNameHints', false),
+		includeInlayRequireAssignedVariableTypeHints: config.get<boolean>('inlayHints.includeInlayRequireAssignedVariableTypeHints', false),
+		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.includeInlayPropertyDeclarationTypeHints', false),
+		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionLikeReturnTypeHints', false),
+		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.includeInlayEnumMemberValueHints', false),
+		includeInlayCallChainsHints: config.get<boolean>('inlayHints.includeInlayCallChainsHints', false)
 	};
 }
 

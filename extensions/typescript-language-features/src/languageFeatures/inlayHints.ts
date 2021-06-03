@@ -8,17 +8,17 @@ import * as Proto from '../protocol';
 import { DocumentSelector } from '../utils/documentSelector';
 import { ClientCapability, ITypeScriptServiceClient, ServerResponse, ExecConfig } from '../typescriptService';
 import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
-import { Range } from '../utils/typeConverters';
-import FileConfigurationManager, { getInlineHintsPreferences } from './fileConfigurationManager';
+import { Position } from '../utils/typeConverters';
+import FileConfigurationManager, { getInlayHintsPreferences } from './fileConfigurationManager';
 import API from '../utils/api';
 import { isTypeScriptDocument } from '../utils/languageModeIds';
 
 namespace ExperimentalProto {
 	export const enum CommandTypes {
-		ProvideInlineHints = 'ProvideInlineHints'
+		ProvideInlineHints = 'ProvideInlayHints'
 	}
 
-	export interface ProvideInlineHintsArgs extends Proto.FileRequestArgs {
+	export interface ProvideInlayHintsArgs extends Proto.FileRequestArgs {
 		/**
 		 * Start position of the span.
 		 */
@@ -31,19 +31,25 @@ namespace ExperimentalProto {
 
 	export interface ProvideInlineHintsRequest extends Proto.Request {
 		command: CommandTypes.ProvideInlineHints;
-		arguments: ProvideInlineHintsArgs;
+		arguments: ProvideInlayHintsArgs;
 	}
 
-	interface HintItem {
+	export enum InlayHintKind {
+		Other = 0,
+		Type = 1,
+		Parameter = 2,
+	}
+
+	interface InlayHintItem {
 		text: string;
-		range: Proto.TextSpan;
-		hoverMessage?: string;
+		position: Proto.Location;
+		kind?: InlayHintKind;
 		whitespaceBefore?: boolean;
 		whitespaceAfter?: boolean;
 	}
 
-	export interface ProvideInlineHintsResponse extends Proto.Response {
-		body?: HintItem[];
+	export interface ProvideInlayHintsResponse extends Proto.Response {
+		body?: InlayHintItem[];
 	}
 
 	export interface IExtendedTypeScriptServiceClient {
@@ -56,19 +62,19 @@ namespace ExperimentalProto {
 	}
 
 	export interface ExtendedTsServerRequests {
-		'provideInlineHints': [ProvideInlineHintsArgs, ProvideInlineHintsResponse];
+		'provideInlayHints': [ProvideInlayHintsArgs, ProvideInlayHintsResponse];
 	}
 }
 
-class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
-	public static readonly minVersion = API.v420;
+class TypeScriptInlayHintsProvider implements vscode.InlayHintsProvider {
+	public static readonly minVersion = API.v440;
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager
 	) { }
 
-	async provideInlineHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlineHint[]> {
+	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[]> {
 		const filepath = this.client.toOpenedFilePath(model);
 		if (!filepath) {
 			return [];
@@ -76,24 +82,29 @@ class TypeScriptInlineHintsProvider implements vscode.InlineHintsProvider {
 
 		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
 
-		if (!this.someInlineHintsEnabled(model)) {
+		if (!this.someInlayHintsEnabled(model)) {
 			return [];
 		}
 
 		const start = model.offsetAt(range.start);
 		const length = model.offsetAt(range.end) - start;
 
-		const response = await (this.client as ExperimentalProto.IExtendedTypeScriptServiceClient).execute('provideInlineHints', { file: filepath, start, length }, token);
+		const response = await (this.client as ExperimentalProto.IExtendedTypeScriptServiceClient).execute('provideInlayHints', { file: filepath, start, length }, token);
 		if (response.type !== 'response' || !response.success || !response.body) {
 			return [];
 		}
 
-		return response.body.map(hint => new vscode.InlineHint(hint.text, Range.fromTextSpan(hint.range), hint.hoverMessage, hint.whitespaceBefore, hint.whitespaceAfter));
+		return response.body.map(hint => {
+			const result = new vscode.InlayHint(hint.text, Position.fromLocation(hint.position), hint.kind);
+			result.whitespaceBefore = hint.whitespaceBefore;
+			result.whitespaceAfter = hint.whitespaceAfter;
+			return result;
+		});
 	}
 
-	private someInlineHintsEnabled(model: vscode.TextDocument) {
+	private someInlayHintsEnabled(model: vscode.TextDocument) {
 		const config = vscode.workspace.getConfiguration(isTypeScriptDocument(model) ? 'typescript' : 'javascript', model.uri);
-		const preferences = getInlineHintsPreferences(config);
+		const preferences = getInlayHintsPreferences(config);
 		return Object.values(preferences).some(Boolean);
 	}
 }
@@ -104,10 +115,10 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager
 ) {
 	return conditionalRegistration([
-		requireMinVersion(client, TypeScriptInlineHintsProvider.minVersion),
+		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		return vscode.languages.registerInlineHintsProvider(selector.semantic,
-			new TypeScriptInlineHintsProvider(client, fileConfigurationManager));
+		return vscode.languages.registerInlayHintsProvider(selector.semantic,
+			new TypeScriptInlayHintsProvider(client, fileConfigurationManager));
 	});
 }
