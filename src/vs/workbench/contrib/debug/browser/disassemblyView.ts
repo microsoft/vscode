@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import { Dimension, append, $ } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -15,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DISASSEMBLY_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
 
 interface IDisassembledInstructionEntry {
@@ -26,7 +27,7 @@ interface IDisassembledInstructionEntry {
 
 export class DisassemblyView extends EditorPane {
 
-	private _editorOptions: IEditorOptions;
+	private _fontInfo: BareFontInfo;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | null;
 
 
@@ -39,11 +40,11 @@ export class DisassemblyView extends EditorPane {
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 
-		this._editorOptions = configurationService.getValue<IEditorOptions>('editor');
+		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 		configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._editorOptions = configurationService.getValue<IEditorOptions>('editor');
-				// TODO: refresh view
+				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this._disassembledInstructions?.rerender();
 			}
 		});
 
@@ -51,7 +52,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		const lineHeight = this._editorOptions.lineHeight!;
+		const lineHeight = this._fontInfo.lineHeight;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
@@ -186,11 +187,7 @@ export class DisassemblyViewInput extends EditorInput {
 	readonly resource = undefined;
 
 	override getName(): string {
-		return localize('extensionsInputName', "Running Extensions");
-	}
-
-	override canSplit(): boolean {
-		return false;
+		return localize('disassemblyInputName', "Disassembly");
 	}
 
 	override matches(other: unknown): boolean {
