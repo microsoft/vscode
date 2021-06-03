@@ -376,7 +376,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							if (typeof profile === 'string') {
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
-							} else if (profile) {
+							} else {
 								const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(TerminalSettingPrefix.Profiles + platform).userValue || {};
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
@@ -386,9 +386,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								await this._configurationService.updateValue(TerminalSettingPrefix.Profiles + platform, profiles);
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
 								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
-							} else {
-								this._logService.trace(`couldn't migrate because profile was undefined`);
-								return;
 							}
 							await this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
 							await this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
