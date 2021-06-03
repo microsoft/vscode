@@ -1047,6 +1047,7 @@ export class TerminalService implements ITerminalService {
 		}
 		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
 		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+		await this.getActiveInstance()?.focusWhenReady();
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
