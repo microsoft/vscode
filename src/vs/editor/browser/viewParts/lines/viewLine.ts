@@ -430,12 +430,8 @@ class FastRenderedViewLine implements IRenderedViewLine {
 	}
 
 	private _getCharPosition(column: number): number {
-		const charOffset = this._characterMapping.getAbsoluteOffsets();
-		if (charOffset.length === 0) {
-			// No characters on this line
-			return 0;
-		}
-		return Math.round(this._charWidth * charOffset[column - 1]);
+		const charOffset = this._characterMapping.getAbsoluteOffset(column);
+		return Math.round(this._charWidth * charOffset);
 	}
 
 	public getColumnOfNodeOffset(lineNumber: number, spanNode: HTMLElement, offset: number): number {
@@ -614,8 +610,8 @@ class RenderedViewLine implements IRenderedViewLine {
 		}
 		const result = r[0].left;
 		if (this.input.isBasicASCII) {
-			const charOffset = this._characterMapping.getAbsoluteOffsets();
-			const expectedResult = Math.round(this.input.spaceWidth * charOffset[column - 1]);
+			const charOffset = this._characterMapping.getAbsoluteOffset(column);
+			const expectedResult = Math.round(this.input.spaceWidth * charOffset);
 			if (Math.abs(expectedResult - result) <= 1) {
 				return expectedResult;
 			}

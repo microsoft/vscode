@@ -2513,8 +2513,7 @@ class InlineViewZonesComputer extends ViewZonesComputer {
 			marginDomNode.appendChild(marginElement);
 		}
 
-		const absoluteOffsets = output.characterMapping.getAbsoluteOffsets();
-		return absoluteOffsets.length > 0 ? absoluteOffsets[absoluteOffsets.length - 1] : 0;
+		return output.characterMapping.getAbsoluteOffset(output.characterMapping.length);
 	}
 }
 

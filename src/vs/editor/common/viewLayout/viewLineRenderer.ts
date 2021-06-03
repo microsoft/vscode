@@ -256,8 +256,12 @@ export class CharacterMapping {
 		this._absoluteOffsets[charOffset] = partAbsoluteOffset + charIndex;
 	}
 
-	public getAbsoluteOffsets(): Uint32Array {
-		return this._absoluteOffsets;
+	public getAbsoluteOffset(column: number): number {
+		if (this._absoluteOffsets.length === 0) {
+			// No characters on this line
+			return 0;
+		}
+		return this._absoluteOffsets[column - 1];
 	}
 
 	private charOffsetToPartData(charOffset: number): number {
