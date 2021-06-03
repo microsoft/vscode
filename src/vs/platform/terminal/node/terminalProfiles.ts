@@ -20,6 +20,8 @@ let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
 	isWorkspaceTrusted: boolean,
+	profiles: unknown,
+	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
 	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
@@ -37,8 +39,8 @@ export function detectAvailableProfiles(
 			fsProvider,
 			logService,
 			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			getProfilesFromSettings(isWorkspaceTrusted, TerminalSettingId.ProfilesWindows, configurationService),
-			getDefaultProfileFromSettings(isWorkspaceTrusted, TerminalSettingId.DefaultProfileWindows, configurationService),
+			getProfilesFromSettings(isWorkspaceTrusted, profiles, TerminalSettingId.ProfilesWindows, configurationService),
+			getDefaultProfileFromSettings(isWorkspaceTrusted, defaultProfile, TerminalSettingId.DefaultProfileWindows, configurationService),
 			testPaths,
 			variableResolver
 		);
@@ -47,50 +49,27 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		getProfilesFromSettings(isWorkspaceTrusted, isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux, configurationService),
-		getDefaultProfileFromSettings(isWorkspaceTrusted, isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux, configurationService),
+		getProfilesFromSettings(isWorkspaceTrusted, profiles, isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux, configurationService),
+		getDefaultProfileFromSettings(isWorkspaceTrusted, defaultProfile, isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux, configurationService),
 		testPaths,
 		variableResolver
 	);
 }
 
-function getProfilesFromSettings(isWorkspaceTrusted: boolean, key: string, configurationService: IConfigurationService): { [key: string]: ITerminalProfileObject } | undefined {
+function getProfilesFromSettings(isWorkspaceTrusted: boolean, profiles: unknown, key: string, configurationService: IConfigurationService): { [key: string]: ITerminalProfileObject } | undefined {
 	if (!isWorkspaceTrusted) {
 		// won't return workspace values
 		return configurationService.getValue(key);
 	}
-	const inspected = configurationService.inspect(key);
-	if (!inspected) {
-		return undefined;
-	}
-
-	if (inspected.defaultValue && typeof inspected.defaultValue === 'object' && inspected.userValue && typeof inspected.userValue === 'object' && inspected.workspaceValue && typeof inspected.workspaceValue === 'object') {
-		return { ...inspected.defaultValue, ...inspected.userValue, ...inspected.workspaceValue };
-	} else if (inspected.userValue && typeof inspected.userValue === 'object' && inspected.defaultValue && typeof inspected.defaultValue === 'object') {
-		return { ...inspected.userValue, ...inspected.defaultValue };
-	} else if (inspected.defaultValue && typeof inspected.defaultValue === 'object') {
-		return { ...inspected.defaultValue };
-	}
-	return undefined;
+	return profiles && typeof profiles === 'object' ? { ...profiles } : undefined;
 }
 
-function getDefaultProfileFromSettings(isWorkspaceTrusted: boolean, key: string, configurationService: IConfigurationService): string | undefined {
+function getDefaultProfileFromSettings(isWorkspaceTrusted: boolean, defaultProfile: unknown, key: string, configurationService: IConfigurationService): string | undefined {
 	if (!isWorkspaceTrusted) {
 		// won't return workspace values
 		return configurationService.getValue(key);
 	}
-	const inspected = configurationService.inspect(key);
-	if (!inspected) {
-		return undefined;
-	}
-	if (typeof inspected.workspaceValue === 'string') {
-		return inspected.workspaceValue;
-	} else if (typeof inspected.userValue === 'string') {
-		return inspected.userValue;
-	} else if (typeof inspected.defaultValue === 'string') {
-		return inspected.defaultValue;
-	}
-	return undefined;
+	return typeof defaultProfile === 'string' ? defaultProfile : undefined;
 }
 
 async function detectAvailableWindowsProfiles(
