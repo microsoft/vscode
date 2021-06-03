@@ -89,6 +89,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 						hoverOptions = {
 							text: resolvedTooltip,
 							target,
+							showPointer: hoverDelegate.placement === 'element',
 							hoverPosition: HoverPosition.BELOW
 						};
 						// awaiting the tooltip could take a while. Make sure we're still hovering.
