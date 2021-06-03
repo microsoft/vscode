@@ -573,9 +573,11 @@ export class GettingStartedPage extends EditorPane {
 		if (id) {
 			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
-				node.classList.remove('expanded');
-				node.style.height = ``;
-				node.setAttribute('aria-expanded', 'false');
+				if (node.getAttribute('data-step-id') !== id) {
+					node.classList.remove('expanded');
+					node.style.height = ``;
+					node.setAttribute('aria-expanded', 'false');
+				}
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 
