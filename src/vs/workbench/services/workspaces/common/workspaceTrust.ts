@@ -233,10 +233,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
-		}
-
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise default to restricted mode
 			// Workspace may transition to trusted based on the opened editors
