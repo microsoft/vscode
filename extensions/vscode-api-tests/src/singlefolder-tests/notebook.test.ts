@@ -40,7 +40,7 @@ class Kernel {
 		this.controller.executeHandler = this._execute.bind(this);
 		this.controller.supportsExecutionOrder = true;
 		this.controller.supportedLanguages = ['typescript', 'javascript'];
-		this.controller.onDidChangeNotebookAssociation(e => {
+		this.controller.onDidChangeSelectedNotebooks(e => {
 			if (e.selected) {
 				this.associatedNotebooks.add(e.notebook.uri.toString());
 			} else {

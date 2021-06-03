@@ -11834,7 +11834,8 @@ declare module 'vscode' {
 	 * There can be multiple controllers and the editor will let users choose which controller to use for a certain notebook. The
 	 * {@link NotebookController.notebookType `notebookType`}-property defines for what kind of notebooks a controller is for and
 	 * the {@link NotebookController.updateNotebookAffinity `updateNotebookAffinity`}-function allows controllers to set a preference
-	 * for specific notebook documents.
+	 * for specific notebook documents. When a controller has been selected its
+	 * {@link NotebookController.onDidChangeSelectedNotebooks onDidChangeSelectedNotebooks}-event fires.
 	 *
 	 * When a cell is being run the editor will invoke the {@link NotebookController.executeHandler `executeHandler`} and a controller
 	 * is expected to create and finalize a {@link NotebookCellExecution notebook cell execution}. However, controllers are also free
@@ -11929,12 +11930,16 @@ declare module 'vscode' {
 		interruptHandler?: (notebook: NotebookDocument) => void | Thenable<void>;
 
 		/**
-		 * An event that fires whenever a controller has been selected for a notebook document. Selecting a controller
-		 * for a notebook is a user gesture and happens either explicitly or implicitly when interacting while a
-		 * controller was suggested.
+		 * An event that fires whenever a controller has been selected or un-selected for a notebook document.
+		 *
+		 * There can be multiple controllers for a notebook and in that case a controllers needs to be _selected_. This is a user gesture
+		 * and happens either explicitly or implicitly when interacting with a notebook for which a controller was _suggested_. When possible,
+		 * the editor _suggests_ a controller that is most likely to be _selected_.
+		 *
+		 * _Note_ that controller selection is persisted (by the controllers {@link NotebookController.id id}) and restored as soon as a
+		 * controller is re-created or as a notebook is {@link workspace.onDidOpenNotebookDocument opened}.
 		 */
-		//todo@api selected vs associated, jsdoc
-		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;
+		readonly onDidChangeSelectedNotebooks: Event<{ notebook: NotebookDocument, selected: boolean }>;
 
 		/**
 		 * A controller can set affinities for specific notebook documents. This allows a controller
