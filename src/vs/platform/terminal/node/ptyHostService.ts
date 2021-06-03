@@ -222,8 +222,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this));
+	async getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+		return detectAvailableProfiles(isWorkspaceTrusted, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();

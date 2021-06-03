@@ -238,8 +238,8 @@ export class RemoteTerminalChannelClient {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._channel.call('$getDefaultSystemShell', [osOverride]);
 	}
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._channel.call('$getProfiles', [includeDetectedProfiles]);
+	getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._channel.call('$getProfiles', [isWorkspaceTrusted, includeDetectedProfiles]);
 	}
 	acceptPtyHostResolvedVariables(id: number, resolved: string[]) {
 		return this._channel.call('$acceptPtyHostResolvedVariables', [id, resolved]);
