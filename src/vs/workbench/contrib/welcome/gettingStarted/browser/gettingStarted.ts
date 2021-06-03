@@ -219,6 +219,11 @@ export class GettingStartedPage extends EditorPane {
 			if (!ourStep) {
 				throw Error('Could not find step with ID: ' + step.id);
 			}
+
+			if (!ourStep.done && category.content.stepsComplete === category.content.stepsTotal - 1) {
+				this.hideCategory(category.id);
+			}
+
 			ourStep.done = step.done;
 			if (category.id === this.currentCategory?.id) {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
