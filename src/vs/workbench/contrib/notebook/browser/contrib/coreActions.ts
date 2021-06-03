@@ -1888,7 +1888,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
 	}
 });
 
