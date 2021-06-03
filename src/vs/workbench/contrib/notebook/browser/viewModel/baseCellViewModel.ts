@@ -162,9 +162,9 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 
 	private statusBarIsVisible(): boolean {
-		if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar) {
+		if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar === 'visible') {
 			return true;
-		} else if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBarAfterExecute) {
+		} else if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar === 'visibleAfterExecute') {
 			return typeof this.internalMetadata.lastRunSuccess === 'boolean' || this.internalMetadata.runState !== undefined;
 		} else {
 			return false;

@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, ShowCellStatusBarAfterExecuteKey, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -617,16 +617,15 @@ configurationRegistry.registerConfiguration({
 			},
 			tags: ['notebookLayout']
 		},
-		[ShowCellStatusBarKey]: {
+		[ShowCellStatusBar]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
-			type: 'boolean',
+			type: 'string',
+			enum: ['hidden', 'visible', 'visibleAfterExecute'],
+			enumDescriptions: [
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
 			default: true,
-			tags: ['notebookLayout']
-		},
-		[ShowCellStatusBarAfterExecuteKey]: {
-			description: nls.localize('notebook.showCellStatusbarAfterExecute.description', "Whether the cell status bar should be shown after the cell has been executed. Only has an effect if notebook.showCellStatusBar is false."),
-			type: 'boolean',
-			default: false,
 			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {

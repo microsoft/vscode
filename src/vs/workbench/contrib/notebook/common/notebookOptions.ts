@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -43,8 +43,7 @@ export interface NotebookLayoutConfiguration {
 	editorBottomPadding: number;
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
-	showCellStatusBar: boolean;
-	showCellStatusBarAfterExecute: boolean;
+	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
 	cellToolbarLocation: string | { [key: string]: string };
 	cellToolbarInteraction: string;
@@ -108,8 +107,7 @@ export class NotebookOptions {
 	private _disposables: IDisposable[];
 
 	constructor(private readonly configurationService: IConfigurationService) {
-		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		const showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
+		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
 		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
@@ -142,7 +140,6 @@ export class NotebookOptions {
 			editorBottomPaddingWithoutStatusBar: 12,
 			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
-			showCellStatusBarAfterExecute,
 			globalToolbar,
 			consolidatedOutputButton,
 			consolidatedRunButton,
@@ -171,8 +168,7 @@ export class NotebookOptions {
 	}
 
 	private _updateConfiguration(e: IConfigurationChangeEvent) {
-		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
-		const cellStatusBarAfterExecuteVisibility = e.affectsConfiguration(ShowCellStatusBarAfterExecuteKey);
+		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBar);
 		const cellToolbarLocation = e.affectsConfiguration(CellToolbarLocation);
 		const cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
 		const compactView = e.affectsConfiguration(CompactView);
@@ -189,7 +185,6 @@ export class NotebookOptions {
 
 		if (
 			!cellStatusBarVisibility
-			&& !cellStatusBarAfterExecuteVisibility
 			&& !cellToolbarLocation
 			&& !cellToolbarInteraction
 			&& !compactView
@@ -209,11 +204,7 @@ export class NotebookOptions {
 		let configuration = Object.assign({}, this._layoutConfiguration);
 
 		if (cellStatusBarVisibility) {
-			configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		}
-
-		if (cellStatusBarAfterExecuteVisibility) {
-			configuration.showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
+			configuration.showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
 		}
 
 		if (cellToolbarLocation) {
@@ -277,7 +268,6 @@ export class NotebookOptions {
 		// trigger event
 		this._onDidChangeOptions.fire({
 			cellStatusBarVisibility,
-			cellStatusBarAfterExecuteVisibility,
 			cellToolbarLocation,
 			cellToolbarInteraction,
 			compactView,

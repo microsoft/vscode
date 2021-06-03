@@ -10,7 +10,7 @@ import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBar, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -28,8 +28,7 @@ const profiles = {
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: true,
-		[ShowCellStatusBarKey]: true,
-		[ShowCellStatusBarAfterExecuteKey]: false,
+		[ShowCellStatusBar]: 'visible',
 		[ConsolidatedRunButton]: true,
 		[UndoRedoPerCell]: false
 	},
@@ -39,7 +38,7 @@ const profiles = {
 		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'left' },
 		[CompactView]: true,
-		[ShowCellStatusBarKey]: true,
+		[ShowCellStatusBar]: 'visible',
 		[ConsolidatedRunButton]: false,
 		[UndoRedoPerCell]: true
 	},
@@ -49,7 +48,7 @@ const profiles = {
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: false,
-		[ShowCellStatusBarKey]: false,
+		[ShowCellStatusBar]: 'hidden',
 		[ConsolidatedRunButton]: true,
 		[UndoRedoPerCell]: false
 	}
@@ -108,16 +107,14 @@ export class NotebookProfileContribution extends Disposable {
 					const globalToolbar = configService.getValue(GlobalToolbar);
 					// const cellToolbarLocation = configService.getValue(CellToolbarLocation);
 					const compactView = configService.getValue(CompactView);
-					const showCellStatusBarKey = configService.getValue(ShowCellStatusBarKey);
-					const showCellStatusBarAfterExecuteKey = configService.getValue(ShowCellStatusBarAfterExecuteKey);
+					const showCellStatusBar = configService.getValue(ShowCellStatusBar);
 					const consolidatedRunButton = configService.getValue(ConsolidatedRunButton);
 					if (focusIndicator === 'border'
 						&& insertToolbarPosition === 'both'
 						&& globalToolbar === false
 						// && cellToolbarLocation === undefined
 						&& compactView === true
-						&& showCellStatusBarKey === true
-						&& showCellStatusBarAfterExecuteKey === false
+						&& showCellStatusBar === 'visible'
 						&& consolidatedRunButton === true
 					) {
 						applyProfile(configService, profiles[treatment] ?? profiles[NotebookProfileType.default]);
