@@ -171,7 +171,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	const createBackCompatModule = (rendererId: string, scriptUrl: string, scriptText: string): ScriptModule => ({
 		activate: (): RendererApi => {
-			const onDidCreateOutput = createEmitter<ICreateCellInfo>();
+			const onDidCreateOutput = createEmitter<IOutputItem>();
 			const onWillDestroyOutput = createEmitter<undefined | IDestroyCellInfo>();
 
 			const globals = {
@@ -190,10 +190,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			invokeSourceWithGlobals(scriptText, globals);
 
 			return {
-				renderCell(id, context) {
-					onDidCreateOutput.fire({ ...context, outputId: id });
+				renderOutputItem(outputItem) {
+					onDidCreateOutput.fire({ ...outputItem, outputId: outputItem.id });
 				},
-				destroyCell(id) {
+				disposeOutputItem(id) {
 					onWillDestroyOutput.fire(id ? { outputId: id } : undefined);
 				}
 			};
@@ -458,11 +458,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		outputNode.appendChild(errList);
 	}
 
-	interface ICreateCellInfo {
-		element: HTMLElement;
-		outputId?: string;
+	interface IOutputItem {
+		readonly id: string;
 
-		mime: string;
+		/** @deprecated */
+		readonly outputId?: string;
+
+		/** @deprecated */
+		readonly element: HTMLElement;
+
+		readonly mime: string;
 		metadata: unknown;
 		metadata2: unknown;
 
@@ -485,7 +490,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		setState: (newState: T) => void;
 		getState(): T | undefined;
 		readonly onWillDestroyOutput: Event<undefined | IDestroyCellInfo>;
-		readonly onDidCreateOutput: Event<ICreateCellInfo>;
+		readonly onDidCreateOutput: Event<IOutputItem>;
 	}
 
 	const kernelPreloadGlobals = {
@@ -640,7 +645,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					} else {
 						const rendererApi = preloadsAndErrors[0] as RendererApi;
 						try {
-							rendererApi.renderCell(outputId, {
+							rendererApi.renderOutputItem({
+								id: outputId,
 								element: outputNode,
 								mime: content.mimeType,
 								metadata: content.metadata,
@@ -658,7 +664,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 								blob() {
 									return new Blob([content.valueBytes], { type: content.mimeType });
 								}
-							});
+							}, outputNode);
 						} catch (e) {
 							showPreloadErrors(outputNode, e);
 						}
@@ -832,8 +838,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	});
 
 	interface RendererApi {
-		renderCell: (id: string, context: ICreateCellInfo) => void;
-		destroyCell?: (id?: string) => void;
+		renderOutputItem: (outputItem: IOutputItem, element: HTMLElement) => void;
+		disposeOutputItem?: (id?: string) => void;
 	}
 
 	class Renderer {
@@ -1006,22 +1012,22 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public clearAll() {
 			outputs.cancelAll();
 			for (const renderer of this._renderers.values()) {
-				renderer.api?.destroyCell?.();
+				renderer.api?.disposeOutputItem?.();
 			}
 		}
 
 		public clearOutput(rendererId: string, outputId: string) {
 			outputs.cancelOutput(outputId);
-			this._renderers.get(rendererId)?.api?.destroyCell?.(outputId);
+			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async renderCustom(rendererId: string, outputId: string, info: ICreateCellInfo) {
+		public async renderCustom(rendererId: string, info: IOutputItem, element: HTMLElement) {
 			const api = await this.load(rendererId);
 			if (!api) {
 				throw new Error(`renderer ${rendererId} did not return an API`);
 			}
 
-			api.renderCell(outputId, info);
+			api.renderOutputItem(info, element);
 		}
 
 		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
@@ -1034,7 +1040,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			await Promise.all(markdownRenderers.map(x => x.load()));
 
-			markdownRenderers[0].api?.renderCell(id, {
+			markdownRenderers[0].api?.renderOutputItem({
+				id,
 				element,
 				mime: 'text/markdown',
 				metadata: undefined,
@@ -1045,7 +1052,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				bytes() { return this.data(); },
 				data() { return new TextEncoder().encode(content); },
 				blob() { return new Blob([this.data()], { type: this.mime }); },
-			});
+			}, element);
 		}
 	}();
 
