@@ -55,6 +55,7 @@ export interface ITunnelItem {
 	remoteHost: string;
 	remotePort: number;
 	localAddress?: string;
+	protocol: TunnelProtocol;
 	localUri?: URI;
 	localPort?: number;
 	name?: string;
@@ -78,6 +79,7 @@ export interface Tunnel {
 	remotePort: number;
 	localAddress: string;
 	localUri: URI;
+	protocol: TunnelProtocol;
 	localPort?: number;
 	name?: string;
 	closeable?: boolean;
@@ -412,6 +414,7 @@ export class TunnelModel extends Disposable {
 						remotePort: tunnel.tunnelRemotePort,
 						remoteHost: tunnel.tunnelRemoteHost,
 						localAddress: tunnel.localAddress,
+						protocol: attributes?.get(tunnel.tunnelRemotePort)?.protocol ?? TunnelProtocol.Http,
 						localUri: await this.makeLocalUri(tunnel.localAddress, attributes?.get(tunnel.tunnelRemotePort)),
 						localPort: tunnel.tunnelLocalPort,
 						runningProcess: matchingCandidate?.detail,
@@ -432,11 +435,13 @@ export class TunnelModel extends Disposable {
 				&& !mapHasAddressLocalhostOrAllInterfaces(this.inProgress, tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort)
 				&& tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces(this._candidates ?? new Map(), tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
+				const attributes = (await this.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort);
 				this.forwarded.set(key, {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localAddress: tunnel.localAddress,
-					localUri: await this.makeLocalUri(tunnel.localAddress, (await this.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort)),
+					protocol: attributes?.protocol ?? TunnelProtocol.Http,
+					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
 					localPort: tunnel.tunnelLocalPort,
 					closeable: true,
 					runningProcess: matchingCandidate?.detail,
@@ -450,14 +455,18 @@ export class TunnelModel extends Disposable {
 			this.remoteTunnels.set(key, tunnel);
 			this._onForwardPort.fire(this.forwarded.get(key)!);
 		}));
-		this._register(this.tunnelService.onTunnelClosed(async (address) => {
-			const key = makeAddress(address.host, address.port);
-			if (this.forwarded.has(key)) {
-				this.forwarded.delete(key);
-				await this.storeForwarded();
-				this._onClosePort.fire(address);
-			}
+		this._register(this.tunnelService.onTunnelClosed(address => {
+			return this.onTunnelClosed(address);
 		}));
+	}
+
+	private async onTunnelClosed(address: { host: string, port: number }) {
+		const key = makeAddress(address.host, address.port);
+		if (this.forwarded.has(key)) {
+			this.forwarded.delete(key);
+			await this.storeForwarded();
+			this._onClosePort.fire(address);
+		}
 	}
 
 	private makeLocalUri(localAddress: string, attributes?: Attributes) {
@@ -564,6 +573,7 @@ export class TunnelModel extends Disposable {
 					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
+					protocol: attributes?.protocol ?? TunnelProtocol.Http,
 					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
@@ -585,7 +595,8 @@ export class TunnelModel extends Disposable {
 				existingTunnel.name = attributes?.label ?? name;
 				this._onForwardPort.fire();
 			}
-			if (attributes?.protocol && attributes.protocol !== existingTunnel.localUri.scheme) {
+			// Remove tunnel provider check when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
+			if (!this.tunnelService.hasTunnelProvider && attributes?.protocol && (attributes.protocol !== existingTunnel.protocol)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}
@@ -608,7 +619,8 @@ export class TunnelModel extends Disposable {
 	}
 
 	async close(host: string, port: number): Promise<void> {
-		return this.tunnelService.closeTunnel(host, port);
+		await this.tunnelService.closeTunnel(host, port);
+		return this.onTunnelClosed({ host, port });
 	}
 
 	address(host: string, port: number): string | undefined {
@@ -629,6 +641,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.remoteAddress.host,
 					remotePort: tunnel.remoteAddress.port,
 					localAddress: localAddress,
+					protocol: TunnelProtocol.Http,
 					localUri: this.makeLocalUri(localAddress),
 					closeable: false,
 					runningProcess: matchingCandidate?.detail,
@@ -727,7 +740,7 @@ export class TunnelModel extends Disposable {
 			if (attributes.label && attributes.label !== forwarded.name) {
 				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
 			}
-			if (attributes.protocol && attributes.protocol !== forwarded.localUri.scheme) {
+			if (attributes.protocol && attributes.protocol !== forwarded.protocol) {
 				await this.forward({ host: forwarded.remoteHost, port: forwarded.remotePort }, forwarded.localPort, forwarded.name, forwarded.source, undefined, undefined, undefined, attributes);
 			}
 		}

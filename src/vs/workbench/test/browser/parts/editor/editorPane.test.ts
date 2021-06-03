@@ -103,7 +103,7 @@ class OtherTestInput extends EditorInput {
 }
 class TestResourceEditorInput extends TextResourceEditorInput { }
 
-suite('Workbench EditorPane', () => {
+suite('EditorPane', () => {
 
 	test('EditorPane API', async () => {
 		const editor = new TestEditor(NullTelemetryService);
@@ -169,10 +169,10 @@ suite('Workbench EditorPane', () => {
 
 		const inst = workbenchInstantiationService();
 
-		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 		assert.strictEqual(editor.getId(), 'testEditor');
 
-		const otherEditor = editorRegistry.getEditor(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+		const otherEditor = editorRegistry.getEditor(inst.createInstance(TextResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 		assert.strictEqual(otherEditor.getId(), 'workbench.editors.textResourceEditor');
 
 		disposables.dispose();
@@ -184,7 +184,7 @@ suite('Workbench EditorPane', () => {
 		const disposables = new DisposableStore();
 
 		disposables.add(registerTestResourceEditor());
-		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined))!.instantiate(inst);
+		const editor = editorRegistry.getEditor(inst.createInstance(TestResourceEditorInput, URI.file('/fake'), 'fake', '', undefined, undefined))!.instantiate(inst);
 
 		assert.strictEqual('workbench.editors.textResourceEditor', editor.getId());
 

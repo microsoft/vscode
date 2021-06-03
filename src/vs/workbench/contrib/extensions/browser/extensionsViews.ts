@@ -722,6 +722,7 @@ export class ExtensionsListView extends ViewPane {
 	private isRecommendationsQuery(query: Query): boolean {
 		return ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
 			|| /@recommended:all/i.test(query.value)
 			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)
@@ -737,6 +738,11 @@ export class ExtensionsListView extends ViewPane {
 		// Keymap recommendations
 		if (ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)) {
 			return this.getKeymapRecommendationsModel(query, options, token);
+		}
+
+		// Language recommendations
+		if (ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)) {
+			return this.getLanguageRecommendationsModel(query, options, token);
 		}
 
 		// Exe recommendations
@@ -799,6 +805,14 @@ export class ExtensionsListView extends ViewPane {
 		const value = query.value.replace(/@recommended:keymaps/g, '').trim().toLowerCase();
 		const recommendations = this.extensionRecommendationsService.getKeymapRecommendations();
 		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-keymaps' }, token))
+			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
+		return new PagedModel(installableRecommendations);
+	}
+
+	private async getLanguageRecommendationsModel(query: Query, options: IQueryOptions, token: CancellationToken): Promise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/@recommended:languages/g, '').trim().toLowerCase();
+		const recommendations = this.extensionRecommendationsService.getLanguageRecommendations();
+		const installableRecommendations = (await this.getInstallableRecommendations(recommendations, { ...options, source: 'recommendations-languages' }, token))
 			.filter(extension => extension.identifier.id.toLowerCase().indexOf(value) > -1);
 		return new PagedModel(installableRecommendations);
 	}
@@ -1033,6 +1047,10 @@ export class ExtensionsListView extends ViewPane {
 
 	static isKeymapsRecommendedExtensionsQuery(query: string): boolean {
 		return /@recommended:keymaps/i.test(query);
+	}
+
+	static isLanguageRecommendedExtensionsQuery(query: string): boolean {
+		return /@recommended:languages/i.test(query);
 	}
 
 	override focus(): void {

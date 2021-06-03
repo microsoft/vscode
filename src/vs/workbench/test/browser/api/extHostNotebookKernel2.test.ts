@@ -124,12 +124,12 @@ suite('NotebookKernel', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		assert.throws(() => (<any>kernel).id = 'dd');
-		assert.throws(() => (<any>kernel).viewType = 'dd');
+		assert.throws(() => (<any>kernel).notebookType = 'dd');
 
 		assert.ok(kernel);
 		assert.strictEqual(kernel.id, 'foo');
 		assert.strictEqual(kernel.label, 'Foo');
-		assert.strictEqual(kernel.viewType, '*');
+		assert.strictEqual(kernel.notebookType, '*');
 
 		await rpcProtocol.sync();
 		assert.strictEqual(kernelData.size, 1);
@@ -138,7 +138,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
-		assert.strictEqual(first.viewType, '*');
+		assert.strictEqual(first.notebookType, '*');
 
 		kernel.dispose();
 		await rpcProtocol.sync();
@@ -165,28 +165,28 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(first.label, 'Far');
 	});
 
-	test('execute - simple createNotebookCellExecutionTask', function () {
+	test('execute - simple createNotebookCellExecution', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
 
 		const cell1 = notebook.apiNotebook.cellAt(0);
-		const task = kernel.createNotebookCellExecutionTask(cell1);
+		const task = kernel.createNotebookCellExecution(cell1);
 		task.start();
-		task.end();
+		task.end(undefined);
 	});
 
-	test('createNotebookCellExecutionTask, must be selected/associated', function () {
+	test('createNotebookCellExecution, must be selected/associated', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 		assert.throws(() => {
-			kernel.createNotebookCellExecutionTask(notebook.apiNotebook.cellAt(0));
+			kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
 		});
 
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		kernel.createNotebookCellExecutionTask(notebook.apiNotebook.cellAt(0));
+		kernel.createNotebookCellExecution(notebook.apiNotebook.cellAt(0));
 	});
 
-	test('createNotebookCellExecutionTask, cell must be alive', function () {
+	test('createNotebookCellExecution, cell must be alive', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		const cell1 = notebook.apiNotebook.cellAt(0);
@@ -203,7 +203,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(cell1.index, -1);
 
 		assert.throws(() => {
-			kernel.createNotebookCellExecutionTask(cell1);
+			kernel.createNotebookCellExecution(cell1);
 		});
 	});
 
@@ -218,15 +218,15 @@ suite('NotebookKernel', function () {
 
 		const cell1 = notebook.apiNotebook.cellAt(0);
 
-		const task = kernel.createNotebookCellExecutionTask(cell1);
+		const task = kernel.createNotebookCellExecution(cell1);
 		task.token.onCancellationRequested(() => tokenCancelCount += 1);
 
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 		assert.strictEqual(interruptCallCount, 1);
-		assert.strictEqual(tokenCancelCount, 1);
+		assert.strictEqual(tokenCancelCount, 0);
 
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 		assert.strictEqual(interruptCallCount, 2);
-		assert.strictEqual(tokenCancelCount, 1);
+		assert.strictEqual(tokenCancelCount, 0);
 	});
 });

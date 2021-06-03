@@ -34,7 +34,7 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
-import { flatten } from 'vs/base/common/arrays';
+import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 
 // Kernel Command
@@ -62,6 +62,8 @@ const DELETE_CELL_COMMAND_ID = 'notebook.cell.delete';
 const CANCEL_CELL_COMMAND_ID = 'notebook.cell.cancelExecution';
 const EXECUTE_CELL_SELECT_BELOW = 'notebook.cell.executeAndSelectBelow';
 const EXECUTE_CELL_INSERT_BELOW = 'notebook.cell.executeAndInsertBelow';
+const EXECUTE_CELL_AND_BELOW = 'notebook.cell.executeCellAndBelow';
+const EXECUTE_CELLS_ABOVE = 'notebook.cell.executeCellsAbove';
 const CLEAR_CELL_OUTPUTS_COMMAND_ID = 'notebook.cell.clearOutputs';
 const CENTER_ACTIVE_CELL = 'notebook.centerActiveCell';
 
@@ -310,6 +312,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 }
 
 const executeCellCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
 	ContextKeyExpr.or(
 		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
 		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
@@ -409,6 +412,92 @@ function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[])
 	const context = getContextFromActiveEditor(accessor.get(IEditorService));
 	return context;
 }
+
+registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELLS_ABOVE,
+			precondition: executeCellCondition,
+			title: localize('notebookActions.executeAbove', "Execute Above Cells"),
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.and(
+						executeCellCondition,
+						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
+				}
+			],
+			icon: icons.executeAboveIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		let endCellIdx: number | undefined = undefined;
+		if (context.ui && context.cell) {
+			endCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		} else if (context.selectedCells) {
+			endCellIdx = maxIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+		}
+
+		if (typeof endCellIdx === 'number') {
+			const range = { start: 0, end: endCellIdx };
+			const cells = context.notebookEditor.viewModel.getCells(range);
+			context.notebookEditor.executeNotebookCells(cells);
+		}
+	}
+});
+
+registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INotebookActionContext> {
+	constructor() {
+		super({
+			id: EXECUTE_CELL_AND_BELOW,
+			precondition: executeCellCondition,
+			title: localize('notebookActions.executeBelow', "Execute Cell and Below"),
+			menu: [
+				{
+					id: MenuId.NotebookCellExecute,
+					when: executeCellCondition,
+				},
+				{
+					id: MenuId.NotebookCellTitle,
+					group: 'inline',
+					when: ContextKeyExpr.and(
+						executeCellCondition,
+						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
+				}
+			],
+			icon: icons.executeBelowIcon
+		});
+	}
+
+	parseArgs(accessor: ServicesAccessor, ...args: any[]): INotebookActionContext | undefined {
+		return parseMultiCellExecutionArgs(accessor, ...args);
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		let startCellIdx: number | undefined = undefined;
+		if (context.ui && context.cell) {
+			startCellIdx = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		} else if (context.selectedCells) {
+			startCellIdx = minIndex(context.selectedCells, cell => context.notebookEditor.viewModel.getCellIndex(cell));
+		}
+
+		if (typeof startCellIdx === 'number') {
+			const range = { start: startCellIdx, end: context.notebookEditor.viewModel.viewCells.length };
+			const cells = context.notebookEditor.viewModel.getCells(range);
+			context.notebookEditor.executeNotebookCells(cells);
+		}
+	}
+});
 
 registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActionContext> {
 	constructor() {
@@ -1775,20 +1864,56 @@ registerAction2(class ExpandCellOuputAction extends ChangeNotebookCellMetadataAc
 registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Editor Layout Settings"),
+			id: 'workbench.notebook.layout.select',
+			title: localize('workbench.notebook.layout.select.label', "Select Notebook Layout"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
 				{
 					id: MenuId.EditorTitle,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
+					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					order: 0
+				}
+			]
+		});
+	}
+	run(accessor: ServicesAccessor): void {
+		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
+	}
+});
+
+registerAction2(class NotebookConfigureLayoutAction extends Action2 {
+	constructor() {
+		super({
+			id: 'workbench.notebook.layout.configure',
+			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Layout Settings"),
+			f1: true,
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			menu: [
+				{
+					id: MenuId.EditorTitle,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
+					order: 1
+				},
+				{
+					id: MenuId.NotebookToolbar,
+					group: 'notebookLayout',
+					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					order: 1
 				}
 			]
 		});

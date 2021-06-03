@@ -240,7 +240,8 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label::after {
-	padding-right: 0
+	padding-right: 0;
+	padding-left: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {
@@ -258,6 +259,10 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-list .actions {
+	display: none;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .tabs-list .editable-tab .monaco-icon-name-container {
 	display: none;
 }
 

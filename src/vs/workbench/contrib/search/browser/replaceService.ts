@@ -113,8 +113,8 @@ export class ReplaceService implements IReplaceService {
 		const fileMatch = element instanceof Match ? element.parent() : element;
 
 		const editor = await this.editorService.openEditor({
-			leftEditor: { resource: fileMatch.resource },
-			rightEditor: { resource: toReplaceResource(fileMatch.resource) },
+			originalInput: { resource: fileMatch.resource },
+			modifiedInput: { resource: toReplaceResource(fileMatch.resource) },
 			label: nls.localize('fileReplaceChanges', "{0} ↔ {1} (Replace Preview)", fileMatch.name(), fileMatch.name()),
 			description: this.labelService.getUriLabel(dirname(fileMatch.resource), { relative: true }),
 			options: {

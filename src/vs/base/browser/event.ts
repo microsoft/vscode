@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { GestureEvent } from 'vs/base/browser/touch';
 import { Event as BaseEvent, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -30,16 +31,24 @@ export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapt
 	return emitter.event;
 };
 
-export class DomEmitter<K extends keyof HTMLElementEventMap> implements IDisposable {
+export interface DOMEventMap extends HTMLElementEventMap {
+	'-monaco-gesturetap': GestureEvent;
+	'-monaco-gesturechange': GestureEvent;
+	'-monaco-gesturestart': GestureEvent;
+	'-monaco-gesturesend': GestureEvent;
+	'-monaco-gesturecontextmenu': GestureEvent;
+}
 
-	private emitter: Emitter<HTMLElementEventMap[K]>;
+export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 
-	get event(): BaseEvent<HTMLElementEventMap[K]> {
+	private emitter: Emitter<DOMEventMap[K]>;
+
+	get event(): BaseEvent<DOMEventMap[K]> {
 		return this.emitter.event;
 	}
 
 	constructor(element: EventHandler, type: K, useCapture?: boolean) {
-		const fn = (e: Event) => this.emitter.fire(e as HTMLElementEventMap[K]);
+		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
 		this.emitter = new Emitter({
 			onFirstListenerAdd: () => element.addEventListener(type, fn, useCapture),
 			onLastListenerRemove: () => element.removeEventListener(type, fn, useCapture)

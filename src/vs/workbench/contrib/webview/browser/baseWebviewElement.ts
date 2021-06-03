@@ -83,6 +83,8 @@ namespace WebviewState {
 
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
+	protected readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
@@ -244,13 +246,13 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 				const uri = URI.from({
 					scheme: entry.scheme,
 					authority: entry.authority,
-					path: entry.path,
+					path: decodeURIComponent(entry.path), // This gets re-encoded
 					query: entry.query,
 				});
 				this.loadResource(entry.id, uri, entry.ifNoneMatch);
 			} catch (e) {
 				this._send('did-load-resource', {
-					id,
+					id: entry.id,
 					status: 404,
 					path: entry.path,
 				});
@@ -386,7 +388,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			.replace(/(["'])(?:vscode-resource):(\/\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
 				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;
@@ -394,7 +396,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 			.replace(/(["'])(?:vscode-webview-resource):(\/\/[^\s\/'"]+\/([^\s\/'"]+?)(?=\/))?([^\s'"]+?)(["'])/gi, (_match, startQuote, _1, scheme, path, endQuote) => {
 				const uri = URI.from({
 					scheme: scheme || 'file',
-					path: path,
+					path: decodeURIComponent(path),
 				});
 				const webviewUri = asWebviewUri(uri, { isRemote, authority: remoteAuthority }).toString();
 				return `${startQuote}${webviewUri}${endQuote}`;

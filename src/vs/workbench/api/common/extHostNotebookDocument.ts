@@ -44,8 +44,8 @@ export class ExtHostCell {
 		};
 	}
 
-	private _outputs: extHostTypes.NotebookCellOutput[];
-	private _metadata: extHostTypes.NotebookCellMetadata;
+	private _outputs: vscode.NotebookCellOutput[];
+	private _metadata: NotebookCellMetadata;
 	private _previousResult: vscode.NotebookCellExecutionSummary | undefined;
 
 	private _internalMetadata: NotebookCellInternalMetadata;
@@ -65,7 +65,7 @@ export class ExtHostCell {
 		this.cellKind = _cellData.cellKind;
 		this._outputs = _cellData.outputs.map(extHostTypeConverters.NotebookCellOutput.to);
 		this._internalMetadata = _cellData.internalMetadata ?? {};
-		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(_cellData.metadata ?? {});
+		this._metadata = _cellData.metadata ?? {};
 		this._previousResult = extHostTypeConverters.NotebookCellExecutionSummary.to(_cellData.internalMetadata ?? {});
 	}
 
@@ -102,14 +102,14 @@ export class ExtHostCell {
 		const output = this._outputs.find(op => op.id === outputId);
 		if (output) {
 			if (!append) {
-				output.outputs.length = 0;
+				output.items.length = 0;
 			}
-			output.outputs.push(...newItems);
+			output.items.push(...newItems);
 		}
 	}
 
 	setMetadata(newMetadata: NotebookCellMetadata): void {
-		this._metadata = extHostTypeConverters.NotebookCellMetadata.to(newMetadata);
+		this._metadata = newMetadata;
 	}
 
 	setInternalMetadata(newInternalMetadata: NotebookCellInternalMetadata): void {
@@ -144,8 +144,8 @@ export class ExtHostNotebookDocument {
 		private readonly _textDocumentsAndEditors: ExtHostDocumentsAndEditors,
 		private readonly _textDocuments: ExtHostDocuments,
 		private readonly _emitter: INotebookEventEmitter,
-		private readonly _viewType: string,
-		private _metadata: extHostTypes.NotebookDocumentMetadata,
+		private readonly _notebookType: string,
+		private _metadata: Record<string, any>,
 		readonly uri: URI,
 	) { }
 
@@ -159,7 +159,7 @@ export class ExtHostNotebookDocument {
 			this._notebook = {
 				get uri() { return that.uri; },
 				get version() { return that._versionId; },
-				get viewType() { return that._viewType; },
+				get notebookType() { return that._notebookType; },
 				get isDirty() { return that._isDirty; },
 				get isUntitled() { return that.uri.scheme === Schemas.untitled; },
 				get isClosed() { return that._disposed; },
@@ -193,7 +193,7 @@ export class ExtHostNotebookDocument {
 
 	acceptDocumentPropertiesChanged(data: INotebookDocumentPropertiesChangeData) {
 		if (data.metadata) {
-			this._metadata = this._metadata.with(data.metadata);
+			this._metadata = { ...this._metadata, ...data.metadata };
 		}
 	}
 
@@ -356,7 +356,7 @@ export class ExtHostNotebookDocument {
 
 		if (originalInternalMetadata.runState !== newInternalMetadata.runState) {
 			const executionState = newInternalMetadata.runState ?? extHostTypes.NotebookCellExecutionState.Idle;
-			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, executionState }));
+			this._emitter.emitCellExecutionStateChange(deepFreeze({ document: this.apiNotebook, cell: cell.apiCell, state: executionState }));
 		}
 	}
 

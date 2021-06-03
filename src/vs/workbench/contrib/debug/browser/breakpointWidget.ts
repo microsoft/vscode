@@ -27,7 +27,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -57,7 +57,7 @@ function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
 }
 
 function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
-	const transparentForeground = transparent(editorForeground, 0.4)(theme);
+	const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
 	return [{
 		range: {
 			startLineNumber: 0,
@@ -125,7 +125,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.dispose();
 			}
 		}));
-		this.codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {});
 
 		this.create();
 	}
@@ -229,7 +229,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
-			this.input.setDecorations(DECORATION_KEY, decorations);
+			this.input.setDecorations('breakpoint-widget', DECORATION_KEY, decorations);
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());

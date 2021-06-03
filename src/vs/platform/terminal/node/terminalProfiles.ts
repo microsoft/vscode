@@ -9,17 +9,18 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
 	includeDetectedProfiles: boolean,
-	safeConfigProvider: SafeConfigProvider,
+	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
@@ -34,9 +35,9 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			safeConfigProvider(TerminalSettingId.ProfilesWindows),
-			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			configurationService.getValue(TerminalSettingId.ProfilesWindows),
+			configurationService.getValue(TerminalSettingId.DefaultProfileWindows),
 			testPaths,
 			variableResolver
 		);
@@ -45,8 +46,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
+		configurationService.getValue(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
+		configurationService.getValue(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
 		testPaths,
 		variableResolver
 	);

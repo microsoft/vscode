@@ -21,4 +21,5 @@ export interface IHoverDelegateOptions {
 export interface IHoverDelegate {
 	showHover(options: IHoverDelegateOptions): IDisposable | undefined;
 	delay: number;
+	placement?: 'mouse' | 'element';
 }

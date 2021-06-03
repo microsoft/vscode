@@ -529,7 +529,15 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		const header = append(this.root, $('.header'));
 		const placeholder = localize('searchExtensions', "Search Extensions in Marketplace");
-		const searchValue = this.searchViewletState['query.value'] ? this.searchViewletState['query.value'] : (this.workspaceTrustService.isWorkpaceTrusted() ? '' : '@workspaceUnsupported');
+
+		let searchValue = this.searchViewletState['query.value'];
+		if (ExtensionsListView.isSearchWorkspaceUnsupportedExtensionsQuery(searchValue)) {
+			searchValue = undefined;
+		}
+
+		if (searchValue === undefined || searchValue === '') {
+			searchValue = this.workspaceTrustService.isWorkpaceTrusted() ? '' : '@workspaceUnsupported';
+		}
 
 		this.searchBox = this._register(this.instantiationService.createInstance(SuggestEnabledInput, `${VIEWLET_ID}.searchbox`, header, {
 			triggerCharacters: ['@'],

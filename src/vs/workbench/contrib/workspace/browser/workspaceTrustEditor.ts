@@ -46,7 +46,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -139,7 +139,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		) as WorkbenchTable<ITrustedUriItem>;
 
 		this._register(this.table.onDidOpen(item => {
-			if (item && item.element) {
+			// default prevented when input box is double clicked #125052
+			if (item && item.element && !item.browserEvent?.defaultPrevented) {
 				this.edit(item.element);
 			}
 		}));
@@ -188,7 +189,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			currentWorkspaceUris.push(currentWorkspace.configuration);
 		}
 
-		const entries = this.workspaceTrustManagementService.getTrustedFolders().map(uri => {
+		const entries = this.workspaceTrustManagementService.getTrustedUris().map(uri => {
 
 			let relatedToCurrentWorkspace = false;
 			for (const workspaceUri of currentWorkspaceUris) {
@@ -215,7 +216,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
-		const trustedFolders = this.workspaceTrustManagementService.getTrustedFolders();
+		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = this.getIndexOfTrustedUriEntry(item);
 
 		if (index >= trustedFolders.length) {
@@ -224,7 +225,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedFolders(trustedFolders);
+		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 		this._onDidAcceptEdit.fire(item);
 	}
 
@@ -380,6 +381,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 				templateData.pathInput.select();
 				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
+		}));
+
+		// stop double click action from re-rendering the element on the table #125052
+		templateData.renderDisposables.add(addDisposableListener(templateData.pathInput.element, EventType.DBLCLICK, e => {
+			EventHelper.stop(e);
 		}));
 
 
@@ -556,6 +562,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
+		this.rootElement.style.display = 'none';
 
 		this.createHeaderElement(this.rootElement);
 
@@ -587,6 +594,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		this.registerListeners();
 		this.render();
 	}
@@ -738,6 +746,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		this.rootElement.style.display = '';
 		this.rendering = false;
 	}
 
@@ -799,17 +808,17 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedTasks', "Tasks are disabled"),
 			localize('untrustedDebugging', "Debugging is disabled"),
 			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listWorkspaceUnsupportedExtensions')
+			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID)
 		], xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
 				this.addTrustedTextToElement(untrustedContainer);
 			}
 		} else {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(trustedContainer);
 			}
 		}

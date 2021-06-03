@@ -334,6 +334,13 @@ interface IWorkbenchConstructionOptions {
 	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
+	 * Allows the workbench to skip checking whether an extension was built for the web
+	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
+	 * asset URI.
+	 */
+	readonly assumeGalleryExtensionsAreAddressable?: boolean;
+
+	/**
 	 * Support for URL callbacks.
 	 */
 	readonly urlCallbackProvider?: IURLCallbackProvider;

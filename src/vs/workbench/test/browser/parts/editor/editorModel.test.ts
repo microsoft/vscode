@@ -27,7 +27,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 
-suite('Workbench editor model', () => {
+suite('EditorModel', () => {
 
 	class MyEditorModel extends EditorModel { }
 	class MyTextEditorModel extends BaseTextEditorModel {
@@ -62,7 +62,7 @@ suite('Workbench editor model', () => {
 		modeService = instantiationService.stub(IModeService, ModeServiceImpl);
 	});
 
-	test('EditorModel', async () => {
+	test('basics', async () => {
 		let counter = 0;
 
 		const model = new MyEditorModel();

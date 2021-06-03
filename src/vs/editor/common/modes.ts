@@ -686,7 +686,7 @@ export interface CompletionItemProvider {
 }
 
 /**
- * How an {@link InlineCompletionItemProvider inline completion provider} was triggered.
+ * How an {@link InlineCompletionsProvider inline completion provider} was triggered.
  */
 export enum InlineCompletionTriggerKind {
 	/**
@@ -709,9 +709,6 @@ export interface InlineCompletionContext {
 	readonly triggerKind: InlineCompletionTriggerKind;
 }
 
-/**
- * @internal
- */
 export interface InlineCompletion {
 	/**
 	 * The text to insert.
@@ -729,20 +726,21 @@ export interface InlineCompletion {
 	readonly command?: Command;
 }
 
-/**
- * @internal
- */
 export interface InlineCompletions<TItem extends InlineCompletion = InlineCompletion> {
 	readonly items: readonly TItem[];
 }
 
-/**
- * @internal
- */
 export interface InlineCompletionsProvider<T extends InlineCompletions = InlineCompletions> {
 	provideInlineCompletions(model: model.ITextModel, position: Position, context: InlineCompletionContext, token: CancellationToken): ProviderResult<T>;
 
+	/**
+	 * Will be called when an item is shown.
+	*/
 	handleItemDidShow?(completions: T, item: T['items'][number]): void;
+
+	/**
+	 * Will be called when a completions list is no longer in use and can be garbage-collected.
+	*/
 	freeInlineCompletions(completions: T): void;
 }
 

@@ -53,7 +53,7 @@ export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 export const BUILTIN_RENDERER_ID = '_builtin';
 export const RENDERER_NOT_AVAILABLE = '_notAvailable';
 
-export type NotebookRendererEntrypoint = string | { extends: string; path: string };
+export type NotebookRendererEntrypoint = string | { extends: string; path: string; };
 
 export enum NotebookRunState {
 	Running = 1,
@@ -65,7 +65,7 @@ export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata
 };
 
 export interface NotebookDocumentMetadata {
-	custom?: { [key: string]: unknown };
+	custom?: { [key: string]: unknown; };
 	[key: string]: unknown;
 }
 
@@ -137,7 +137,11 @@ export const enum NotebookRendererMatch {
  * activation" of extensions is a very tricky problem, which could allow
  * solving this. But for now, optional is mostly only honored for aznb.
  */
-export type RendererMessagingSpec = true | false | 'optional';
+export const enum RendererMessagingSpec {
+	Always = 'always',
+	Never = 'never',
+	Optional = 'optional',
+}
 
 export interface INotebookRendererInfo {
 	id: string;
@@ -162,7 +166,7 @@ export interface NotebookCellOutputMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	custom?: { [key: string]: unknown };
+	custom?: { [key: string]: unknown; };
 }
 
 export interface IOrderedMimeType {
@@ -173,20 +177,18 @@ export interface IOrderedMimeType {
 
 export interface IOutputItemDto {
 	readonly mime: string;
-	readonly value: unknown;
-	readonly valueBytes?: number[];
-	readonly metadata?: Record<string, unknown>;
+	readonly valueBytes: number[];
 }
 
 export interface IOutputDto {
 	outputs: IOutputItemDto[];
 	outputId: string;
-	metadata?: Record<string, unknown>;
+	metadata?: Record<string, any>;
 }
 
 export interface ICellOutput {
 	outputs: IOutputItemDto[];
-	// metadata?: NotebookCellOutsputMetadata;
+	metadata?: Record<string, any>;
 	outputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputItemDto[]): void;
@@ -214,7 +216,7 @@ export interface ICell {
 
 export interface INotebookTextModel {
 	readonly viewType: string;
-	metadata: NotebookDocumentMetadata
+	metadata: NotebookDocumentMetadata;
 	readonly uri: URI;
 	readonly versionId: number;
 
@@ -398,14 +400,14 @@ export interface ICellOutputEdit {
 	editType: CellEditType.Output;
 	index: number;
 	outputs: IOutputDto[];
-	append?: boolean
+	append?: boolean;
 }
 
 export interface ICellOutputEditByHandle {
 	editType: CellEditType.Output;
 	handle: number;
 	outputs: IOutputDto[];
-	append?: boolean
+	append?: boolean;
 }
 
 export interface ICellOutputItemEdit {
@@ -516,7 +518,7 @@ export namespace CellUri {
 		});
 	}
 
-	export function parse(cell: URI): { notebook: URI, handle: number } | undefined {
+	export function parse(cell: URI): { notebook: URI, handle: number; } | undefined {
 		if (cell.scheme !== scheme) {
 			return undefined;
 		}
@@ -603,7 +605,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
-	['application/x.notebook.error-traceback', { alwaysSecure: true, supportedByCore: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {
@@ -746,6 +747,7 @@ export interface INotebookEditorModel extends IEditorModel {
 	isDirty(): boolean;
 	isReadonly(): boolean;
 	isOrphaned(): boolean;
+	hasAssociatedFilePath(): boolean;
 	load(options?: INotebookLoadOptions): Promise<IResolvedNotebookEditorModel>;
 	save(options?: ISaveOptions): Promise<boolean>;
 	saveAs(target: URI): Promise<IEditorInput | undefined>;
@@ -762,7 +764,7 @@ export interface INotebookDiffEditorModel extends IEditorModel {
 export interface INotebookTextModelBackup {
 	metadata: NotebookDocumentMetadata;
 	languages: string[];
-	cells: ICellDto2[]
+	cells: ICellDto2[];
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
@@ -779,7 +781,7 @@ export enum NotebookEditorPriority {
 export interface INotebookSearchOptions {
 	regex?: boolean;
 	wholeWord?: boolean;
-	caseSensitive?: boolean
+	caseSensitive?: boolean;
 	wordSeparators?: string;
 }
 
@@ -854,7 +856,7 @@ export interface INotebookKernel {
 	label: string;
 	description?: string;
 	detail?: string;
-	supportedLanguages: string[]
+	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
 
@@ -885,7 +887,7 @@ export class CellSequence implements ISequence {
 
 export interface INotebookDiffResult {
 	cellsDiff: IDiffResult,
-	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[] }[];
+	linesDiff?: { originalCellhandle: number, modifiedCellhandle: number, lineChanges: editorCommon.ILineChange[]; }[];
 }
 
 export interface INotebookCellStatusBarItem {
@@ -907,21 +909,24 @@ export interface INotebookCellStatusBarItemList {
 }
 
 export const DisplayOrderKey = 'notebook.displayOrder';
-export const CellToolbarLocKey = 'notebook.cellToolbarLocation';
+export const CellToolbarLocation = 'notebook.cellToolbarLocation';
 export const CellToolbarVisibility = 'notebook.cellToolbarVisibility';
-export const ShowCellStatusBarKey = 'notebook.showCellStatusBar';
-export const ShowCellStatusBarAfterExecuteKey = 'notebook.showCellStatusBarAfterExecute';
+export type ShowCellStatusBarType = 'hidden' | 'visible' | 'visibleAfterExecute';
+export const ShowCellStatusBar = 'notebook.showCellStatusBar';
 export const NotebookTextDiffEditorPreview = 'notebook.diff.enablePreview';
 export const ExperimentalUseMarkdownRenderer = 'notebook.experimental.useMarkdownRenderer';
 export const ExperimentalInsertToolbarAlignment = 'notebook.experimental.insertToolbarAlignment';
 export const CompactView = 'notebook.compactView';
 export const FocusIndicator = 'notebook.cellFocusIndicator';
-export const InsertToolbarPosition = 'notebook.insertToolbarPosition';
+export const InsertToolbarLocation = 'notebook.insertToolbarLocation';
 export const GlobalToolbar = 'notebook.globalToolbar';
 export const UndoRedoPerCell = 'notebook.undoRedoPerCell';
 export const ConsolidatedOutputButton = 'notebook.consolidatedOutputButton';
 export const ShowFoldingControls = 'notebook.showFoldingControls';
 export const DragAndDropEnabled = 'notebook.dragAndDropEnabled';
+export const NotebookCellEditorOptionsCustomizations = 'notebook.editorOptionsCustomizations';
+export const ConsolidatedRunButton = 'notebook.consolidatedRunButton';
+export const OpenGettingStarted = 'notebook.experimental.openGettingStarted';
 
 export const enum CellStatusbarAlignment {
 	Left = 1,

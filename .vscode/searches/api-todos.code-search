@@ -1,0 +1,14 @@
+# Query: //todo@API
+# Including: */vscode.d.ts
+# ContextLines: 1
+
+2 results - 1 file
+
+src/vs/vscode.d.ts:
+  11804  	 */
+  11805: 	//todo@API inline?
+  11806  	export interface NotebookExecuteHandler {
+
+  11935  		 */
+  11936: 		//todo@api selected vs associated, jsdoc
+  11937  		readonly onDidChangeNotebookAssociation: Event<{ notebook: NotebookDocument, selected: boolean }>;

@@ -50,7 +50,7 @@ export class NoTabsTitleControl extends TitleControl {
 		this._register(addDisposableListener(this.editorLabel.element, EventType.CLICK, e => this.onTitleLabelClick(e)));
 
 		// Breadcrumbs
-		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: () => Color.transparent, showPlaceholder: false });
+		this.createBreadcrumbsControl(labelContainer, { showFileIcons: false, showSymbolIcons: true, showDecorationColors: false, breadcrumbsBackground: Color.transparent.toString(), showPlaceholder: false });
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
@@ -164,6 +164,10 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	updateEditorLabel(editor: IEditorInput): void {
+		this.ifEditorIsActive(editor, () => this.redraw());
+	}
+
+	updateEditorCapabilities(editor: IEditorInput): void {
 		this.ifEditorIsActive(editor, () => this.redraw());
 	}
 

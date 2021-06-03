@@ -31,8 +31,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IExtensionsViewPaneContainer, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
@@ -297,11 +298,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			// Workspace with label: indicate editing source
 			const workspaceLabel = this.getWorkspaceLabel();
 			if (workspaceLabel) {
-				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('workspace.tooltip', "Editing on {0}", workspaceLabel));
+				const toolTip: IMarkdownString = {
+					value: nls.localize('workspace.tooltip', "Virtual workspace on {0}\n\n[Some features](command:{1}) are not available for resources located on a virtual file system.", workspaceLabel, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					isTrusted: true
+				};
+				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, toolTip);
 				return;
 			}
 		}
-
 		// Remote actions: offer menu
 		if (this.getRemoteMenuActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
@@ -322,7 +326,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		return undefined;
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
+	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
 		if (typeof command !== 'string' && this.getRemoteMenuActions().length > 0) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
@@ -359,11 +363,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			if (this.remoteAuthority) {
 				return new RegExp(`^remote_\\d\\d_${getRemoteName(this.remoteAuthority)}_`);
 			} else if (this.virtualWorkspaceScheme) {
-				if (this.virtualWorkspaceScheme === 'vscode-vfs') {
-					return new RegExp(`^remote_\\d\\d_vfs_`);
-				} else {
-					return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceScheme}_`);
-				}
+				return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceScheme}_`);
 			}
 			return undefined;
 		};
@@ -410,12 +410,14 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				}
 			}
 
+			items.push({
+				type: 'separator'
+			});
+
+			let entriesBeforeConfig = items.length;
+
 			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
 				if (this.remoteAuthority) {
-					if (items.length) {
-						items.push({ type: 'separator' });
-					}
-
 					items.push({
 						type: 'item',
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
@@ -430,28 +432,27 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						});
 					}
 				} else if (this.virtualWorkspaceScheme) {
-					if (items.length) {
-						items.push({ type: 'separator' });
-					}
-
 					items.push({
 						type: 'item',
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-						label: nls.localize('closeRemoteWindow.title', 'Close Remote')
+						label: nls.localize('closeVirtualWorkspace.title', 'Close Remote Workspace')
 					});
 				}
 			}
 
-			if (!this.remoteAuthority && this.extensionGalleryService.isEnabled()) {
-				items.push({
-					type: 'separator'
-				});
+			if (!this.remoteAuthority && !this.virtualWorkspaceScheme && this.extensionGalleryService.isEnabled()) {
 				items.push({
 					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
-					label: nls.localize('installRemotes', "Install Additional Remote Development Extensions..."),
+					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
+
 					alwaysShow: true
 				});
 			}
+
+			if (items.length === entriesBeforeConfig) {
+				items.pop(); // remove the separator again
+			}
+
 			return items;
 		};
 

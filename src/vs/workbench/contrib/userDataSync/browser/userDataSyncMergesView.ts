@@ -315,8 +315,8 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 			const rightResourceName = previewResource.mergeState === MergeState.Conflict ? localize('merges', "{0} (Merges)", basename(rightResource))
 				: localize({ key: 'rightResourceName', comment: ['local as in file in disk'] }, "{0} (Local)", basename(rightResource));
 			await this.editorService.openEditor({
-				leftEditor: { resource: leftResource },
-				rightEditor: { resource: rightResource },
+				originalInput: { resource: leftResource },
+				modifiedInput: { resource: rightResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
 				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {

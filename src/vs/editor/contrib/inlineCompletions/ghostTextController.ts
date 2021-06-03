@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Range } from 'vs/editor/common/core/range';
 import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -14,11 +15,13 @@ import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inli
 import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
 import * as nls from 'vs/nls';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-class GhostTextController extends Disposable {
+export class GhostTextController extends Disposable {
 	public static readonly inlineCompletionsVisible = new RawContextKey<boolean>('inlineCompletionsVisible ', false, nls.localize('inlineCompletionsVisible', "Whether inline suggestions are visible"));
+	public static readonly inlineCompletionSuggestsIndentation = new RawContextKey<boolean>('inlineCompletionSuggestsIndentation', false, nls.localize('inlineCompletionSuggestsIndentation', "Whether the inline suggestion suggests extending indentation"));
+
 	static ID = 'editor.contrib.ghostTextController';
 
 	public static get(editor: ICodeEditor): GhostTextController {
@@ -27,8 +30,8 @@ class GhostTextController extends Disposable {
 
 	private readonly widget: GhostTextWidget;
 	private readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
-
 	private readonly contextKeys: GhostTextContextKeys;
+	private triggeredExplicitly = false;
 
 	constructor(
 		private readonly editor: ICodeEditor,
@@ -51,25 +54,45 @@ class GhostTextController extends Disposable {
 		this.updateModelController();
 	}
 
+	// Don't call this method when not neccessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
 
 		this.activeController.value = undefined;
-		this.activeController.value = this.editor.hasModel() && suggestOptions.showSuggestionPreview
-			? this.instantiationService.createInstance(ActiveGhostTextController, this.editor, this.widget, this.contextKeys)
-			: undefined;
+		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
+		this.activeController.value =
+			this.editor.hasModel() && (suggestOptions.showSuggestionPreview || suggestOptions.showInlineCompletions || this.triggeredExplicitly)
+				? this.instantiationService.createInstance(
+					ActiveGhostTextController,
+					this.editor,
+					this.widget,
+					this.contextKeys
+				)
+				: undefined;
+	}
+
+	public shouldShowHoverAt(hoverRange: Range): boolean {
+		return this.activeController.value?.shouldShowHoverAt(hoverRange) || false;
+	}
+
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return this.widget.shouldShowHoverAtViewZone(viewZoneId);
 	}
 
 	public trigger(): void {
-		this.activeController.value?.trigger();
+		this.triggeredExplicitly = true;
+		if (!this.activeController.value) {
+			this.updateModelController();
+		}
+		this.activeController.value?.triggerInlineCompletion();
 	}
 
 	public commit(): void {
-		this.activeController.value?.commit();
+		this.activeController.value?.commitInlineCompletion();
 	}
 
 	public hide(): void {
-		this.activeController.value?.hide();
+		this.activeController.value?.hideInlineCompletion();
 	}
 
 	public showNextInlineCompletion(): void {
@@ -81,10 +104,33 @@ class GhostTextController extends Disposable {
 	}
 }
 
+// TODO: This should be local state to the editor.
+// The global state should depend on the local state of the currently focused editor.
+// Currently the global state is updated directly, which may lead to conflicts if multiple ghost texts are active.
 class GhostTextContextKeys {
-	public readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
+	private lastInlineCompletionVisibleValue = false;
+	private readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
+
+	private lastInlineCompletionSuggestsIndentationValue = false;
+	private readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineCompletionSuggestsIndentation.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
+	}
+
+	public setInlineCompletionVisible(value: boolean): void {
+		// Only modify the context key if we actually changed it.
+		// Thus, we don't overwrite values set by someone else.
+		if (value !== this.lastInlineCompletionVisibleValue) {
+			this.inlineCompletionVisible.set(value);
+			this.lastInlineCompletionVisibleValue = value;
+		}
+	}
+
+	public setInlineCompletionSuggestsIndentation(value: boolean): void {
+		if (value !== this.lastInlineCompletionSuggestsIndentationValue) {
+			this.inlineCompletionSuggestsIndentation.set(value);
+			this.lastInlineCompletionSuggestsIndentationValue = value;
+		}
 	}
 }
 
@@ -92,8 +138,15 @@ class GhostTextContextKeys {
  * The controller for a text editor with an initialized text model.
 */
 export class ActiveGhostTextController extends Disposable {
-	private readonly suggestWidgetAdapterModel = new SuggestWidgetAdapterModel(this.editor);
-	private readonly inlineCompletionsModel = new InlineCompletionsModel(this.editor, this.commandService);
+	private readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetAdapterModel(this.editor));
+	private readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.commandService));
+
+	private get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
+		if (this.widget.model === this.inlineCompletionsModel) {
+			return this.inlineCompletionsModel;
+		}
+		return undefined;
+	}
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
@@ -106,60 +159,79 @@ export class ActiveGhostTextController extends Disposable {
 		this._register(this.suggestWidgetAdapterModel.onDidChange(() => {
 			this.updateModel();
 		}));
-
 		this.updateModel();
 
 		this._register(toDisposable(() => {
 			if (widget.model === this.suggestWidgetAdapterModel || widget.model === this.inlineCompletionsModel) {
 				widget.setModel(undefined);
 			}
+			this.contextKeys.setInlineCompletionVisible(false);
+			this.contextKeys.setInlineCompletionSuggestsIndentation(false);
 		}));
 
-		this._register(this.inlineCompletionsModel.onDidChange(() => {
-			this.updateContextKeys();
-		}));
+		if (this.inlineCompletionsModel) {
+			this._register(this.inlineCompletionsModel.onDidChange(() => {
+				this.updateContextKeys();
+			}));
+		}
 	}
 
 	private updateContextKeys(): void {
-		this.contextKeys.inlineCompletionVisible.set(
-			this.widget.model === this.inlineCompletionsModel
-			&& this.inlineCompletionsModel.ghostText !== undefined
+		this.contextKeys.setInlineCompletionVisible(
+			this.activeInlineCompletionsModel?.ghostText !== undefined
 		);
-	}
 
-	public trigger(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.startSession();
+		if (this.inlineCompletionsModel?.ghostText) {
+			const firstLine = this.inlineCompletionsModel.ghostText.lines[0] || '';
+			const suggestionStartsWithWs = firstLine.startsWith(' ') || firstLine.startsWith('\t');
+			const p = this.inlineCompletionsModel.ghostText.position;
+			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(p.lineNumber);
+			const inIndentation = p.column <= indentationEndColumn;
+
+			this.contextKeys.setInlineCompletionSuggestsIndentation(
+				this.widget.model === this.inlineCompletionsModel
+				&& suggestionStartsWithWs && inIndentation
+			);
+		} else {
+			this.contextKeys.setInlineCompletionSuggestsIndentation(false);
 		}
 	}
 
-	public commit(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.commitCurrentSuggestion();
+	public shouldShowHoverAt(hoverRange: Range): boolean {
+		const ghostText = this.activeInlineCompletionsModel?.ghostText;
+		if (ghostText) {
+			return hoverRange.containsPosition(ghostText.position);
 		}
+		return false;
 	}
 
-	public hide(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.hide();
-		}
+	public triggerInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.startSession();
+	}
+
+	public commitInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.commitCurrentSuggestion();
+	}
+
+	public hideInlineCompletion(): void {
+		this.activeInlineCompletionsModel?.hide();
 	}
 
 	public showNextInlineCompletion(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.showNextInlineCompletion();
-		}
+		this.activeInlineCompletionsModel?.showNext();
 	}
 
 	public showPreviousInlineCompletion(): void {
-		if (this.widget.model === this.inlineCompletionsModel) {
-			this.inlineCompletionsModel.showPreviousInlineCompletion();
-		}
+		this.activeInlineCompletionsModel?.showPrevious();
 	}
 
 	private updateModel() {
-		this.widget.setModel(this.suggestWidgetAdapterModel.isActive ? this.suggestWidgetAdapterModel : this.inlineCompletionsModel);
-		this.inlineCompletionsModel.setActive(this.widget.model === this.inlineCompletionsModel);
+		this.widget.setModel(
+			this.suggestWidgetAdapterModel.isActive
+				? this.suggestWidgetAdapterModel
+				: this.inlineCompletionsModel
+		);
+		this.inlineCompletionsModel?.setActive(this.widget.model === this.inlineCompletionsModel);
 	}
 }
 
@@ -167,7 +239,11 @@ const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.ge
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'commitInlineCompletion',
-	precondition: GhostTextController.inlineCompletionsVisible,
+	precondition: ContextKeyExpr.and(
+		GhostTextController.inlineCompletionsVisible,
+		GhostTextController.inlineCompletionSuggestsIndentation.toNegated(),
+		EditorContextKeys.tabMovesFocus.toNegated()
+	),
 	kbOpts: {
 		weight: 100,
 		primary: KeyCode.Tab,
@@ -190,15 +266,16 @@ registerEditorCommand(new GhostTextCommand({
 }));
 
 export class ShowNextInlineCompletionAction extends EditorAction {
+	public static ID = 'editor.action.showNextInlineCompletion';
 	constructor() {
 		super({
-			id: 'editor.action.showNextInlineCompletion',
+			id: ShowNextInlineCompletionAction.ID,
 			label: nls.localize('showNextInlineCompletion', "Show Next Inline Completion"),
 			alias: 'Show Next Inline Completion',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
 			},
 		});
 	}
@@ -207,20 +284,22 @@ export class ShowNextInlineCompletionAction extends EditorAction {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
 			controller.showNextInlineCompletion();
+			editor.focus();
 		}
 	}
 }
 
 export class ShowPreviousInlineCompletionAction extends EditorAction {
+	public static ID = 'editor.action.showPreviousInlineCompletion';
 	constructor() {
 		super({
-			id: 'editor.action.showPreviousInlineCompletion',
+			id: ShowPreviousInlineCompletionAction.ID,
 			label: nls.localize('showPreviousInlineCompletion', "Show Previous Inline Completion"),
 			alias: 'Show Previous Inline Completion',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
 			},
 		});
 	}
@@ -229,6 +308,7 @@ export class ShowPreviousInlineCompletionAction extends EditorAction {
 		const controller = GhostTextController.get(editor);
 		if (controller) {
 			controller.showPreviousInlineCompletion();
+			editor.focus();
 		}
 	}
 }

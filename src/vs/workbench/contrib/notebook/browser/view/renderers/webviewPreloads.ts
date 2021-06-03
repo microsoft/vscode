@@ -463,8 +463,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		outputId?: string;
 
 		mime: string;
-		value: unknown;
 		metadata: unknown;
+		metadata2: unknown;
 
 		text(): string;
 		json(): any;
@@ -643,15 +643,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 							rendererApi.renderCell(outputId, {
 								element: outputNode,
 								mime: content.mimeType,
-								value: content.value,
 								metadata: content.metadata,
+								metadata2: content.metadata2,
 								data() {
 									return content.valueBytes;
 								},
 								bytes() { return this.data(); },
 								text() {
-									return new TextDecoder().decode(content.valueBytes)
-										|| String(content.value); //todo@jrieken remove this once `value` is gone!
+									return new TextDecoder().decode(content.valueBytes);
 								},
 								json() {
 									return JSON.parse(this.text());
@@ -1037,9 +1036,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			markdownRenderers[0].api?.renderCell(id, {
 				element,
-				value: content,
 				mime: 'text/markdown',
 				metadata: undefined,
+				metadata2: undefined,
 				outputId: undefined,
 				text() { return content; },
 				json() { return undefined; },

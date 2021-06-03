@@ -293,7 +293,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			};
 		}
 
-		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.viewType, resolvedOptions);
+		const editorId = await this._notebookEditorsProxy.$tryShowNotebookDocument(notebookOrUri.uri, notebookOrUri.notebookType, resolvedOptions);
 		const editor = editorId && this._editors.get(editorId)?.apiEditor;
 
 		if (editor) {
@@ -327,7 +327,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 		const disposables = new DisposableStore();
 		const cacheId = this._statusBarCache.add([disposables]);
-		const items = (result && result.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables))) ?? undefined;
+		const resultArr = Array.isArray(result) ? result : [result];
+		const items = resultArr.map(item => typeConverters.NotebookStatusBarItem.from(item, this._commandsConverter, disposables));
 		return {
 			cacheId,
 			items
@@ -385,7 +386,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		const { provider } = this._getProviderData(viewType);
 		const data = await provider.openNotebook(URI.revive(uri), { backupId, untitledDocumentData: untitledDocumentData?.buffer }, token);
 		return {
-			metadata: typeConverters.NotebookDocumentMetadata.from(data.metadata),
+			metadata: data.metadata ?? Object.create(null),
 			cells: data.cells.map(typeConverters.NotebookCellData.from),
 		};
 	}
@@ -556,7 +557,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 						}
 					},
 					viewType,
-					modelData.metadata ? typeConverters.NotebookDocumentMetadata.to(modelData.metadata) : new extHostTypes.NotebookDocumentMetadata(),
+					modelData.metadata ?? Object.create({}),
 					uri,
 				);
 

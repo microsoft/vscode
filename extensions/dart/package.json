@@ -21,7 +21,7 @@
 				"aliases": [
 					"Dart"
 				],
-				"configuration": "./syntaxes/dart-language-configuration.json"
+				"configuration": "./language-configuration.json"
 			}
 		],
 		"grammars": [
