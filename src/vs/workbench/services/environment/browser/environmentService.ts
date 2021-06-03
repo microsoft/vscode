@@ -246,6 +246,9 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 
 	get skipReleaseNotes(): boolean { return false; }
 
+	@memoize
+	get disableWorkspaceTrust(): boolean { return true; }
+
 	private payload: Map<string, string> | undefined;
 
 	constructor(
