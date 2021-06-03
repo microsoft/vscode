@@ -1292,6 +1292,8 @@ class GettingStartedIndexList<T> extends Disposable {
 
 	public itemCount: number;
 
+	private isDisposed = false;
+
 	constructor(
 		title: string,
 		klass: string,
@@ -1323,7 +1325,12 @@ class GettingStartedIndexList<T> extends Disposable {
 		this._register(this.onDidChangeEntries(listener));
 	}
 
-	register(d: IDisposable) { this._register(d); }
+	register(d: IDisposable) { if (this.isDisposed) { d.dispose(); } else { this._register(d); } }
+
+	override dispose() {
+		this.isDisposed = true;
+		super.dispose();
+	}
 
 	setLimit(limit: number) {
 		this.limit = limit;
