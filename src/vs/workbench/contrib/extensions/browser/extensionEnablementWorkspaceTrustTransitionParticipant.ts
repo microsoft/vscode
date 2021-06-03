@@ -6,12 +6,16 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@IExtensionService extensionService: IExtensionService,
+		@IHostService hostService: IHostService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
@@ -30,9 +34,13 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
 						} else {
 							// Trusted -> Untrusted
-							extensionService.stopExtensionHosts();
-							await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
-							extensionService.startExtensionHosts();
+							if (environmentService.remoteAuthority) {
+								hostService.reload();
+							} else {
+								extensionService.stopExtensionHosts();
+								await extensionEnablementService.updateEnablementByWorkspaceTrustRequirement();
+								extensionService.startExtensionHosts();
+							}
 						}
 					}
 				};
