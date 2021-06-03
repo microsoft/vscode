@@ -706,7 +706,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this._onDidAddCategory.fire();
 		}
 
-		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id}.when`).then(override => {
+		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id.replace('#', '.')}.when`).then(override => {
 			if (override) {
 				const old = category.when;
 				const gnu = ContextKeyExpr.deserialize(override) ?? old;
