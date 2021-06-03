@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -373,14 +373,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							const shell = this._configurationService.getValue(TerminalSettingPrefix.Shell + platform);
 							const shellArgs = this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform);
 							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
-							if (profile) {
-								this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
-								this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
-								this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
-								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
+							if (typeof profile === 'string') {
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
+								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								this._logService.trace('migration from shell/shellArgs to profile did not occur bc created profile was an exact match for existing one', shell, shellArgs);
+								const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(TerminalSettingPrefix.Profiles + platform).userValue || {};
+								const profileConfig: ITerminalProfileObject = { path: profile.path };
+								if (profile.args) {
+									profileConfig.args = profile.args;
+								}
+								profiles[profile.profileName] = profileConfig;
+								await this._configurationService.updateValue(TerminalSettingPrefix.Profiles + platform, profiles);
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
+								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
 							}
+							await this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
+							await this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
 						}
 					} as IPromptChoice,
 				],

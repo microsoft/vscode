@@ -21,6 +21,7 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 import { debounce } from 'vs/base/common/decorators';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { equals } from 'vs/base/common/arrays';
 
 export interface IProfileContextProvider {
 	getDefaultSystemShell: (remoteAuthority: string | undefined, os: OperatingSystem) => Promise<string>;
@@ -392,12 +393,21 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 		return false;
 	}
 
-	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined> {
-		const detectedProfile = this._terminalService.availableProfiles?.find(p => p.path === shell);
+	async createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string> {
+		const detectedProfile = this._terminalService.availableProfiles?.find(p => {
+			if (p.path !== shell) {
+				return false;
+			}
+			if (p.args === undefined || typeof p.args === 'string') {
+				return p.args === shellArgs;
+			}
+			return p.path === shell && equals(p.args, (shellArgs || []) as string[]);
+		});
 		const fallbackProfile = (await this.getDefaultProfile({
 			remoteAuthority: this._remoteAgentService.getConnection()?.remoteAuthority,
 			os: this._primaryBackendOs!
 		}));
+		fallbackProfile.profileName = `${fallbackProfile.path} (migrated)`;
 		const profile = detectedProfile || fallbackProfile;
 		const args = this._isValidShellArgs(shellArgs, this._primaryBackendOs!) ? shellArgs : profile.args;
 		const createdProfile = {
@@ -407,7 +417,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 			isDefault: true
 		};
 		if (detectedProfile && detectedProfile.profileName === createdProfile.profileName && detectedProfile.path === createdProfile.path && this._argsMatch(detectedProfile.args, createdProfile.args)) {
-			return undefined;
+			return detectedProfile.profileName;
 		}
 		return createdProfile;
 	}
