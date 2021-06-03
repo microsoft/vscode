@@ -146,7 +146,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
 	// try showing the banner only after some files have been opened
-	private showBannerInEmptyWindow = false;
+	private showIndicatorsInEmptyWindow = false;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
@@ -480,7 +480,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
 
 		if (openFiles.length) {
-			this.showBannerInEmptyWindow = true;
+			this.showIndicatorsInEmptyWindow = true;
 
 			// If all open files are trusted, transition to a trusted workspace
 			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
@@ -493,7 +493,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
 				const editor = this.editorService.activeEditor;
 				if (editor && !!EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })) {
-					this.showBannerInEmptyWindow = true;
+					this.showIndicatorsInEmptyWindow = true;
 					this.updateWorkbenchIndicators(this.workspaceTrustManagementService.isWorkpaceTrusted());
 					disposable.dispose();
 				}
@@ -512,21 +512,23 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
-		this.updateStatusbarEntry(trusted);
-
 		const isInVirtualWorkspace = isVirtualWorkspace(this.workspaceContextService.getWorkspace());
 		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const bannerItem = this.getBannerItem(isInVirtualWorkspace, !trusted);
 
-		if (bannerItem && (!isEmptyWorkspace || this.showBannerInEmptyWindow)) {
-			if (!isInVirtualWorkspace) {
-				if (!trusted) {
-					this.bannerService.show(bannerItem);
+		if (!isEmptyWorkspace || this.showIndicatorsInEmptyWindow) {
+			this.updateStatusbarEntry(trusted);
+
+			if (bannerItem) {
+				if (!isInVirtualWorkspace) {
+					if (!trusted) {
+						this.bannerService.show(bannerItem);
+					} else {
+						this.bannerService.hide(BANNER_RESTRICTED_MODE);
+					}
 				} else {
-					this.bannerService.hide(BANNER_RESTRICTED_MODE);
+					this.bannerService.show(bannerItem);
 				}
-			} else {
-				this.bannerService.show(bannerItem);
 			}
 		}
 	}
