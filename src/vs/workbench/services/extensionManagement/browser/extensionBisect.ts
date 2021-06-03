@@ -291,7 +291,7 @@ registerAction2(class extends Action2 {
 
 		if (done.bad) {
 			// DONE but nothing found
-			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), [], {
+			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), undefined, {
 				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
 			});
 

@@ -133,7 +133,7 @@ export class PromptExtensionInstallFailureAction extends Action {
 		}
 
 		if ([INSTALL_ERROR_INCOMPATIBLE, INSTALL_ERROR_MALICIOUS].includes(this.error.name)) {
-			await this.dialogService.show(Severity.Info, getErrorMessage(this.error), []);
+			await this.dialogService.show(Severity.Info, getErrorMessage(this.error));
 			return;
 		}
 

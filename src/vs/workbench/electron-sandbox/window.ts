@@ -466,7 +466,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}

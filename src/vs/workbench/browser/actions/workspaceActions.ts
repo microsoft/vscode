@@ -124,7 +124,7 @@ export class CloseWorkspaceAction extends Action2 {
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
 
 		if (contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			dialogService.show(Severity.Error, localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."), [localize('ok', 'OK')]);
+			dialogService.show(Severity.Error, localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
 			return;
 		}
 
