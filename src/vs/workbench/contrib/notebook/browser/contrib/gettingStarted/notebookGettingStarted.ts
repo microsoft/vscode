@@ -36,8 +36,12 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	) {
 		super();
 
+		if (!_configurationService.getValue('notebook.experimental.openGettingStarted')) {
+			return;
+		}
+
 		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
-		const memento = new Memento('notebookGettingStarted', _storageService);
+		const memento = new Memento('notebookGettingStarted2', _storageService);
 		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
