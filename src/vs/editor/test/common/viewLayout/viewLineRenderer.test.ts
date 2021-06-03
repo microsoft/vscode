@@ -793,7 +793,7 @@ suite('viewLineRenderer.renderLine', () => {
 		const mapping: ICharMappingData[] = [];
 		for (let charOffset = 0; charOffset < source.length; charOffset++) {
 			const domPosition = source.getDomPosition(charOffset + 1);
-			mapping.push({ charOffset, partIndex: domPosition.partIndex, charIndex: domPosition.offset });
+			mapping.push({ charOffset, partIndex: domPosition.partIndex, charIndex: domPosition.charIndex });
 		}
 		const absoluteOffsets: number[] = [];
 		for (let i = 0; i < source.length; i++) {
@@ -840,7 +840,7 @@ function assertCharPartOffsets(actual: CharacterMapping, expected: number[][]): 
 			const actualDOMPosition = actual.getDomPosition(charOffset + 1);
 
 			assert.deepStrictEqual(
-				{ partIndex: actualDOMPosition.partIndex, charIndex: actualDOMPosition.offset },
+				{ partIndex: actualDOMPosition.partIndex, charIndex: actualDOMPosition.charIndex },
 				{ partIndex: partIndex, charIndex: charIndex },
 				`character mapping for offset ${charOffset}`
 			);

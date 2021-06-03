@@ -220,7 +220,7 @@ export const enum CharacterMappingConstants {
 export class DomPosition {
 	constructor(
 		public readonly partIndex: number,
-		public readonly offset: number
+		public readonly charIndex: number
 	) { }
 }
 
@@ -277,15 +277,11 @@ export class CharacterMapping {
 		return this._data[charOffset];
 	}
 
-	private charOffsetToDOMPosition(charOffset: number): DomPosition {
-		const partData = this.charOffsetToPartData(charOffset);
-		const partIndex = CharacterMapping.getPartIndex(partData);
-		const offset = CharacterMapping.getCharIndex(partData);
-		return new DomPosition(partIndex, offset);
-	}
-
 	public getDomPosition(column: number): DomPosition {
-		return this.charOffsetToDOMPosition(column - 1);
+		const partData = this.charOffsetToPartData(column - 1);
+		const partIndex = CharacterMapping.getPartIndex(partData);
+		const charIndex = CharacterMapping.getCharIndex(partData);
+		return new DomPosition(partIndex, charIndex);
 	}
 
 	public partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
