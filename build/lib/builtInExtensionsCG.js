@@ -25,7 +25,7 @@ async function downloadExtensionDetails(extension) {
     const promises = [];
     for (const fileName of contentFileNames) {
         promises.push(new Promise(resolve => {
-            (0, got_1.default)(`${repositoryContentBaseUrl}/${fileName}`)
+            got_1.default(`${repositoryContentBaseUrl}/${fileName}`)
                 .then(response => {
                 resolve({ fileName, body: response.rawBody });
             })
