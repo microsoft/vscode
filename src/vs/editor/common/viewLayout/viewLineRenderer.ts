@@ -217,16 +217,23 @@ export const enum CharacterMappingConstants {
 	PART_INDEX_OFFSET = 16
 }
 
+export class DomPosition {
+	constructor(
+		public readonly partIndex: number,
+		public readonly offset: number
+	) { }
+}
+
 /**
  * Provides a both direction mapping between a line's character and its rendered position.
  */
 export class CharacterMapping {
 
-	public static getPartIndex(partData: number): number {
+	private static getPartIndex(partData: number): number {
 		return (partData & CharacterMappingConstants.PART_INDEX_MASK) >>> CharacterMappingConstants.PART_INDEX_OFFSET;
 	}
 
-	public static getCharIndex(partData: number): number {
+	private static getCharIndex(partData: number): number {
 		return (partData & CharacterMappingConstants.CHAR_INDEX_MASK) >>> CharacterMappingConstants.CHAR_INDEX_OFFSET;
 	}
 
@@ -253,7 +260,7 @@ export class CharacterMapping {
 		return this._absoluteOffsets;
 	}
 
-	public charOffsetToPartData(charOffset: number): number {
+	private charOffsetToPartData(charOffset: number): number {
 		if (this.length === 0) {
 			return 0;
 		}
@@ -264,6 +271,17 @@ export class CharacterMapping {
 			return this._data[this.length - 1];
 		}
 		return this._data[charOffset];
+	}
+
+	private charOffsetToDOMPosition(charOffset: number): DomPosition {
+		const partData = this.charOffsetToPartData(charOffset);
+		const partIndex = CharacterMapping.getPartIndex(partData);
+		const offset = CharacterMapping.getCharIndex(partData);
+		return new DomPosition(partIndex, offset);
+	}
+
+	public getDomPosition(column: number): DomPosition {
+		return this.charOffsetToDOMPosition(column - 1);
 	}
 
 	public partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {

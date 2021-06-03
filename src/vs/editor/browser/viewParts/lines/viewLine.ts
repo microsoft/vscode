@@ -606,11 +606,9 @@ class RenderedViewLine implements IRenderedViewLine {
 			return this.getWidth();
 		}
 
-		const partData = this._characterMapping.charOffsetToPartData(column - 1);
-		const partIndex = CharacterMapping.getPartIndex(partData);
-		const charOffsetInPart = CharacterMapping.getCharIndex(partData);
+		const domPosition = this._characterMapping.getDomPosition(column);
 
-		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), partIndex, charOffsetInPart, partIndex, charOffsetInPart, context.clientRectDeltaLeft, context.endNode);
+		const r = RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), domPosition.partIndex, domPosition.offset, domPosition.partIndex, domPosition.offset, context.clientRectDeltaLeft, context.endNode);
 		if (!r || r.length === 0) {
 			return -1;
 		}
@@ -633,15 +631,10 @@ class RenderedViewLine implements IRenderedViewLine {
 			return [new HorizontalRange(0, this.getWidth())];
 		}
 
-		const startPartData = this._characterMapping.charOffsetToPartData(startColumn - 1);
-		const startPartIndex = CharacterMapping.getPartIndex(startPartData);
-		const startCharOffsetInPart = CharacterMapping.getCharIndex(startPartData);
+		const startDomPosition = this._characterMapping.getDomPosition(startColumn);
+		const endDomPosition = this._characterMapping.getDomPosition(endColumn);
 
-		const endPartData = this._characterMapping.charOffsetToPartData(endColumn - 1);
-		const endPartIndex = CharacterMapping.getPartIndex(endPartData);
-		const endCharOffsetInPart = CharacterMapping.getCharIndex(endPartData);
-
-		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startPartIndex, startCharOffsetInPart, endPartIndex, endCharOffsetInPart, context.clientRectDeltaLeft, context.endNode);
+		return RangeUtil.readHorizontalRanges(this._getReadingTarget(domNode), startDomPosition.partIndex, startDomPosition.offset, endDomPosition.partIndex, endDomPosition.offset, context.clientRectDeltaLeft, context.endNode);
 	}
 
 	/**

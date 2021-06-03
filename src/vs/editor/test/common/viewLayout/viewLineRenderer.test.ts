@@ -792,10 +792,8 @@ suite('viewLineRenderer.renderLine', () => {
 	function decodeCharacterMapping(source: CharacterMapping) {
 		const mapping: ICharMappingData[] = [];
 		for (let charOffset = 0; charOffset < source.length; charOffset++) {
-			const partData = source.charOffsetToPartData(charOffset);
-			const partIndex = CharacterMapping.getPartIndex(partData);
-			const charIndex = CharacterMapping.getCharIndex(partData);
-			mapping.push({ charOffset, partIndex, charIndex });
+			const domPosition = source.getDomPosition(charOffset + 1);
+			mapping.push({ charOffset, partIndex: domPosition.partIndex, charIndex: domPosition.offset });
 		}
 		const absoluteOffsets: number[] = [];
 		for (const absoluteOffset of source.getAbsoluteOffsets()) {
@@ -840,13 +838,10 @@ function assertCharPartOffsets(actual: CharacterMapping, expected: number[][]): 
 	for (let partIndex = 0; partIndex < expected.length; partIndex++) {
 		let part = expected[partIndex];
 		for (const charIndex of part) {
-			// here
-			let _actualPartData = actual.charOffsetToPartData(charOffset);
-			let actualPartIndex = CharacterMapping.getPartIndex(_actualPartData);
-			let actualCharIndex = CharacterMapping.getCharIndex(_actualPartData);
+			const actualDOMPosition = actual.getDomPosition(charOffset + 1);
 
 			assert.deepStrictEqual(
-				{ partIndex: actualPartIndex, charIndex: actualCharIndex },
+				{ partIndex: actualDOMPosition.partIndex, charIndex: actualDOMPosition.offset },
 				{ partIndex: partIndex, charIndex: charIndex },
 				`character mapping for offset ${charOffset}`
 			);
