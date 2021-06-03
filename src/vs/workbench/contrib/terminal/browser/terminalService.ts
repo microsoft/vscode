@@ -220,6 +220,16 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 	}
 
+	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+		if (this.configHelper.config.confirmOnExit) {
+			const notConfirmed = await this._showTerminalCloseConfirmation(true);
+			if (notConfirmed) {
+				return;
+			}
+		}
+		instance.dispose();
+	}
+
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
@@ -870,9 +880,9 @@ export class TerminalService implements ITerminalService {
 		return terminalIndex;
 	}
 
-	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
+	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		if (this.terminalInstances.length === 1) {
+		if (this.terminalInstances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
