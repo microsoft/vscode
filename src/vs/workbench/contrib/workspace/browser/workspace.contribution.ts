@@ -680,7 +680,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'string',
 				default: 'prompt',
 				included: !isWeb,
-				description: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace."),
+				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
@@ -693,7 +693,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				default: false,
 				included: !isWeb,
-				description: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code."),
+				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				scope: ConfigurationScope.APPLICATION
 			}
 		}
