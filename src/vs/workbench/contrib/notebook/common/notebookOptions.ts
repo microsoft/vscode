@@ -45,7 +45,7 @@ export interface NotebookLayoutConfiguration {
 	collapsedIndicatorHeight: number;
 	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarLocation: string | { [key: string]: string; };
 	cellToolbarInteraction: string;
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
@@ -112,7 +112,7 @@ export class NotebookOptions {
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocation) ?? { 'default': 'right' };
+		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
@@ -208,7 +208,7 @@ export class NotebookOptions {
 		}
 
 		if (cellToolbarLocation) {
-			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocation) ?? { 'default': 'right' };
+			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
 		}
 
 		if (cellToolbarInteraction) {
@@ -330,7 +330,8 @@ export class NotebookOptions {
 
 	computeMarkdownCellEditorWidth(outerWidth: number): number {
 		return outerWidth
-			- this._layoutConfiguration.codeCellLeftMargin
+			- this._layoutConfiguration.markdownCellGutter
+			- this._layoutConfiguration.markdownCellLeftMargin
 			- this._layoutConfiguration.cellRightMargin;
 	}
 
@@ -338,7 +339,7 @@ export class NotebookOptions {
 		return this._layoutConfiguration.cellStatusBarHeight;
 	}
 
-	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
 		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
 			return {
 				bottomToolbarGap: 18,
@@ -362,7 +363,7 @@ export class NotebookOptions {
 		}
 	}
 
-	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
 		const configuration = this._layoutConfiguration;
 		const cellToolbarPosition = this.computeCellToolbarLocation(viewType);
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition, configuration.insertToolbarAlignment, cellToolbarPosition);
