@@ -654,6 +654,7 @@ export class GettingStartedPage extends EditorPane {
 					}
 					checkbox.checked > img {
 						box-sizing: border-box;
+						margin-bottom: 4px;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
