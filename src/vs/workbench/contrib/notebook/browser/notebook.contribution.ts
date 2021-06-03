@@ -686,7 +686,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
-			default: 'always',
+			default: 'mouseover',
 			tags: ['notebookLayout']
 		},
 		[DragAndDropEnabled]: {

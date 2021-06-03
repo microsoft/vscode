@@ -360,7 +360,11 @@
 	transition: opacity 0.s;
 }
 
-.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .notebook-folding-indicator.mouseover:hover .codicon {
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .markdown-cell-hover .notebook-folding-indicator.mouseover .codicon {
+	opacity: 1;
+}
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row:hover .notebook-folding-indicator.mouseover .codicon {
 	opacity: 1;
 }
 

@@ -293,7 +293,7 @@ export class NotebookOptions {
 	}
 
 	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'always';
+		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'mouseover';
 	}
 
 	private _computeFocusIndicatorOption() {
