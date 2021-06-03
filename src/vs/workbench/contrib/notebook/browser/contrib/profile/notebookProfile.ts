@@ -3,11 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarPosition, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { CellToolbarLocation, CompactView, ConsolidatedRunButton, FocusIndicator, GlobalToolbar, InsertToolbarLocation, ShowCellStatusBar, UndoRedoPerCell } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export enum NotebookProfileType {
 	default = 'default',
@@ -18,37 +24,37 @@ export enum NotebookProfileType {
 const profiles = {
 	[NotebookProfileType.default]: {
 		[FocusIndicator]: 'border',
-		[InsertToolbarPosition]: 'both',
+		[InsertToolbarLocation]: 'both',
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: true,
-		[ShowCellStatusBarKey]: true,
-		[ShowCellStatusBarAfterExecuteKey]: false,
-		[ConsolidatedRunButton]: true
+		[ShowCellStatusBar]: 'visible',
+		[ConsolidatedRunButton]: true,
+		[UndoRedoPerCell]: false
 	},
 	[NotebookProfileType.jupyter]: {
 		[FocusIndicator]: 'gutter',
-		[InsertToolbarPosition]: 'notebookToolbar',
+		[InsertToolbarLocation]: 'notebookToolbar',
 		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'left' },
 		[CompactView]: true,
-		[ShowCellStatusBarKey]: true,
+		[ShowCellStatusBar]: 'visible',
 		[ConsolidatedRunButton]: false,
 		[UndoRedoPerCell]: true
 	},
 	[NotebookProfileType.colab]: {
 		[FocusIndicator]: 'border',
-		[InsertToolbarPosition]: 'betweenCells',
+		[InsertToolbarLocation]: 'betweenCells',
 		[GlobalToolbar]: false,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: false,
-		[ShowCellStatusBarKey]: false,
-		[ConsolidatedRunButton]: true
+		[ShowCellStatusBar]: 'hidden',
+		[ConsolidatedRunButton]: true,
+		[UndoRedoPerCell]: false
 	}
 };
 
-async function applyProfile(accessor: ServicesAccessor, profile: Record<string, any>): Promise<void> {
-	const configService = accessor.get(IConfigurationService);
+async function applyProfile(configService: IConfigurationService, profile: Record<string, any>): Promise<void> {
 	const promises = [];
 	for (let settingKey in profile) {
 		promises.push(configService.updateValue(settingKey, profile[settingKey]));
@@ -74,7 +80,8 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		return applyProfile(accessor, profiles[args.profile]);
+		const configService = accessor.get(IConfigurationService);
+		return applyProfile(configService, profiles[args.profile]);
 	}
 });
 
@@ -84,3 +91,40 @@ function isSetProfileArgs(args: unknown): args is ISetProfileArgs {
 		setProfileArgs.profile === NotebookProfileType.default ||
 		setProfileArgs.profile === NotebookProfileType.jupyter;
 }
+
+export class NotebookProfileContribution extends Disposable {
+	constructor(@IConfigurationService configService: IConfigurationService, @optional(ITASExperimentService) private readonly experimentService: ITASExperimentService) {
+		super();
+
+		if (this.experimentService) {
+			this.experimentService.getTreatment<NotebookProfileType.default | NotebookProfileType.jupyter | NotebookProfileType.colab>('notebookprofile').then(treatment => {
+				if (treatment === undefined) {
+					return;
+				} else {
+					// check if settings are already modified
+					const focusIndicator = configService.getValue(FocusIndicator);
+					const insertToolbarPosition = configService.getValue(InsertToolbarLocation);
+					const globalToolbar = configService.getValue(GlobalToolbar);
+					// const cellToolbarLocation = configService.getValue(CellToolbarLocation);
+					const compactView = configService.getValue(CompactView);
+					const showCellStatusBar = configService.getValue(ShowCellStatusBar);
+					const consolidatedRunButton = configService.getValue(ConsolidatedRunButton);
+					if (focusIndicator === 'border'
+						&& insertToolbarPosition === 'both'
+						&& globalToolbar === false
+						// && cellToolbarLocation === undefined
+						&& compactView === true
+						&& showCellStatusBar === 'visible'
+						&& consolidatedRunButton === true
+					) {
+						applyProfile(configService, profiles[treatment] ?? profiles[NotebookProfileType.default]);
+					}
+				}
+			});
+		}
+	}
+}
+
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(NotebookProfileContribution, LifecyclePhase.Ready);
+

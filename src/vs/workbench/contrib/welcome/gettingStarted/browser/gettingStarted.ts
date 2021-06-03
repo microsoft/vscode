@@ -652,6 +652,12 @@ export class GettingStartedPage extends EditorPane {
 						outline: 2px solid var(--vscode-focusBorder);
 						outline-offset: 2px;
 					}
+					blockquote > p:first-child {
+						margin-top: 0;
+					}
+					body > * {
+						margin-block-end: 0;
+					}
 					html {
 						height: 100%;
 					}
@@ -1192,6 +1198,7 @@ export class GettingStartedPage extends EditorPane {
 			this.editorInput.selectedStep = undefined;
 			this.selectStep(undefined);
 			this.setSlide('categories');
+			this.container.focus();
 		});
 	}
 
@@ -1241,7 +1248,6 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelector('.gettingStartedSlideDetails')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = false);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = false);
-			this.container.focus();
 		} else {
 			slideManager.classList.add('showDetails');
 			slideManager.classList.remove('showCategories');
@@ -1249,6 +1255,10 @@ export class GettingStartedPage extends EditorPane {
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('button').forEach(button => button.disabled = true);
 			this.container.querySelector('.gettingStartedSlideCategories')!.querySelectorAll('input').forEach(button => button.disabled = true);
 		}
+	}
+
+	override focus() {
+		this.container.focus();
 	}
 }
 
@@ -1282,6 +1292,8 @@ class GettingStartedIndexList<T> extends Disposable {
 
 	public itemCount: number;
 
+	private isDisposed = false;
+
 	constructor(
 		title: string,
 		klass: string,
@@ -1313,7 +1325,12 @@ class GettingStartedIndexList<T> extends Disposable {
 		this._register(this.onDidChangeEntries(listener));
 	}
 
-	register(d: IDisposable) { this._register(d); }
+	register(d: IDisposable) { if (this.isDisposed) { d.dispose(); } else { this._register(d); } }
+
+	override dispose() {
+		this.isDisposed = true;
+		super.dispose();
+	}
 
 	setLimit(limit: number) {
 		this.limit = limit;

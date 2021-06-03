@@ -651,7 +651,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
-	top: 3px;
+	top: 0px;
 }
 
 .monaco-workbench .part.editor > .content .getting-started-category .codicon::before{

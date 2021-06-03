@@ -1627,10 +1627,10 @@ export function registerTerminalActions() {
 			if (!selectedInstances) {
 				return;
 			}
-			for (const instance of selectedInstances) {
-				instance.dispose(true);
-			}
 			const terminalService = accessor.get(ITerminalService);
+			for (const instance of selectedInstances) {
+				terminalService.safeDisposeTerminal(instance);
+			}
 			if (terminalService.terminalInstances.length > 0) {
 				terminalService.focusTabs();
 				focusNext(accessor);

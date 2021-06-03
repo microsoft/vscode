@@ -94,9 +94,20 @@ export class NotebookProviderInfoStore extends Disposable {
 
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
+
+				if (!notebookContribution.type) {
+					extension.collector.error(`Notebook does not specify type-property`);
+					continue;
+				}
+
+				if (this.get(notebookContribution.type)) {
+					extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
+					continue;
+				}
+
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
-					id: notebookContribution.type || notebookContribution.viewType,
+					id: notebookContribution.type,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
@@ -353,7 +364,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						continue;
 					}
 
-					const id = notebookContribution.id ?? notebookContribution.viewType;
+					const id = notebookContribution.id;
 					if (!id) {
 						extension.collector.error(`Notebook renderer does not specify id-property`);
 						continue;

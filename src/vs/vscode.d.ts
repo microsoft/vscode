@@ -10640,6 +10640,65 @@ declare module 'vscode' {
 		export const onDidSaveTextDocument: Event<TextDocument>;
 
 		/**
+		 * All notebook documents currently known to the editor.
+		 */
+		export const notebookDocuments: readonly NotebookDocument[];
+
+		/**
+		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
+		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
+		 *
+		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
+		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
+		 *
+		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
+		 * can be showns in a notebook editor but it can also be used for other things.
+		 *
+		 * @param uri The resource to open.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
+		 */
+		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
+
+		/**
+		 * Open an untitled notebook. The editor will prompt the user for a file
+		 * path when the document is to be saved.
+		 *
+		 * @see {@link openNotebookDocument}
+		 * @param notebookType The notebook type that should be used.
+		 * @param content The initial contents of the notebook.
+		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
+		 */
+		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
+
+		/**
+		 * Register a {@link NotebookSerializer notebook serializer}.
+		 *
+		 * A notebook serializer must be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
+		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
+		 *
+		 * @param notebookType A notebook.
+		 * @param serializer A notebook serialzier.
+		 * @param options Optional context options that define what parts of a notebook should be persisted
+		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
+		 */
+		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
+		 */
+		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
+
+		/**
+		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
+		 *
+		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
+		 *
+		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
+		 * for a notebook that has not been shown in an editor.
+		 */
+		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
+
+		/**
 		 * An event that is emitted when files are being created.
 		 *
 		 * *Note 1:* This event is triggered by user gestures, like creating a file from the
@@ -11371,10 +11430,6 @@ declare module 'vscode' {
 		 */
 		readonly uri: Uri;
 
-		/** @deprecated	*/
-		// todo@API remove
-		readonly viewType: string;
-
 		/**
 		 * The type of notebook.
 		 */
@@ -11454,16 +11509,9 @@ declare module 'vscode' {
 		readonly success?: boolean;
 
 		/**
-		 * The unix timestamp at which execution started.
+		 * The times at which execution started and ended, as unix timestamps
 		 */
-		// @rob
-		//todo@API think about invalid state (no end, but start and vice versa)
-		readonly startTime?: number;
-
-		/**
-		 * The unix timestamp at which execution ended.
-		 */
-		readonly endTime?: number;
+		readonly timing?: { startTime: number, endTime: number };
 	}
 
 	/**
@@ -11564,7 +11612,7 @@ declare module 'vscode' {
 		static error(value: Error): NotebookCellOutputItem;
 
 		/**
-		 * The mime type which determines how the {@link NotebookCellOutputItem.value `value`}-property
+		 * The mime type which determines how the {@link NotebookCellOutputItem.data `data`}-property
 		 * is interpreted.
 		 *
 		 * Notebooks have built-in support for certain mime-types, extensions can add support for new
@@ -11591,14 +11639,7 @@ declare module 'vscode' {
 	 * {@link NotebookCellOutputItem output items} where contained items represent the same result but
 	 * use different MIME types.
 	 */
-	//todo@API - add sugar function to add more outputs
 	export class NotebookCellOutput {
-
-		/**
-		 * Identifier for this output. Using the identifier allows a subsequent execution to modify
-		 * existing output. Defaults to a fresh UUID.
-		 */
-		id: string;
 
 		/**
 		 * The output items of this output. Each item must represent the same result. _Note_ that repeated
@@ -11623,21 +11664,10 @@ declare module 'vscode' {
 		/**
 		 * Create new notebook output.
 		 *
-		 * @param outputs Notebook output items.
-		 * @param metadata Optional metadata.
-		 */
-		constructor(outputs: NotebookCellOutputItem[], metadata?: { [key: string]: any });
-
-		/**
-		 * Create new notebook output.
-		 *
 		 * @param items Notebook output items.
-		 * @param id Identifier of this output.
 		 * @param metadata Optional metadata.
 		 */
-		//todo@API id-args is not used by jupyter but we it added with display_id in mind...
-		// @jupyter check if needed
-		constructor(items: NotebookCellOutputItem[], id: string, metadata?: { [key: string]: any });
+		constructor(items: NotebookCellOutputItem[], metadata?: { [key: string]: any });
 	}
 
 	/**
@@ -11683,12 +11713,8 @@ declare module 'vscode' {
 		 * @param kind The kind.
 		 * @param value The source value.
 		 * @param languageId The language identifier of the source value.
-		 * @param outputs Optional outputs.
-		 * @param metadata Optional metadata.
-		 * @param executionSummary Optional execution summary.
 		 */
-		// todo@API should ctors only have the args for required properties?
-		constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: NotebookCellOutput[], metadata?: { [key: string]: any }, executionSummary?: NotebookCellExecutionSummary);
+		constructor(kind: NotebookCellKind, value: string, languageId: string);
 	}
 
 	/**
@@ -11824,10 +11850,6 @@ declare module 'vscode' {
 		 */
 		readonly id: string;
 
-		// todo@api remove
-		/** @deprecated */
-		readonly viewType: string;
-
 		/**
 		 * The notebook type this controller is for.
 		 */
@@ -11870,10 +11892,6 @@ declare module 'vscode' {
 		 * editor can render placeholders for them.
 		 */
 		supportsExecutionOrder?: boolean;
-
-		// todo@API remove
-		/** @deprecated */
-		hasExecutionOrder?: boolean;
 
 		/**
 		 * Create a cell execution task.
@@ -11933,32 +11951,6 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	// todo@api jsdoc
-	// todo@api Inline unless we can come up with more (future) properties
-	export interface NotebookCellExecuteStartContext {
-		/**
-		 * The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
-		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
-		 */
-		startTime?: number;
-	}
-
-	// todo@api jsdoc
-	// todo@api Inline unless we can come up with more (future) properties
-	export interface NotebookCellExecuteEndContext {
-		/**
-		 * If true, a green check is shown on the cell status bar.
-		 * If false, a red X is shown.
-		 * If undefined, no check or X icon is shown.
-		 */
-		success?: boolean;
-
-		/**
-		 * The time that execution finished, in milliseconds in the Unix epoch.
-		 */
-		endTime?: number;
-	}
-
 	/**
 	 * A NotebookCellExecution is how {@link NotebookController notebook controller} modify a notebook cell as
 	 * it is executing.
@@ -11988,13 +11980,23 @@ declare module 'vscode' {
 		 */
 		executionOrder: number | undefined;
 
-		// todo@API inline context object?
-		// @rob inline as arguments
-		start(context?: NotebookCellExecuteStartContext): void;
+		/**
+		 * Signal that the execution has begun.
+		 *
+		 * @param startTime The time that execution began, in milliseconds in the Unix epoch. Used to drive the clock
+		 * that shows for how long a cell has been running. If not given, the clock won't be shown.
+		 */
+		start(startTime?: number): void;
 
-		// todo@API inline context object?
-		// @rob inline as arguments
-		end(result?: NotebookCellExecuteEndContext): void;
+		/**
+		 * Signal that execution has ended.
+		 *
+		 * @param success If true, a green check is shown on the cell status bar.
+		 * If false, a red X is shown.
+		 * If undefined, no check or X icon is shown.
+		 * @param endTime The time that execution finished, in milliseconds in the Unix epoch.
+		 */
+		end(success: boolean | undefined, endTime?: number): void;
 
 		/**
 		 * Clears the output of the cell that is executing or of another cell that is affected by this execution.
@@ -12029,19 +12031,19 @@ declare module 'vscode' {
 		 * Replace all output items of existing cell output.
 		 *
 		 * @param items Output items that replace the items of existing output.
-		 * @param output Output object or the identifier of one.
+		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+		replaceOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 
 		/**
 		 * Append output items to existing cell output.
 		 *
 		 * @param items Output items that are append to existing output.
-		 * @param output Output object or the identifier of one.
+		 * @param output Output object that already exists.
 		 * @return A thenable that resolves when the operation finished.
 		 */
-		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput | string): Thenable<void>;
+		appendOutputItems(items: NotebookCellOutputItem | NotebookCellOutputItem[], output: NotebookCellOutput): Thenable<void>;
 	}
 
 	/**
@@ -12101,11 +12103,10 @@ declare module 'vscode' {
 
 		/**
 		 * Creates a new NotebookCellStatusBarItem.
+		 * @param text The text to show for the item.
+		 * @param alignment Whether the item is aligned to the left or right.
 		 */
-		// @rob
-		// todo@API jsdoc for args
-		// todo@API should ctors only have the args for required properties?
-		constructor(text: string, alignment: NotebookCellStatusBarAlignment, command?: string | Command, tooltip?: string, priority?: number, accessibilityInformation?: AccessibilityInformation);
+		constructor(text: string, alignment: NotebookCellStatusBarAlignment);
 	}
 
 	/**
@@ -12121,11 +12122,9 @@ declare module 'vscode' {
 		 * The provider will be called when the cell scrolls into view, when its content, outputs, language, or metadata change, and when it changes execution state.
 		 * @param cell The cell for which to return items.
 		 * @param token A token triggered if this request should be cancelled.
+		 * @return One or more {@link NotebookCellStatusBarItem cell statusbar items}
 		 */
-		// @rob
-		//todo@API jsdoc for return-type
-		//todo@API should this return T | T[]
-		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem[]>;
+		provideCellStatusBarItems(cell: NotebookCell, token: CancellationToken): ProviderResult<NotebookCellStatusBarItem | NotebookCellStatusBarItem[]>;
 	}
 
 	/**
@@ -12137,73 +12136,7 @@ declare module 'vscode' {
 	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
 	 * 3. NotebookRenderer present notebook output in the editor. They run in a separate context.
 	 */
-	// todo@api what should be in this namespace? should notebookDocuments and friends be in the workspace namespace?
 	export namespace notebooks {
-
-		/**
-		 * All notebook documents currently known to the editor.
-		 */
-		// todo@api move to workspace
-		export const notebookDocuments: readonly NotebookDocument[];
-
-		/**
-		 * Open a notebook. Will return early if this notebook is already {@link notebook.notebookDocuments loaded}. Otherwise
-		 * the notebook is loaded and the {@link notebook.onDidOpenNotebookDocument `onDidOpenNotebookDocument`}-event fires.
-		 *
-		 * *Note* that the lifecycle of the returned notebook is owned by the editor and not by the extension. That means an
-		 * {@link notebook.onDidCloseNotebookDocument `onDidCloseNotebookDocument`}-event can occur at any time after.
-		 *
-		 * *Note* that opening a notebook does not show a notebook editor. This function only returns a notebook document which
-		 * can be showns in a notebook editor but it can also be used for other things.
-		 *
-		 * @param uri The resource to open.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}
-		 */
-		// todo@api move to workspace
-		export function openNotebookDocument(uri: Uri): Thenable<NotebookDocument>;
-
-		/**
-		 * Open an untitled notebook. The editor will prompt the user for a file
-		 * path when the document is to be saved.
-		 *
-		 * @see {@link openNotebookDocument}
-		 * @param notebookType The notebook type that should be used.
-		 * @param content The initial contents of the notebook.
-		 * @returns A promise that resolves to a {@link NotebookDocument notebook}.
-		 */
-		// todo@api move to workspace
-		export function openNotebookDocument(notebookType: string, content?: NotebookData): Thenable<NotebookDocument>;
-
-		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is opened.
-		 */
-		// todo@api move to workspace
-		export const onDidOpenNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * An event that is emitted when a {@link NotebookDocument notebook} is disposed.
-		 *
-		 * *Note 1:* There is no guarantee that this event fires when an editor tab is closed.
-		 *
-		 * *Note 2:* A notebook can be open but not shown in an editor which means this event can fire
-		 * for a notebook that has not been shown in an editor.
-		 */
-		// todo@api move to workspace
-		export const onDidCloseNotebookDocument: Event<NotebookDocument>;
-
-		/**
-		 * Register a {@link NotebookSerializer notebook serializer}.
-		 *
-		 * A notebook serializer must to be contributed through the `notebooks` extension point. When opening a notebook file, the editor will send
-		 * the `onNotebook:<notebookType>` activation event, and extensions must register their serializer in return.
-		 *
-		 * @param notebookType A notebook.
-		 * @param serializer A notebook serialzier.
-		 * @param options Optional context options that define what parts of a notebook should be persisted
-		 * @return A {@link Disposable} that unregisters this serializer when being disposed.
-		 */
-		// todo@api move to workspace
-		export function registerNotebookSerializer(notebookType: string, serializer: NotebookSerializer, options?: NotebookDocumentContentOptions): Disposable;
 
 		/**
 		 * Creates a new notebook controller.

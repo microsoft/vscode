@@ -90,13 +90,13 @@ suite('vscode', function () {
 	});
 
 	test('no rpc, createNotebookEditorDecorationType(...)', function () {
-		const item = vscode.notebook.createNotebookEditorDecorationType({ top: {} });
+		const item = vscode.notebooks.createNotebookEditorDecorationType({ top: {} });
 		dispo.push(item);
 		assertNoRpcFromEntry([item, 'NotebookEditorDecorationType']);
 	});
 
 	test('no rpc, createNotebookController(...)', function () {
-		const ctrl = vscode.notebook.createNotebookController('foo', 'bar', '');
+		const ctrl = vscode.notebooks.createNotebookController('foo', 'bar', '');
 		dispo.push(ctrl);
 		assertNoRpcFromEntry([ctrl, 'NotebookController']);
 	});

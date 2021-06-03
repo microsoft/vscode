@@ -312,6 +312,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 }
 
 const executeCellCondition = ContextKeyExpr.and(
+	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
 	ContextKeyExpr.or(
 		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'idle'),
 		ContextKeyExpr.equals(NOTEBOOK_CELL_EXECUTION_STATE.key, 'succeeded'),
@@ -426,7 +427,9 @@ registerAction2(class ExecuteAboveCells extends NotebookMultiCellAction<INoteboo
 				{
 					id: MenuId.NotebookCellTitle,
 					group: 'inline',
-					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+					when: ContextKeyExpr.and(
+						executeCellCondition,
+						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
 				}
 			],
 			icon: icons.executeAboveIcon
@@ -467,7 +470,9 @@ registerAction2(class ExecuteCellAndBelow extends NotebookMultiCellAction<INoteb
 				{
 					id: MenuId.NotebookCellTitle,
 					group: 'inline',
-					when: ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false)
+					when: ContextKeyExpr.and(
+						executeCellCondition,
+						ContextKeyExpr.equals('config.notebook.consolidatedRunButton', false))
 				}
 			],
 			icon: icons.executeBelowIcon
@@ -1867,7 +1872,10 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 				{
 					id: MenuId.EditorTitle,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
 					order: 0
 				},
 				{
@@ -1880,7 +1888,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 		});
 	}
 	run(accessor: ServicesAccessor): void {
-		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+		accessor.get(ICommandService).executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
 	}
 });
 
@@ -1895,7 +1903,10 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 				{
 					id: MenuId.EditorTitle,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_IS_ACTIVE_EDITOR,
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+					),
 					order: 1
 				},
 				{

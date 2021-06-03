@@ -139,7 +139,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		) as WorkbenchTable<ITrustedUriItem>;
 
 		this._register(this.table.onDidOpen(item => {
-			if (item && item.element) {
+			// default prevented when input box is double clicked #125052
+			if (item && item.element && !item.browserEvent?.defaultPrevented) {
 				this.edit(item.element);
 			}
 		}));
@@ -382,6 +383,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 			}
 		}));
 
+		// stop double click action from re-rendering the element on the table #125052
+		templateData.renderDisposables.add(addDisposableListener(templateData.pathInput.element, EventType.DBLCLICK, e => {
+			EventHelper.stop(e);
+		}));
+
 
 		const hideInputBox = () => {
 			templateData.element.classList.remove('input-mode');
@@ -556,6 +562,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
+		this.rootElement.style.display = 'none';
 
 		this.createHeaderElement(this.rootElement);
 
@@ -587,6 +594,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		this.registerListeners();
 		this.render();
 	}
@@ -738,6 +746,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		this.rootElement.style.display = '';
 		this.rendering = false;
 	}
 

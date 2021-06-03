@@ -46,7 +46,7 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 				hasOpenedNotebook.set(true);
 				storedValue[hasOpenedNotebookKey] = true;
 				memento.saveMemento();
-				_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'Setup', step: 'notebookProfile' }, true);
+				_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
 			};
 
 			if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {

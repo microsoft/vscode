@@ -3132,9 +3132,6 @@ export class NotebookCellOutput {
 	items: NotebookCellOutputItem[];
 	metadata?: Record<string, any>;
 
-	get outputs() { return this.items; }
-	set outputs(value) { this.items = value; }
-
 	constructor(
 		items: NotebookCellOutputItem[],
 		idOrMetadata?: string | Record<string, any>,
@@ -3177,11 +3174,7 @@ export enum NotebookEditorRevealType {
 export class NotebookCellStatusBarItem {
 	constructor(
 		public text: string,
-		public alignment: NotebookCellStatusBarAlignment,
-		public command?: string | vscode.Command,
-		public tooltip?: string,
-		public priority?: number,
-		public accessibilityInformation?: vscode.AccessibilityInformation) { }
+		public alignment: NotebookCellStatusBarAlignment) { }
 }
 
 
