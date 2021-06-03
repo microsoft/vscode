@@ -1865,7 +1865,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.select',
-			title: localize('workbench.notebook.layout.select.label', "Select Notebook Layout"),
+			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -1896,7 +1896,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Layout Settings"),
+			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
