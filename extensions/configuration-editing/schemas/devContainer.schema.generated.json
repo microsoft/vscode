@@ -337,7 +337,7 @@
 						"postStartCommand",
 						"postAttachCommand"
 					],
-					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateConentCommand\"."
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",
@@ -694,7 +694,7 @@
 						"postStartCommand",
 						"postAttachCommand"
 					],
-					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateConentCommand\"."
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",
@@ -1027,7 +1027,7 @@
 						"postStartCommand",
 						"postAttachCommand"
 					],
-					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateConentCommand\"."
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",
@@ -1326,7 +1326,7 @@
 						"postStartCommand",
 						"postAttachCommand"
 					],
-					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateConentCommand\"."
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",
@@ -1594,7 +1594,7 @@
 						"postStartCommand",
 						"postAttachCommand"
 					],
-					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateConentCommand\"."
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",

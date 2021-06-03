@@ -65,6 +65,7 @@ export interface NativeParsedArgs {
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-keytar'?: boolean;
+	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;

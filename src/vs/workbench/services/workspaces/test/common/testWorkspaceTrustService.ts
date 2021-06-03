@@ -21,10 +21,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
 	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
 
-	private trusted: boolean;
 
-	constructor(trusted: boolean = true) {
-		this.trusted = trusted;
+	constructor(
+		private enabled: boolean = true,
+		private trusted: boolean = true) {
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
@@ -71,11 +71,15 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	get workspaceResolved(): Promise<void> {
-		return Promise.resolve();
+	get workspaceTrustEnabled(): boolean {
+		return this.enabled;
 	}
 
 	get workspaceTrustInitialized(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	get workspaceResolved(): Promise<void> {
 		return Promise.resolve();
 	}
 
