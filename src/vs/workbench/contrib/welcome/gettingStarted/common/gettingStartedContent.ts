@@ -14,7 +14,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 const setupIcon = registerIcon('getting-started-setup', Codicon.zap, localize('getting-started-setup-icon', "Icon used for the setup category of getting started"));
 const beginnerIcon = registerIcon('getting-started-beginner', Codicon.lightbulb, localize('getting-started-beginner-icon', "Icon used for the beginner category of getting started"));
 const intermediateIcon = registerIcon('getting-started-intermediate', Codicon.mortarBoard, localize('getting-started-intermediate-icon', "Icon used for the intermediate category of getting started"));
-const codespacesIcon = registerIcon('getting-started-codespaces', Codicon.github, localize('getting-started-codespaces-icon', "Icon used for the codespaces category of getting started"));
 
 
 export type BuiltinGettingStartedStep = {
@@ -121,62 +120,11 @@ export const startEntries: GettingStartedStartEntryContent = [
 
 export const walkthroughs: GettingStartedWalkthroughContent = [
 	{
-		id: 'Codespaces',
-		title: localize('gettingStarted.codespaces.title', "Primer on Codespaces"),
-		icon: codespacesIcon,
-		when: 'remoteName == codespaces',
-		description: localize('gettingStarted.codespaces.description', "Get up and running with your instant code environment."),
-		content: {
-			type: 'steps',
-			steps: [
-				{
-					id: 'runProjectStep',
-					title: localize('gettingStarted.runProject.title', "Build & run your app"),
-					description: localize('gettingStarted.runProject.description', "Build, run & debug your code in the cloud, right from the browser.\n[Start Debugging](command:workbench.action.debug.selectandstart)"),
-					media: { type: 'image', altText: 'Node.js project running debug mode and paused.', path: 'runProject.png' },
-				},
-				{
-					id: 'forwardPortsStep',
-					title: localize('gettingStarted.forwardPorts.title', "Access your running application"),
-					description: localize('gettingStarted.forwardPorts.description', "Ports running within your codespace are automatically forwarded to the web, so you can open them in your browser.\n[Show Ports Panel](command:~remote.forwardedPorts.focus)"),
-					media: { type: 'image', altText: 'Ports panel.', path: 'forwardPorts.png' },
-				},
-				{
-					id: 'pullRequests',
-					title: localize('gettingStarted.pullRequests.title', "Pull requests at your fingertips"),
-					description: localize('gettingStarted.pullRequests.description', "Bring your GitHub workflow closer to your code, so you can review pull requests, add comments, merge branches, and more.\n[Open GitHub View](command:workbench.view.extension.github-pull-requests)"),
-					media: { type: 'image', altText: 'Preview for reviewing a pull request.', path: 'pullRequests.png' },
-				},
-				{
-					id: 'remoteTerminal',
-					title: localize('gettingStarted.remoteTerminal.title', "Run tasks in the integrated terminal"),
-					description: localize('gettingStarted.remoteTerminal.description', "Perform quick command-line tasks using the built-in terminal.\n[Focus Terminal](command:terminal.focus)"),
-					media: { type: 'image', altText: 'Remote terminal showing npm commands.', path: 'remoteTerminal.png' },
-				},
-				{
-					id: 'openVSC',
-					title: localize('gettingStarted.openVSC.title', "Develop remotely in VS Code"),
-					description: localize('gettingStarted.openVSC.description', "Access the power of your cloud development environment from your local VS Code. Set it up by installing the GitHub Codespaces extension and connecting your GitHub account.\n[Open in VS Code](command:github.codespaces.openInStable)"),
-					when: 'isWeb',
-					media: {
-						type: 'image', altText: 'Preview of the Open in VS Code command.', path: {
-							dark: 'dark/openVSC.png',
-							light: 'light/openVSC.png',
-							hc: 'light/openVSC.png',
-						}
-					},
-				}
-			]
-		}
-	},
-
-	{
 		id: 'Setup',
 		title: localize('gettingStarted.setup.title', "Get Started with VS Code"),
 		description: localize('gettingStarted.setup.description', "Discover the best customizations to make VS Code yours."),
 		icon: setupIcon,
 		next: 'Beginner',
-		when: 'remoteName != codespaces',
 		content: {
 			type: 'steps',
 			steps: [
