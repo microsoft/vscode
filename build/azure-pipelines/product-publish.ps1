@@ -48,10 +48,10 @@ $stages = @(
 	if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
 )
 
-$artifacts = Get-PipelineArtifact -Name 'vscode_*'
 do {
 	Start-Sleep -Seconds 10
 
+	$artifacts = Get-PipelineArtifact -Name 'vscode_*'
 	if (!$artifacts) {
 		continue
 	}
