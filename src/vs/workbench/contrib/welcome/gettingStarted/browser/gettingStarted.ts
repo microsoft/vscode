@@ -631,8 +631,11 @@ export class GettingStartedPage extends EditorPane {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
-					img[centered] {
-						margin: 0 auto;
+					body > img {
+						align-self: flex-start;
+					}
+					body > img[centered] {
+						align-self: center;
 					}
 					body {
 						display: flex;
@@ -664,7 +667,8 @@ export class GettingStartedPage extends EditorPane {
 						margin-top: 0;
 					}
 					body > * {
-						margin-block-end: 0;
+						margin-block-end: 0.25em;
+						margin-block-start: 0.25em;
 					}
 					html {
 						height: 100%;
