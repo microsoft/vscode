@@ -476,7 +476,7 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
 
-			this.stepDisposables.add(addDisposableListener(mediaElement, 'click', () => {
+			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
 				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
