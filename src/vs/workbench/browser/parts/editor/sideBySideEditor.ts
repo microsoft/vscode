@@ -219,6 +219,8 @@ export class SideBySideEditor extends EditorPane {
 			this.secondaryEditorPane.setInput(secondaryInput, undefined, context, token),
 			this.primaryEditorPane.setInput(primaryInput, options, context, token)]
 		);
+
+		this.layout(this.dimension);
 	}
 
 	override updateStyles(): void {
