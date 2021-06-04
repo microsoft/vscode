@@ -72,7 +72,7 @@ export class CellOutputElement extends Disposable {
 	) {
 		super();
 
-		this.contextKeyService = this._register(parentContextKeyService.createScoped(this.outputContainer));
+		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
 			this.updateOutputRendering();
