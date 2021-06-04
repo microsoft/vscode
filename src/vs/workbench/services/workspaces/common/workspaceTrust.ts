@@ -162,7 +162,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private async getCanonicalUri(uri: URI): Promise<URI> {
 		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
-			this.remoteAuthorityResolverService.getCanonicalURI(uri);
+			return this.remoteAuthorityResolverService.getCanonicalURI(uri);
 		}
 
 		if (uri.scheme === 'vscode-vfs') {
