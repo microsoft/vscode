@@ -616,7 +616,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getHeaderTitleText(trusted: boolean): string {
 		if (trusted) {
-			if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
+			if (this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
 				return localize('trustedUnsettableWindow', "This window is trusted");
 			}
 
