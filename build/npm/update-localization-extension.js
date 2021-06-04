@@ -49,10 +49,10 @@ function update(options) {
 		let languageId = localization.languageId;
 		let translationDataFolder = path.join(locExtFolder, 'translations');
 		if (languageId === "zh-cn") {
-			languageId = "zh-hans";
+			languageId = "zh-Hans";
 		}
 		if (languageId === "zh-tw") {
-			languageId = "zh-hant";
+			languageId = "zh-Hant";
 		}
 		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
 			console.log('Clearing  \'' + translationDataFolder + '\'...');
