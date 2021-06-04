@@ -14,7 +14,7 @@ import { distinct, lastIndex } from 'vs/base/common/arrays';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import {
 	ITreeElement, IExpression, IExpressionContainer, IDebugSession, IStackFrame, IExceptionBreakpoint, IBreakpoint, IFunctionBreakpoint, IDebugModel,
-	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint
+	IThread, IRawModelUpdate, IScope, IRawStoppedDetails, IEnablement, IBreakpointData, IExceptionInfo, IBreakpointsChangeEvent, IBreakpointUpdateData, IBaseBreakpoint, State, IDataBreakpoint, IInstructionBreakpoint
 } from 'vs/workbench/contrib/debug/common/debug';
 import { Source, UNKNOWN_SOURCE_LABEL, getUriFromSource } from 'vs/workbench/contrib/debug/common/debugSource';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -568,6 +568,7 @@ interface IBreakpointSessionData extends DebugProtocol.Breakpoint {
 	supportsLogPoints: boolean;
 	supportsFunctionBreakpoints: boolean;
 	supportsDataBreakpoints: boolean;
+	supportsInstructionBreakpoints: boolean
 	sessionId: string;
 }
 
@@ -577,7 +578,8 @@ function toBreakpointSessionData(data: DebugProtocol.Breakpoint, capabilities: D
 		supportsHitConditionalBreakpoints: !!capabilities.supportsHitConditionalBreakpoints,
 		supportsLogPoints: !!capabilities.supportsLogPoints,
 		supportsFunctionBreakpoints: !!capabilities.supportsFunctionBreakpoints,
-		supportsDataBreakpoints: !!capabilities.supportsDataBreakpoints
+		supportsDataBreakpoints: !!capabilities.supportsDataBreakpoints,
+		supportsInstructionBreakpoints: !!capabilities.supportsInstructionBreakpoints
 	}, data);
 }
 
@@ -761,7 +763,6 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 		return true;
 	}
 
-
 	override setSessionData(sessionId: string, data: IBreakpointSessionData | undefined): void {
 		super.setSessionData(sessionId, data);
 		if (!this._adapterData) {
@@ -908,6 +909,41 @@ export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBre
 	}
 }
 
+export class InstructionBreakpoint extends BaseBreakpoint implements IInstructionBreakpoint {
+
+	constructor(
+		public instructionReference: string,
+		public offset: number,
+		public canPersist: boolean,
+		enabled: boolean,
+		hitCondition: string | undefined,
+		condition: string | undefined,
+		logMessage: string | undefined,
+		id = generateUuid()
+	) {
+		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	override toJSON(): any {
+		const result = super.toJSON();
+		result.instructionReference = this.instructionReference;
+		result.offset = this.offset;
+		return result;
+	}
+
+	get supported(): boolean {
+		if (!this.data) {
+			return true;
+		}
+
+		return this.data.supportsInstructionBreakpoints;
+	}
+
+	override toString(): string {
+		return this.instructionReference;
+	}
+}
+
 export class ThreadAndSessionIds implements ITreeElement {
 	constructor(public sessionId: string, public threadId: number) { }
 
@@ -929,6 +965,7 @@ export class DebugModel implements IDebugModel {
 	private exceptionBreakpoints: ExceptionBreakpoint[];
 	private dataBreakopints: DataBreakpoint[];
 	private watchExpressions: Expression[];
+	private instructionBreakpoints: InstructionBreakpoint[];
 
 	constructor(
 		debugStorage: DebugStorage,
@@ -940,6 +977,7 @@ export class DebugModel implements IDebugModel {
 		this.exceptionBreakpoints = debugStorage.loadExceptionBreakpoints();
 		this.dataBreakopints = debugStorage.loadDataBreakpoints();
 		this.watchExpressions = debugStorage.loadWatchExpressions();
+		this.instructionBreakpoints = [];
 		this.sessions = [];
 	}
 
@@ -1095,6 +1133,10 @@ export class DebugModel implements IDebugModel {
 		return this.exceptionBreakpoints;
 	}
 
+	getInstructionBreakpoints(): IInstructionBreakpoint[] {
+		return this.instructionBreakpoints;
+	}
+
 	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
 			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) =>
@@ -1197,6 +1239,16 @@ export class DebugModel implements IDebugModel {
 				}
 			}
 		});
+		this.instructionBreakpoints.forEach(ibp => {
+			if (!data) {
+				ibp.setSessionData(sessionId, undefined);
+			} else {
+				const dbpData = data.get(ibp.getId());
+				if (dbpData) {
+					ibp.setSessionData(sessionId, toBreakpointSessionData(dbpData, capabilites));
+				}
+			}
+		});
 
 		this._onDidChangeBreakpoints.fire({
 			sessionOnly: true
@@ -1245,7 +1297,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint> = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | InstructionBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {
@@ -1265,6 +1317,13 @@ export class DebugModel implements IDebugModel {
 			}
 			dbp.enabled = enable;
 		});
+		this.instructionBreakpoints.forEach(ibp => {
+			if (ibp.enabled !== enable) {
+				changed.push(ibp);
+			}
+			ibp.enabled = enable;
+		});
+
 		if (enable) {
 			this.breakpointsActivated = true;
 		}
@@ -1322,6 +1381,24 @@ export class DebugModel implements IDebugModel {
 		} else {
 			removed = this.dataBreakopints;
 			this.dataBreakopints = [];
+		}
+		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
+	}
+
+	addInstructionBreakpoint(instructionReference: string, offset: number, condition?: string, hitCondition?: string): void {
+		const newInstructionBreakpoint = new InstructionBreakpoint(instructionReference, offset, false, true, hitCondition, condition, undefined);
+		this.instructionBreakpoints.push(newInstructionBreakpoint);
+		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
+	}
+
+	removeInstructionBreakpoints(id?: string): void {
+		let removed: InstructionBreakpoint[];
+		if (id) {
+			removed = this.instructionBreakpoints.filter(fbp => fbp.getId() === id);
+			this.instructionBreakpoints = this.instructionBreakpoints.filter(fbp => fbp.getId() !== id);
+		} else {
+			removed = this.instructionBreakpoints;
+			this.instructionBreakpoints = [];
 		}
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}

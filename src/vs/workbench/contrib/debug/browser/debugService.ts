@@ -959,6 +959,19 @@ export class DebugService implements IDebugService {
 		await this.sendDataBreakpoints();
 	}
 
+	async addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void> {
+		this.model.addInstructionBreakpoint(address, offset, condition, hitCondition);
+		this.debugStorage.storeBreakpoints(this.model);
+		await this.sendInstructionBreakpoints();
+		this.debugStorage.storeBreakpoints(this.model);
+	}
+
+	async removeInstructionBreakpoints(id?: string): Promise<void> {
+		this.model.removeInstructionBreakpoints(id);
+		this.debugStorage.storeBreakpoints(this.model);
+		await this.sendInstructionBreakpoints();
+	}
+
 	setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		this.model.setExceptionBreakpoints(data);
 		this.debugStorage.storeBreakpoints(this.model);
@@ -999,6 +1012,16 @@ export class DebugService implements IDebugService {
 		await sendToOneOrAllSessions(this.model, session, async s => {
 			if (s.capabilities.supportsDataBreakpoints) {
 				await s.sendDataBreakpoints(breakpointsToSend);
+			}
+		});
+	}
+
+	private async sendInstructionBreakpoints(session?: IDebugSession): Promise<void> {
+		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
+
+		await sendToOneOrAllSessions(this.model, session, async s => {
+			if (s.capabilities.supportsDataBreakpoints) {
+				await s.sendInstructionBreakpoints(breakpointsToSend);
 			}
 		});
 	}

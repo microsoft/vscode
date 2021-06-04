@@ -255,6 +255,7 @@ export interface IDebugSession extends ITreeElement {
 	sendFunctionBreakpoints(fbps: IFunctionBreakpoint[]): Promise<void>;
 	dataBreakpointInfo(name: string, variablesReference?: number): Promise<IDataBreakpointInfoResponse | undefined>;
 	sendDataBreakpoints(dbps: IDataBreakpoint[]): Promise<void>;
+	sendInstructionBreakpoints(dbps: IInstructionBreakpoint[]): Promise<void>;
 	sendExceptionBreakpoints(exbpts: IExceptionBreakpoint[]): Promise<void>;
 	breakpointsLocations(uri: uri, lineNumber: number): Promise<IPosition[]>;
 	getDebugProtocolBreakpoint(breakpointId: string): DebugProtocol.Breakpoint | undefined;
@@ -433,6 +434,11 @@ export interface IDataBreakpoint extends IBaseBreakpoint {
 	readonly accessType: DebugProtocol.DataBreakpointAccessType;
 }
 
+export interface IInstructionBreakpoint extends IBaseBreakpoint {
+	readonly instructionReference: string;
+	readonly offset?: number;
+}
+
 export interface IExceptionInfo {
 	readonly id?: string;
 	readonly description?: string;
@@ -493,9 +499,9 @@ export interface IDebugModel extends ITreeElement {
  * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
  */
 export interface IBreakpointsChangeEvent {
-	added?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
-	removed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
-	changed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint>;
+	added?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
+	removed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
+	changed?: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint>;
 	sessionOnly: boolean;
 }
 
@@ -886,6 +892,17 @@ export interface IDebugService {
 	 * Notifies debug adapter of breakpoint changes.
 	 */
 	removeDataBreakpoints(id?: string): Promise<void>;
+
+	/**
+	 * Adds a new instruction breakpoint.
+	 */
+	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void>;
+
+	/**
+	 * Removes all instruction breakpoints. If id is passed only removes the instruction breakpoint with the passed id.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	removeInstructionBreakpoints(id?: string): Promise<void>;
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 
