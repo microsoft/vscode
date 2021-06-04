@@ -1078,7 +1078,7 @@ export class GettingStartedPage extends EditorPane {
 					}
 					this.openerService.open(command, { allowCommands: true });
 
-					if (!isCommand && node.href.startsWith('https://')) {
+					if (!isCommand && (node.href.startsWith('https://') || node.href.startsWith('http://'))) {
 						this.gettingStartedService.progressByEvent('onLink:' + node.href);
 					}
 
