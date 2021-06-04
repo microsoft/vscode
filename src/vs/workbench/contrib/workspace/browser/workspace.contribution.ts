@@ -515,7 +515,10 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 					disposable.dispose();
 				}
 			}));
-			this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			// TODO: Consider moving the check into setWorkspaceTrust()
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			}
 		}
 	}
 
