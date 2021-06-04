@@ -238,7 +238,7 @@ export class ActiveGhostTextController extends Disposable {
 
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
 
-registerEditorCommand(new GhostTextCommand({
+export const commitInlineSuggestionAction = new GhostTextCommand({
 	id: 'editor.action.inlineSuggest.commit',
 	precondition: ContextKeyExpr.and(
 		GhostTextController.inlineSuggestionVisible,
@@ -252,7 +252,8 @@ registerEditorCommand(new GhostTextCommand({
 	handler(x) {
 		x.commit();
 	}
-}));
+});
+registerEditorCommand(commitInlineSuggestionAction);
 
 registerEditorCommand(new GhostTextCommand({
 	id: 'editor.action.inlineSuggest.hide',

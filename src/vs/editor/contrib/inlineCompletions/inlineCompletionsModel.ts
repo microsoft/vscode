@@ -19,6 +19,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -36,7 +38,13 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(commandService.onDidExecuteCommand(e => {
 			// These commands don't trigger onDidType.
-			const commands = new Set(['undo', 'redo', 'tab']);
+			const commands = new Set([
+				UndoCommand.id,
+				RedoCommand.id,
+				CoreEditingCommands.Tab.id,
+				CoreEditingCommands.DeleteLeft.id,
+				CoreEditingCommands.DeleteRight.id
+			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus()) {
 				this.handleUserInput();
 			}

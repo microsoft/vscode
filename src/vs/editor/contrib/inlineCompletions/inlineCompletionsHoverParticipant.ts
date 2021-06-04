@@ -9,7 +9,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
+import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -90,6 +90,11 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			label: nls.localize('showPreviousInlineSuggestion', "Previous"),
 			commandId: ShowPreviousInlineSuggestionAction.ID,
 			run: () => this._commandService.executeCommand(ShowPreviousInlineSuggestionAction.ID)
+		});
+		statusBar.addAction({
+			label: nls.localize('acceptInlineSuggestion', "Accept"),
+			commandId: commitInlineSuggestionAction.id,
+			run: () => this._commandService.executeCommand(commitInlineSuggestionAction.id)
 		});
 
 		for (const [_, group] of menu.getActions()) {
