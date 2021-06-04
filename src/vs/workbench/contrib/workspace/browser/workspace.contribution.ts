@@ -35,7 +35,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import product from 'vs/platform/product/common/product';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
@@ -45,6 +45,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
@@ -442,20 +443,33 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		let ariaLabel = '';
+		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
 					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedWindow', "Restricted Mode: [Some features](command:{1}) are disabled because this window is not trusted.", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					isTrusted: true
+				};
 				break;
 			}
 			case WorkbenchState.FOLDER: {
 				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
 					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedFolder', "Restricted Mode: [Some features](command:{1}) are disabled because this folder is not trusted", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					isTrusted: true
+				};
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
 					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedWorkspace', "Restricted Mode: [Some features](command:{1}) are disabled because this workspace is not trusted", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					isTrusted: true
+				};
 				break;
 			}
 		}
@@ -464,7 +478,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			name: localize('status.WorkspaceTrust', "Workspace Trust"),
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
 			ariaLabel: ariaLabel,
-			tooltip: ariaLabel,
+			tooltip: toolTip,
 			command: 'workbench.trust.manage',
 			backgroundColor,
 			color
