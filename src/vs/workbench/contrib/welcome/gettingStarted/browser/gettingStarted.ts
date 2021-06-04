@@ -901,7 +901,7 @@ export class GettingStartedPage extends EditorPane {
 					$('button.button-link',
 						{
 							'x-dispatch': 'selectCategory:' + entry.id,
-							title: entry.description + this.getKeybindingLabel(entry.content.command),
+							title: entry.description + ' ' + this.getKeybindingLabel(entry.content.command),
 						},
 						this.iconWidgetFor(entry),
 						$('span', {}, entry.title)));
