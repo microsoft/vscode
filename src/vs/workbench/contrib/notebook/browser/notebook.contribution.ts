@@ -660,7 +660,7 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
-			default: 'border',
+			default: 'gutter',
 			tags: ['notebookLayout']
 		},
 		[InsertToolbarLocation]: {
@@ -673,7 +673,7 @@ configurationRegistry.registerConfiguration({
 		[GlobalToolbar]: {
 			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['notebookLayout']
 		},
 		[ConsolidatedOutputButton]: {

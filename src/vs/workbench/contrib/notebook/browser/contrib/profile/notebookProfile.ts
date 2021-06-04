@@ -23,9 +23,9 @@ export enum NotebookProfileType {
 
 const profiles = {
 	[NotebookProfileType.default]: {
-		[FocusIndicator]: 'border',
+		[FocusIndicator]: 'gutter',
 		[InsertToolbarLocation]: 'both',
-		[GlobalToolbar]: false,
+		[GlobalToolbar]: true,
 		[CellToolbarLocation]: { default: 'right' },
 		[CompactView]: true,
 		[ShowCellStatusBar]: 'visible',
