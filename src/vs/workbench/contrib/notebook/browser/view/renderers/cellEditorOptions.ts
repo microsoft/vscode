@@ -18,6 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellEditorOptions extends Disposable {
 
@@ -44,8 +45,8 @@ export class CellEditorOptions extends Disposable {
 
 	private _value: IEditorOptions;
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private readonly _onDidChange = new Emitter<IEditorOptions>();
-	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
 	private _localDisposableStore = this._register(new DisposableStore());
 
 	constructor(readonly notebookEditor: INotebookEditor, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
@@ -85,11 +86,10 @@ export class CellEditorOptions extends Disposable {
 
 	private _recomputeOptions(): void {
 		this._value = this._computeEditorOptions();
-		this._onDidChange.fire(this.value);
+		this._onDidChange.fire();
 	}
 
 	private _computeEditorOptions() {
-		const editorPadding = this.notebookOptions.computeEditorPadding();
 		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
@@ -105,7 +105,7 @@ export class CellEditorOptions extends Disposable {
 			...CellEditorOptions.fixedEditorOptions,
 			... { lineNumbers },
 			...editorOptionsOverride,
-			...{ padding: editorPadding },
+			...{ padding: { top: 12, bottom: 12 } },
 			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
 		};
 
@@ -121,14 +121,21 @@ export class CellEditorOptions extends Disposable {
 		super.dispose();
 	}
 
-	get value(): IEditorOptions {
-		return this._value;
+	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+		return {
+			...this._value,
+			...{
+				padding: internalMetadata ?
+					this.notebookOptions.computeEditorPadding(internalMetadata) :
+					{ top: 12, bottom: 12 }
+			}
+		};
 	}
 
 	setGlyphMargin(gm: boolean): void {
 		if (gm !== this._value.glyphMargin) {
 			this._value.glyphMargin = gm;
-			this._onDidChange.fire(this.value);
+			this._onDidChange.fire();
 		}
 	}
 
@@ -141,7 +148,7 @@ export class CellEditorOptions extends Disposable {
 		} else {
 			this._value.lineNumbers = lineNumbers as LineNumbersType;
 		}
-		this._onDidChange.fire(this.value);
+		this._onDidChange.fire();
 	}
 }
 

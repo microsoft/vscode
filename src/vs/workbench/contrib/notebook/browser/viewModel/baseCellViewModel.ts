@@ -157,19 +157,7 @@ export abstract class BaseCellViewModel extends Disposable {
 		}));
 	}
 
-	getEditorStatusbarHeight() {
-		return this.statusBarIsVisible() ? this._viewContext.notebookOptions.computeStatusBarHeight() : 0;
-	}
 
-	private statusBarIsVisible(): boolean {
-		if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar === 'visible') {
-			return true;
-		} else if (this._viewContext.notebookOptions.getLayoutConfiguration().showCellStatusBar === 'visibleAfterExecute') {
-			return typeof this.internalMetadata.lastRunSuccess === 'boolean' || this.internalMetadata.runState !== undefined;
-		} else {
-			return false;
-		}
-	}
 
 	abstract hasDynamicHeight(): boolean;
 	abstract getHeight(lineHeight: number): number;
@@ -411,7 +399,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForLineNumber(line) + editorPadding.top;
 	}
 
@@ -420,7 +408,7 @@ export abstract class BaseCellViewModel extends Disposable {
 			return 0;
 		}
 
-		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding();
+		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata);
 		return this._textEditor.getTopForPosition(line, column) + editorPadding.top;
 	}
 

@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -63,7 +63,6 @@ export interface NotebookLayoutConfiguration {
 
 interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
-	cellStatusBarAfterExecuteVisibility?: boolean;
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
@@ -421,13 +420,28 @@ export class NotebookOptions {
 		return 0;
 	}
 
-	computeEditorPadding() {
+	computeEditorPadding(internalMetadata: NotebookCellInternalMetadata) {
 		return {
 			top: getEditorTopPadding(),
-			bottom: this._layoutConfiguration.showCellStatusBar
+			bottom: this.statusBarIsVisible(internalMetadata)
 				? this._layoutConfiguration.editorBottomPadding
 				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
 		};
+	}
+
+
+	computeEditorStatusbarHeight(internalMetadata: NotebookCellInternalMetadata) {
+		return this.statusBarIsVisible(internalMetadata) ? this.computeStatusBarHeight() : 0;
+	}
+
+	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata): boolean {
+		if (this._layoutConfiguration.showCellStatusBar === 'visible') {
+			return true;
+		} else if (this._layoutConfiguration.showCellStatusBar === 'visibleAfterExecute') {
+			return typeof internalMetadata.lastRunSuccess === 'boolean' || internalMetadata.runState !== undefined;
+		} else {
+			return false;
+		}
 	}
 
 	computeWebviewOptions() {
