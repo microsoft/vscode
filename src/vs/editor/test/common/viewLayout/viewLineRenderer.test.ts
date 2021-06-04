@@ -406,23 +406,23 @@ suite('viewLineRenderer.renderLine', () => {
 		].join('');
 
 		const expectedCharacterMapping = new CharacterMapping(17, 4);
-		expectedCharacterMapping.setPartData(0, 0, 0, 0);
-		expectedCharacterMapping.setPartData(1, 0, 1, 0);
-		expectedCharacterMapping.setPartData(2, 0, 2, 0);
-		expectedCharacterMapping.setPartData(3, 0, 3, 0);
-		expectedCharacterMapping.setPartData(4, 0, 4, 0);
-		expectedCharacterMapping.setPartData(5, 0, 5, 0);
-		expectedCharacterMapping.setPartData(6, 0, 6, 0);
-		expectedCharacterMapping.setPartData(7, 0, 7, 0);
-		expectedCharacterMapping.setPartData(8, 0, 8, 0);
-		expectedCharacterMapping.setPartData(9, 0, 9, 0);
-		expectedCharacterMapping.setPartData(10, 0, 10, 0);
-		expectedCharacterMapping.setPartData(11, 0, 11, 0);
-		expectedCharacterMapping.setPartData(12, 2, 0, 12);
-		expectedCharacterMapping.setPartData(13, 3, 1, 12);
-		expectedCharacterMapping.setPartData(14, 3, 2, 12);
-		expectedCharacterMapping.setPartData(15, 3, 3, 12);
-		expectedCharacterMapping.setPartData(16, 3, 4, 12);
+		expectedCharacterMapping.setColumnInfo(1, 0, 0, 0);
+		expectedCharacterMapping.setColumnInfo(2, 0, 1, 0);
+		expectedCharacterMapping.setColumnInfo(3, 0, 2, 0);
+		expectedCharacterMapping.setColumnInfo(4, 0, 3, 0);
+		expectedCharacterMapping.setColumnInfo(5, 0, 4, 0);
+		expectedCharacterMapping.setColumnInfo(6, 0, 5, 0);
+		expectedCharacterMapping.setColumnInfo(7, 0, 6, 0);
+		expectedCharacterMapping.setColumnInfo(8, 0, 7, 0);
+		expectedCharacterMapping.setColumnInfo(9, 0, 8, 0);
+		expectedCharacterMapping.setColumnInfo(10, 0, 9, 0);
+		expectedCharacterMapping.setColumnInfo(11, 0, 10, 0);
+		expectedCharacterMapping.setColumnInfo(12, 0, 11, 0);
+		expectedCharacterMapping.setColumnInfo(13, 2, 0, 12);
+		expectedCharacterMapping.setColumnInfo(14, 3, 1, 12);
+		expectedCharacterMapping.setColumnInfo(15, 3, 2, 12);
+		expectedCharacterMapping.setColumnInfo(16, 3, 3, 12);
+		expectedCharacterMapping.setColumnInfo(17, 3, 4, 12);
 
 		const actual = renderViewLine(new RenderLineInput(
 			true,

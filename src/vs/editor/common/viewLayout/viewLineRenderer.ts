@@ -247,13 +247,13 @@ export class CharacterMapping {
 		this._absoluteOffsets = new Uint32Array(this.length);
 	}
 
-	public setPartData(charOffset: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
-		let partData = (
+	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
+		const partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
-		this._data[charOffset] = partData;
-		this._absoluteOffsets[charOffset] = partAbsoluteOffset + charIndex;
+		this._data[column - 1] = partData;
+		this._absoluteOffsets[column - 1] = partAbsoluteOffset + charIndex;
 	}
 
 	public getAbsoluteOffset(column: number): number {
@@ -400,7 +400,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			sb.appendASCIIString(`</span>`);
 
 			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
-			characterMapping.setPartData(0, beforeCount, 0, 0);
+			characterMapping.setColumnInfo(1, beforeCount, 0, 0);
 
 			return new RenderLineOutput(
 				characterMapping,
@@ -907,7 +907,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 				let charWidth: number;
@@ -945,7 +945,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 
@@ -1026,7 +1026,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 
 		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
 			lastCharacterMappingDefined = true;
-			characterMapping.setPartData(charIndex, partIndex, charOffsetInPart, partAbsoluteOffset);
+			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset);
 		}
 
 		sb.appendASCIIString('</span>');
@@ -1036,7 +1036,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	if (!lastCharacterMappingDefined) {
 		// When getting client rects for the last character, we will position the
 		// text range at the end of the span, insteaf of at the beginning of next span
-		characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
 	}
 
 	if (isOverflowing) {
