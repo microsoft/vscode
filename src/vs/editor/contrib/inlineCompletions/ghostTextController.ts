@@ -103,6 +103,11 @@ export class GhostTextController extends Disposable {
 	public showPreviousInlineCompletion(): void {
 		this.activeController.value?.showPreviousInlineCompletion();
 	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		const result = await this.activeController.value?.hasMultipleInlineCompletions();
+		return result !== undefined ? result : false;
+	}
 }
 
 // TODO: This should be local state to the editor.
@@ -227,6 +232,11 @@ export class ActiveGhostTextController extends Disposable {
 
 	public showPreviousInlineCompletion(): void {
 		this.activeInlineCompletionsModel?.showPrevious();
+	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		const result = await this.activeInlineCompletionsModel?.hasMultipleInlineCompletions();
+		return result !== undefined ? result : false;
 	}
 
 	private updateModel() {

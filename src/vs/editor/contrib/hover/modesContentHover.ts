@@ -23,7 +23,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { HoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverWidget, HoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
 import { MarkerHoverParticipant } from 'vs/editor/contrib/hover/markerHoverParticipant';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownHoverParticipant } from 'vs/editor/contrib/hover/markdownHoverParticipant';
@@ -31,7 +31,7 @@ import { InlineCompletionsHoverParticipant } from 'vs/editor/contrib/inlineCompl
 import { ColorHoverParticipant } from 'vs/editor/contrib/hover/colorHoverParticipant';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IEditorHoverStatusBar, IHoverPart, HoverAnchor, IEditorHoverParticipant, HoverAnchorType, IEditorHover, HoverRangeAnchor } from 'vs/editor/contrib/hover/hoverTypes';
+import { IEditorHoverStatusBar, IHoverPart, HoverAnchor, IEditorHoverParticipant, HoverAnchorType, IEditorHover, HoverRangeAnchor, IEditorHoverAction } from 'vs/editor/contrib/hover/hoverTypes';
 
 const $ = dom.$;
 
@@ -53,11 +53,11 @@ class EditorHoverStatusBar extends Disposable implements IEditorHoverStatusBar {
 		this.actionsElement = dom.append(this.hoverElement, $('div.actions'));
 	}
 
-	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): void {
+	public addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction {
 		const keybinding = this._keybindingService.lookupKeybinding(actionOptions.commandId);
 		const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-		this._register(renderHoverAction(this.actionsElement, actionOptions, keybindingLabel));
 		this._hasContent = true;
+		return this._register(HoverAction.render(this.actionsElement, actionOptions, keybindingLabel));
 	}
 
 	public append(element: HTMLElement): HTMLElement {

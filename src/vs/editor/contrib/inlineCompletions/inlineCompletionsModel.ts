@@ -140,6 +140,11 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	public showPrevious(): void {
 		this.session?.showPreviousInlineCompletion();
 	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		const result = await this.session?.hasMultipleInlineCompletions();
+		return result !== undefined ? result : false;
+	}
 }
 
 export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
@@ -265,6 +270,11 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			// Refresh cache
 			await this.update(InlineCompletionTriggerKind.Explicit);
 		}
+	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		await this.ensureUpdateWithExplicitContext();
+		return (this.cache.value?.completions.length || 0) > 1;
 	}
 
 	//#endregion
