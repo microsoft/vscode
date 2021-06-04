@@ -43,7 +43,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -152,7 +151,6 @@ export class TerminalService implements ITerminalService {
 		@ICommandService private readonly _commandService: ICommandService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
-		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -383,7 +381,7 @@ export class TerminalService implements ITerminalService {
 			return this._availableProfiles || [];
 		}
 		const platform = await this._getPlatformKey();
-		return offProcService?.getProfiles(this._workspaceTrustManagementService.isWorkpaceTrusted(), this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
+		return offProcService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {

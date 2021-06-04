@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,7 +19,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
-	isWorkspaceTrusted: boolean,
 	profiles: unknown,
 	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
@@ -39,8 +38,8 @@ export function detectAvailableProfiles(
 			fsProvider,
 			logService,
 			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			getProfilesFromSettings(isWorkspaceTrusted, profiles, TerminalSettingId.ProfilesWindows, configurationService),
-			getDefaultProfileFromSettings(isWorkspaceTrusted, defaultProfile, TerminalSettingId.DefaultProfileWindows, configurationService),
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPaths,
 			variableResolver
 		);
@@ -49,27 +48,11 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		getProfilesFromSettings(isWorkspaceTrusted, profiles, isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux, configurationService),
-		getDefaultProfileFromSettings(isWorkspaceTrusted, defaultProfile, isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux, configurationService),
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPaths,
 		variableResolver
 	);
-}
-
-function getProfilesFromSettings(isWorkspaceTrusted: boolean, profiles: unknown, key: string, configurationService: IConfigurationService): { [key: string]: ITerminalProfileObject } | undefined {
-	if (!isWorkspaceTrusted) {
-		// won't return workspace values
-		return configurationService.getValue(key);
-	}
-	return profiles && typeof profiles === 'object' ? { ...profiles } : undefined;
-}
-
-function getDefaultProfileFromSettings(isWorkspaceTrusted: boolean, defaultProfile: unknown, key: string, configurationService: IConfigurationService): string | undefined {
-	if (!isWorkspaceTrusted) {
-		// won't return workspace values
-		return configurationService.getValue(key);
-	}
-	return typeof defaultProfile === 'string' ? defaultProfile : undefined;
 }
 
 async function detectAvailableWindowsProfiles(
