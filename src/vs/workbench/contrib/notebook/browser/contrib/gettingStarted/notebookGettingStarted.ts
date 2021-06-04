@@ -21,6 +21,9 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 const hasOpenedNotebookKey = 'hasOpenedNotebook';
+const hasShownGettingStartedKey = 'hasShownNotebookGettingStarted';
+
+const showGettingStartedSetting = 'notebook.experimental.openGettingStarted';
 
 /**
  * Sets a context key when a notebook has ever been opened by the user
@@ -36,33 +39,37 @@ export class NotebookGettingStarted extends Disposable implements IWorkbenchCont
 	) {
 		super();
 
-		if (!_configurationService.getValue('notebook.experimental.openGettingStarted')) {
-			return;
-		}
-
 		const hasOpenedNotebook = HAS_OPENED_NOTEBOOK.bindTo(_contextKeyService);
 		const memento = new Memento('notebookGettingStarted2', _storageService);
 		const storedValue = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 		if (storedValue[hasOpenedNotebookKey]) {
 			hasOpenedNotebook.set(true);
-		} else {
-			const updateMemento = () => {
+		}
+
+		const needToShowGettingStarted = _configurationService.getValue(showGettingStartedSetting) && !storedValue[hasShownGettingStartedKey];
+		if (!storedValue[hasOpenedNotebookKey] || needToShowGettingStarted) {
+			const onDidOpenNotebook = () => {
 				hasOpenedNotebook.set(true);
 				storedValue[hasOpenedNotebookKey] = true;
+
+				if (needToShowGettingStarted) {
+					_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
+					storedValue[hasShownGettingStartedKey] = true;
+				}
+
 				memento.saveMemento();
-				_commandService.executeCommand('workbench.action.openWalkthrough', { category: 'notebooks', step: 'notebookProfile' }, true);
 			};
 
 			if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
 				// active editor is notebook
-				updateMemento();
+				onDidOpenNotebook();
 				return;
 			}
 
 			const listener = this._register(_editorService.onDidActiveEditorChange(() => {
 				if (_editorService.activeEditor?.typeId === NotebookEditorInput.ID) {
 					listener.dispose();
-					updateMemento();
+					onDidOpenNotebook();
 				}
 			}));
 		}
