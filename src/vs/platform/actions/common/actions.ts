@@ -171,7 +171,7 @@ export class MenuId {
 	static readonly TerminalTabEmptyAreaContext = new MenuId('TerminalTabEmptyAreaContext');
 	static readonly TerminalInlineTabContext = new MenuId('TerminalInlineTabContext');
 	static readonly WebviewContext = new MenuId('WebviewContext');
-	static readonly InlineSuggestionActions = new MenuId('InlineSuggestionActions');
+	static readonly InlineCompletionsActions = new MenuId('InlineCompletionsActions');
 
 	readonly id: number;
 	readonly _debugName: string;

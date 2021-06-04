@@ -77,7 +77,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		const menu = this._menuService.createMenu(
-			MenuId.InlineSuggestionActions,
+			MenuId.InlineCompletionsActions,
 			this._contextKeyService
 		);
 
