@@ -346,7 +346,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const cache = this.cache.replace(undefined);
 
 		this.editor.executeEdits(
-			'inlineCompletions.accept',
+			'inlineSuggestion.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]

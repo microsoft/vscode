@@ -9,7 +9,7 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { GhostTextController, ShowNextInlineCompletionAction, ShowPreviousInlineCompletionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
+import { GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -77,19 +77,19 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 
 	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
 		const menu = this._menuService.createMenu(
-			MenuId.InlineCompletionsActions,
+			MenuId.InlineSuggestionActions,
 			this._contextKeyService
 		);
 
 		statusBar.addAction({
-			label: nls.localize('showNextInlineCompletion', "Next"),
-			commandId: ShowNextInlineCompletionAction.ID,
-			run: () => this._commandService.executeCommand(ShowNextInlineCompletionAction.ID)
+			label: nls.localize('showNextInlineSuggestion', "Next"),
+			commandId: ShowNextInlineSuggestionAction.ID,
+			run: () => this._commandService.executeCommand(ShowNextInlineSuggestionAction.ID)
 		});
 		statusBar.addAction({
-			label: nls.localize('showPreviousInlineCompletion', "Previous"),
-			commandId: ShowPreviousInlineCompletionAction.ID,
-			run: () => this._commandService.executeCommand(ShowPreviousInlineCompletionAction.ID)
+			label: nls.localize('showPreviousInlineSuggestion', "Previous"),
+			commandId: ShowPreviousInlineSuggestionAction.ID,
+			run: () => this._commandService.executeCommand(ShowPreviousInlineSuggestionAction.ID)
 		});
 
 		for (const [_, group] of menu.getActions()) {

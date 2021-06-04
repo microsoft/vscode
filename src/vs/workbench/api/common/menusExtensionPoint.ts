@@ -233,10 +233,11 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('view.tunnelPortInline', "The Ports view item port inline menu")
 	},
 	{
-		key: 'editor/inlineCompletions/actions',
-		id: MenuId.InlineCompletionsActions,
-		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
-		supportsSubmenus: false
+		key: 'editor/inlineSuggestion/actions',
+		id: MenuId.InlineSuggestionActions,
+		description: localize('inlineSuggestion.actions', "The actions shown when hovering on an inline suggestion"),
+		supportsSubmenus: false,
+		proposed: true
 	},
 ];
 
