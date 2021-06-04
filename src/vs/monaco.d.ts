@@ -2973,6 +2973,7 @@ declare namespace monaco.editor {
 		 * Suggest options.
 		 */
 		suggest?: ISuggestOptions;
+		inlineSuggest?: IInlineSuggestOptions;
 		/**
 		 * Smart select options.
 		 */
@@ -3812,6 +3813,15 @@ declare namespace monaco.editor {
 		readonly scrollByPage: boolean;
 	}
 
+	export interface IInlineSuggestOptions {
+		/**
+		 * Enable or disable the rendering of automatic inline completions.
+		*/
+		enabled?: boolean;
+	}
+
+	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+
 	/**
 	 * Configuration options for editor suggest widget
 	 */
@@ -3847,11 +3857,7 @@ declare namespace monaco.editor {
 		/**
 		 * Enable or disable the rendering of the suggestion preview.
 		 */
-		showSuggestionPreview?: boolean;
-		/**
-		 * Enable or disable the rendering of automatic inline completions.
-		*/
-		showInlineCompletions?: boolean;
+		preview?: boolean;
 		/**
 		 * Enable or disable the default expansion of the ghost text as used
 		 * by the suggestion preview or the inline completions.
@@ -4141,7 +4147,8 @@ declare namespace monaco.editor {
 		pixelRatio = 125,
 		tabFocusMode = 126,
 		layoutInfo = 127,
-		wrappingInfo = 128
+		wrappingInfo = 128,
+		inlineSuggest = 129
 	}
 	export const EditorOptions: {
 		acceptSuggestionOnCommitCharacter: IEditorOption<EditorOption.acceptSuggestionOnCommitCharacter, boolean>;
@@ -4250,6 +4257,7 @@ declare namespace monaco.editor {
 		smoothScrolling: IEditorOption<EditorOption.smoothScrolling, boolean>;
 		stopRenderingLineAfter: IEditorOption<EditorOption.stopRenderingLineAfter, number>;
 		suggest: IEditorOption<EditorOption.suggest, InternalSuggestOptions>;
+		inlineSuggest: IEditorOption<EditorOption.inlineSuggest, any>;
 		suggestFontSize: IEditorOption<EditorOption.suggestFontSize, number>;
 		suggestLineHeight: IEditorOption<EditorOption.suggestLineHeight, number>;
 		suggestOnTriggerCharacters: IEditorOption<EditorOption.suggestOnTriggerCharacters, boolean>;

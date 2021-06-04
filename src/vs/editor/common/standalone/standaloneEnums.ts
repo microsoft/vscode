@@ -295,7 +295,8 @@ export enum EditorOption {
 	pixelRatio = 125,
 	tabFocusMode = 126,
 	layoutInfo = 127,
-	wrappingInfo = 128
+	wrappingInfo = 128,
+	inlineSuggest = 129
 }
 
 /**

@@ -91,8 +91,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		if (!suggestOptions.showInlineCompletions) {
+		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+		if (!suggestOptions.enabled) {
 			return;
 		}
 

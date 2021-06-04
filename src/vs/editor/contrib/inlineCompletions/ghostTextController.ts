@@ -57,11 +57,12 @@ export class GhostTextController extends Disposable {
 	// Don't call this method when not neccessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
+		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
 
 		this.activeController.value = undefined;
 		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
 		this.activeController.value =
-			this.editor.hasModel() && (suggestOptions.showSuggestionPreview || suggestOptions.showInlineCompletions || this.triggeredExplicitly)
+			this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly)
 				? this.instantiationService.createInstance(
 					ActiveGhostTextController,
 					this.editor,
