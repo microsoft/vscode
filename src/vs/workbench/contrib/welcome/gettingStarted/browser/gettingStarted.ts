@@ -519,7 +519,7 @@ export class GettingStartedPage extends EditorPane {
 			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
 
 			this.stepDisposables.add(webview.onDidClickLink(link => {
-				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.https) || (matchesScheme(link, Schemas.command))) {
+				if (matchesScheme(link, Schemas.https) || matchesScheme(link, Schemas.http) || (matchesScheme(link, Schemas.command))) {
 					this.openerService.open(link, { allowCommands: true });
 				}
 			}));
