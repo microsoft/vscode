@@ -308,7 +308,6 @@ export class IssueMainService implements ICommonIssueService {
 				additionalArguments: [`--vscode-window-config=${ipcObjectUrl.resource.toString()}`, '--context-isolation' /* TODO@bpasero: Use process.contextIsolateed when 13-x-y is adopted (https://github.com/electron/electron/pull/28030) */],
 				v8CacheOptions: browserCodeLoadingCacheStrategy,
 				enableWebSQL: false,
-				enableRemoteModule: false,
 				spellcheck: false,
 				nativeWindowOpen: true,
 				zoomFactor: zoomLevelToZoomFactor(options.zoomLevel),

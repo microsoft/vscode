@@ -54,21 +54,23 @@ export class BackupMainService implements IBackupMainService {
 			backups = Object.create(null);
 		}
 
-		// read empty workspaces backups first
-		if (backups.emptyWorkspaceInfos) {
-			this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
-		}
+		// validate empty workspaces backups first
+		this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
 
 		// read workspace backups
 		let rootWorkspaces: IWorkspaceBackupInfo[] = [];
 		try {
 			if (Array.isArray(backups.rootURIWorkspaces)) {
-				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({ workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) }, remoteAuthority: workspace.remoteAuthority }));
+				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({
+					workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) },
+					remoteAuthority: workspace.remoteAuthority
+				}));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
 
+		// validate workspace backups
 		this.workspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
@@ -81,6 +83,7 @@ export class BackupMainService implements IBackupMainService {
 			// ignore URI parsing exceptions
 		}
 
+		// validate folder backups
 		this.folders = await this.validateFolders(workspaceFolders);
 
 		// save again in case some workspaces or folders have been removed
