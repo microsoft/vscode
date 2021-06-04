@@ -87,7 +87,7 @@ async function assertKernel(kernel: Kernel, notebook: vscode.NotebookDocument): 
 	assert.ok(kernel.associatedNotebooks.has(notebook.uri.toString()));
 }
 
-suite('Notebook API tests', function () {
+suite.only('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
@@ -532,7 +532,15 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
 		assert.strictEqual(activeCell?.document.getText(), 'test');
 
-		await vscode.commands.executeCommand('notebook.cell.delete');
+		{
+			const focusedCell = getFocusedCell(vscode.window.activeNotebookEditor);
+			assert.strictEqual(focusedCell !== undefined, true);
+			// delete focused cell
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCells(focusedCell!.notebook.uri, new vscode.NotebookRange(focusedCell!.index, focusedCell!.index + 1), []);
+			await vscode.workspace.applyEdit(edit);
+		}
+
 		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
 		assert.strictEqual(activeCell?.document.getText(), '');
@@ -925,12 +933,22 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 4);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
 
+		{
+			// modify the second cell, delete it
+			const edit = new vscode.WorkspaceEdit();
+			edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
+			await vscode.workspace.applyEdit(edit);
+		}
 
-		// modify the second cell, delete it
-		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
-		await vscode.workspace.applyEdit(edit);
-		await vscode.commands.executeCommand('notebook.cell.delete');
+		{
+			const focusedCell = getFocusedCell(vscode.window.activeNotebookEditor);
+			assert.strictEqual(focusedCell !== undefined, true);
+			// delete focused cell
+			const edit = new vscode.WorkspaceEdit();
+			edit.replaceNotebookCells(focusedCell!.notebook.uri, new vscode.NotebookRange(focusedCell!.index, focusedCell!.index + 1), []);
+			await vscode.workspace.applyEdit(edit);
+		}
+
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 3);
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(getFocusedCell(vscode.window.activeNotebookEditor)!), 1);
 
