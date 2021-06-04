@@ -833,8 +833,8 @@ function assertCharacterMapping3(actual: CharacterMapping, expectedInfo: Charact
 			}
 		}
 
-		const actualOffset = actual.partDataToCharOffset(partIndex, partLength, charIndex);
-		assert.strictEqual(actualOffset, i, `actual.partDataToCharOffset(${partIndex}, ${charIndex})`);
+		const actualColumn = actual.getColumn(new DomPosition(partIndex, charIndex), partLength);
+		assert.strictEqual(actualColumn, i + 1, `actual.getColumn(${partIndex}, ${charIndex})`);
 
 		const actualAbsoluteOffset = actual.getAbsoluteOffset(i + 1);
 		assert.strictEqual(actualAbsoluteOffset, absoluteOffset, `actual.getAbsoluteOffset(${i + 1})`);
@@ -2186,9 +2186,8 @@ suite('viewLineRenderer.renderLine 2', () => {
 		));
 
 		return (partIndex: number, partLength: number, offset: number, expected: number) => {
-			let charOffset = renderLineOutput.characterMapping.partDataToCharOffset(partIndex, partLength, offset);
-			let actual = charOffset + 1;
-			assert.strictEqual(actual, expected, 'getColumnOfLinePartOffset for ' + partIndex + ' @ ' + offset);
+			const actualColumn = renderLineOutput.characterMapping.getColumn(new DomPosition(partIndex, offset), partLength);
+			assert.strictEqual(actualColumn, expected, 'getColumn for ' + partIndex + ', ' + offset);
 		};
 	}
 

@@ -284,7 +284,12 @@ export class CharacterMapping {
 		return new DomPosition(partIndex, charIndex);
 	}
 
-	public partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
+	public getColumn(domPosition: DomPosition, partLength: number): number {
+		const charOffset = this.partDataToCharOffset(domPosition.partIndex, partLength, domPosition.charIndex);
+		return charOffset + 1;
+	}
+
+	private partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
 		if (this.length === 0) {
 			return 0;
 		}

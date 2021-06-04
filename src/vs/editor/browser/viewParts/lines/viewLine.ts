@@ -12,7 +12,7 @@ import { IStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IConfiguration } from 'vs/editor/common/editorCommon';
 import { HorizontalRange, VisibleRanges } from 'vs/editor/common/view/renderingContext';
 import { LineDecoration } from 'vs/editor/common/viewLayout/lineDecorations';
-import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange } from 'vs/editor/common/viewLayout/viewLineRenderer';
+import { CharacterMapping, ForeignElementType, RenderLineInput, renderViewLine, LineRange, DomPosition } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewportData } from 'vs/editor/common/viewLayout/viewLinesViewportData';
 import { InlineDecorationType } from 'vs/editor/common/viewModel/viewModel';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
@@ -443,8 +443,7 @@ class FastRenderedViewLine implements IRenderedViewLine {
 			spanIndex++;
 		}
 
-		const charOffset = this._characterMapping.partDataToCharOffset(spanIndex, spanNodeTextContentLength, offset);
-		return charOffset + 1;
+		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
 	}
 }
 
@@ -645,8 +644,7 @@ class RenderedViewLine implements IRenderedViewLine {
 			spanIndex++;
 		}
 
-		const charOffset = this._characterMapping.partDataToCharOffset(spanIndex, spanNodeTextContentLength, offset);
-		return charOffset + 1;
+		return this._characterMapping.getColumn(new DomPosition(spanIndex, offset), spanNodeTextContentLength);
 	}
 }
 
