@@ -256,6 +256,32 @@
 					"type": "object",
 					"additionalProperties": true,
 					"description": "Codespaces-specific configuration."
+				},
+				"hostRequirements": {
+					"type": "object",
+					"description": "Host hardware requirements.",
+					"allOf": [
+						{
+							"type": "object",
+							"properties": {
+								"cpus": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required CPUs."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								},
+								"storage": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+								}
+							}
+						}
+					]
 				}
 			}
 		},
