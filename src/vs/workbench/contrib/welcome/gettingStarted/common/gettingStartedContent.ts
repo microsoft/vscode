@@ -402,7 +402,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 		title: localize('gettingStarted.notebook.title', "Customize Notebooks"),
 		description: '',
 		icon: setupIcon,
-		when: 'userHasOpenedNotebook',
+		when: 'config.notebook.experimental.gettingStarted && userHasOpenedNotebook',
 		content: {
 			type: 'steps',
 			steps: [
