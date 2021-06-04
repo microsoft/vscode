@@ -19,6 +19,7 @@ import { HoverProviderRegistry } from 'vs/editor/common/modes';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
 import { Position } from 'vs/editor/common/core/position';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = dom.$;
 
@@ -46,6 +47,7 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 		private readonly _hover: IEditorHover,
 		@IModeService private readonly _modeService: IModeService,
 		@IOpenerService private readonly _openerService: IOpenerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) { }
 
 	public createLoadingMessage(anchor: HoverAnchor): MarkdownHover | null {
@@ -72,6 +74,14 @@ export class MarkdownHoverParticipant implements IEditorHoverParticipant<Markdow
 
 			const range = new Range(anchor.range.startLineNumber, startColumn, anchor.range.startLineNumber, endColumn);
 			result.push(new MarkdownHover(this, range, asArray(hoverMessage)));
+		}
+
+		const lineLength = this._editor.getModel().getLineLength(lineNumber);
+		const maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
+		if (lineLength >= maxTokenizationLineLength) {
+			result.push(new MarkdownHover(this, new Range(lineNumber, 1, lineNumber, lineLength + 1), [{
+				value: nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. This can be configured via `editor.maxTokenizationLineLength`.")
+			}]));
 		}
 
 		return result;
