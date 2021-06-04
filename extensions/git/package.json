@@ -29,7 +29,7 @@
   "capabilities": {
     "virtualWorkspaces": true,
     "untrustedWorkspaces": {
-      "supported": false
+      "supported": true
     }
   },
   "contributes": {

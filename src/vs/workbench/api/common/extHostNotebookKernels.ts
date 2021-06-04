@@ -112,7 +112,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const controller: vscode.NotebookController = {
 			get id() { return id; },
 			get notebookType() { return data.notebookType; },
-			onDidChangeNotebookAssociation: onDidChangeSelection.event,
+			onDidChangeSelectedNotebooks: onDidChangeSelection.event,
 			get label() {
 				return data.label;
 			},

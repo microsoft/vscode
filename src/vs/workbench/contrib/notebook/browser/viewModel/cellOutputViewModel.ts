@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICellOutputViewModel, IGenericCellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ICellOutput, IOrderedMimeType, mimeTypeIsMergeable } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellOutput, IOrderedMimeType, mimeTypeIsMergeable, RENDERER_NOT_AVAILABLE } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 
 let handle = 0;
@@ -49,12 +49,17 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
 		const mimeTypes = this._notebookService.getMimeTypeInfo(textModel, kernelProvides, this.model);
-		// there is at least one mimetype which is safe and can be rendered by the core
-		if (!this._pickedMimeType) {
-			return [mimeTypes, 0];
+		let index = -1;
+		if (this._pickedMimeType) {
+			index = mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted);
 		}
 
-		return [mimeTypes, Math.max(mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted), 0)];
+		// there is at least one mimetype which is safe and can be rendered by the core
+		if (index === -1) {
+			index = mimeTypes.findIndex(mimeType => mimeType.rendererId !== RENDERER_NOT_AVAILABLE && mimeType.isTrusted);
+		}
+
+		return [mimeTypes, Math.max(index, 0)];
 	}
 
 	toRawJSON() {

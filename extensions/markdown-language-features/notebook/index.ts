@@ -11,13 +11,13 @@ export function activate() {
 	});
 
 	return {
-		renderCell: (_id: string, context: { element: HTMLElement, value: string, text(): string }) => {
-			const rendered = markdownIt.render(context.text());
-			context.element.innerHTML = rendered;
+		renderOutputItem: (outputInfo: { text(): string }, element: HTMLElement) => {
+			const rendered = markdownIt.render(outputInfo.text());
+			element.innerHTML = rendered;
 
 			// Insert styles into markdown preview shadow dom so that they are applied
 			for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
-				context.element.insertAdjacentElement('beforebegin', markdownStyleNode.cloneNode(true) as Element);
+				element.insertAdjacentElement('beforebegin', markdownStyleNode.cloneNode(true) as Element);
 			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {

@@ -219,6 +219,11 @@ export class GettingStartedPage extends EditorPane {
 			if (!ourStep) {
 				throw Error('Could not find step with ID: ' + step.id);
 			}
+
+			if (!ourStep.done && category.content.stepsComplete === category.content.stepsTotal - 1) {
+				this.hideCategory(category.id);
+			}
+
 			ourStep.done = step.done;
 			if (category.id === this.currentCategory?.id) {
 				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
@@ -471,7 +476,7 @@ export class GettingStartedPage extends EditorPane {
 			mediaElement.setAttribute('alt', media.altText);
 			this.updateMediaSourceForColorMode(mediaElement, media.path);
 
-			this.stepDisposables.add(addDisposableListener(mediaElement, 'click', () => {
+			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
 				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
 				if (hrefs.length === 1) {
 					const href = hrefs[0];
@@ -568,9 +573,11 @@ export class GettingStartedPage extends EditorPane {
 		if (id) {
 			const stepElement = assertIsDefined(this.container.querySelector<HTMLDivElement>(`[data-step-id="${id}"]`));
 			stepElement.parentElement?.querySelectorAll<HTMLElement>('.expanded').forEach(node => {
-				node.classList.remove('expanded');
-				node.style.height = ``;
-				node.setAttribute('aria-expanded', 'false');
+				if (node.getAttribute('data-step-id') !== id) {
+					node.classList.remove('expanded');
+					node.style.height = ``;
+					node.setAttribute('aria-expanded', 'false');
+				}
 			});
 			setTimeout(() => (stepElement as HTMLElement).focus(), delayFocus ? SLIDE_TRANSITION_TIME_MS : 0);
 
@@ -624,8 +631,11 @@ export class GettingStartedPage extends EditorPane {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 					${css}
-					img[centered] {
-						margin: 0 auto;
+					body > img {
+						align-self: flex-start;
+					}
+					body > img[centered] {
+						align-self: center;
 					}
 					body {
 						display: flex;
@@ -647,6 +657,7 @@ export class GettingStartedPage extends EditorPane {
 					}
 					checkbox.checked > img {
 						box-sizing: border-box;
+						margin-bottom: 4px;
 					}
 					checkbox.checked > img {
 						outline: 2px solid var(--vscode-focusBorder);
@@ -656,7 +667,8 @@ export class GettingStartedPage extends EditorPane {
 						margin-top: 0;
 					}
 					body > * {
-						margin-block-end: 0;
+						margin-block-end: 0.25em;
+						margin-block-start: 0.25em;
 					}
 					html {
 						height: 100%;

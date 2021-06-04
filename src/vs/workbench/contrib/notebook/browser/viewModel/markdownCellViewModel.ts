@@ -132,7 +132,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}));
 
 		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
 				const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 				const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 

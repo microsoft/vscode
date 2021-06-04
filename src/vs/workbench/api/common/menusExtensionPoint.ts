@@ -236,7 +236,8 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		proposed: true
 	},
 ];
 

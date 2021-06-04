@@ -35,7 +35,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import product from 'vs/platform/product/common/product';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
@@ -45,6 +45,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
@@ -146,7 +147,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
 	// try showing the banner only after some files have been opened
-	private showBannerInEmptyWindow = false;
+	private showIndicatorsInEmptyWindow = false;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
@@ -442,20 +443,36 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		let ariaLabel = '';
+		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
 					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedWindow', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [window is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 			case WorkbenchState.FOLDER: {
 				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
 					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedFolder', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [folder is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
 					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize('status.tooltipUntrustedWorkspace', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [workspace is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 		}
@@ -464,7 +481,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			name: localize('status.WorkspaceTrust', "Workspace Trust"),
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
 			ariaLabel: ariaLabel,
-			tooltip: ariaLabel,
+			tooltip: toolTip,
 			command: 'workbench.trust.manage',
 			backgroundColor,
 			color
@@ -480,7 +497,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
 
 		if (openFiles.length) {
-			this.showBannerInEmptyWindow = true;
+			this.showIndicatorsInEmptyWindow = true;
 
 			// If all open files are trusted, transition to a trusted workspace
 			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
@@ -493,12 +510,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
 				const editor = this.editorService.activeEditor;
 				if (editor && !!EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })) {
-					this.showBannerInEmptyWindow = true;
+					this.showIndicatorsInEmptyWindow = true;
 					this.updateWorkbenchIndicators(this.workspaceTrustManagementService.isWorkpaceTrusted());
 					disposable.dispose();
 				}
 			}));
-			this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			// TODO: Consider moving the check into setWorkspaceTrust()
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			}
 		}
 	}
 
@@ -512,21 +532,23 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
-		this.updateStatusbarEntry(trusted);
-
 		const isInVirtualWorkspace = isVirtualWorkspace(this.workspaceContextService.getWorkspace());
 		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const bannerItem = this.getBannerItem(isInVirtualWorkspace, !trusted);
 
-		if (bannerItem && (!isEmptyWorkspace || this.showBannerInEmptyWindow)) {
-			if (!isInVirtualWorkspace) {
-				if (!trusted) {
-					this.bannerService.show(bannerItem);
+		if (!isEmptyWorkspace || this.showIndicatorsInEmptyWindow) {
+			this.updateStatusbarEntry(trusted);
+
+			if (bannerItem) {
+				if (!isInVirtualWorkspace) {
+					if (!trusted) {
+						this.bannerService.show(bannerItem);
+					} else {
+						this.bannerService.hide(BANNER_RESTRICTED_MODE);
+					}
 				} else {
-					this.bannerService.hide(BANNER_RESTRICTED_MODE);
+					this.bannerService.show(bannerItem);
 				}
-			} else {
-				this.bannerService.show(bannerItem);
 			}
 		}
 	}
@@ -615,11 +637,13 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
  * Actions
  */
 
+const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+
 // Manage Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.trust.manage',
+			id: MANAGE_TRUST_COMMAND_ID,
 			title: {
 				original: 'Manage Workspace Trust',
 				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
@@ -680,7 +704,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'string',
 				default: 'prompt',
 				included: !isWeb,
-				description: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace."),
+				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
@@ -693,7 +717,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				default: false,
 				included: !isWeb,
-				description: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code."),
+				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				scope: ConfigurationScope.APPLICATION
 			}
 		}

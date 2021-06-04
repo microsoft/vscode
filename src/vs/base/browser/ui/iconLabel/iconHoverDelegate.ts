@@ -16,6 +16,7 @@ export interface IHoverDelegateOptions {
 	text: IMarkdownString | string;
 	target: IHoverDelegateTarget | HTMLElement;
 	hoverPosition?: HoverPosition;
+	showPointer?: boolean;
 }
 
 export interface IHoverDelegate {

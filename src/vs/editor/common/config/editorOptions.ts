@@ -382,6 +382,7 @@ export interface IEditorOptions {
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
+	inlineSuggest?: IInlineSuggestOptions;
 	/**
 	 * Smart select options.
 	 */
@@ -3140,6 +3141,51 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#endregion
 
+//#region inlineSuggest
+
+export interface IInlineSuggestOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline completions.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
+	constructor() {
+		const defaults: InternalInlineSuggestOptions = {
+			enabled: false
+		};
+
+		super(
+			EditorOption.inlineSuggest, 'inlineSuggest', defaults,
+			{
+				'editor.inlineSuggest.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineSuggestOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineSuggestOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+		};
+	}
+}
+
+//#endregion
+
 //#region suggest
 
 /**
@@ -3177,16 +3223,7 @@ export interface ISuggestOptions {
 	/**
 	 * Enable or disable the rendering of the suggestion preview.
 	 */
-	showSuggestionPreview?: boolean;
-	/**
-	 * Enable or disable the rendering of automatic inline completions.
-	*/
-	showInlineCompletions?: boolean;
-	/**
-	 * Enable or disable the default expansion of the ghost text as used
-	 * by the suggestion preview or the inline completions.
-	 */
-	ghostTextExpanded?: boolean;
+	preview?: boolean;
 	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
@@ -3318,9 +3355,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
-			showSuggestionPreview: false,
-			ghostTextExpanded: true,
-			showInlineCompletions: false,
+			preview: false,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
@@ -3394,20 +3429,10 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
-				'editor.suggest.showSuggestionPreview': {
+				'editor.suggest.preview': {
 					type: 'boolean',
-					default: defaults.showSuggestionPreview,
-					description: nls.localize('suggest.showSuggestionPreview', "Controls whether to preview the suggestion outcome in the editor.")
-				},
-				'editor.suggest.showInlineCompletions': {
-					type: 'boolean',
-					default: defaults.showInlineCompletions,
-					description: nls.localize('suggest.showInlineCompletions', "Controls whether to show inline completions in the editor.")
-				},
-				'editor.suggest.ghostTextExpanded': {
-					type: 'boolean',
-					default: defaults.ghostTextExpanded,
-					description: nls.localize('suggest.ghostTextExpanded', "Controls whether the ghost text that is used by the suggestion preview or the inline completions is expanted by default.")
+					default: defaults.preview,
+					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3584,9 +3609,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
-			showSuggestionPreview: boolean(input.showSuggestionPreview, this.defaultValue.showSuggestionPreview),
-			ghostTextExpanded: boolean(input.ghostTextExpanded, this.defaultValue.ghostTextExpanded),
-			showInlineCompletions: boolean(input.showInlineCompletions, this.defaultValue.showInlineCompletions),
+			preview: boolean(input.preview, this.defaultValue.preview),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
@@ -3834,6 +3857,7 @@ export const enum EditorOption {
 	highlightActiveIndentGuide,
 	hover,
 	inDiffEditor,
+	inlineSuggest,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -4452,6 +4476,7 @@ export const EditorOptions = {
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,
 	)),
 	suggest: register(new EditorSuggest()),
+	inlineSuggest: register(new InlineEditorSuggest()),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,

@@ -75,7 +75,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 
 	private isSuggestionPreviewEnabled(): boolean {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		return suggestOptions.showSuggestionPreview;
+		return suggestOptions.preview;
 	}
 
 	private updateFromSuggestion(): void {

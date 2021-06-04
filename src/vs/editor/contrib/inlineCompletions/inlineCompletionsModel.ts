@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -18,6 +18,9 @@ import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/ed
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -35,7 +38,13 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(commandService.onDidExecuteCommand(e => {
 			// These commands don't trigger onDidType.
-			const commands = new Set(['undo', 'redo', 'tab']);
+			const commands = new Set([
+				UndoCommand.id,
+				RedoCommand.id,
+				CoreEditingCommands.Tab.id,
+				CoreEditingCommands.DeleteLeft.id,
+				CoreEditingCommands.DeleteRight.id
+			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus()) {
 				this.handleUserInput();
 			}
@@ -90,8 +99,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		if (!suggestOptions.showInlineCompletions) {
+		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+		if (!suggestOptions.enabled) {
 			return;
 		}
 
@@ -120,6 +129,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public commitCurrentSuggestion(): void {
+		// Don't dispose the session, so that after committing, more suggestions are shown.
 		this.session?.commitCurrentCompletion();
 	}
 
@@ -339,15 +349,23 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: LiveInlineCompletion): void {
-		this.cache.clear();
+		// Mark the cache as stale, but don't dispose it yet,
+		// otherwise command args might get disposed.
+		const cache = this.cache.replace(undefined);
+
 		this.editor.executeEdits(
-			'inlineCompletions.accept',
+			'inlineSuggestion.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
 		if (completion.command) {
-			this.commandService.executeCommand(completion.command.id, ...(completion.command.arguments || [])).then(undefined, onUnexpectedExternalError);
+			this.commandService
+				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
+				.finally(() => {
+					cache?.dispose();
+				})
+				.then(undefined, onUnexpectedExternalError);
 		}
 
 		this.onDidChangeEmitter.fire();
