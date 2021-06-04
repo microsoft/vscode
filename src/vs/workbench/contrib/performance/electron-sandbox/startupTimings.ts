@@ -70,10 +70,10 @@ export class StartupTimings implements IWorkbenchContribution {
 			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`));
 			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
 		}).then(() => {
-			this._nativeHostService.exit();
+			this._nativeHostService.exit(0);
 		}).catch(err => {
 			console.error(err);
-			this._nativeHostService.exit();
+			this._nativeHostService.exit(0);
 		});
 	}
 
