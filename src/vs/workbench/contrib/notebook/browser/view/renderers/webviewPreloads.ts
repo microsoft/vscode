@@ -161,7 +161,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	const runRenderScript = async (url: string, rendererId: string): Promise<ScriptModule> => {
 		const text = await loadScriptSource(url);
 		// TODO: Support both the new module based renderers and the old style global renderers
-		const isModule = /\bexport\b.*\bactivate\b/.test(text);
+		const isModule = !text.includes('acquireNotebookRendererApi');
 		if (isModule) {
 			return __import(url);
 		} else {
