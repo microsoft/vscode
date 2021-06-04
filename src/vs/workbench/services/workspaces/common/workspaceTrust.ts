@@ -18,6 +18,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
@@ -160,8 +161,18 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private async getCanonicalUri(uri: URI): Promise<URI> {
-		return this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote ?
-			await this.remoteAuthorityResolverService.getCanonicalURI(uri) : uri;
+		if (this.environmentService.remoteAuthority && uri.scheme === Schemas.vscodeRemote) {
+			return this.remoteAuthorityResolverService.getCanonicalURI(uri);
+		}
+
+		if (uri.scheme === 'vscode-vfs') {
+			const index = uri.authority.indexOf(':');
+			if (index !== -1) {
+				return uri.with({ authority: uri.authority.substr(0, index) });
+			}
+		}
+
+		return uri;
 	}
 
 	private async resolveCanonicalWorkspaceUris(): Promise<void> {
@@ -288,6 +299,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		if (this.isTrustedVirtualResource(uri)) {
+			return { trusted: true, uri };
+		}
+
 		let resultState = false;
 		let maxLength = -1;
 
@@ -312,6 +327,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		for (const uri of uris) {
 			if (trusted) {
+				if (this.isTrustedVirtualResource(uri)) {
+					continue;
+				}
+
 				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
 				if (!foundItem) {
 					this._trustStateInfo.uriTrustInfo.push({ uri, trusted: true });
@@ -329,6 +348,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (changed) {
 			await this.saveTrustInfo();
 		}
+	}
+
+	private isTrustedVirtualResource(uri: URI): boolean {
+		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
 	}
 
 	//#endregion
@@ -363,6 +386,21 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return this._trustState.isTrusted ?? false;
 	}
 
+	isWorkspaceTrustForced(): boolean {
+		// Remote - remote authority explicitly sets workspace trust
+		if (this.environmentService.remoteAuthority && this._remoteAuthority && this._remoteAuthority.options?.isTrusted !== undefined) {
+			return true;
+		}
+
+		// All workspace uris are trusted automatically
+		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
+		if (workspaceUris.length === 0) {
+			return true;
+		}
+
+		return false;
+	}
+
 	canSetParentFolderTrust(): boolean {
 		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file;
@@ -386,6 +424,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return true;
+		}
+
+		// All workspace uris are trusted automatically
+		const workspaceUris = this.getWorkspaceUris().filter(uri => !this.isTrustedVirtualResource(uri));
+		if (workspaceUris.length === 0) {
+			return false;
 		}
 
 		// Untrusted workspace

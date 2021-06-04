@@ -616,7 +616,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getHeaderTitleText(trusted: boolean): string {
 		if (trusted) {
-			if (!this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
 				return localize('trustedUnsettableWindow', "This window is trusted");
 			}
 
@@ -921,10 +921,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-		if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
 			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
 		} else {
-			textElement.innerText = localize('trustedRemoteReason', "This window is trusted as specified by the remote connection.");
+			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
 		}
 	}
 
