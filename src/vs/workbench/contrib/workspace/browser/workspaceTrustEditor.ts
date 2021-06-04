@@ -616,6 +616,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getHeaderTitleText(trusted: boolean): string {
 		if (trusted) {
+			if (!this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+				return localize('trustedUnsettableWindow', "This window is trusted");
+			}
+
 			switch (this.workspaceService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
 					return localize('trustedHeaderWindow', "You trust this window");
@@ -917,7 +921,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-		textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+		if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+		} else {
+			textElement.innerText = localize('trustedRemoteReason', "This window is trusted as specified by the remote connection.");
+		}
 	}
 
 	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, subtitleText: string): void {
