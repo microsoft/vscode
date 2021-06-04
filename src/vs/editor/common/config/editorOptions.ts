@@ -3225,11 +3225,6 @@ export interface ISuggestOptions {
 	 */
 	preview?: boolean;
 	/**
-	 * Enable or disable the default expansion of the ghost text as used
-	 * by the suggestion preview or the inline completions.
-	 */
-	ghostTextExpanded?: boolean;
-	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3361,7 +3356,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: true,
 			showStatusBar: false,
 			preview: false,
-			ghostTextExpanded: true,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
@@ -3439,11 +3433,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: defaults.preview,
 					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
-				},
-				'editor.suggest.ghostTextExpanded': {
-					type: 'boolean',
-					default: defaults.ghostTextExpanded,
-					description: nls.localize('suggest.ghostTextExpanded', "Controls whether the ghost text that is used by the suggestion preview or the inline completions is expanted by default.")
 				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
@@ -3621,7 +3610,6 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
 			preview: boolean(input.preview, this.defaultValue.preview),
-			ghostTextExpanded: boolean(input.ghostTextExpanded, this.defaultValue.ghostTextExpanded),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),

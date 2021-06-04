@@ -3859,11 +3859,6 @@ declare namespace monaco.editor {
 		 */
 		preview?: boolean;
 		/**
-		 * Enable or disable the default expansion of the ghost text as used
-		 * by the suggestion preview or the inline completions.
-		 */
-		ghostTextExpanded?: boolean;
-		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
 		showInlineDetails?: boolean;

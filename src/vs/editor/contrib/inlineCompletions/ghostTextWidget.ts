@@ -52,7 +52,9 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 
 	public get expanded() {
 		if (this._expanded === undefined) {
-			return this.editor.getOption(EditorOption.suggest).ghostTextExpanded;
+			// TODO this should use a global hidden setting.
+			// See https://github.com/microsoft/vscode/issues/125037.
+			return true;
 		}
 		return this._expanded;
 	}
