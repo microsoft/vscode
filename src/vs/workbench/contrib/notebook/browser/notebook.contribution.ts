@@ -698,7 +698,7 @@ configurationRegistry.registerConfiguration({
 		[ConsolidatedRunButton]: {
 			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['notebookLayout']
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema
