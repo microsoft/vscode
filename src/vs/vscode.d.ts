@@ -11800,19 +11800,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A callback that is invoked by the editor whenever cell execution has been triggered.
-	 */
-	//todo@API inline?
-	export interface NotebookExecuteHandler {
-		/**
-		 * @param cells The notebook cells to execute.
-		 * @param notebook The notebook for which the execute handler is being called.
-		 * @param controller The controller that the handler is attached to
-		 */
-		(cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController): void | Thenable<void>
-	}
-
-	/**
 	 * Notebook controller affinity for notebook documents.
 	 *
 	 * @see {@link NotebookController.updateNotebookAffinity}
@@ -11913,7 +11900,7 @@ declare module 'vscode' {
 		 * The execute handler is invoked when the run gestures in the UI are selected, e.g Run Cell, Run All,
 		 * Run Selection etc. The execute handler is responsible for creating and managing {@link NotebookCellExecution execution}-objects.
 		 */
-		executeHandler: NotebookExecuteHandler;
+		executeHandler: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>;
 
 		/**
 		 * Optional interrupt handler.
@@ -12151,7 +12138,7 @@ declare module 'vscode' {
 		 * @param label The label of the controller.
 		 * @param handler The execute-handler of the controller.
 		 */
-		export function createNotebookController(id: string, notebookType: string, label: string, handler?: NotebookExecuteHandler): NotebookController;
+		export function createNotebookController(id: string, notebookType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>): NotebookController;
 
 		/**
 		 * Register a {@link NotebookCellStatusBarItemProvider cell statusbar item provider} for the given notebook type.
