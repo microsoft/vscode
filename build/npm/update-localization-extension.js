@@ -48,12 +48,19 @@ function update(options) {
 		}
 		let languageId = localization.languageId;
 		let translationDataFolder = path.join(locExtFolder, 'translations');
-		if (languageId === "zh-cn") {
-			languageId = "zh-Hans";
+
+		switch (languageId) {
+			case 'zh-cn':
+				languageId = 'zh-Hans';
+				break;
+			case 'zh-tw':
+				languageId = 'zh-Hant';
+				break;
+			case 'pt-br':
+				languageId = 'pt-BR';
+				break;
 		}
-		if (languageId === "zh-tw") {
-			languageId = "zh-Hant";
-		}
+
 		if (fs.existsSync(translationDataFolder) && fs.existsSync(path.join(translationDataFolder, 'main.i18n.json'))) {
 			console.log('Clearing  \'' + translationDataFolder + '\'...');
 			rimraf.sync(translationDataFolder);
