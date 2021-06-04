@@ -91,8 +91,6 @@ export class TerminalService implements ITerminalService {
 		return this._terminalInstances;
 	}
 
-	private _messageShown: boolean = false;
-
 	private readonly _onActiveGroupChanged = new Emitter<void>();
 	get onActiveGroupChanged(): Event<void> { return this._onActiveGroupChanged.event; }
 	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
@@ -1077,14 +1075,12 @@ export class TerminalService implements ITerminalService {
 
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
 		const instance = this._instantiationService.createInstance(TerminalInstance,
-			this._messageShown,
 			this._terminalFocusContextKey,
 			this._terminalShellTypeContextKey,
 			this._terminalAltBufferActiveContextKey,
 			this._configHelper,
 			shellLaunchConfig
 		);
-		this._messageShown = true;
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
