@@ -141,7 +141,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this.remoteAuthorityResolverService.resolveAuthority(this.environmentService.remoteAuthority)
 				.then(async result => {
 					this._remoteAuthority = result;
-					await this.updateWorkspaceTrust();
+
+					// Update workspace trust based on resolver
+					if (this._remoteAuthority?.options?.isTrusted !== undefined) {
+						await this.updateWorkspaceTrust(true);
+					}
 
 					this._workspaceTrustInitializedPromiseResolve();
 				});
@@ -231,32 +235,23 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private calculateWorkspaceTrust(): boolean {
+		// Feature is disabled
 		if (!this.workspaceTrustEnabled) {
 			return true;
 		}
 
-		// Empty workspace - set explicitly thourgh memento/setting
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			if (this._trustState.isTrusted || this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW)) {
-				return true;
-			}
-		}
-
-		if (!this._initialized) {
-			return false;
-		}
-
-		// Remote - set explicitly through the resolver
-		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
-			return this._remoteAuthority.options.isTrusted;
-		}
-
+		// Running tests with vscode-test
 		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
+			return true;
 		}
 
-		// Empty workspace - not set explicitly through memento/setting/resolver
+		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			return this._trustState.isTrusted || this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW);
+		}
+
+		// Pending initialization
+		if (!this._initialized) {
 			return false;
 		}
 
