@@ -86,10 +86,35 @@ export interface IOutline<E> {
 	dispose(): void;
 }
 
-
 export const enum OutlineConfigKeys {
 	'icons' = 'outline.icons',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
-	'problemsBadges' = 'outline.problems.badges'
+	'problemsBadges' = 'outline.problems.badges',
+	'showFiles' = 'outline.showFiles',
+	'showModules' = 'outline.showModules',
+	'showNamespaces' = 'outline.showNamespaces',
+	'showPackages' = 'outline.showPackages',
+	'showClasses' = 'outline.showClasses',
+	'showMethods' = 'outline.showMethods',
+	'showProperties' = 'outline.showProperties',
+	'showFields' = 'outline.showFields',
+	'showConstructors' = 'outline.showConstructors',
+	'showEnums' = 'outline.showEnums',
+	'showInterfaces' = 'outline.showInterfaces',
+	'showFunctions' = 'outline.showFunctions',
+	'showVariables' = 'outline.showVariables',
+	'showConstants' = 'outline.showConstants',
+	'showStrings' = 'outline.showStrings',
+	'showNumbers' = 'outline.showNumbers',
+	'showBooleans' = 'outline.showBooleans',
+	'showArrays' = 'outline.showArrays',
+	'showObjects' = 'outline.showObjects',
+	'showKeys' = 'outline.showKeys',
+	'showNull' = 'outline.showNull',
+	'showEnumMembers' = 'outline.showEnumMembers',
+	'showStructs' = 'outline.showStructs',
+	'showEvents' = 'outline.showEvents',
+	'showOperators' = 'outline.showOperators',
+	'showTypeParameters' = 'outline.showTypeParameters'
 }
