@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuId, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { OutlinePane } from 'vs/workbench/contrib/outline/browser/outlinePane';
 import { OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
@@ -671,6 +673,68 @@ class ToggleShowTypeParameters extends ViewAction<OutlinePane> {
 		return configurationService.updateValue(OutlineConfigKeys.showTypeParameters, !show);
 	}
 }
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'toggleShowFunctionsList',
+	weight: KeybindingWeight.WorkbenchContrib,
+	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_F,
+	handler(accessor: ServicesAccessor) {
+		const configurationService = accessor.get(IConfigurationService);
+
+		const show = !(
+			configurationService.getValue<boolean>(OutlineConfigKeys.showFiles) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showModules) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showNamespaces) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showPackages) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showProperties) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showFields) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showEnums) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showVariables) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showConstants) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showStrings) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showNumbers) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showBooleans) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showArrays) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showObjects) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showKeys) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showNull) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showEnumMembers) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showStructs) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showEvents) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showOperators) ||
+			configurationService.getValue<boolean>(OutlineConfigKeys.showTypeParameters)
+		);
+
+		return Promise.all([
+			configurationService.updateValue(OutlineConfigKeys.showFiles, show),
+			configurationService.updateValue(OutlineConfigKeys.showModules, show),
+			configurationService.updateValue(OutlineConfigKeys.showNamespaces, show),
+			configurationService.updateValue(OutlineConfigKeys.showPackages, show),
+			configurationService.updateValue(OutlineConfigKeys.showClasses, true),
+			configurationService.updateValue(OutlineConfigKeys.showMethods, true),
+			configurationService.updateValue(OutlineConfigKeys.showProperties, show),
+			configurationService.updateValue(OutlineConfigKeys.showFields, show),
+			configurationService.updateValue(OutlineConfigKeys.showConstructors, true),
+			configurationService.updateValue(OutlineConfigKeys.showEnums, show),
+			configurationService.updateValue(OutlineConfigKeys.showInterfaces, true),
+			configurationService.updateValue(OutlineConfigKeys.showFunctions, true),
+			configurationService.updateValue(OutlineConfigKeys.showVariables, show),
+			configurationService.updateValue(OutlineConfigKeys.showConstants, show),
+			configurationService.updateValue(OutlineConfigKeys.showStrings, show),
+			configurationService.updateValue(OutlineConfigKeys.showNumbers, show),
+			configurationService.updateValue(OutlineConfigKeys.showBooleans, show),
+			configurationService.updateValue(OutlineConfigKeys.showArrays, show),
+			configurationService.updateValue(OutlineConfigKeys.showObjects, show),
+			configurationService.updateValue(OutlineConfigKeys.showKeys, show),
+			configurationService.updateValue(OutlineConfigKeys.showNull, show),
+			configurationService.updateValue(OutlineConfigKeys.showEnumMembers, show),
+			configurationService.updateValue(OutlineConfigKeys.showStructs, show),
+			configurationService.updateValue(OutlineConfigKeys.showEvents, show),
+			configurationService.updateValue(OutlineConfigKeys.showOperators, show),
+			configurationService.updateValue(OutlineConfigKeys.showTypeParameters, show)
+		]);
+	}
+});
 
 // --- Actions Registration
 
