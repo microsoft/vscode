@@ -1535,7 +1535,7 @@ declare module 'vscode' {
 
 	export namespace notebooks {
 
-		export function createNotebookController(id: string, viewType: string, label: string, handler?: NotebookExecuteHandler, rendererScripts?: NotebookRendererScript[]): NotebookController;
+		export function createNotebookController(id: string, viewType: string, label: string, handler?: (cells: NotebookCell[], notebook: NotebookDocument, controller: NotebookController) => void | Thenable<void>, rendererScripts?: NotebookRendererScript[]): NotebookController;
 
 		/**
 		 * Creates a new messaging instance used to communicate with a specific

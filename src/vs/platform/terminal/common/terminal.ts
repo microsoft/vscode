@@ -184,7 +184,7 @@ export interface IOffProcessTerminalService {
 	attachToProcess(id: number): Promise<ITerminalChildProcess | undefined>;
 	listProcesses(): Promise<IProcessDetails[]>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getWslPath(original: string): Promise<string>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined>;
@@ -258,7 +258,7 @@ export interface IPtyService {
 	updateTitle(id: number, title: string, titleSource: TitleEventSource): Promise<void>;
 	updateIcon(id: number, icon: TerminalIcon, color?: string): Promise<void>;
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string>;
-	getProfiles?(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
+	getProfiles?(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]>;
 	getEnvironment(): Promise<IProcessEnvironment>;
 	getWslPath(original: string): Promise<string>;
 	setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void>;

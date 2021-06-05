@@ -71,6 +71,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
+	isWorkspaceTrustForced(): boolean {
+		return false;
+	}
+
 	get workspaceTrustEnabled(): boolean {
 		return this.enabled;
 	}

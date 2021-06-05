@@ -429,7 +429,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	public async updateEnablementByWorkspaceTrustRequirement(): Promise<void> {
 		const installedExtensions = await this.extensionManagementService.getInstalled();
-		const disabledExtensions = installedExtensions.filter(e => this.isEnabled(e) && this.isDisabledByWorkspaceTrust(e));
+		const disabledExtensions = installedExtensions.filter(e => this.isDisabledByWorkspaceTrust(e));
 
 		if (disabledExtensions.length) {
 			this._onEnablementChanged.fire(disabledExtensions);
