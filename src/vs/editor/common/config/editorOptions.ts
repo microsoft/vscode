@@ -2471,12 +2471,13 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 
 //#region lineHeight
 
-class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
+class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 
 	constructor() {
 		super(
 			EditorOption.lineHeight, 'lineHeight',
-			EDITOR_FONT_DEFAULTS.lineHeight, 0, 150,
+			EDITOR_FONT_DEFAULTS.lineHeight,
+			x => EditorFloatOption.clamp(x, 0, 150),
 			{ description: nls.localize('lineHeight', "Controls the line height. Use 0 to compute the line height from the font size.") }
 		);
 	}
