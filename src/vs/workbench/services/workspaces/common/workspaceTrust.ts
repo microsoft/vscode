@@ -235,6 +235,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			// Use memento if present, otherwise default to restricted mode
+			// Workspace may transition to trusted based on the opened editors
+			return this._trustState.isTrusted ?? false;
+		}
+
 		if (!this._initialized) {
 			return false;
 		}
@@ -246,12 +252,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (this.environmentService.extensionTestsLocationURI) {
 			return true; // trust running tests with vscode-test
-		}
-
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			// Use memento if present, otherwise default to restricted mode
-			// Workspace may transition to trusted based on the opened editors
-			return this._trustState.isTrusted ?? false;
 		}
 
 		return this.getUrisTrust(this.getWorkspaceUris());
@@ -741,6 +741,7 @@ class WorkspaceTrustState {
 	}
 
 	set isTrusted(value: boolean | undefined) {
+		console.log('SET: ' + value);
 		this._mementoObject[this._isTrustedKey] = value;
 		if (!value) {
 			this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
