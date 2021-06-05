@@ -907,7 +907,7 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 
 export interface INotebookKernelDto2 {
 	id: string;
-	viewType: string;
+	notebookType: string;
 	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
@@ -915,7 +915,7 @@ export interface INotebookKernelDto2 {
 	description?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
-	hasExecutionOrder?: boolean;
+	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 

@@ -555,6 +555,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 	}
 
+	get hasTaskSystemInfo(): boolean {
+		return this._taskSystemInfos.size > 0;
+	}
+
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
 		if (!this._taskSystemInfos.has(key) || info.platform !== Platform.Platform.Web) {
 			this._taskSystemInfos.set(key, info);

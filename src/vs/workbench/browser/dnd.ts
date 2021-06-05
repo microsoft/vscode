@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { hasWorkspaceFileExtension, IWorkspaceFolderCreationData, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { normalize } from 'vs/base/common/path';
 import { basename, isEqual } from 'vs/base/common/resources';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowOpenable } from 'vs/platform/windows/common/windows';
@@ -14,7 +13,6 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -30,6 +28,7 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Emitter } from 'vs/base/common/event';
 import { coalesce } from 'vs/base/common/arrays';
 import { parse, stringify } from 'vs/base/common/marshalling';
+import { ILabelService } from 'vs/platform/label/common/label';
 
 //#region Editor / Resources DND
 
@@ -175,7 +174,7 @@ export class ResourcesDropHandler {
 				pinned: true,
 				index: targetIndex
 			}
-		})), targetGroup);
+		})), targetGroup, { validateTrust: true });
 
 		// Finish with provided function
 		afterDrop(targetGroup);
@@ -244,9 +243,11 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const textFileService = accessor.get(ITextFileService);
 	const editorService = accessor.get(IEditorService);
 	const fileService = accessor.get(IFileService);
+	const labelService = accessor.get(ILabelService);
 
-	// Extract resources from URIs or Editors
-	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	// Extract resources from URIs or Editors that
+	// can be handled by the file service
+	const fileSystemResources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -260,16 +261,14 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 
 		return resourceOrEditor;
-	}));
+	})).filter(({ resource }) => fileService.canHandleResource(resource));
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, resources.map(({ resource }) => resource.scheme === Schemas.file ?
-		normalize(normalizeDriveLetter(resource.fsPath)) :
-		resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
-	const firstFile = resources.find(({ isDirectory }) => !isDirectory);
+	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
 	if (firstFile) {
 		// TODO@sandbox this will no longer work when `vscode-file`
 		// is enabled because we block loading resources that are not
@@ -277,8 +276,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
 	}
 
-	// Resource URLs: allows to drop multiple resources to a target in VS Code (not directories)
-	const files = resources.filter(({ resource, isDirectory }) => !isDirectory && fileService.canHandleResource(resource));
+	// Resource URLs: allows to drop multiple file resources to a target in VS Code
+	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
 	if (files.length) {
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}

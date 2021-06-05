@@ -133,6 +133,8 @@ export interface IGettingStartedService {
 
 	getCategories(): IGettingStartedCategoryWithProgress[]
 
+	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void;
+
 	progressByEvent(eventName: string): void;
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
@@ -210,7 +212,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		this._register(this.extensionManagementService.onDidInstallExtension(async e => {
 			if (await this.hostService.hadLastFocus()) {
-				this.sessionInstalledExtensions.add(e.identifier.id);
+				this.sessionInstalledExtensions.add(e.identifier.id.toLowerCase());
 			}
 			this.progressByEvent(`extensionInstalled:${e.identifier.id.toLowerCase()}`);
 		}));
@@ -395,7 +397,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 
 		let sectionToOpen: string | undefined;
-		let sectionToOpenIndex = Math.max();
+		let sectionToOpenIndex = Math.min(); // '+Infinity';
 		await Promise.all(extension.contributes?.walkthroughs?.map(async (walkthrough, index) => {
 			const categoryID = extension.identifier.value + '#' + walkthrough.id;
 
@@ -405,10 +407,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			]);
 
 			if (
-				this.sessionInstalledExtensions.has(extension.identifier.value)
+				this.sessionInstalledExtensions.has(extension.identifier.value.toLowerCase())
 				&& this.contextService.contextMatchesRules(ContextKeyExpr.deserialize(override ?? walkthrough.when) ?? ContextKeyExpr.true())
 			) {
-				this.sessionInstalledExtensions.delete(extension.identifier.value);
+				this.sessionInstalledExtensions.delete(extension.identifier.value.toLowerCase());
 				if (index < sectionToOpenIndex) {
 					sectionToOpen = categoryID;
 					sectionToOpenIndex = index;
@@ -536,7 +538,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 								if (href.startsWith('command:')) {
 									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
 								}
-								if (href.startsWith('https://')) {
+								if (href.startsWith('https://') || href.startsWith('http://')) {
 									return 'onLink:' + href;
 								}
 								return undefined;
@@ -684,7 +686,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidAddCategory.fire();
 	}
 
-	private registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
+	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
 			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);
@@ -704,7 +706,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this._onDidAddCategory.fire();
 		}
 
-		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id}.when`).then(override => {
+		this.tasExperimentService?.getTreatment<string>(`gettingStarted.overrideCategory.${categoryDescriptor.id.replace('#', '.')}.when`).then(override => {
 			if (override) {
 				const old = category.when;
 				const gnu = ContextKeyExpr.deserialize(override) ?? old;

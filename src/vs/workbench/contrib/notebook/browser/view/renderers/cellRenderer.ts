@@ -101,7 +101,7 @@ abstract class AbstractCellRenderer {
 		language: string,
 		protected dndController: CellDragAndDropController | undefined
 	) {
-		this.editorOptions = new CellEditorOptions(notebookEditor.notebookOptions, configurationService, language);
+		this.editorOptions = new CellEditorOptions(notebookEditor, notebookEditor.notebookOptions, configurationService, language);
 		this.cellMenus = this.instantiationService.createInstance(CellMenus);
 	}
 
@@ -173,7 +173,7 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[] } {
+	protected getCellToolbarActions(menu: IMenu): { primary: IAction[], secondary: IAction[]; } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
@@ -285,7 +285,7 @@ abstract class AbstractCellRenderer {
 		}));
 	}
 
-	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement } {
+	protected setupCollapsedPart(container: HTMLElement): { collapsedPart: HTMLElement, expandButton: HTMLElement; } {
 		const collapsedPart = DOM.append(container, $('.cell.cell-collapsed-part', undefined, $('span.expandButton' + ThemeIcon.asCSSSelector(unfoldIcon))));
 		const expandButton = collapsedPart.querySelector('.expandButton') as HTMLElement;
 		const keybinding = this.keybindingService.lookupKeybinding(EXPAND_CELL_INPUT_COMMAND_ID);
@@ -311,7 +311,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		dndController: CellDragAndDropController,
 		private renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
-		options: { useRenderer: boolean },
+		options: { useRenderer: boolean; },
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -477,7 +477,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		}));
 
 		this.updateForHover(element, templateData);
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.notebookOptions, this.configurationService, 'markdown');
+		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, 'markdown');
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(cellEditorOptions);
 
@@ -510,9 +510,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		this.setBetweenCellToolbarContext(templateData, element, toolbarContext);
 
 		const scopedInstaService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
-		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, this.editorOptions.value, this.renderedEditors, { useRenderer: templateData.useRenderer });
+		const markdownCell = scopedInstaService.createInstance(StatefulMarkdownCell, this.notebookEditor, element, templateData, cellEditorOptions.getValue(element.internalMetadata), this.renderedEditors, { useRenderer: templateData.useRenderer });
 		elementDisposables.add(markdownCell);
-		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(newValue)));
+		elementDisposables.add(cellEditorOptions.onDidChange(newValue => markdownCell.updateEditorOptions(cellEditorOptions.getValue(element.internalMetadata))));
 
 		templateData.statusBar.update(toolbarContext);
 	}
@@ -523,7 +523,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 		templateData.focusIndicatorRight.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
 
-		templateData.container.classList.toggle('cell-statusbar-hidden', element.getEditorStatusbarHeight() === 0);
+		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 	}
 
 	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
@@ -713,7 +713,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		EditorContextKeys.inCompositeEditor.bindTo(editorContextKeyService).set(true);
 
 		const editor = editorInstaService.createInstance(CodeEditorWidget, editorContainer, {
-			...this.editorOptions.value,
+			...this.editorOptions.getValue(),
 			dimension: {
 				width: 0,
 				height: 0
@@ -941,7 +941,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.outputShowMoreContainer.style.top = `${element.layoutInfo.outputShowMoreContainerOffset}px`;
 		templateData.dragHandle.style.height = `${element.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap}px`;
 
-		templateData.container.classList.toggle('cell-statusbar-hidden', element.getEditorStatusbarHeight() === 0);
+		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 	}
 
 	renderElement(element: CodeCellViewModel, index: number, templateData: CodeCellRenderTemplate, height: number | undefined): void {
@@ -992,13 +992,14 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		generateCellTopDecorations();
 
-		elementDisposables.add(this.instantiationService.createInstance(CodeCell, this.notebookEditor, element, templateData));
+		const child = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, templateData.contextKeyService]));
+		elementDisposables.add(child.createInstance(CodeCell, this.notebookEditor, element, templateData));
 		this.renderedEditors.set(element, templateData.editor);
 
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor.notebookOptions, this.configurationService, element.language);
+		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
 		elementDisposables.add(cellEditorOptions);
-		elementDisposables.add(cellEditorOptions.onDidChange(newValue => templateData.editor.updateOptions(newValue)));
-		templateData.editor.updateOptions(cellEditorOptions.value);
+		elementDisposables.add(cellEditorOptions.onDidChange(() => templateData.editor.updateOptions(cellEditorOptions.getValue(element.internalMetadata))));
+		templateData.editor.updateOptions(cellEditorOptions.getValue(element.internalMetadata));
 
 		elementDisposables.add(new CellContextKeyManager(templateData.contextKeyService, this.notebookEditor, element));
 
@@ -1246,7 +1247,7 @@ export class ListTopCellToolbar extends Disposable {
 		}
 	}
 
-	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[] } {
+	private getCellToolbarActions(menu: IMenu, alwaysFillSecondaryActions: boolean): { primary: IAction[], secondary: IAction[]; } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };

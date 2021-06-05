@@ -40,7 +40,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		}
 	}
 
-	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
+	replaceMetadata(value: { [key: string]: any }): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
@@ -48,7 +48,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.Metadata,

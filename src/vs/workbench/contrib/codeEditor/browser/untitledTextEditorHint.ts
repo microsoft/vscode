@@ -21,7 +21,7 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 
 const $ = dom.$;
 
-const untitledTextEditorHintSetting = 'workbench.editor.untitledText.hint';
+const untitledTextEditorHintSetting = 'workbench.editor.untitled.hint';
 export class UntitledTextEditorHintContribution implements IEditorContribution {
 
 	public static readonly ID = 'editor.contrib.untitledTextEditorHint';

@@ -59,7 +59,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import * as Constants from 'vs/workbench/contrib/logs/common/logConstants';
 import { infoIcon, manageExtensionIcon, syncEnabledIcon, syncIgnoredIcon, trustIcon, warningIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { isWeb } from 'vs/base/common/platform';
-import { isWorkspaceTrustEnabled } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
@@ -2091,9 +2090,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2174,7 +2172,7 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		}
 
 		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
-		if (isWorkspaceTrustEnabled(this.configurationService) && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustService.workspaceTrustEnabled && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
 			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
 			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;

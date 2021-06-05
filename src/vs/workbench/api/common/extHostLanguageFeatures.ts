@@ -19,7 +19,7 @@ import { regExpLeadsToEndlessLoop, regExpFlags } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty, isNonEmptyArray, coalesce, asArray } from 'vs/base/common/arrays';
-import { isObject } from 'vs/base/common/types';
+import { isArray, isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -1066,13 +1066,14 @@ class InlineCompletionAdapter {
 			return undefined;
 		}
 
-		const pid = this._cache.add(result.items);
+		const normalizedResult: vscode.InlineCompletionList = isArray(result) ? { items: result } : result;
 
+		const pid = this._cache.add(normalizedResult.items);
 		let disposableStore: DisposableStore | undefined = undefined;
 
 		return {
 			pid,
-			items: result.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
+			items: normalizedResult.items.map<extHostProtocol.IdentifiableInlineCompletion>((item, idx) => {
 				let command: modes.Command | undefined = undefined;
 				if (item.command) {
 					if (!disposableStore) {

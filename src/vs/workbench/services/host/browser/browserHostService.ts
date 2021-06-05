@@ -292,7 +292,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window

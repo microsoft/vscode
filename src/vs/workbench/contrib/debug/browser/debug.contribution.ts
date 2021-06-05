@@ -50,6 +50,7 @@ import { registerColors } from 'vs/workbench/contrib/debug/browser/debugColors';
 import { DebugEditorContribution } from 'vs/workbench/contrib/debug/browser/debugEditorContribution';
 import { FileAccess } from 'vs/base/common/network';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -177,6 +178,17 @@ if (isMacintosh) {
 }
 
 // Debug menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarDebugMenu,
+	title: {
+		value: 'Run',
+		original: 'Run',
+		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+	},
+	when: ContextKeyExpr.or(CONTEXT_DEBUGGERS_AVAILABLE, IsWebContext.toNegated()),
+	order: 6
+});
 
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',

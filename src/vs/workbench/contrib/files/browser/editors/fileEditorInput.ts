@@ -45,8 +45,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-				capabilities |= EditorInputCapabilities.Readonly;
+			if (this.fileService.canHandleResource(this.resource)) {
+				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+					capabilities |= EditorInputCapabilities.Readonly;
+				}
+			} else {
+				capabilities |= EditorInputCapabilities.Untitled;
 			}
 		}
 

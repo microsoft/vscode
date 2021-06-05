@@ -40,6 +40,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.UpArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 13
 				}
 			});
 	}
@@ -60,6 +66,12 @@ registerAction2(class extends NotebookCellAction {
 					primary: KeyMod.Alt | KeyCode.DownArrow,
 					when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, InputFocusedContext.toNegated()),
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				menu: {
+					id: MenuId.NotebookCellTitle,
+					when: ContextKeyExpr.equals('config.notebook.dragAndDropEnabled', false),
+					group: CellOverflowToolbarGroups.Edit,
+					order: 14
 				}
 			});
 	}

@@ -226,8 +226,8 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 		return this._remoteTerminalChannel?.getDefaultSystemShell(osOverride) || '';
 	}
 
-	async getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		return this._remoteTerminalChannel?.getProfiles(includeDetectedProfiles) || [];
+	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		return this._remoteTerminalChannel?.getProfiles(profiles, defaultProfile, includeDetectedProfiles) || [];
 	}
 
 	async getEnvironment(): Promise<IProcessEnvironment> {

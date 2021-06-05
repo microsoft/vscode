@@ -859,18 +859,12 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		@IThemeService private readonly themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IHoverService private readonly hoverService: IHoverService,
-		@IOpenerService openerService: IOpenerService
+		@IHoverService private readonly hoverService: IHoverService
 	) {
 		super();
 		this._hoverDelegate = {
 			showHover: (options: IHoverDelegateOptions): IDisposable | undefined => {
-				return this.hoverService.showHover({
-					...options,
-					linkHandler: (url: string) => {
-						return openerService.open(url, { allowCommands: (!isString(options.text) && options.text.isTrusted) });
-					}
-				});
+				return this.hoverService.showHover(options);
 			},
 			delay: <number>this.configurationService.getValue('workbench.hover.delay')
 		};

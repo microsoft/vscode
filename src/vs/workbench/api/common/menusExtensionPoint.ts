@@ -23,6 +23,7 @@ interface IAPIMenu {
 	readonly description: string;
 	readonly proposed?: boolean; // defaults to false
 	readonly supportsSubmenus?: boolean; // defaults to true
+	readonly deprecationMessage?: string;
 }
 
 const apiMenus: IAPIMenu[] = [
@@ -136,7 +137,8 @@ const apiMenus: IAPIMenu[] = [
 		id: MenuId.StatusBarWindowIndicatorMenu,
 		description: localize('menus.statusBarWindowIndicator', "The window indicator menu in the status bar"),
 		proposed: true,
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		deprecationMessage: localize('menus.statusBarWindowIndicator.deprecated', "Use menu 'statusBar/remoteIndicator' instead."),
 	},
 	{
 		key: 'statusBar/remoteIndicator',
@@ -234,7 +236,8 @@ const apiMenus: IAPIMenu[] = [
 		key: 'editor/inlineCompletions/actions',
 		id: MenuId.InlineCompletionsActions,
 		description: localize('inlineCompletions.actions', "The actions shown when hovering on an inline completion"),
-		supportsSubmenus: false
+		supportsSubmenus: false,
+		proposed: true
 	},
 ];
 
@@ -423,6 +426,7 @@ namespace schema {
 		type: 'object',
 		properties: index(apiMenus, menu => menu.key, menu => ({
 			description: menu.proposed ? `(${localize('proposed', "Proposed API")}) ${menu.description}` : menu.description,
+			deprecationMessage: menu.deprecationMessage,
 			type: 'array',
 			items: menu.supportsSubmenus === false ? menuItem : { oneOf: [menuItem, submenuItem] }
 		})),

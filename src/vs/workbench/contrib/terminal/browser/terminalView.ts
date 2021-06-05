@@ -392,6 +392,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			contextKeyService,
 			commandService
 		), keybindingService, notificationService);
+
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
@@ -406,6 +407,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 		}));
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		this._openContextMenu();
 	}
 
 	override updateLabel(): void {
