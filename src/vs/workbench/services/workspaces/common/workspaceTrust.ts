@@ -247,6 +247,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Empty workspace
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			// Use memento if present, otherwise use the user setting
+			// Workspace may transition to trusted based on the opened editors
 			return this._trustState.isTrusted || this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW);
 		}
 
