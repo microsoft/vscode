@@ -246,7 +246,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return false;
 		}
 
-		// Remote - remote authority explicitly sets workspace trust
+		// Remote - set explicitly through the resolver
 		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
 			return this._remoteAuthority.options.isTrusted;
 		}
@@ -255,7 +255,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true; // trust running tests with vscode-test
 		}
 
-		// Empty workspace - not overwritten by the remote authority
+		// Empty workspace - not set explicitly through memento/setting/resolver
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			return false;
 		}
