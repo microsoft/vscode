@@ -146,11 +146,24 @@ export class BrowserWindow extends Disposable {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
 					const opened = windowOpenNoOpenerWithSuccess(href);
 					if (!opened) {
-						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-							[localize('open', "Open"), localize('learnMore', "Learn More"), localize('cancel', "Cancel")], { cancelId: 2, detail: href });
+						const showResult = await this.dialogService.show(
+							Severity.Warning,
+							localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+							[
+								localize('open', "Open"),
+								localize('learnMore', "Learn More"),
+								localize('cancel', "Cancel")
+							],
+							{
+								cancelId: 2,
+								detail: href
+							}
+						);
+
 						if (showResult.choice === 0) {
 							windowOpenNoOpener(href);
 						}
+
 						if (showResult.choice === 1) {
 							await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
 						}
@@ -165,13 +178,13 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private registerLabelFormatters() {
-		this.labelService.registerFormatter({
+		this._register(this.labelService.registerFormatter({
 			scheme: Schemas.userData,
 			priority: true,
 			formatting: {
 				label: '(Settings) ${path}',
 				separator: '/',
 			}
-		});
+		}));
 	}
 }
