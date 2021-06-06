@@ -247,7 +247,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 					scheme: entry.scheme,
 					authority: entry.authority,
 					path: decodeURIComponent(entry.path), // This gets re-encoded
-					query: entry.query,
+					query: decodeURIComponent(entry.query),
 				});
 				this.loadResource(entry.id, uri, entry.ifNoneMatch);
 			} catch (e) {
