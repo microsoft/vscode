@@ -182,7 +182,6 @@ export class ExtensionEditor extends EditorPane {
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private readonly keybindingLabelStylers = this.contentDisposables.add(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
@@ -1278,12 +1277,11 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
-		this.keybindingLabelStylers.clear();
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
 			const kbl = new KeybindingLabel(element, OS);
 			kbl.set(keybinding);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(kbl, this.themeService));
+			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 
