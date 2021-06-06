@@ -159,6 +159,9 @@ export class ActiveGhostTextController extends Disposable {
 
 		this._register(this.suggestWidgetAdapterModel.onDidChange(() => {
 			this.updateModel();
+			// When the suggest widget becomes inactive and an inline completion
+			// becomes visible, we need to update the context keys.
+			this.updateContextKeys();
 		}));
 		this.updateModel();
 

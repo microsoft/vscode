@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -20,10 +21,21 @@ import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
 export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	private isSuggestWidgetVisible: boolean = false;
 	private currentGhostText: GhostText | undefined = undefined;
+	private _isActive: boolean = false;
 
 	public override minReservedLineCount: number = 0;
 
-	public get isActive() { return this.isSuggestWidgetVisible; }
+	public get isActive() { return this._isActive; }
+
+	// This delay fixes an suggest widget issue when typing "." immediately restarts the suggestion session.
+	private setInactiveDelayed = this._register(new RunOnceScheduler(() => {
+		if (!this.isSuggestWidgetVisible) {
+			if (this.isActive) {
+				this._isActive = false;
+				this.onDidChangeEmitter.fire();
+			}
+		}
+	}, 100));
 
 	constructor(
 		editor: IActiveCodeEditor
@@ -41,15 +53,18 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 
 				this._register(suggestController.widget.value.onDidShow(() => {
 					this.isSuggestWidgetVisible = true;
+					this._isActive = true;
 					this.updateFromSuggestion();
 				}));
 				this._register(suggestController.widget.value.onDidHide(() => {
 					this.isSuggestWidgetVisible = false;
+					this.setInactiveDelayed.schedule();
 					this.minReservedLineCount = 0;
 					this.updateFromSuggestion();
 				}));
 				this._register(suggestController.widget.value.onDidFocus(() => {
 					this.isSuggestWidgetVisible = true;
+					this._isActive = true;
 					this.updateFromSuggestion();
 				}));
 			};

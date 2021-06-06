@@ -148,7 +148,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
+	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 200));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
@@ -294,6 +294,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
+		// Since updateSoon debounces, starvation can happen.
+		// To prevent stale cache, we clear the current update operation.
+		this.updateOperation.clear();
 		this.updateSoon.schedule();
 	}
 
@@ -366,6 +369,8 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 					cache?.dispose();
 				})
 				.then(undefined, onUnexpectedExternalError);
+		} else {
+			cache?.dispose();
 		}
 
 		this.onDidChangeEmitter.fire();
@@ -475,15 +480,20 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
 	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
 
+	const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(inlineCompletion.range.startLineNumber);
+
 	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
 		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
-	} else {
+	} else if (firstNonWsCol === 0 || inlineCompletion.range.startColumn < firstNonWsCol) {
+		// Only allow ignoring leading whitespace in indentation.
 		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
 		const insertTextTrimmed = leftTrim(inlineCompletion.text);
 		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
 			return undefined;
 		}
 		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
+	} else {
+		return undefined;
 	}
 
 	const position = inlineCompletion.range.getEndPosition();
