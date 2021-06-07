@@ -170,34 +170,41 @@
 		return nlsConfig;
 	}
 
-	function safeGlobals() {
+	/**
+	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
+	 */
+	function safeSandboxGlobals() {
 		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 		return globals.vscode;
 	}
 
 	/**
-	 * @returns {NodeJS.Process | undefined}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
 	 */
 	function safeProcess() {
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.process; // Native environment (sandboxed)
+		}
+
 		if (typeof process !== 'undefined') {
 			return process; // Native environment (non-sandboxed)
 		}
 
-		const globals = safeGlobals();
-		if (globals) {
-			return globals.process; // Native environment (sandboxed)
-		}
+		return undefined;
 	}
 
 	/**
-	 * @returns {Electron.IpcRenderer | undefined}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
 	 */
 	function safeIpcRenderer() {
-		const globals = safeGlobals();
-		if (globals) {
-			return globals.ipcRenderer;
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.ipcRenderer;
 		}
+
+		return undefined;
 	}
 
 	/**
@@ -236,7 +243,7 @@
 	}
 
 	//#endregion
-	
+
 
 	//#region ApplicationInsights
 

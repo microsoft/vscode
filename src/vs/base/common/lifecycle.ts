@@ -68,7 +68,7 @@ export class MultiDisposeError extends Error {
 	constructor(
 		public readonly errors: any[]
 	) {
-		super(`Encounter errors while disposing of store. Errors: [${errors.join(', ')}]`);
+		super(`Encountered errors while disposing of store. Errors: [${errors.join(', ')}]`);
 	}
 }
 
@@ -231,9 +231,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 			return;
 		}
 
-		if (this._value) {
-			this._value.dispose();
-		}
+		this._value?.dispose();
 		if (value) {
 			markTracked(value);
 		}
@@ -247,9 +245,7 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	dispose(): void {
 		this._isDisposed = true;
 		markTracked(this);
-		if (this._value) {
-			this._value.dispose();
-		}
+		this._value?.dispose();
 		this._value = undefined;
 	}
 }
@@ -285,6 +281,31 @@ export abstract class ReferenceCollection<T> {
 
 	protected abstract createReferencedObject(key: string, ...args: any[]): T;
 	protected abstract destroyReferencedObject(key: string, object: T): void;
+}
+
+/**
+ * Unwraps a reference collection of promised values. Makes sure
+ * references are disposed whenever promises get rejected.
+ */
+export class AsyncReferenceCollection<T> {
+
+	constructor(private referenceCollection: ReferenceCollection<Promise<T>>) { }
+
+	async acquire(key: string, ...args: any[]): Promise<IReference<T>> {
+		const ref = this.referenceCollection.acquire(key, ...args);
+
+		try {
+			const object = await ref.object;
+
+			return {
+				object,
+				dispose: () => ref.dispose()
+			};
+		} catch (error) {
+			ref.dispose();
+			throw error;
+		}
+	}
 }
 
 export class ImmortalReference<T> implements IReference<T> {

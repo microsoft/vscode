@@ -6,7 +6,7 @@
 import * as path from 'vs/base/common/path';
 import * as pfs from 'vs/base/node/pfs';
 import { IStringDictionary } from 'vs/base/common/collections';
-import product from 'vs/platform/product/common/product';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -31,9 +31,14 @@ interface LanguagePackFile {
 
 export class LanguagePackCachedDataCleaner extends Disposable {
 
+	private readonly _DataMaxAge = this._productService.quality !== 'stable'
+		? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
+		: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
+
 	constructor(
 		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@IProductService private readonly _productService: IProductService
 	) {
 		super();
 		// We have no Language pack support for dev version (run from source)
@@ -47,23 +52,20 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 		let handle: any = setTimeout(async () => {
 			handle = undefined;
 			this._logService.info('Starting to clean up unused language packs.');
-			const maxAge = product.nameLong.indexOf('Insiders') >= 0
-				? 1000 * 60 * 60 * 24 * 7 // roughly 1 week
-				: 1000 * 60 * 60 * 24 * 30 * 3; // roughly 3 months
 			try {
 				const installed: IStringDictionary<boolean> = Object.create(null);
-				const metaData: LanguagePackFile = JSON.parse(await pfs.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
+				const metaData: LanguagePackFile = JSON.parse(await pfs.Promises.readFile(path.join(this._environmentService.userDataPath, 'languagepacks.json'), 'utf8'));
 				for (let locale of Object.keys(metaData)) {
 					const entry = metaData[locale];
 					installed[`${entry.hash}.${locale}`] = true;
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
-				const exists = await pfs.exists(cacheDir);
+				const exists = await pfs.Promises.exists(cacheDir);
 				if (!exists) {
 					return;
 				}
-				for (let entry of await pfs.readdir(cacheDir)) {
+				for (let entry of await pfs.Promises.readdir(cacheDir)) {
 					if (installed[entry]) {
 						this._logService.info(`Skipping directory ${entry}. Language pack still in use.`);
 						continue;
@@ -75,15 +77,15 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 				const now = Date.now();
 				for (let packEntry of Object.keys(installed)) {
 					const folder = path.join(cacheDir, packEntry);
-					for (let entry of await pfs.readdir(folder)) {
+					for (let entry of await pfs.Promises.readdir(folder)) {
 						if (entry === 'tcf.json') {
 							continue;
 						}
 						const candidate = path.join(folder, entry);
-						const stat = await pfs.stat(candidate);
+						const stat = await pfs.Promises.stat(candidate);
 						if (stat.isDirectory()) {
 							const diff = now - stat.mtime.getTime();
-							if (diff > maxAge) {
+							if (diff > this._DataMaxAge) {
 								this._logService.info('Removing language pack cache entry: ', path.join(packEntry, entry));
 								await pfs.rimraf(candidate);
 							}

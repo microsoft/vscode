@@ -111,6 +111,14 @@
 	text-overflow: ellipsis;
 }
 
+.monaco-workbench .part.editor > .content .welcomePage .splash .recent {
+	min-height: 160px;
+}
+
+.monaco-workbench .part.editor > .content .welcomePageContainer.max-height-685px .splash .recent {
+	min-height: unset;
+}
+
 .monaco-workbench .part.editor > .content .welcomePage.emptyRecent .splash .recent .list {
 	display: none;
 }

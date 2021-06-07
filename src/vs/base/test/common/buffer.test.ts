@@ -88,7 +88,8 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
-		stream.end(new Error());
+		stream.error(new Error());
+		stream.end();
 
 		assert.strictEqual(chunks.length, 1);
 		assert.strictEqual(chunks[0].toString(), 'Hello');
@@ -329,7 +330,8 @@ suite('Buffer', () => {
 		await timeout(0);
 		stream.write(VSBuffer.fromString('Hello'));
 		await timeout(0);
-		stream.end(new Error());
+		stream.error(new Error());
+		stream.end();
 
 		assert.strictEqual(chunks.length, 0);
 		assert.strictEqual(ended, false);

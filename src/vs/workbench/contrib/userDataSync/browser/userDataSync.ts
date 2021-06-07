@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from 'vs/base/common/actions';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, dispose, MutableDisposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { isEqual, basename } from 'vs/base/common/resources';
@@ -111,7 +111,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		@IOutputService private readonly outputService: IOutputService,
 		@IUserDataSyncAccountService readonly authTokenService: IUserDataSyncAccountService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
+		@IUserDataAutoSyncService userDataAutoSyncService: IUserDataAutoSyncService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -288,7 +288,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			case UserDataSyncErrorCode.TurnedOff:
 				this.notificationService.notify({
 					severity: Severity.Info,
-					message: localize('turned off', "Settings sync was turned off from another device, please sign in again to turn on sync."),
+					message: localize('turned off', "Settings sync was turned off from another device, please turn on sync again."),
 					actions: {
 						primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
 					}
@@ -323,11 +323,34 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 				return;
+
+			case UserDataSyncErrorCode.ServiceChanged:
+				this.notificationService.notify({
+					severity: Severity.Info,
+					message: this.userDataSyncStoreManagementService.userDataSyncStore?.type === 'insiders' ?
+						localize('service switched to insiders', "Settings Sync has been switched to insiders service") :
+						localize('service switched to stable', "Settings Sync has been switched to stable service"),
+				});
+
+				return;
+
 			case UserDataSyncErrorCode.DefaultServiceChanged:
-				if (isEqual(this.userDataSyncStoreManagementService.userDataSyncStore?.url, this.userDataSyncStoreManagementService.userDataSyncStore?.insidersUrl)) {
+				// Settings sync is using separate service
+				if (this.userDataAutoSyncEnablementService.isEnabled()) {
 					this.notificationService.notify({
 						severity: Severity.Info,
-						message: localize('switched to insiders', "Settings sync now uses a separate service, more information is available in the [release notes](https://code.visualstudio.com/updates/v1_48#_settings-sync)."),
+						message: localize('using separate service', "Settings sync now uses a separate service, more information is available in the [Settings Sync Documentation](https://aka.ms/vscode-settings-sync-help#_syncing-stable-versus-insiders)."),
+					});
+				}
+
+				// If settings sync got turned off then ask user to turn on sync again.
+				else {
+					this.notificationService.notify({
+						severity: Severity.Info,
+						message: localize('service changed and turned off', "Settings sync was turned off because {0} now uses a separate service. Please turn on sync again.", this.productService.nameLong),
+						actions: {
+							primary: [new Action('turn on sync', localize('turn on sync', "Turn on Settings Sync..."), undefined, true, () => this.turnOn())]
+						}
 					});
 				}
 				return;
@@ -487,8 +510,10 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 						this.notificationService.error(localize('auth failed', "Error while turning on Settings Sync: Authentication failed."));
 						return;
 				}
+				this.notificationService.error(localize('turn on failed with user data sync error', "Error while turning on Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
+			} else {
+				this.notificationService.error(localize({ key: 'turn on failed', comment: ['Substitution is for error reason'] }, "Error while turning on Settings Sync. {0}", getErrorMessage(e)));
 			}
-			this.notificationService.error(localize('turn on failed', "Error while turning on Settings Sync. Please check [logs]({0}) for more details.", `command:${SHOW_SYNC_LOG_COMMAND_ID}`));
 		}
 	}
 
@@ -659,8 +684,8 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			const leftResourceName = localize({ key: 'leftResourceName', comment: ['remote as in file in cloud'] }, "{0} (Remote)", basename(conflict.remoteResource));
 			const rightResourceName = localize('merges', "{0} (Merges)", basename(conflict.previewResource));
 			await this.editorService.openEditor({
-				leftResource: conflict.remoteResource,
-				rightResource: conflict.previewResource,
+				originalInput: { resource: conflict.remoteResource },
+				modifiedInput: { resource: conflict.previewResource },
 				label: localize('sideBySideLabels', "{0} ↔ {1}", leftResourceName, rightResourceName),
 				description: localize('sideBySideDescription', "Settings Sync"),
 				options: {
@@ -1030,7 +1055,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 				});
 			}
 			run(accessor: ServicesAccessor): Promise<any> {
-				return that.userDataAutoSyncService.triggerSync([syncNowCommand.id], false, true);
+				return that.userDataSyncWorkbenchService.syncNow();
 			}
 		}));
 	}
@@ -1136,7 +1161,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		return Registry.as<IViewContainersRegistry>(Extensions.ViewContainersRegistry).registerViewContainer(
 			{
 				id: SYNC_VIEW_CONTAINER_ID,
-				name: SYNC_TITLE,
+				title: SYNC_TITLE,
 				ctorDescriptor: new SyncDescriptor(
 					ViewPaneContainer,
 					[SYNC_VIEW_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]
@@ -1308,7 +1333,7 @@ class AcceptChangesContribution extends Disposable implements IEditorContributio
 		this.acceptChangesButton = undefined;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeAcceptChangesWidgetRenderer();
 		super.dispose();
 	}

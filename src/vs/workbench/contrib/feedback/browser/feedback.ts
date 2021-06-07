@@ -13,7 +13,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { editorWidgetBackground, editorWidgetForeground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, textLinkForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -35,13 +35,13 @@ export interface IFeedbackDelegate {
 	getCharacterLimit(sentiment: number): number;
 }
 
-export interface IFeedbackDropdownOptions {
+export interface IFeedbackWidgetOptions {
 	contextViewProvider: IContextViewService;
 	feedbackService: IFeedbackDelegate;
 	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
-export class FeedbackDropdown extends Dropdown {
+export class FeedbackWidget extends Dropdown {
 	private maxFeedbackCharacters: number;
 
 	private feedback: string = '';
@@ -50,13 +50,13 @@ export class FeedbackDropdown extends Dropdown {
 
 	private readonly feedbackDelegate: IFeedbackDelegate;
 
-	private feedbackForm: HTMLFormElement | null = null;
-	private feedbackDescriptionInput: HTMLTextAreaElement | null = null;
-	private smileyInput: HTMLElement | null = null;
-	private frownyInput: HTMLElement | null = null;
-	private sendButton: Button | null = null;
-	private hideButton: HTMLInputElement | null = null;
-	private remainingCharacterCount: HTMLElement | null = null;
+	private feedbackForm: HTMLFormElement | undefined = undefined;
+	private feedbackDescriptionInput: HTMLTextAreaElement | undefined = undefined;
+	private smileyInput: HTMLElement | undefined = undefined;
+	private frownyInput: HTMLElement | undefined = undefined;
+	private sendButton: Button | undefined = undefined;
+	private hideButton: HTMLInputElement | undefined = undefined;
+	private remainingCharacterCount: HTMLElement | undefined = undefined;
 
 	private requestFeatureLink: string | undefined;
 
@@ -64,7 +64,7 @@ export class FeedbackDropdown extends Dropdown {
 
 	constructor(
 		container: HTMLElement,
-		private options: IFeedbackDropdownOptions,
+		private options: IFeedbackWidgetOptions,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
@@ -92,7 +92,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
 	}
 
-	protected getAnchor(): HTMLElement | IAnchor {
+	protected override getAnchor(): HTMLElement | IAnchor {
 		const position = dom.getDomNodePagePosition(this.element);
 
 		return {
@@ -103,7 +103,7 @@ export class FeedbackDropdown extends Dropdown {
 		};
 	}
 
-	protected renderContents(container: HTMLElement): IDisposable {
+	protected override renderContents(container: HTMLElement): IDisposable {
 		const disposables = new DisposableStore();
 
 		container.classList.add('monaco-menu-container');
@@ -142,7 +142,7 @@ export class FeedbackDropdown extends Dropdown {
 			if (darkenFactor) {
 				const backgroundBaseColor = theme.getColor(editorWidgetBackground);
 				if (backgroundBaseColor) {
-					const backgroundColor = darken(backgroundBaseColor, darkenFactor)(theme);
+					const backgroundColor = backgroundBaseColor.darken(darkenFactor);
 					if (backgroundColor) {
 						closeBtn.style.backgroundColor = backgroundColor.toString();
 					}
@@ -302,10 +302,10 @@ export class FeedbackDropdown extends Dropdown {
 
 		return {
 			dispose: () => {
-				this.feedbackForm = null;
-				this.feedbackDescriptionInput = null;
-				this.smileyInput = null;
-				this.frownyInput = null;
+				this.feedbackForm = undefined;
+				this.feedbackDescriptionInput = undefined;
+				this.smileyInput = undefined;
+				this.frownyInput = undefined;
 
 				disposables.dispose();
 			}
@@ -379,7 +379,7 @@ export class FeedbackDropdown extends Dropdown {
 		return element;
 	}
 
-	show(): void {
+	override show(): void {
 		super.show();
 
 		if (this.options.onFeedbackVisibilityChange) {
@@ -389,13 +389,13 @@ export class FeedbackDropdown extends Dropdown {
 		this.updateCharCountText();
 	}
 
-	protected onHide(): void {
+	protected override onHide(): void {
 		if (this.options.onFeedbackVisibilityChange) {
 			this.options.onFeedbackVisibilityChange(false);
 		}
 	}
 
-	hide(): void {
+	override hide(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedback = this.feedbackDescriptionInput.value;
 		}
@@ -412,7 +412,7 @@ export class FeedbackDropdown extends Dropdown {
 		super.hide();
 	}
 
-	onEvent(e: Event, activeElement: HTMLElement): void {
+	override onEvent(e: Event, activeElement: HTMLElement): void {
 		if (e instanceof KeyboardEvent) {
 			const keyboardEvent = <KeyboardEvent>e;
 			if (keyboardEvent.keyCode === 27) { // Escape

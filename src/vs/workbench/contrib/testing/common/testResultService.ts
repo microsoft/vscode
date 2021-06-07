@@ -3,243 +3,225 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { findFirstInSorted } from 'vs/base/common/arrays';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { once } from 'vs/base/common/functional';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { TestRunState } from 'vs/workbench/api/common/extHostTypes';
-import { IncrementalTestCollectionItem, InternalTestItemWithChildren, TestIdWithProvider } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { ExtensionRunTestsRequest, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { isRunningState, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
-import { IMainThreadTestCollection } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestResult, LiveTestResult, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
 
-export type TestStateCount = { [K in TestRunState]: number };
-
-const makeEmptyCounts = () => {
-	const o: Partial<TestStateCount> = {};
-	for (const state of statesInOrder) {
-		o[state] = 0;
-	}
-
-	return o as TestStateCount;
-};
-
-export const sumCounts = (counts: TestStateCount[]) => {
-	const total = makeEmptyCounts();
-	for (const count of counts) {
-		for (const state of statesInOrder) {
-			total[state] += count[state];
-		}
-	}
-
-	return total;
-};
-
-const makeNode = (
-	collection: IMainThreadTestCollection,
-	test: IncrementalTestCollectionItem,
-): TestResultItem => {
-	const mapped: TestResultItem = { ...test, children: [] };
-	for (const childId of test.children) {
-		const child = collection.getNodeById(childId);
-		if (child) {
-			mapped.children.push(makeNode(collection, child));
-		}
-	}
-
-	return mapped;
-};
-
-export interface TestResultItem extends InternalTestItemWithChildren { }
-
-/**
- * Results of a test. These are created when the test initially started running
- * and marked as "complete" when the run finishes.
- */
-export class TestResult {
-	/**
-	 * Creates a new TestResult, pulling tests from the associated list
-	 * of collections.
-	 */
-	public static from(
-		collections: ReadonlyArray<IMainThreadTestCollection>,
-		tests: ReadonlyArray<TestIdWithProvider>,
-	) {
-		const mapped: TestResultItem[] = [];
-		for (const test of tests) {
-			for (const collection of collections) {
-				const node = collection.getNodeById(test.testId);
-				if (node) {
-					mapped.push(makeNode(collection, node));
-					break;
-				}
-			}
-		}
-
-		return new TestResult(mapped);
-	}
-
-	private completeEmitter = new Emitter<void>();
-	private changeEmitter = new Emitter<void>();
-	private _complete = false;
-	private _cachedCounts?: { [K in TestRunState]: number };
-
-	public onChange = this.changeEmitter.event;
-	public onComplete = this.completeEmitter.event;
-
-	/**
-	 * Unique ID for referring to this set of test results.
-	 */
-	public readonly id = generateUuid();
-
-	/**
-	 * Gets whether the test run has finished.
-	 */
-	public get isComplete() {
-		return this._complete;
-	}
-
-	/**
-	 * Gets a count of tests in each state.
-	 */
-	public get counts() {
-		if (this._cachedCounts) {
-			return this._cachedCounts;
-		}
-
-		const counts = makeEmptyCounts();
-		this.forEachTest(({ item }) => {
-			counts[item.state.runState]++;
-		});
-
-		if (this._complete) {
-			this._cachedCounts = counts;
-		}
-
-		return counts;
-	}
-
-	constructor(public readonly tests: TestResultItem[]) { }
-
-
-	/**
-	 * Notifies the service that all tests are complete.
-	 */
-	public markComplete() {
-		if (this._complete) {
-			throw new Error('cannot complete a test result multiple times');
-		}
-
-		// shallow clone test items to 'disconnect' them from the underlying
-		// connection and stop state changes. Also, marked any still-running
-		// tests as skipped.
-		this.forEachTest(test => {
-			test.item = { ...test.item };
-			if (isRunningState(test.item.state.runState)) {
-				test.item.state = { ...test.item.state, runState: TestRunState.Skipped };
-			}
-		});
-
-		this._complete = true;
-		this.completeEmitter.fire();
-	}
-
-	/**
-	 * Fires the 'change' event, should be called by the runner.
-	 */
-	public notifyChanged() {
-		this.changeEmitter.fire();
-	}
-
-	private forEachTest(fn: (test: TestResultItem) => void) {
-		const queue = [this.tests];
-		while (queue.length) {
-			for (const test of queue.pop()!) {
-				fn(test);
-				queue.push(test.children);
-			}
-		}
-	}
-}
+export type ResultChangeEvent =
+	| { completed: LiveTestResult }
+	| { started: LiveTestResult }
+	| { inserted: ITestResult }
+	| { removed: ITestResult[] };
 
 export interface ITestResultService {
 	readonly _serviceBrand: undefined;
+	/**
+	 * Fired after any results are added, removed, or completed.
+	 */
+	readonly onResultsChanged: Event<ResultChangeEvent>;
 
 	/**
-	 * List of test results. Currently running tests are always at the top.
+	 * Fired when a test changed it state, or its computed state is updated.
 	 */
-	readonly results: TestResult[];
+	readonly onTestChanged: Event<TestResultItemChange>;
 
 	/**
-	 * Fired after a new event is added to the 'active' array.
+	 * List of known test results.
 	 */
-	readonly onNewTestResult: Event<TestResult>;
+	readonly results: ReadonlyArray<ITestResult>;
+
+	/**
+	 * Discards all completed test results.
+	 */
+	clear(): void;
+
+	/**
+	 * Creates a new, live test result.
+	 */
+	createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest): LiveTestResult;
 
 	/**
 	 * Adds a new test result to the collection.
 	 */
-	push(result: TestResult): TestResult;
+	push<T extends ITestResult>(result: T): T;
 
 	/**
 	 * Looks up a set of test results by ID.
 	 */
-	lookup(resultId: string): TestResult | undefined;
+	getResult(resultId: string): ITestResult | undefined;
+
+	/**
+	 * Looks up a test's most recent state, by its extension-assigned ID.
+	 */
+	getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined;
 }
+
+export const isRunningTests = (service: ITestResultService) =>
+	service.results.length > 0 && service.results[0].completedAt === undefined;
 
 export const ITestResultService = createDecorator<ITestResultService>('testResultService');
 
-const RETAIN_LAST_RESULTS = 16;
-
 export class TestResultService implements ITestResultService {
 	declare _serviceBrand: undefined;
-	private newResultEmitter = new Emitter<TestResult>();
+	private changeResultEmitter = new Emitter<ResultChangeEvent>();
+	private _results: ITestResult[] = [];
+	private testChangeEmitter = new Emitter<TestResultItemChange>();
 
 	/**
 	 * @inheritdoc
 	 */
-	public results: TestResult[] = [];
+	public get results() {
+		this.loadResults();
+		return this._results;
+	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public readonly onNewTestResult = this.newResultEmitter.event;
+	public readonly onResultsChanged = this.changeResultEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
+	public readonly onTestChanged = this.testChangeEmitter.event;
 
 	private readonly isRunning: IContextKey<boolean>;
+	private readonly loadResults = once(() => this.storage.read().then(loaded => {
+		for (let i = loaded.length - 1; i >= 0; i--) {
+			this.push(loaded[i]);
+		}
+	}));
 
-	constructor(@IContextKeyService contextKeyService: IContextKeyService) {
+	protected readonly persistScheduler = new RunOnceScheduler(() => this.persistImmediately(), 500);
+
+	constructor(
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@ITestResultStorage private readonly storage: ITestResultStorage,
+	) {
 		this.isRunning = TestingContextKeys.isRunning.bindTo(contextKeyService);
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public push(result: TestResult): TestResult {
-		this.results.unshift(result);
-		if (this.results.length > RETAIN_LAST_RESULTS) {
+	public getStateById(extId: string): [results: ITestResult, item: TestResultItem] | undefined {
+		for (const result of this.results) {
+			const lookup = result.getStateById(extId);
+			if (lookup && lookup.computedState !== TestResultState.Unset) {
+				return [result, lookup];
+			}
+		}
+
+		return undefined;
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public createLiveResult(req: RunTestsRequest | ExtensionRunTestsRequest) {
+		if ('id' in req) {
+			return this.push(new LiveTestResult(req.id, this.storage.getOutputController(req.id), req));
+		} else {
+			const id = generateUuid();
+			return this.push(new LiveTestResult(id, this.storage.getOutputController(id), req));
+		}
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public push<T extends ITestResult>(result: T): T {
+		if (result.completedAt === undefined) {
+			this.results.unshift(result);
+		} else {
+			const index = findFirstInSorted(this.results, r => r.completedAt !== undefined && r.completedAt <= result.completedAt!);
+			this.results.splice(index, 0, result);
+			this.persistScheduler.schedule();
+		}
+
+		if (this.results.length > RETAIN_MAX_RESULTS) {
 			this.results.pop();
 		}
 
-		result.onComplete(this.onComplete, this);
-		this.isRunning.set(true);
-		this.newResultEmitter.fire(result);
+		if (result instanceof LiveTestResult) {
+			result.onComplete(() => this.onComplete(result));
+			result.onChange(this.testChangeEmitter.fire, this.testChangeEmitter);
+			this.isRunning.set(true);
+			this.changeResultEmitter.fire({ started: result });
+		} else {
+			this.changeResultEmitter.fire({ inserted: result });
+			// If this is not a new result, go through each of its tests. For each
+			// test for which the new result is the most recently inserted, fir
+			// a change event so that UI updates.
+			for (const item of result.tests) {
+				for (const otherResult of this.results) {
+					if (otherResult === result) {
+						this.testChangeEmitter.fire({ item, result, reason: TestResultItemChangeReason.ComputedStateChange });
+						break;
+					} else if (otherResult.getStateById(item.item.extId) !== undefined) {
+						break;
+					}
+				}
+			}
+		}
+
 		return result;
 	}
 
 	/**
 	 * @inheritdoc
 	 */
-	public lookup(id: string) {
+	public getResult(id: string) {
 		return this.results.find(r => r.id === id);
 	}
 
-	private onComplete() {
-		// move the complete test run down behind any still-running ones
-		for (let i = 0; i < this.results.length - 2; i++) {
-			if (this.results[i].isComplete && !this.results[i + 1].isComplete) {
-				[this.results[i], this.results[i + 1]] = [this.results[i + 1], this.results[i]];
+	/**
+	 * @inheritdoc
+	 */
+	public clear() {
+		const keep: ITestResult[] = [];
+		const removed: ITestResult[] = [];
+		for (const result of this.results) {
+			if (result.completedAt !== undefined) {
+				removed.push(result);
+			} else {
+				keep.push(result);
 			}
 		}
 
-		this.isRunning.set(!this.results[0]?.isComplete);
+		this._results = keep;
+		this.persistScheduler.schedule();
+		this.changeResultEmitter.fire({ removed });
+	}
+
+	private onComplete(result: LiveTestResult) {
+		this.resort();
+		this.updateIsRunning();
+		this.persistScheduler.schedule();
+		this.changeResultEmitter.fire({ completed: result });
+	}
+
+	private resort() {
+		this.results.sort((a, b) => (b.completedAt ?? Number.MAX_SAFE_INTEGER) - (a.completedAt ?? Number.MAX_SAFE_INTEGER));
+	}
+
+	private updateIsRunning() {
+		this.isRunning.set(isRunningTests(this));
+	}
+
+	protected async persistImmediately() {
+		// ensure results are loaded before persisting to avoid deleting once
+		// that we don't have yet.
+		await this.loadResults();
+		this.storage.persist(this.results);
 	}
 }

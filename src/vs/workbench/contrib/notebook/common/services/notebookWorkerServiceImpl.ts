@@ -104,10 +104,10 @@ export class NotebookEditorModelManager extends Disposable {
 					eol: cell.textBuffer.getEOL(),
 					language: cell.language,
 					cellKind: cell.cellKind,
-					outputs: cell.outputs,
-					metadata: cell.metadata
+					outputs: cell.outputs.map(op => ({ outputId: op.outputId, outputs: op.outputs })),
+					metadata: cell.metadata,
+					internalMetadata: cell.internalMetadata,
 				})),
-				languages: model.languages,
 				metadata: model.metadata
 			}
 		);
@@ -123,7 +123,8 @@ export class NotebookEditorModelManager extends Disposable {
 				language: cell.language,
 				cellKind: cell.cellKind,
 				outputs: cell.outputs,
-				metadata: cell.metadata
+				metadata: cell.metadata,
+				internalMetadata: cell.internalMetadata,
 			};
 		};
 

@@ -10,7 +10,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Throttler } from 'vs/base/common/async';
 import { localize } from 'vs/nls';
-import * as browser from 'vs/base/browser/browser';
 import { joinPath } from 'vs/base/common/resources';
 
 const INDEXEDDB_VSCODE_DB = 'vscode-web-db';
@@ -24,7 +23,7 @@ const ERR_FILE_NOT_DIR = createFileSystemProviderError(localize('fileNotDirector
 const ERR_DIR_NOT_EMPTY = createFileSystemProviderError(localize('dirIsNotEmpty', "Directory is not empty"), FileSystemProviderErrorCode.Unknown);
 
 // Arbitrary Internal Errors (should never be thrown in production)
-const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occured in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
+const ERR_UNKNOWN_INTERNAL = (message: string) => createFileSystemProviderError(localize('internal', "Internal error occurred in IndexedDB File System Provider. ({0})", message), FileSystemProviderErrorCode.Unknown);
 
 export class IndexedDB {
 
@@ -48,9 +47,6 @@ export class IndexedDB {
 	}
 
 	private openIndexedDB(name: string, version: number, stores: string[]): Promise<IDBDatabase | null> {
-		if (browser.isEdgeLegacy) {
-			return Promise.resolve(null);
-		}
 		return new Promise((c, e) => {
 			const request = window.indexedDB.open(name, version);
 			request.onerror = (err) => e(request.error);
@@ -103,7 +99,7 @@ class IndexedDBFileSystemNode {
 	}
 
 
-	read(path: string) {
+	read(path: string): IndexedDBFileSystemEntry | undefined {
 		return this.doRead(path.split('/').filter(p => p.length));
 	}
 

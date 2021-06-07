@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, observe } from 'vs/base/common/stream';
+import { isReadableStream, newWriteableStream, Readable, consumeReadable, peekReadable, consumeStream, ReadableStream, toStream, toReadable, transform, peekStream, isReadableBufferedStream, listenStream, prefixedReadable, prefixedStream } from 'vs/base/common/stream';
 import { timeout } from 'vs/base/common/async';
 
 suite('Stream', () => {
@@ -66,14 +66,37 @@ suite('Stream', () => {
 		stream.error(new Error());
 		assert.strictEqual(error, true);
 
+		error = false;
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
 		stream.end('Final Bit');
 		assert.strictEqual(chunks.length, 4);
 		assert.strictEqual(chunks[3], 'Final Bit');
+		assert.strictEqual(end, true);
 
 		stream.destroy();
 
 		stream.write('Unexpected');
 		assert.strictEqual(chunks.length, 4);
+	});
+
+	test('WriteableStream - end with empty string works', async () => {
+		const reducer = (strings: string[]) => strings.length > 0 ? strings.join() : 'error';
+		const stream = newWriteableStream<string>(reducer);
+		stream.end('');
+
+		const result = await consumeStream(stream, reducer);
+		assert.strictEqual(result, '');
+	});
+
+	test('WriteableStream - end with error works', async () => {
+		const reducer = (errors: Error[]) => errors[0];
+		const stream = newWriteableStream<Error>(reducer);
+		stream.end(new Error('error'));
+
+		const result = await consumeStream(stream, reducer);
+		assert.ok(result instanceof Error);
 	});
 
 	test('WriteableStream - removeListener', () => {
@@ -270,6 +293,56 @@ suite('Stream', () => {
 		assert.strictEqual(consumed, '1,2,3,4,5');
 	});
 
+	test('consumeStream - without reducer', async () => {
+		const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
+		const consumed = await consumeStream(stream);
+		assert.strictEqual(consumed, undefined);
+	});
+
+	test('consumeStream - without reducer and error', async () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+		stream.error(new Error());
+
+		const consumed = await consumeStream(stream);
+		assert.strictEqual(consumed, undefined);
+	});
+
+	test('listenStream', () => {
+		const stream = newWriteableStream<string>(strings => strings.join());
+
+		let error = false;
+		let end = false;
+		let data = '';
+
+		listenStream(stream, {
+			onData: d => {
+				data = d;
+			},
+			onError: e => {
+				error = true;
+			},
+			onEnd: () => {
+				end = true;
+			}
+		});
+
+		stream.write('Hello');
+
+		assert.strictEqual(data, 'Hello');
+
+		stream.write('World');
+		assert.strictEqual(data, 'World');
+
+		assert.strictEqual(error, false);
+		assert.strictEqual(end, false);
+
+		stream.error(new Error());
+		assert.strictEqual(error, true);
+
+		stream.end('Final Bit');
+		assert.strictEqual(end, true);
+	});
+
 	test('peekStream', async () => {
 		for (let i = 0; i < 5; i++) {
 			const stream = readableToStream(arrayToReadable(['1', '2', '3', '4', '5']));
@@ -313,7 +386,7 @@ suite('Stream', () => {
 
 	test('toReadable', async () => {
 		const readable = toReadable('1,2,3,4,5');
-		const consumed = await consumeReadable(readable, strings => strings.join());
+		const consumed = consumeReadable(readable, strings => strings.join());
 		assert.strictEqual(consumed, '1,2,3,4,5');
 	});
 
@@ -335,30 +408,6 @@ suite('Stream', () => {
 		assert.strictEqual(consumed, '11,22,33,44,55');
 	});
 
-	test('observer', async () => {
-		const source1 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => source1.error(new Error()));
-		await observe(source1).errorOrEnd();
-
-		const source2 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => source2.end('Hello Test'));
-		await observe(source2).errorOrEnd();
-
-		const source3 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => {
-			source3.write('Hello Test');
-			source3.error(new Error());
-		});
-		await observe(source3).errorOrEnd();
-
-		const source4 = newWriteableStream<string>(strings => strings.join());
-		setTimeout(() => {
-			source4.write('Hello Test');
-			source4.end();
-		});
-		await observe(source4).errorOrEnd();
-	});
-
 	test('events are delivered even if a listener is removed during delivery', () => {
 		const stream = newWriteableStream<string>(strings => strings.join());
 
@@ -374,5 +423,50 @@ suite('Stream', () => {
 
 		assert.strictEqual(listener1Called, true);
 		assert.strictEqual(listener2Called, true);
+	});
+
+	test('prefixedReadable', () => {
+
+		// Basic
+		let readable = prefixedReadable('1,2', arrayToReadable(['3', '4', '5']), val => val.join(','));
+		assert.strictEqual(consumeReadable(readable, val => val.join(',')), '1,2,3,4,5');
+
+		// Empty
+		readable = prefixedReadable('empty', arrayToReadable<string>([]), val => val.join(','));
+		assert.strictEqual(consumeReadable(readable, val => val.join(',')), 'empty');
+	});
+
+	test('prefixedStream', async () => {
+
+		// Basic
+		let stream = newWriteableStream<string>(strings => strings.join());
+		stream.write('3');
+		stream.write('4');
+		stream.write('5');
+		stream.end();
+
+		let prefixStream = prefixedStream<string>('1,2', stream, val => val.join(','));
+		assert.strictEqual(await consumeStream(prefixStream, val => val.join(',')), '1,2,3,4,5');
+
+		// Empty
+		stream = newWriteableStream<string>(strings => strings.join());
+		stream.end();
+
+		prefixStream = prefixedStream<string>('1,2', stream, val => val.join(','));
+		assert.strictEqual(await consumeStream(prefixStream, val => val.join(',')), '1,2');
+
+		// Error
+		stream = newWriteableStream<string>(strings => strings.join());
+		stream.error(new Error('fail'));
+
+		prefixStream = prefixedStream<string>('error', stream, val => val.join(','));
+
+		let error;
+		try {
+			await consumeStream(prefixStream, val => val.join(','));
+		} catch (e) {
+			error = e;
+		}
+		assert.ok(error);
 	});
 });

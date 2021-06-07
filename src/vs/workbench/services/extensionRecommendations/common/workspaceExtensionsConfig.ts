@@ -161,12 +161,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
+				values.push({ path: ['extensions', 'recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
 				if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-					values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+					values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
 				}
 			} else if (extensionsConfigContent.recommendations) {
-				values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+				values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { recommendations: [extensionId] } });
@@ -196,12 +196,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
+				values.push({ path: ['extensions', 'unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
 				if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-					values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+					values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
 				}
 			} else if (extensionsConfigContent.unwantedRecommendations) {
-				values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+				values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { unwantedRecommendations: [extensionId] } });

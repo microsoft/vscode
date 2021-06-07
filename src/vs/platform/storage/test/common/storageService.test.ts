@@ -4,98 +4,102 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { strictEqual, ok } from 'assert';
-import { StorageScope, InMemoryStorageService, StorageTarget, IStorageValueChangeEvent, IStorageTargetChangeEvent } from 'vs/platform/storage/common/storage';
+import { StorageScope, InMemoryStorageService, StorageTarget, IStorageValueChangeEvent, IStorageTargetChangeEvent, IStorageService } from 'vs/platform/storage/common/storage';
 
-suite('StorageService', function () {
+export function createSuite<T extends IStorageService>(params: { setup: () => Promise<T>, teardown: (service: T) => Promise<void> }): void {
 
-	test('Get Data, Integer, Boolean (global, in-memory)', () => {
+	let storageService: T;
+
+	setup(async () => {
+		storageService = await params.setup();
+	});
+
+	teardown(() => {
+		return params.teardown(storageService);
+	});
+
+	test('Get Data, Integer, Boolean (global)', () => {
 		storeData(StorageScope.GLOBAL);
 	});
 
-	test('Get Data, Integer, Boolean (workspace, in-memory)', () => {
+	test('Get Data, Integer, Boolean (workspace)', () => {
 		storeData(StorageScope.WORKSPACE);
 	});
 
 	function storeData(scope: StorageScope): void {
-		const storage = new InMemoryStorageService();
-
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
-		strictEqual(storage.get('test.get', scope, 'foobar'), 'foobar');
-		strictEqual(storage.get('test.get', scope, ''), '');
-		strictEqual(storage.getNumber('test.getNumber', scope, 5), 5);
-		strictEqual(storage.getNumber('test.getNumber', scope, 0), 0);
-		strictEqual(storage.getBoolean('test.getBoolean', scope, true), true);
-		strictEqual(storage.getBoolean('test.getBoolean', scope, false), false);
+		strictEqual(storageService.get('test.get', scope, 'foobar'), 'foobar');
+		strictEqual(storageService.get('test.get', scope, ''), '');
+		strictEqual(storageService.getNumber('test.getNumber', scope, 5), 5);
+		strictEqual(storageService.getNumber('test.getNumber', scope, 0), 0);
+		strictEqual(storageService.getBoolean('test.getBoolean', scope, true), true);
+		strictEqual(storageService.getBoolean('test.getBoolean', scope, false), false);
 
-		storage.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
-		strictEqual(storage.get('test.get', scope, (undefined)!), 'foobar');
+		storageService.store('test.get', 'foobar', scope, StorageTarget.MACHINE);
+		strictEqual(storageService.get('test.get', scope, (undefined)!), 'foobar');
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
 		strictEqual(storageValueChangeEvent?.scope, scope);
 		strictEqual(storageValueChangeEvent?.key, 'test.get');
 		storageValueChangeEvents = [];
 
-		storage.store('test.get', '', scope, StorageTarget.MACHINE);
-		strictEqual(storage.get('test.get', scope, (undefined)!), '');
+		storageService.store('test.get', '', scope, StorageTarget.MACHINE);
+		strictEqual(storageService.get('test.get', scope, (undefined)!), '');
 		storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.get');
 		strictEqual(storageValueChangeEvent!.scope, scope);
 		strictEqual(storageValueChangeEvent!.key, 'test.get');
 
-		storage.store('test.getNumber', 5, scope, StorageTarget.MACHINE);
-		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 5);
+		storageService.store('test.getNumber', 5, scope, StorageTarget.MACHINE);
+		strictEqual(storageService.getNumber('test.getNumber', scope, (undefined)!), 5);
 
-		storage.store('test.getNumber', 0, scope, StorageTarget.MACHINE);
-		strictEqual(storage.getNumber('test.getNumber', scope, (undefined)!), 0);
+		storageService.store('test.getNumber', 0, scope, StorageTarget.MACHINE);
+		strictEqual(storageService.getNumber('test.getNumber', scope, (undefined)!), 0);
 
-		storage.store('test.getBoolean', true, scope, StorageTarget.MACHINE);
-		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), true);
+		storageService.store('test.getBoolean', true, scope, StorageTarget.MACHINE);
+		strictEqual(storageService.getBoolean('test.getBoolean', scope, (undefined)!), true);
 
-		storage.store('test.getBoolean', false, scope, StorageTarget.MACHINE);
-		strictEqual(storage.getBoolean('test.getBoolean', scope, (undefined)!), false);
+		storageService.store('test.getBoolean', false, scope, StorageTarget.MACHINE);
+		strictEqual(storageService.getBoolean('test.getBoolean', scope, (undefined)!), false);
 
-		strictEqual(storage.get('test.getDefault', scope, 'getDefault'), 'getDefault');
-		strictEqual(storage.getNumber('test.getNumberDefault', scope, 5), 5);
-		strictEqual(storage.getBoolean('test.getBooleanDefault', scope, true), true);
+		strictEqual(storageService.get('test.getDefault', scope, 'getDefault'), 'getDefault');
+		strictEqual(storageService.getNumber('test.getNumberDefault', scope, 5), 5);
+		strictEqual(storageService.getBoolean('test.getBooleanDefault', scope, true), true);
 	}
 
-	test('Remove Data (global, in-memory)', () => {
+	test('Remove Data (global)', () => {
 		removeData(StorageScope.GLOBAL);
 	});
 
-	test('Remove Data (workspace, in-memory)', () => {
+	test('Remove Data (workspace)', () => {
 		removeData(StorageScope.WORKSPACE);
 	});
 
 	function removeData(scope: StorageScope): void {
-		const storage = new InMemoryStorageService();
-
 		let storageValueChangeEvents: IStorageValueChangeEvent[] = [];
-		storage.onDidChangeValue(e => storageValueChangeEvents.push(e));
+		storageService.onDidChangeValue(e => storageValueChangeEvents.push(e));
 
-		storage.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
-		strictEqual('foobar', storage.get('test.remove', scope, (undefined)!));
+		storageService.store('test.remove', 'foobar', scope, StorageTarget.MACHINE);
+		strictEqual('foobar', storageService.get('test.remove', scope, (undefined)!));
 
-		storage.remove('test.remove', scope);
-		ok(!storage.get('test.remove', scope, (undefined)!));
+		storageService.remove('test.remove', scope);
+		ok(!storageService.get('test.remove', scope, (undefined)!));
 		let storageValueChangeEvent = storageValueChangeEvents.find(e => e.key === 'test.remove');
 		strictEqual(storageValueChangeEvent?.scope, scope);
 		strictEqual(storageValueChangeEvent?.key, 'test.remove');
 	}
 
 	test('Keys (in-memory)', () => {
-		const storage = new InMemoryStorageService();
-
 		let storageTargetEvent: IStorageTargetChangeEvent | undefined = undefined;
-		storage.onDidChangeTarget(e => storageTargetEvent = e);
+		storageService.onDidChangeTarget(e => storageTargetEvent = e);
 
 		let storageValueChangeEvent: IStorageValueChangeEvent | undefined = undefined;
-		storage.onDidChangeValue(e => storageValueChangeEvent = e);
+		storageService.onDidChangeValue(e => storageValueChangeEvent = e);
 
 		// Empty
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				strictEqual(storage.keys(scope, target).length, 0);
+				strictEqual(storageService.keys(scope, target).length, 0);
 			}
 		}
 
@@ -105,8 +109,8 @@ suite('StorageService', function () {
 				storageTargetEvent = Object.create(null);
 				storageValueChangeEvent = Object.create(null);
 
-				storage.store('test.target1', 'value1', scope, target);
-				strictEqual(storage.keys(scope, target).length, 1);
+				storageService.store('test.target1', 'value1', scope, target);
+				strictEqual(storageService.keys(scope, target).length, 1);
 				strictEqual(storageTargetEvent?.scope, scope);
 				strictEqual(storageValueChangeEvent?.key, 'test.target1');
 				strictEqual(storageValueChangeEvent?.scope, scope);
@@ -115,33 +119,33 @@ suite('StorageService', function () {
 				storageTargetEvent = undefined;
 				storageValueChangeEvent = Object.create(null);
 
-				storage.store('test.target1', 'otherValue1', scope, target);
-				strictEqual(storage.keys(scope, target).length, 1);
+				storageService.store('test.target1', 'otherValue1', scope, target);
+				strictEqual(storageService.keys(scope, target).length, 1);
 				strictEqual(storageTargetEvent, undefined);
 				strictEqual(storageValueChangeEvent?.key, 'test.target1');
 				strictEqual(storageValueChangeEvent?.scope, scope);
 				strictEqual(storageValueChangeEvent?.target, target);
 
-				storage.store('test.target2', 'value2', scope, target);
-				storage.store('test.target3', 'value3', scope, target);
+				storageService.store('test.target2', 'value2', scope, target);
+				storageService.store('test.target3', 'value3', scope, target);
 
-				strictEqual(storage.keys(scope, target).length, 3);
+				strictEqual(storageService.keys(scope, target).length, 3);
 			}
 		}
 
 		// Remove values
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				const keysLength = storage.keys(scope, target).length;
+				const keysLength = storageService.keys(scope, target).length;
 
-				storage.store('test.target4', 'value1', scope, target);
-				strictEqual(storage.keys(scope, target).length, keysLength + 1);
+				storageService.store('test.target4', 'value1', scope, target);
+				strictEqual(storageService.keys(scope, target).length, keysLength + 1);
 
 				storageTargetEvent = Object.create(null);
 				storageValueChangeEvent = Object.create(null);
 
-				storage.remove('test.target4', scope);
-				strictEqual(storage.keys(scope, target).length, keysLength);
+				storageService.remove('test.target4', scope);
+				strictEqual(storageService.keys(scope, target).length, keysLength);
 				strictEqual(storageTargetEvent?.scope, scope);
 				strictEqual(storageValueChangeEvent?.key, 'test.target4');
 				strictEqual(storageValueChangeEvent?.scope, scope);
@@ -151,48 +155,55 @@ suite('StorageService', function () {
 		// Remove all
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				const keys = storage.keys(scope, target);
+				const keys = storageService.keys(scope, target);
 
 				for (const key of keys) {
-					storage.remove(key, scope);
+					storageService.remove(key, scope);
 				}
 
-				strictEqual(storage.keys(scope, target).length, 0);
+				strictEqual(storageService.keys(scope, target).length, 0);
 			}
 		}
 
 		// Adding undefined or null removes value
 		for (const scope of [StorageScope.WORKSPACE, StorageScope.GLOBAL]) {
 			for (const target of [StorageTarget.MACHINE, StorageTarget.USER]) {
-				storage.store('test.target1', 'value1', scope, target);
-				strictEqual(storage.keys(scope, target).length, 1);
+				storageService.store('test.target1', 'value1', scope, target);
+				strictEqual(storageService.keys(scope, target).length, 1);
 
 				storageTargetEvent = Object.create(null);
 
-				storage.store('test.target1', undefined, scope, target);
-				strictEqual(storage.keys(scope, target).length, 0);
+				storageService.store('test.target1', undefined, scope, target);
+				strictEqual(storageService.keys(scope, target).length, 0);
 				strictEqual(storageTargetEvent?.scope, scope);
 
-				storage.store('test.target1', '', scope, target);
-				strictEqual(storage.keys(scope, target).length, 1);
+				storageService.store('test.target1', '', scope, target);
+				strictEqual(storageService.keys(scope, target).length, 1);
 
-				storage.store('test.target1', null, scope, target);
-				strictEqual(storage.keys(scope, target).length, 0);
+				storageService.store('test.target1', null, scope, target);
+				strictEqual(storageService.keys(scope, target).length, 0);
 			}
 		}
 
 		// Target change
 		storageTargetEvent = undefined;
-		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		ok(storageTargetEvent);
 		storageTargetEvent = undefined;
-		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.USER);
 		ok(storageTargetEvent);
 		storageTargetEvent = undefined;
-		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		ok(storageTargetEvent);
 		storageTargetEvent = undefined;
-		storage.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('test.target5', 'value1', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		ok(!storageTargetEvent); // no change in target
+	});
+}
+
+suite('StorageService (in-memory)', function () {
+	createSuite<InMemoryStorageService>({
+		setup: async () => new InMemoryStorageService(),
+		teardown: async () => { }
 	});
 });

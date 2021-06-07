@@ -8,13 +8,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { defaultWindowState } from 'vs/code/electron-main/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { INativeWindowConfiguration, IWindowSettings } from 'vs/platform/windows/common/windows';
-import { ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
+import { defaultWindowState, ICodeWindow, IWindowsMainService, IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 
 export interface IWindowState {
@@ -54,7 +53,7 @@ export class WindowsStateHandler extends Disposable {
 	private static readonly windowsStateStorageKey = 'windowsState';
 
 	get state() { return this._state; }
-	private readonly _state = restoreWindowsState(this.stateService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
+	private readonly _state = restoreWindowsState(this.stateMainService.getItem<ISerializedWindowsState>(WindowsStateHandler.windowsStateStorageKey));
 
 	private lastClosedState: IWindowState | undefined = undefined;
 
@@ -62,7 +61,7 @@ export class WindowsStateHandler extends Disposable {
 
 	constructor(
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
@@ -84,9 +83,9 @@ export class WindowsStateHandler extends Disposable {
 		});
 
 		// Handle various lifecycle events around windows
-		this.lifecycleMainService.onBeforeWindowClose(window => this.onBeforeWindowClose(window));
+		this.lifecycleMainService.onBeforeCloseWindow(window => this.onBeforeCloseWindow(window));
 		this.lifecycleMainService.onBeforeShutdown(() => this.onBeforeShutdown());
-		this.windowsMainService.onWindowsCountChanged(e => {
+		this.windowsMainService.onDidChangeWindowsCount(e => {
 			if (e.newCount - e.oldCount > 0) {
 				// clear last closed window state when a new window opens. this helps on macOS where
 				// otherwise closing the last window, opening a new window and then quitting would
@@ -96,16 +95,16 @@ export class WindowsStateHandler extends Disposable {
 		});
 
 		// try to save state before destroy because close will not fire
-		this.windowsMainService.onWindowDestroyed(window => this.onBeforeWindowClose(window));
+		this.windowsMainService.onDidDestroyWindow(window => this.onBeforeCloseWindow(window));
 	}
 
-	// Note that onBeforeShutdown() and onBeforeWindowClose() are fired in different order depending on the OS:
+	// Note that onBeforeShutdown() and onBeforeCloseWindow() are fired in different order depending on the OS:
 	// - macOS: since the app will not quit when closing the last window, you will always first get
-	//          the onBeforeShutdown() event followed by N onBeforeWindowClose() events for each window
+	//          the onBeforeShutdown() event followed by N onBeforeCloseWindow() events for each window
 	// - other: on other OS, closing the last window will quit the app so the order depends on the
-	//          user interaction: closing the last window will first trigger onBeforeWindowClose()
+	//          user interaction: closing the last window will first trigger onBeforeCloseWindow()
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
-	//          and then onBeforeWindowClose().
+	//          and then onBeforeCloseWindow().
 	//
 	// Here is the behavior on different OS depending on action taken (Electron 1.7.x):
 	//
@@ -114,27 +113,27 @@ export class WindowsStateHandler extends Disposable {
 	// - close(1): close one window via the window close button
 	// - closeAll: close all windows via the taskbar command
 	// - onBeforeShutdown(N): number of windows reported in this event handler
-	// - onBeforeWindowClose(N, M): number of windows reported and quitRequested boolean in this event handler
+	// - onBeforeCloseWindow(N, M): number of windows reported and quitRequested boolean in this event handler
 	//
 	// macOS
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
 	// 	-     quit(0): onBeforeShutdown(0)
-	// 	-    close(1): onBeforeWindowClose(1, false)
+	// 	-    close(1): onBeforeCloseWindow(1, false)
 	//
 	// Windows
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
 	//
 	// Linux
-	// 	-     quit(1): onBeforeShutdown(1), onBeforeWindowClose(1, true)
-	// 	-     quit(2): onBeforeShutdown(2), onBeforeWindowClose(2, true), onBeforeWindowClose(2, true)
-	// 	-    close(1): onBeforeWindowClose(2, false)[not last window]
-	// 	-    close(1): onBeforeWindowClose(1, false), onBeforeShutdown(0)[last window]
-	// 	- closeAll(2): onBeforeWindowClose(2, false), onBeforeWindowClose(2, false), onBeforeShutdown(0)
+	// 	-     quit(1): onBeforeShutdown(1), onBeforeCloseWindow(1, true)
+	// 	-     quit(2): onBeforeShutdown(2), onBeforeCloseWindow(2, true), onBeforeCloseWindow(2, true)
+	// 	-    close(1): onBeforeCloseWindow(2, false)[not last window]
+	// 	-    close(1): onBeforeCloseWindow(1, false), onBeforeShutdown(0)[last window]
+	// 	- closeAll(2): onBeforeCloseWindow(2, false), onBeforeCloseWindow(2, false), onBeforeShutdown(0)
 	//
 	private onBeforeShutdown(): void {
 		this.shuttingDown = true;
@@ -178,7 +177,7 @@ export class WindowsStateHandler extends Disposable {
 
 		// Persist
 		const state = getWindowsStateStoreData(currentWindowsState);
-		this.stateService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
+		this.stateMainService.setItem(WindowsStateHandler.windowsStateStorageKey, state);
 
 		if (this.shuttingDown) {
 			this.logService.trace('[WindowsStateHandler] onBeforeShutdown', state);
@@ -186,7 +185,7 @@ export class WindowsStateHandler extends Disposable {
 	}
 
 	// See note on #onBeforeShutdown() for details how these events are flowing
-	private onBeforeWindowClose(window: ICodeWindow): void {
+	private onBeforeCloseWindow(window: ICodeWindow): void {
 		if (this.lifecycleMainService.quitRequested) {
 			return; // during quit, many windows close in parallel so let it be handled in the before-quit handler
 		}
@@ -233,9 +232,11 @@ export class WindowsStateHandler extends Disposable {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+		// or to address a Electron issue on macOS (https://github.com/microsoft/vscode/issues/125122)
 		let allowFullscreen: boolean;
 		if (state.hasDefaultState) {
-			allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			const configAllowsFullScreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			allowFullscreen = configAllowsFullScreen || (isMacintosh && windowConfig?.nativeFullScreen !== false);
 		}
 
 		// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
@@ -338,14 +339,22 @@ export class WindowsStateHandler extends Disposable {
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
+		let state: INewWindowState = defaultWindowState();
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
-		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		let ensureNoOverlap = true;
-		if (windowConfig?.newWindowDimensions) {
+
+		// TODO@electron macOS: if the current window is fullscreen and native fullscreen
+		// is not disabled, always open a new window in fullscreen. This is a workaround
+		// for regression https://github.com/microsoft/vscode/issues/125122
+		if (isMacintosh && windowConfig?.nativeFullScreen !== false && lastActive?.isFullScreen) {
+			state.mode = WindowMode.Fullscreen;
+		}
+
+		// Adjust according to `newWindowDimensions` user setting
+		else if (windowConfig?.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
 				state.mode = WindowMode.Maximized;
 				ensureNoOverlap = false;
@@ -368,7 +377,7 @@ export class WindowsStateHandler extends Disposable {
 			state = this.ensureNoOverlap(state);
 		}
 
-		(state as INewWindowState).hasDefaultState = true; // flag as default state
+		state.hasDefaultState = true; // flag as default state
 
 		return state;
 	}

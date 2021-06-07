@@ -20,8 +20,14 @@ export class MenuService implements IMenuService {
 		//
 	}
 
-	createMenu(id: MenuId, contextKeyService: IContextKeyService): IMenu {
-		return new Menu(id, this._commandService, contextKeyService, this);
+	/**
+	 * Create a new menu for the given menu identifier. A menu sends events when it's entries
+	 * have changed (placement, enablement, checked-state). By default it does send events for
+	 * sub menu entries. That is more expensive and must be explicitly enabled with the
+	 * `emitEventsForSubmenuChanges` flag.
+	 */
+	createMenu(id: MenuId, contextKeyService: IContextKeyService, emitEventsForSubmenuChanges: boolean = false): IMenu {
+		return new Menu(id, emitEventsForSubmenuChanges, this._commandService, contextKeyService, this);
 	}
 }
 
@@ -40,6 +46,7 @@ class Menu implements IMenu {
 
 	constructor(
 		private readonly _id: MenuId,
+		private readonly _fireEventsForSubmenuChanges: boolean,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IMenuService private readonly _menuService: IMenuService
@@ -93,21 +100,31 @@ class Menu implements IMenu {
 			group![1].push(item);
 
 			// keep keys for eventing
-			Menu._fillInKbExprKeys(item.when, this._contextKeys);
-
-			if (isIMenuItem(item)) {
-				// keep precondition keys for event if applicable
-				if (item.command.precondition) {
-					Menu._fillInKbExprKeys(item.command.precondition, this._contextKeys);
-				}
-				// keep toggled keys for event if applicable
-				if (item.command.toggled) {
-					const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
-					Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
-				}
-			}
+			this._collectContextKeys(item);
 		}
 		this._onDidChange.fire(this);
+	}
+
+	private _collectContextKeys(item: IMenuItem | ISubmenuItem): void {
+
+		Menu._fillInKbExprKeys(item.when, this._contextKeys);
+
+		if (isIMenuItem(item)) {
+			// keep precondition keys for event if applicable
+			if (item.command.precondition) {
+				Menu._fillInKbExprKeys(item.command.precondition, this._contextKeys);
+			}
+			// keep toggled keys for event if applicable
+			if (item.command.toggled) {
+				const toggledExpression: ContextKeyExpression = (item.command.toggled as { condition: ContextKeyExpression }).condition || item.command.toggled;
+				Menu._fillInKbExprKeys(toggledExpression, this._contextKeys);
+			}
+
+		} else if (this._fireEventsForSubmenuChanges) {
+			// recursively collect context keys from submenus so that this
+			// menu fires events when context key changes affect submenus
+			MenuRegistry.getMenuItems(item.submenu).forEach(this._collectContextKeys, this);
+		}
 	}
 
 	getActions(options?: IMenuActionOptions): [string, Array<MenuItemAction | SubmenuItemAction>][] {

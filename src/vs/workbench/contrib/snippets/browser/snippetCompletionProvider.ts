@@ -65,7 +65,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter === ' ') {
+		if (context.triggerKind === CompletionTriggerKind.TriggerCharacter && context.triggerCharacter?.match(/\s/)) {
 			// no snippets when suggestions have been triggered by space
 			return { suggestions: [] };
 		}

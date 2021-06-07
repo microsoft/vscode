@@ -120,7 +120,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	let child: cp.ChildProcess | undefined;
 	let connectDriver: typeof connectElectronDriver;
 
-	copyExtension(options, 'vscode-notebook-tests');
+	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	if (options.web) {
 		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath);
@@ -138,11 +138,17 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
+		'--disable-keytar',
 		'--disable-crash-reporter',
+		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
 		'--driver', handle
 	];
+
+	if (process.platform === 'linux') {
+		args.push('--disable-gpu'); // Linux has trouble in VMs to render properly with GPU enabled
+	}
 
 	if (options.remote) {
 		// Replace workspace path with URI
@@ -150,11 +156,19 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 		if (codePath) {
 			// running against a build: copy the test resolver extension
-			copyExtension(options, 'vscode-test-resolver');
+			copyExtension(options.extensionsPath, 'vscode-test-resolver');
 		}
 		args.push('--enable-proposed-api=vscode.vscode-test-resolver');
 		const remoteDataDir = `${options.userDataDir}-server`;
 		mkdirp.sync(remoteDataDir);
+
+		if (codePath) {
+			// running against a build: copy the test resolver extension into remote extensions dir
+			const remoteExtensionsDir = path.join(remoteDataDir, 'extensions');
+			mkdirp.sync(remoteExtensionsDir);
+			copyExtension(remoteExtensionsDir, 'vscode-notebook-tests');
+		}
+
 		env['TESTRESOLVER_DATA_FOLDER'] = remoteDataDir;
 	}
 
@@ -186,11 +200,11 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	return connect(connectDriver, child, outPath, handle, options.logger);
 }
 
-async function copyExtension(options: SpawnOptions, extId: string): Promise<void> {
-	const testResolverExtPath = path.join(options.extensionsPath, extId);
-	if (!fs.existsSync(testResolverExtPath)) {
+async function copyExtension(extensionsPath: string, extId: string): Promise<void> {
+	const dest = path.join(extensionsPath, extId);
+	if (!fs.existsSync(dest)) {
 		const orig = path.join(repoPath, 'extensions', extId);
-		await new Promise((c, e) => ncp(orig, testResolverExtPath, err => err ? e(err) : c()));
+		await new Promise<void>((c, e) => ncp(orig, dest, err => err ? e(err) : c()));
 	}
 }
 
@@ -294,9 +308,9 @@ export class Code {
 		);
 	}
 
-	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
+	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`);
+		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
 	async waitAndDoubleClick(selector: string): Promise<void> {

@@ -14,7 +14,7 @@ header="// Type definitions for Visual Studio Code ${1}
 /*---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License.
- *  See https://github.com/microsoft/vscode/blob/master/LICENSE.txt for license information.
+ *  See https://github.com/microsoft/vscode/blob/main/LICENSE.txt for license information.
  *--------------------------------------------------------------------------------------------*/
 
 /**

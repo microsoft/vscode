@@ -221,6 +221,19 @@
 				]
 			},
 			{
+				"target": "**/vs/platform/*/test/browser/**",
+				"restrictions": [
+					"assert",
+					"sinon",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**"
+				]
+			},
+			{
 				"target": "**/vs/platform/*/browser/**",
 				"restrictions": [
 					"vs/nls",
@@ -268,7 +281,6 @@
 					"**/vs/base/{common,node,electron-main}/**",
 					"**/vs/base/parts/*/{common,node,electron-main}/**",
 					"**/vs/platform/*/{common,node,electron-main}/**",
-					"**/vs/code/**",
 					"*" // node modules
 				]
 			},
@@ -279,6 +291,7 @@
 					"sinon",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
 					"**/vs/platform/*/test/{common,browser}/**"
 				]
@@ -501,7 +514,7 @@
 					"**/vs/platform/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"vs/workbench/contrib/files/common/editors/fileEditorInput",
+					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
 					"*" // node modules
@@ -807,7 +820,6 @@
 					"**/vs/platform/**/{common,node}/**",
 					"**/vs/workbench/**/{common,node}/**",
 					"**/vs/server/**",
-					"**/vs/code/**/{common,node}/**",
 					"*" // node modules
 				]
 			},
@@ -983,9 +995,12 @@
 						"allowed": [
 							"FileSystemProvider",
 							"TreeDataProvider",
+							"TestProvider",
 							"CustomEditorProvider",
 							"CustomReadonlyEditorProvider",
-							"TerminalLinkProvider"
+							"TerminalLinkProvider",
+							"AuthenticationProvider",
+							"NotebookContentProvider"
 						]
 					}
 				],
@@ -1008,11 +1023,14 @@
 							"edit",
 							"end",
 							"expand",
+							"grant",
 							"hide",
+							"invalidate",
 							"open",
 							"override",
 							"receive",
 							"register",
+							"remove",
 							"rename",
 							"save",
 							"send",

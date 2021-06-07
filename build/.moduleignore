@@ -80,13 +80,11 @@ node-pty/scripts/**
 !node-pty/build/Release/*.dll
 !node-pty/build/Release/*.node
 
-vscode-nsfw/binding.gyp
-vscode-nsfw/build/**
-vscode-nsfw/src/**
-vscode-nsfw/openpa/**
-vscode-nsfw/includes/**
-!vscode-nsfw/build/Release/*.node
-!vscode-nsfw/**/*.a
+nsfw/binding.gyp
+nsfw/build/**
+nsfw/src/**
+nsfw/includes/**
+!nsfw/build/Release/*.node
 
 vsda/build/**
 vsda/ci/**

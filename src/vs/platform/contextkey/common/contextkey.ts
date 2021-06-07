@@ -21,7 +21,6 @@ STATIC_VALUES.set('isEdge', _userAgent.indexOf('Edg/') >= 0);
 STATIC_VALUES.set('isFirefox', _userAgent.indexOf('Firefox') >= 0);
 STATIC_VALUES.set('isChrome', _userAgent.indexOf('Chrome') >= 0);
 STATIC_VALUES.set('isSafari', _userAgent.indexOf('Safari') >= 0);
-STATIC_VALUES.set('isIPad', _userAgent.indexOf('iPad') >= 0);
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -339,7 +338,7 @@ export class ContextKeyDefinedExpr implements IContextKeyExpression {
 
 	public readonly type = ContextKeyExprType.Defined;
 
-	protected constructor(protected readonly key: string) {
+	protected constructor(readonly key: string) {
 	}
 
 	public cmp(other: ContextKeyExpression): number {
@@ -1257,13 +1256,32 @@ export class ContextKeyOrExpr implements IContextKeyExpression {
 	}
 }
 
+export interface ContextKeyInfo {
+	readonly key: string;
+	readonly type?: string;
+	readonly description?: string;
+}
+
 export class RawContextKey<T> extends ContextKeyDefinedExpr {
+
+	private static _info: ContextKeyInfo[] = [];
+
+	static all(): IterableIterator<ContextKeyInfo> {
+		return RawContextKey._info.values();
+	}
 
 	private readonly _defaultValue: T | undefined;
 
-	constructor(key: string, defaultValue: T | undefined) {
+	constructor(key: string, defaultValue: T | undefined, metaOrHide?: string | true | { type: string, description: string }) {
 		super(key);
 		this._defaultValue = defaultValue;
+
+		// collect all context keys into a central place
+		if (typeof metaOrHide === 'object') {
+			RawContextKey._info.push({ ...metaOrHide, key });
+		} else if (metaOrHide !== true) {
+			RawContextKey._info.push({ key, description: metaOrHide, type: defaultValue !== null && defaultValue !== undefined ? typeof defaultValue : undefined });
+		}
 	}
 
 	public bindTo(target: IContextKeyService): IContextKey<T> {
@@ -1326,7 +1344,8 @@ export interface IContextKeyService {
 	contextMatchesRules(rules: ContextKeyExpression | undefined): boolean;
 	getContextKeyValue<T>(key: string): T | undefined;
 
-	createScoped(target?: IContextKeyServiceTarget): IContextKeyService;
+	createScoped(target: IContextKeyServiceTarget): IContextKeyService;
+	createOverlay(overlay: Iterable<[string, any]>): IContextKeyService;
 	getContext(target: IContextKeyServiceTarget | null): IContext;
 
 	updateParent(parentContextKeyService: IContextKeyService): void;

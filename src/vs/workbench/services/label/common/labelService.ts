@@ -21,7 +21,6 @@ import { match } from 'vs/base/common/glob';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { hasDriveLetter } from 'vs/base/common/extpath';
 
 const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoint<ResourceLabelFormatter[]>({
 	extensionPoint: 'resourceLabelFormatters',
@@ -74,6 +73,10 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 const sepRegexp = /\//g;
 const labelMatchingRegexp = /\$\{(scheme|authority|path|(query)\.(.+?))\}/g;
 
+function hasDriveLetterIgnorePlatform(path: string): boolean {
+	return !!(path && path[2] === ':');
+}
+
 class ResourceLabelFormattersHandler implements IWorkbenchContribution {
 	private formattersDisposables = new Map<ResourceLabelFormatter, IDisposable>();
 
@@ -96,7 +99,7 @@ export class LabelService extends Disposable implements ILabelService {
 
 	private formatters: ResourceLabelFormatter[] = [];
 
-	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>());
+	private readonly _onDidChangeFormatters = this._register(new Emitter<IFormatterChangeEvent>({ leakWarningThreshold: 400 }));
 	readonly onDidChangeFormatters = this._onDidChangeFormatters.event;
 
 	constructor(
@@ -222,7 +225,7 @@ export class LabelService extends Disposable implements ILabelService {
 		}
 
 		let label;
-		if (options && options.verbose) {
+		if (options?.verbose) {
 			label = localize('workspaceNameVerbose', "{0} (Workspace)", this.getUriLabel(joinPath(dirname(workspaceUri), filename)));
 		} else {
 			label = localize('workspaceName', "{0} (Workspace)", filename);
@@ -232,18 +235,18 @@ export class LabelService extends Disposable implements ILabelService {
 	}
 
 	private doGetSingleFolderWorkspaceLabel(folderUri: URI, options?: { verbose: boolean }): string {
-		const label = options && options.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
+		const label = options?.verbose ? this.getUriLabel(folderUri) : basename(folderUri) || '/';
 		return this.appendWorkspaceSuffix(label, folderUri);
 	}
 
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.separator || '/';
+		return formatter?.separator || '/';
 	}
 
 	getHostLabel(scheme: string, authority?: string): string {
 		const formatter = this.findFormatting(URI.from({ scheme, authority }));
-		return formatter && formatter.workspaceSuffix || '';
+		return formatter?.workspaceSuffix || '';
 	}
 
 	registerFormatter(formatter: ResourceLabelFormatter): IDisposable {
@@ -283,7 +286,7 @@ export class LabelService extends Disposable implements ILabelService {
 		});
 
 		// convert \c:\something => C:\something
-		if (formatting.normalizeDriveLetter && hasDriveLetter(label.substr(1))) {
+		if (formatting.normalizeDriveLetter && hasDriveLetterIgnorePlatform(label)) {
 			label = label.charAt(1).toUpperCase() + label.substr(2);
 		}
 

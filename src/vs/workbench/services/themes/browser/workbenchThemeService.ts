@@ -38,7 +38,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
 import { RunOnceScheduler, Sequencer } from 'vs/base/common/async';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
-import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 
 // implementation
 
@@ -183,13 +183,13 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
-		const iconRegistry = getIconRegistry();
+		const iconsStyleSheet = getIconsStyleSheet();
 		function updateAll() {
-			codiconStyleSheet.textContent = iconRegistry.getCSS();
+			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
 		}
 
 		const delayer = new RunOnceScheduler(updateAll, 0);
-		iconRegistry.onDidChange(() => delayer.schedule());
+		iconsStyleSheet.onDidChange(() => delayer.schedule());
 		delayer.schedule();
 	}
 
@@ -692,19 +692,17 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 class ThemeFileWatcher {
 
-	private inExtensionDevelopment: boolean;
 	private watchedLocation: URI | undefined;
 	private watcherDisposable: IDisposable | undefined;
 	private fileChangeListener: IDisposable | undefined;
 
-	constructor(private fileService: IFileService, environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
-		this.inExtensionDevelopment = !!environmentService.extensionDevelopmentLocationURI;
+	constructor(private fileService: IFileService, private environmentService: IWorkbenchEnvironmentService, private onUpdate: () => void) {
 	}
 
 	update(theme: { location?: URI, watch?: boolean; }) {
 		if (!resources.isEqual(theme.location, this.watchedLocation)) {
 			this.dispose();
-			if (theme.location && (theme.watch || this.inExtensionDevelopment)) {
+			if (theme.location && (theme.watch || this.environmentService.isExtensionDevelopment)) {
 				this.watchedLocation = theme.location;
 				this.watcherDisposable = this.fileService.watch(theme.location);
 				this.fileService.onDidFilesChange(e => {

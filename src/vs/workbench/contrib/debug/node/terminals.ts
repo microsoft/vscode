@@ -5,29 +5,13 @@
 
 import * as cp from 'child_process';
 import * as platform from 'vs/base/common/platform';
-import { WindowsExternalTerminalService, MacExternalTerminalService, LinuxExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/node/externalTerminalService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExternalTerminalService } from 'vs/workbench/contrib/externalTerminal/common/externalTerminal';
-import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 import { getDriveLetter } from 'vs/base/common/extpath';
+import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { IExternalTerminalService } from 'vs/platform/externalTerminal/common/externalTerminal';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ExtHostConfigProvider } from 'vs/workbench/api/common/extHostConfiguration';
 
-let externalTerminalService: IExternalTerminalService | undefined = undefined;
 
-export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
-	if (!externalTerminalService) {
-		if (platform.isWindows) {
-			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isMacintosh) {
-			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else if (platform.isLinux) {
-			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
-		} else {
-			throw new Error('external terminals not supported on this platform');
-		}
-	}
-	const config = configProvider.getConfiguration('terminal');
-	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
-}
 
 function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	return new Promise((resolve, reject) => {
@@ -47,15 +31,35 @@ function spawnAsPromised(command: string, args: string[]): Promise<string> {
 	});
 }
 
+let externalTerminalService: IExternalTerminalService | undefined = undefined;
+
+export function runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, configProvider: ExtHostConfigProvider): Promise<number | undefined> {
+	if (!externalTerminalService) {
+		if (platform.isWindows) {
+			externalTerminalService = new WindowsExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else if (platform.isMacintosh) {
+			externalTerminalService = new MacExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else if (platform.isLinux) {
+			externalTerminalService = new LinuxExternalTerminalService(<IConfigurationService><unknown>undefined);
+		} else {
+			throw new Error('external terminals not supported on this platform');
+		}
+	}
+	const config = configProvider.getConfiguration('terminal');
+	return externalTerminalService.runInTerminal(args.title!, args.cwd, args.args, args.env || {}, config.external || {});
+}
+
 export function hasChildProcesses(processId: number | undefined): Promise<boolean> {
 	if (processId) {
+
 		// if shell has at least one child process, assume that shell is busy
 		if (platform.isWindows) {
-			return spawnAsPromised('wmic', ['process', 'get', 'ParentProcessId']).then(stdout => {
-				const pids = stdout.split('\r\n');
-				return pids.some(p => parseInt(p) === processId);
-			}, error => {
-				return true;
+			return new Promise<boolean>(async (resolve) => {
+				// See #123296
+				const windowsProcessTree = await import('windows-process-tree');
+				windowsProcessTree.getProcessTree(processId, (processTree) => {
+					resolve(processTree.children.length > 0);
+				});
 			});
 		} else {
 			return spawnAsPromised('/usr/bin/pgrep', ['-lP', String(processId)]).then(stdout => {

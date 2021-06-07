@@ -7,7 +7,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
@@ -69,6 +68,7 @@ export namespace Event {
 	 * Given an event and a `filter` function, returns another event which emits those
 	 * elements for which the `filter` function returns `true`.
 	 */
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
@@ -189,16 +189,27 @@ export namespace Event {
 	 * Given an event, it returns another event which fires only when the event
 	 * element changes.
 	 */
-	export function latch<T>(event: Event<T>): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
 		return filter(event, value => {
-			const shouldEmit = firstCall || value !== cache;
+			const shouldEmit = firstCall || !equals(value, cache);
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
 		});
+	}
+
+	/**
+	 * Given an event, it returns another event which fires only when the event
+	 * element changes.
+	 */
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+		return [
+			Event.filter(event, isT),
+			Event.filter(event, e => !isT(e)) as Event<U>,
+		];
 	}
 
 	/**
@@ -379,7 +390,7 @@ export namespace Event {
 	}
 }
 
-type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
+export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
@@ -634,10 +645,13 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		this._listeners?.clear();
-		this._deliveryQueue?.clear();
-		this._leakageMon?.dispose();
-		this._disposed = true;
+		if (!this._disposed) {
+			this._disposed = true;
+			this._listeners?.clear();
+			this._deliveryQueue?.clear();
+			this._options?.onLastListenerRemove?.();
+			this._leakageMon?.dispose();
+		}
 	}
 }
 
@@ -675,71 +689,13 @@ export class PauseableEmitter<T> extends Emitter<T> {
 		}
 	}
 
-	fire(event: T): void {
+	override fire(event: T): void {
 		if (this._listeners) {
 			if (this._isPaused !== 0) {
 				this._eventQueue.push(event);
 			} else {
 				super.fire(event);
 			}
-		}
-	}
-}
-
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<any>): void;
-}
-
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
-
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
-
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
-		if (!this._listeners) {
-			return;
-		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<any>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<any>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promise.all(thenables).catch(e => onUnexpectedError(e));
 		}
 	}
 }

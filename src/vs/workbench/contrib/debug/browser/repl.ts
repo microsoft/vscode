@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/repl';
 import { URI as uri } from 'vs/base/common/uri';
-import { IAction, IActionViewItem } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -33,7 +33,7 @@ import { createAndBindHistoryNavigationWidgetScopedContextKeyService } from 'vs/
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { getSimpleEditorOptions, getSimpleCodeEditorWidgetOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { FocusSessionActionViewItem } from 'vs/workbench/contrib/debug/browser/debugActionViewItems';
 import { CompletionContext, CompletionList, CompletionProviderRegistry, CompletionItem, completionKindFromString, CompletionItemKind, CompletionItemInsertTextRule } from 'vs/editor/common/modes';
@@ -62,11 +62,13 @@ import { ReplFilter, ReplFilterState, ReplFilterActionViewItem } from 'vs/workbe
 import { debugConsoleClearAll, debugConsoleEvaluationPrompt } from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { registerAction2, MenuId, Action2, IMenuService, IMenu } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 const $ = dom.$;
 
 const HISTORY_STORAGE_KEY = 'debug.repl.history';
 const FILTER_HISTORY_STORAGE_KEY = 'debug.repl.filterHistory';
+const FILTER_VALUE_STORAGE_KEY = 'debug.repl.filterValue';
 const DECORATION_KEY = 'replinputdecoration';
 const FILTER_ACTION_ID = `workbench.actions.treeView.repl.filter`;
 
@@ -131,10 +133,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.filter = new ReplFilter();
 		this.filterState = new ReplFilterState(this);
+		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 		this.multiSessionRepl.set(this.isMultiSessionView);
 
-		codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
 		this.registerListeners();
 	}
 
@@ -270,9 +273,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	}
 
 	getFilterStats(): { total: number, filtered: number } {
+		// This could be called before the tree is created when setting this.filterState.filterText value
 		return {
-			total: this.tree.getNode().children.length,
-			filtered: this.tree.getNode().children.filter(c => c.visible).length
+			total: this.tree?.getNode().children.length ?? 0,
+			filtered: this.tree?.getNode().children.filter(c => c.visible).length ?? 0
 		};
 	}
 
@@ -335,18 +339,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 			// Set the font size, font family, line height and align the twistie to be centered, and input theme color
 			this.styleElement.textContent = `
-				.repl .repl-tree .expression {
-					font-size: ${fontSize}px;
-				}
-
-				.repl .repl-tree .expression {
-					line-height: ${lineHeight};
-				}
-
-				.repl .repl-tree .monaco-tl-twistie {
-					background-position-y: calc(100% - ${fontSize * 1.4 / 2 - 8}px);
-				}
-
 				.repl .repl-input-wrapper .repl-input-chevron {
 					line-height: ${replInputLineHeight}px
 				}
@@ -356,6 +348,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				}
 			`;
 			this.container.style.setProperty(`--vscode-repl-font-family`, fontFamily);
+			this.container.style.setProperty(`--vscode-repl-font-size`, `${fontSize}px`);
+			this.container.style.setProperty(`--vscode-repl-font-size-for-twistie`, `${fontSize * 1.4 / 2 - 8}px`);
+			this.container.style.setProperty(`--vscode-repl-line-height`, lineHeight);
 
 			this.tree.rerender();
 
@@ -453,7 +448,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		return removeAnsiEscapeCodes(text);
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.dimension = new dom.Dimension(width, height);
 		const replInputHeight = Math.min(this.replInput.getContentHeight(), height);
@@ -479,11 +474,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		return this.replInput;
 	}
 
-	focus(): void {
+	override focus(): void {
 		setTimeout(() => this.replInput.focus(), 0);
 	}
 
-	getActionViewItem(action: IAction): IActionViewItem | undefined {
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		if (action.id === selectReplCommandId) {
 			const session = (this.tree ? this.tree.getInput() : undefined) ?? this.debugService.getViewModel().focusedSession;
 			return this.instantiationService.createInstance(SelectReplActionViewItem, action, session);
@@ -545,7 +540,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 	// --- Creation
 
-	protected renderBody(parent: HTMLElement): void {
+	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
@@ -578,7 +573,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 				accessibilityProvider: new ReplAccessibilityProvider(),
 				identityProvider,
 				mouseSupport: false,
-				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e },
+				keyboardNavigationLabelProvider: { getKeyboardNavigationLabel: (e: IReplElement) => e.toString(true) },
 				horizontalScrolling: !wordWrap,
 				setRowLineHeight: false,
 				supportDynamicHeights: wordWrap,
@@ -665,7 +660,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 
 		const decorations: IDecorationOptions[] = [];
 		if (this.isReadonly && this.replInput.hasTextFocus() && !this.replInput.getValue()) {
-			const transparentForeground = transparent(editorForeground, 0.4)(this.themeService.getColorTheme());
+			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -682,10 +677,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			});
 		}
 
-		this.replInput.setDecorations(DECORATION_KEY, decorations);
+		this.replInput.setDecorations('repl-decoration', DECORATION_KEY, decorations);
 	}
 
-	saveState(): void {
+	override saveState(): void {
 		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
 			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE, StorageTarget.USER);
@@ -699,12 +694,18 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			} else {
 				this.storageService.remove(FILTER_HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 			}
+			const filterValue = this.filterState.filterText;
+			if (filterValue) {
+				this.storageService.store(FILTER_VALUE_STORAGE_KEY, filterValue, StorageScope.WORKSPACE, StorageTarget.USER);
+			} else {
+				this.storageService.remove(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE);
+			}
 		}
 
 		super.saveState();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.replInput.dispose();
 		if (this.replElementsChangeListener) {
 			this.replElementsChangeListener.dispose();
@@ -789,11 +790,11 @@ registerEditorAction(FilterReplAction);
 
 class SelectReplActionViewItem extends FocusSessionActionViewItem {
 
-	protected getSessions(): ReadonlyArray<IDebugSession> {
+	protected override getSessions(): ReadonlyArray<IDebugSession> {
 		return this.debugService.getModel().getSessions(true).filter(s => s.hasSeparateRepl() && !sessionsToIgnore.has(s));
 	}
 
-	protected mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
+	protected override mapFocusedSessionToSelected(focusedSession: IDebugSession): IDebugSession {
 		while (focusedSession.parentSession && !focusedSession.hasSeparateRepl()) {
 			focusedSession = focusedSession.parentSession;
 		}
@@ -810,7 +811,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: FILTER_ACTION_ID,
 			title: localize('filter', "Filter"),
-			f1: true,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -832,8 +833,7 @@ registerAction2(class extends ViewAction<Repl> {
 			id: selectReplCommandId,
 			viewId: REPL_VIEW_ID,
 			title: localize('selectRepl', "Select Debug Console"),
-			f1: true,
-			icon: debugConsoleClearAll,
+			f1: false,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -849,15 +849,15 @@ registerAction2(class extends ViewAction<Repl> {
 		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
 			if (session.state !== State.Stopped) {
 				// Focus child session instead if it is stopped #112595
-				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session);
+				const stopppedChildSession = debugService.getModel().getSessions().find(s => s.parentSession === session && s.state === State.Stopped);
 				if (stopppedChildSession) {
 					session = stopppedChildSession;
 				}
 			}
 			await debugService.focusStackFrame(undefined, undefined, session, true);
-		} else {
-			await view.selectSession(session);
 		}
+		// Need to select the session in the view since the focussed session might not have changed
+		await view.selectSession(session);
 	}
 });
 
@@ -866,7 +866,7 @@ registerAction2(class extends ViewAction<Repl> {
 		super({
 			id: 'workbench.debug.panel.action.clearReplAction',
 			viewId: REPL_VIEW_ID,
-			title: localize('clearRepl', "Clear Console"),
+			title: { value: localize('clearRepl', "Clear Console"), original: 'Clear Console' },
 			f1: true,
 			icon: debugConsoleClearAll,
 			menu: [{
@@ -973,11 +973,14 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
+	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const nativeSelection = window.getSelection();
-		if (nativeSelection) {
-			await clipboardService.writeText(nativeSelection.toString());
+		const selectedText = nativeSelection?.toString();
+		if (selectedText && selectedText.length > 0) {
+			await clipboardService.writeText(selectedText);
+		} else if (element) {
+			await clipboardService.writeText(element.toString());
 		}
 	}
 });

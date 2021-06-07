@@ -33,10 +33,11 @@ import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/con
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 interface ICachedPanel {
 	id: string;
@@ -103,6 +104,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private dndHandler: ICompositeDragAndDrop;
 
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
+
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -146,6 +149,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
+			activityHoverOptions: {
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+				delay: () => 0
+			},
 			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
 			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
@@ -245,10 +252,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(panel.id)!;
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			this.updateActivity(viewContainer, viewContainerModel);
-			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+			this.showOrHideViewContainer(viewContainer, viewContainerModel);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.showOrHideViewContainer(viewContainer, viewContainerModel)));
 			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
 
 			this.panelDisposables.set(panel.id, disposables);
@@ -284,7 +291,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const activity: IActivity = {
 			id: viewContainer.id,
 			name: this.extensionsRegistered || cachedTitle === undefined ? viewContainerModel.title : cachedTitle,
-			keybindingId: viewContainer.focusCommand?.id
+			keybindingId: viewContainerModel.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
@@ -300,10 +307,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
 		if (viewContainerModel.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(viewContainer);
+			contextKey.set(true);
+			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 		} else if (viewContainer.hideIfEmpty) {
+			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
 		}
 	}
@@ -406,7 +420,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.layoutEmptyMessage();
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		this.element = parent;
 
 		super.create(parent);
@@ -459,7 +473,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}));
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -553,7 +567,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.hideActiveComposite();
 	}
 
-	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
@@ -570,7 +584,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return;
 		}
@@ -637,7 +651,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return compositeActions;
 	}
 
-	protected removeComposite(compositeId: string): boolean {
+	protected override removeComposite(compositeId: string): boolean {
 		if (super.removeComposite(compositeId)) {
 			this.compositeBar.removeComposite(compositeId);
 			const compositeActions = this.compositeActions.get(compositeId);
@@ -848,16 +862,15 @@ registerThemingParticipant((theme, collector) => {
 	if (outline) {
 		collector.addRule(`
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
 				border-bottom: none;
-				padding-bottom: 0;
-				outline-offset: 1px;
+				outline-offset: -2px;
 			}
 
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
 				outline-style: dashed;
 			}
 		`);

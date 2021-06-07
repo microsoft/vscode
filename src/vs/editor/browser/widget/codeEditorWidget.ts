@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/editor/browser/services/markerDecorations';
+
 import 'vs/css!./media/editor';
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
@@ -215,8 +217,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _id: number;
 	private readonly _configuration: editorCommon.IConfiguration;
 
-	protected readonly _contributions: { [key: string]: editorCommon.IEditorContribution; };
-	protected readonly _actions: { [key: string]: editorCommon.IEditorAction; };
+	protected _contributions: { [key: string]: editorCommon.IEditorContribution; };
+	protected _actions: { [key: string]: editorCommon.IEditorAction; };
 
 	// --- Members logically associated to a model
 	protected _modelData: ModelData | null;
@@ -224,14 +226,14 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
 	private readonly _notificationService: INotificationService;
-	private readonly _codeEditorService: ICodeEditorService;
+	protected readonly _codeEditorService: ICodeEditorService;
 	private readonly _commandService: ICommandService;
 	private readonly _themeService: IThemeService;
 
 	private readonly _focusTracker: CodeEditorWidgetFocusTracker;
 
-	private readonly _contentWidgets: { [key: string]: IContentWidgetData; };
-	private readonly _overlayWidgets: { [key: string]: IOverlayWidgetData; };
+	private _contentWidgets: { [key: string]: IContentWidgetData; };
+	private _overlayWidgets: { [key: string]: IOverlayWidgetData; };
 
 	/**
 	 * map from "parent" decoration type to live decoration ids.
@@ -305,6 +307,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			contributions = EditorExtensionsRegistry.getEditorContributions();
 		}
 		for (const desc of contributions) {
+			if (this._contributions[desc.id]) {
+				onUnexpectedError(new Error(`Cannot have two contributions with the same id ${desc.id}`));
+				continue;
+			}
 			try {
 				const contribution = this._instantiationService.createInstance(desc.ctor, this);
 				this._contributions[desc.id] = contribution;
@@ -314,6 +320,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		EditorExtensionsRegistry.getEditorActions().forEach((action) => {
+			if (this._actions[action.id]) {
+				onUnexpectedError(new Error(`Cannot have two actions with the same id ${action.id}`));
+				return;
+			}
 			const internalAction = new InternalEditorAction(
 				action.id,
 				action.label,
@@ -344,7 +354,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return editorCommon.EditorType.ICodeEditor;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._codeEditorService.removeCodeEditor(this);
 
 		this._focusTracker.dispose();
@@ -354,6 +364,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			const contributionId = keys[i];
 			this._contributions[contributionId].dispose();
 		}
+		this._contributions = {};
+		this._actions = {};
+		this._contentWidgets = {};
+		this._overlayWidgets = {};
 
 		this._removeDecorationTypes();
 		this._postDetachModelCleanup(this._detachModel());
@@ -1002,7 +1016,12 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			}
 			case editorCommon.Handler.ReplacePreviousChar: {
 				const args = <Partial<editorCommon.ReplacePreviousCharPayload>>payload;
-				this._replacePreviousChar(source, args.text || '', args.replaceCharCnt || 0);
+				this._compositionType(source, args.text || '', args.replaceCharCnt || 0, 0, 0);
+				return;
+			}
+			case editorCommon.Handler.CompositionType: {
+				const args = <Partial<editorCommon.CompositionTypePayload>>payload;
+				this._compositionType(source, args.text || '', args.replacePrevCharCnt || 0, args.replaceNextCharCnt || 0, args.positionDelta || 0);
 				return;
 			}
 			case editorCommon.Handler.Paste: {
@@ -1029,6 +1048,10 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			return;
 		}
 
+		this._triggerCommand(handlerId, payload);
+	}
+
+	protected _triggerCommand(handlerId: string, payload: any): void {
 		this._commandService.executeCommand(handlerId, payload);
 	}
 
@@ -1061,11 +1084,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	private _replacePreviousChar(source: string | null | undefined, text: string, replaceCharCnt: number): void {
+	private _compositionType(source: string | null | undefined, text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
 		if (!this._modelData) {
 			return;
 		}
-		this._modelData.viewModel.replacePreviousChar(text, replaceCharCnt, source);
+		this._modelData.viewModel.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta, source);
 	}
 
 	private _paste(source: string | null | undefined, text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void {
@@ -1198,7 +1221,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this._modelData.model.deltaDecorations(oldDecorations, newDecorations, this._id);
 	}
 
-	public setDecorations(decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
+	public setDecorations(description: string, decorationTypeKey: string, decorationOptions: editorCommon.IDecorationOptions[]): void {
 
 		const newDecorationsSubTypes: { [key: string]: boolean } = {};
 		const oldDecorationsSubTypes = this._decorationTypeSubtypes[decorationTypeKey] || {};
@@ -1217,7 +1240,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				typeKey = decorationTypeKey + '-' + subType;
 				if (!oldDecorationsSubTypes[subType] && !newDecorationsSubTypes[subType]) {
 					// decoration type did not exist before, register new one
-					this._registerDecorationType(typeKey, decorationOption.renderOptions, decorationTypeKey);
+					this._registerDecorationType(description, typeKey, decorationOption.renderOptions, decorationTypeKey);
 				}
 				newDecorationsSubTypes[subType] = true;
 			}
@@ -1583,8 +1606,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				type: (text: string) => {
 					this._type('keyboard', text);
 				},
-				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					this._replacePreviousChar('keyboard', text, replaceCharCnt);
+				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+					this._compositionType('keyboard', text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 				},
 				startComposition: () => {
 					this._startComposition();
@@ -1606,9 +1629,16 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 					const payload: editorCommon.TypePayload = { text };
 					this._commandService.executeCommand(editorCommon.Handler.Type, payload);
 				},
-				replacePreviousChar: (text: string, replaceCharCnt: number) => {
-					const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt };
-					this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
+				compositionType: (text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number) => {
+					// Try if possible to go through the existing `replacePreviousChar` command
+					if (replaceNextCharCnt || positionDelta) {
+						// must be handled through the new command
+						const payload: editorCommon.CompositionTypePayload = { text, replacePrevCharCnt, replaceNextCharCnt, positionDelta };
+						this._commandService.executeCommand(editorCommon.Handler.CompositionType, payload);
+					} else {
+						const payload: editorCommon.ReplacePreviousCharPayload = { text, replaceCharCnt: replacePrevCharCnt };
+						this._commandService.executeCommand(editorCommon.Handler.ReplacePreviousChar, payload);
+					}
 				},
 				startComposition: () => {
 					this._commandService.executeCommand(editorCommon.Handler.CompositionStart, {});
@@ -1671,8 +1701,8 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return model;
 	}
 
-	private _registerDecorationType(key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
-		this._codeEditorService.registerDecorationType(key, options, parentTypeKey, this);
+	private _registerDecorationType(description: string, key: string, options: editorCommon.IDecorationRenderOptions, parentTypeKey?: string): void {
+		this._codeEditorService.registerDecorationType(description, key, options, parentTypeKey, this);
 	}
 
 	private _removeDecorationType(key: string): void {
@@ -1835,7 +1865,7 @@ export class EditorModeContext extends Disposable {
 	private readonly _hasMultipleDocumentFormattingProvider: IContextKey<boolean>;
 	private readonly _hasMultipleDocumentSelectionFormattingProvider: IContextKey<boolean>;
 	private readonly _hasSignatureHelpProvider: IContextKey<boolean>;
-	private readonly _hasInlineHintsProvider: IContextKey<boolean>;
+	private readonly _hasInlayHintsProvider: IContextKey<boolean>;
 	private readonly _isInWalkThrough: IContextKey<boolean>;
 
 	constructor(
@@ -1858,7 +1888,7 @@ export class EditorModeContext extends Disposable {
 		this._hasReferenceProvider = EditorContextKeys.hasReferenceProvider.bindTo(_contextKeyService);
 		this._hasRenameProvider = EditorContextKeys.hasRenameProvider.bindTo(_contextKeyService);
 		this._hasSignatureHelpProvider = EditorContextKeys.hasSignatureHelpProvider.bindTo(_contextKeyService);
-		this._hasInlineHintsProvider = EditorContextKeys.hasInlineHintsProvider.bindTo(_contextKeyService);
+		this._hasInlayHintsProvider = EditorContextKeys.hasInlayHintsProvider.bindTo(_contextKeyService);
 		this._hasDocumentFormattingProvider = EditorContextKeys.hasDocumentFormattingProvider.bindTo(_contextKeyService);
 		this._hasDocumentSelectionFormattingProvider = EditorContextKeys.hasDocumentSelectionFormattingProvider.bindTo(_contextKeyService);
 		this._hasMultipleDocumentFormattingProvider = EditorContextKeys.hasMultipleDocumentFormattingProvider.bindTo(_contextKeyService);
@@ -1887,12 +1917,12 @@ export class EditorModeContext extends Disposable {
 		this._register(modes.DocumentFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.DocumentRangeFormattingEditProviderRegistry.onDidChange(update));
 		this._register(modes.SignatureHelpProviderRegistry.onDidChange(update));
-		this._register(modes.InlineHintsProviderRegistry.onDidChange(update));
+		this._register(modes.InlayHintsProviderRegistry.onDidChange(update));
 
 		update();
 	}
 
-	dispose() {
+	override dispose() {
 		super.dispose();
 	}
 
@@ -1939,7 +1969,7 @@ export class EditorModeContext extends Disposable {
 			this._hasReferenceProvider.set(modes.ReferenceProviderRegistry.has(model));
 			this._hasRenameProvider.set(modes.RenameProviderRegistry.has(model));
 			this._hasSignatureHelpProvider.set(modes.SignatureHelpProviderRegistry.has(model));
-			this._hasInlineHintsProvider.set(modes.InlineHintsProviderRegistry.has(model));
+			this._hasInlayHintsProvider.set(modes.InlayHintsProviderRegistry.has(model));
 			this._hasDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.has(model) || modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasDocumentSelectionFormattingProvider.set(modes.DocumentRangeFormattingEditProviderRegistry.has(model));
 			this._hasMultipleDocumentFormattingProvider.set(modes.DocumentFormattingEditProviderRegistry.all(model).length + modes.DocumentRangeFormattingEditProviderRegistry.all(model).length > 1);

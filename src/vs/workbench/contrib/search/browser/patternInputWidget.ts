@@ -19,9 +19,10 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import type { IThemable } from 'vs/base/common/styler';
 import { Codicon } from 'vs/base/common/codicons';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ISearchConfiguration } from 'vs/workbench/services/search/common/search';
+
 export interface IOptions {
 	placeholder?: string;
+	tooltip?: string;
 	width?: number;
 	validation?: IInputValidator;
 	ariaLabel?: string;
@@ -38,6 +39,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 	private width: number;
 	private placeholder: string;
+	private tooltip: string;
 	private ariaLabel: string;
 
 	private domNode!: HTMLElement;
@@ -57,6 +59,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 		super();
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
+		this.tooltip = options.tooltip || '';
 		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
 
 		this.render(options);
@@ -64,7 +67,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 		parent.appendChild(this.domNode);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		if (this.inputFocusTracker) {
 			this.inputFocusTracker.dispose();
@@ -144,6 +147,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
+			tooltip: this.tooltip || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
 				validation: undefined
@@ -195,7 +199,7 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 
 	private useSearchInEditorsBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useSearchInEditorsBox.dispose();
 	}
@@ -208,22 +212,16 @@ export class IncludePatternInputWidget extends PatternInputWidget {
 		this.useSearchInEditorsBox.checked = value;
 	}
 
-	protected getSubcontrolsWidth(): number {
-		if (this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
-		}
-		return super.getSubcontrolsWidth();
+	protected override getSubcontrolsWidth(): number {
+		return super.getSubcontrolsWidth() + this.useSearchInEditorsBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useSearchInEditorsBox = this._register(new Checkbox({
 			icon: Codicon.book,
 			title: nls.localize('onlySearchInOpenEditors', "Search only in Open Editors"),
 			isChecked: false,
 		}));
-		if (!this.configurationService.getValue<ISearchConfiguration>().search?.experimental?.searchInOpenEditors) {
-			return;
-		}
 		this._register(this.useSearchInEditorsBox.onChange(viaKeyboard => {
 			this._onChangeSearchInEditorsBoxEmitter.fire();
 			if (!viaKeyboard) {
@@ -251,7 +249,7 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	private useExcludesAndIgnoreFilesBox!: Checkbox;
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.useExcludesAndIgnoreFilesBox.dispose();
 	}
@@ -262,13 +260,14 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	setUseExcludesAndIgnoreFiles(value: boolean) {
 		this.useExcludesAndIgnoreFilesBox.checked = value;
+		this._onChangeIgnoreBoxEmitter.fire();
 	}
 
-	protected getSubcontrolsWidth(): number {
+	protected override getSubcontrolsWidth(): number {
 		return super.getSubcontrolsWidth() + this.useExcludesAndIgnoreFilesBox.width();
 	}
 
-	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
+	protected override renderSubcontrols(controlsDiv: HTMLDivElement): void {
 		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
 			icon: Codicon.exclude,
 			actionClassName: 'useExcludesAndIgnoreFiles',

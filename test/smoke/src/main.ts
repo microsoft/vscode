@@ -207,8 +207,9 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		console.log('*** Running yarn...');
-		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
+		// None of the test run the project
+		// console.log('*** Running yarn...');
+		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -315,7 +316,7 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 		setupDataLanguagesTests();
 		setupDataEditorTests();
 		setupDataStatusbarTests(!!opts.web);
-		if (!opts.web) { setupDataExtensionTests(); }
+		setupDataExtensionTests();
 		if (!opts.web) { setupDataMultirootTests(); }
 		if (!opts.web) { setupDataLocalizationTests(); }
 		if (!opts.web) { setupLaunchTests(); }

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
 import { DisposableStore, dispose, IDisposable, MultiDisposeError, ReferenceCollection, toDisposable } from 'vs/base/common/lifecycle';
 
@@ -95,8 +96,8 @@ suite('Lifecycle', () => {
 		let array = [{ dispose() { } }, { dispose() { } }];
 		let array2 = dispose(array);
 
-		assert.equal(array.length, 2);
-		assert.equal(array2.length, 0);
+		assert.strictEqual(array.length, 2);
+		assert.strictEqual(array2.length, 0);
 		assert.ok(array !== array2);
 
 		let set = new Set<IDisposable>([{ dispose() { } }, { dispose() { } }]);
@@ -165,27 +166,27 @@ suite('Reference Collection', () => {
 
 		const ref1 = collection.acquire('test');
 		assert(ref1);
-		assert.equal(ref1.object, 4);
-		assert.equal(collection.count, 1);
+		assert.strictEqual(ref1.object, 4);
+		assert.strictEqual(collection.count, 1);
 		ref1.dispose();
-		assert.equal(collection.count, 0);
+		assert.strictEqual(collection.count, 0);
 
 		const ref2 = collection.acquire('test');
 		const ref3 = collection.acquire('test');
-		assert.equal(ref2.object, ref3.object);
-		assert.equal(collection.count, 1);
+		assert.strictEqual(ref2.object, ref3.object);
+		assert.strictEqual(collection.count, 1);
 
 		const ref4 = collection.acquire('monkey');
-		assert.equal(ref4.object, 6);
-		assert.equal(collection.count, 2);
+		assert.strictEqual(ref4.object, 6);
+		assert.strictEqual(collection.count, 2);
 
 		ref2.dispose();
-		assert.equal(collection.count, 2);
+		assert.strictEqual(collection.count, 2);
 
 		ref3.dispose();
-		assert.equal(collection.count, 1);
+		assert.strictEqual(collection.count, 1);
 
 		ref4.dispose();
-		assert.equal(collection.count, 0);
+		assert.strictEqual(collection.count, 0);
 	});
 });

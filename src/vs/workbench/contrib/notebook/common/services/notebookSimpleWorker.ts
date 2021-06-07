@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { IRequestHandler } from 'vs/base/common/worker/simpleWorker';
 import * as model from 'vs/editor/common/model';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IProcessedOutput, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, ICellDto2, IMainCellDto, INotebookDiffResult, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookCellsChangeType, NotebookCellsSplice2, NotebookDataDto, NotebookDocumentMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorWorkerHost } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerServiceImpl';
 
@@ -45,8 +45,9 @@ class MirrorCell {
 		private _source: string | string[],
 		public language: string,
 		public cellKind: CellKind,
-		public outputs: IProcessedOutput[],
-		public metadata?: NotebookCellMetadata
+		public outputs: IOutputDto[],
+		public metadata?: NotebookCellMetadata,
+		public internalMetadata?: NotebookCellInternalMetadata,
 
 	) { }
 
@@ -70,7 +71,10 @@ class MirrorCell {
 			return this._primaryKey!;
 		}
 
-		this._hash = hash([hash(this.getValue()), this.metadata]);
+		this._hash = hash([hash(this.language), hash(this.getValue()), this.metadata, this.internalMetadata, this.outputs.map(op => ({
+			outputs: op.outputs,
+			metadata: op.metadata
+		}))]);
 		return this._hash;
 	}
 
@@ -79,7 +83,7 @@ class MirrorCell {
 			return this._hash;
 		}
 
-		this._hash = hash([hash(this.getValue()), this.language, this.metadata]);
+		this._hash = hash([hash(this.getValue()), this.language, this.metadata, this.internalMetadata]);
 		return this._hash;
 	}
 }
@@ -88,7 +92,6 @@ class MirrorNotebookDocument {
 	constructor(
 		readonly uri: URI,
 		public cells: MirrorCell[],
-		public languages: string[],
 		public metadata: NotebookDocumentMetadata,
 	) {
 	}
@@ -112,6 +115,9 @@ class MirrorNotebookDocument {
 			} else if (e.kind === NotebookCellsChangeType.ChangeCellMetadata) {
 				const cell = this.cells[e.index];
 				cell.metadata = e.metadata;
+			} else if (e.kind === NotebookCellsChangeType.ChangeCellInternalMetadata) {
+				const cell = this.cells[e.index];
+				cell.internalMetadata = e.internalMetadata;
 			}
 		});
 	}
@@ -175,7 +181,7 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 			dto.cellKind,
 			dto.outputs,
 			dto.metadata
-		)), data.languages, data.metadata);
+		)), data.metadata);
 	}
 
 	public acceptModelChanged(strURL: string, event: NotebookCellsChangedEventDto) {
@@ -266,4 +272,3 @@ export class NotebookEditorSimpleWorker implements IRequestHandler, IDisposable 
 export function create(host: EditorWorkerHost): IRequestHandler {
 	return new NotebookEditorSimpleWorker();
 }
-

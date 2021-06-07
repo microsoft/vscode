@@ -5,10 +5,10 @@
 
 import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
-import * as platform from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 
 suite('Labels', () => {
-	(!platform.isWindows ? test.skip : test)('shorten - windows', () => {
+	(!isWindows ? test.skip : test)('shorten - windows', () => {
 
 		// nothing to shorten
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
@@ -59,7 +59,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
 	});
 
-	(platform.isWindows ? test.skip : test)('shorten - not windows', () => {
+	(isWindows ? test.skip : test)('shorten - not windows', () => {
 
 		// nothing to shorten
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
@@ -118,13 +118,13 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template('${separator}Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'Foo - Bar');
 		assert.strictEqual(labels.template('${value} Foo${separator}Bar', { value: 'something', separator: { label: ' - ' } }), 'something Foo - Bar');
 
-		// // real world example (macOS)
+		// real world example (macOS)
 		let t = '${activeEditorShort}${separator}${rootName}';
 		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: '', separator: { label: ' - ' } }), '');
 		assert.strictEqual(labels.template(t, { activeEditorShort: '', rootName: 'root', separator: { label: ' - ' } }), 'root');
 		assert.strictEqual(labels.template(t, { activeEditorShort: 'markdown.txt', rootName: 'root', separator: { label: ' - ' } }), 'markdown.txt - root');
 
-		// // real world example (other)
+		// real world example (other)
 		t = '${dirty}${activeEditorShort}${separator}${rootName}${separator}${appName}';
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: '', separator: { label: ' - ' } }), '');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: '', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'Visual Studio Code');
@@ -134,13 +134,13 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
 	});
 
-	(platform.isWindows ? test.skip : test)('getBaseLabel - unix', () => {
+	(isWindows ? test.skip : test)('getBaseLabel - unix', () => {
 		assert.strictEqual(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
 		assert.strictEqual(labels.getBaseLabel('/some/folder'), 'folder');
 		assert.strictEqual(labels.getBaseLabel('/'), '/');
 	});
 
-	(!platform.isWindows ? test.skip : test)('getBaseLabel - windows', () => {
+	(!isWindows ? test.skip : test)('getBaseLabel - windows', () => {
 		assert.strictEqual(labels.getBaseLabel('c:'), 'C:');
 		assert.strictEqual(labels.getBaseLabel('c:\\'), 'C:');
 		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
@@ -151,10 +151,10 @@ suite('Labels', () => {
 	test('mnemonicButtonLabel', () => {
 		assert.strictEqual(labels.mnemonicButtonLabel('Hello World'), 'Hello World');
 		assert.strictEqual(labels.mnemonicButtonLabel(''), '');
-		if (platform.isWindows) {
+		if (isWindows) {
 			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello && World');
 			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do &not Save && Continue');
-		} else if (platform.isMacintosh) {
+		} else if (isMacintosh) {
 			assert.strictEqual(labels.mnemonicButtonLabel('Hello & World'), 'Hello & World');
 			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do not Save & Continue');
 		} else {

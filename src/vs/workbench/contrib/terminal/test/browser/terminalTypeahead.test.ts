@@ -184,7 +184,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
-			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
 			t.expectWritten('');
 
@@ -192,7 +192,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			onBeforeProcessData.fire({ data: 'xy' });
 
 			assert.strictEqual(
-				addon.getCursor(t.terminal.buffer.active)?.x,
+				addon.physicalCursor(t.terminal.buffer.active)?.x,
 				// The cursor should not have changed because we've hit the
 				// boundary (start of prompt)
 				cursorXBefore);
@@ -203,7 +203,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
-			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Forwards}`);
 			t.expectWritten('');
 
@@ -211,7 +211,7 @@ suite('Workbench - Terminal Typeahead', () => {
 			onBeforeProcessData.fire({ data: 'xy' });
 
 			assert.strictEqual(
-				addon.getCursor(t.terminal.buffer.active)?.x,
+				addon.physicalCursor(t.terminal.buffer.active)?.x,
 				// The cursor should not have changed because we've hit the
 				// boundary (end of prompt)
 				cursorXBefore);
@@ -222,13 +222,13 @@ suite('Workbench - Terminal Typeahead', () => {
 			addon.activate(t.terminal);
 			addon.unlockNavigating();
 
-			const cursorXBefore = addon.getCursor(t.terminal.buffer.active)?.x!;
+			const cursorXBefore = addon.physicalCursor(t.terminal.buffer.active)?.x!;
 			t.onData(`${CSI}${CursorMoveDirection.Back}`);
 			t.expectWritten('');
 			addon.undoAllPredictions();
 
 			assert.strictEqual(
-				addon.getCursor(t.terminal.buffer.active)?.x,
+				addon.physicalCursor(t.terminal.buffer.active)?.x,
 				// The cursor should not have changed because we've hit the
 				// boundary (start of prompt)
 				cursorXBefore);
@@ -368,36 +368,56 @@ suite('Workbench - Terminal Typeahead', () => {
 			addon.reevaluateNow();
 			assert.strictEqual(addon.isShowing, true, 'expected to show again after vim closed');
 		});
+
+		test('adds line wrap prediction even if behind a boundary', () => {
+			const t = createMockTerminal({ lines: ['hello|'] });
+			addon.lockMakingPredictions();
+			addon.activate(t.terminal);
+
+			t.onData('hi'.repeat(50));
+			t.expectWritten('');
+			expectProcessed('hi', [
+				`${CSI}?25l`, // hide cursor
+				'hi', // this greeting characters
+				...new Array(36).fill(`${CSI}3mh${CSI}23m${CSI}3mi${CSI}23m`), // rest of the greetings that fit on this line
+				`${CSI}2;81H`, // move to end of line
+				`${CSI}?25h`
+			].join(''));
+		});
 	});
 });
 
 class TestTypeAheadAddon extends TypeAheadAddon {
-	public unlockMakingPredictions() {
-		this.lastRow = { y: 1, startingX: 100, endingX: 100, charState: CharPredictState.Validated };
+	unlockMakingPredictions() {
+		this._lastRow = { y: 1, startingX: 100, endingX: 100, charState: CharPredictState.Validated };
 	}
 
-	public lockMakingPredictions() {
-		this.lastRow = undefined;
+	lockMakingPredictions() {
+		this._lastRow = undefined;
 	}
 
-	public unlockNavigating() {
-		this.lastRow = { y: 1, startingX: 1, endingX: 1, charState: CharPredictState.Validated };
+	unlockNavigating() {
+		this._lastRow = { y: 1, startingX: 1, endingX: 1, charState: CharPredictState.Validated };
 	}
 
-	public reevaluateNow() {
-		this.reevaluatePredictorStateNow(this.stats!, this.timeline!);
+	reevaluateNow() {
+		this._reevaluatePredictorStateNow(this.stats!, this._timeline!);
 	}
 
-	public get isShowing() {
-		return !!this.timeline?.isShowingPredictions;
+	get isShowing() {
+		return !!this._timeline?.isShowingPredictions;
 	}
 
-	public undoAllPredictions() {
-		this.timeline?.undoAllPredictions();
+	undoAllPredictions() {
+		this._timeline?.undoAllPredictions();
 	}
 
-	public getCursor(buffer: IBuffer) {
-		return this.timeline?.getCursor(buffer);
+	physicalCursor(buffer: IBuffer) {
+		return this._timeline?.physicalCursor(buffer);
+	}
+
+	tentativeCursor(buffer: IBuffer) {
+		return this._timeline?.tentativeCursor(buffer);
 	}
 }
 

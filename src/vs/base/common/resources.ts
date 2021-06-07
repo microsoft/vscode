@@ -42,15 +42,15 @@ export interface IExtUri {
 	/**
 	 * Tests whether a `candidate` URI is a parent or equal of a given `base` URI.
 	 *
-	 * @param base A uri which is "longer"
-	 * @param parentCandidate A uri which is "shorter" then `base`
+	 * @param base A uri which is "longer" or at least same length as `parentCandidate`
+	 * @param parentCandidate A uri which is "shorter" or up to same length as `base`
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
 	isEqualOrParent(base: URI, parentCandidate: URI, ignoreFragment?: boolean): boolean;
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
-	 * @see ResourceMap
+	 * @see {@link ResourceMap}
 	 * @param uri Uri
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
@@ -264,12 +264,7 @@ export class ExtUri implements IExtUri {
 				path: newURI.path
 			});
 		}
-		if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
-			path = extpath.toSlashes(path);
-			if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
-				path = '/' + path;
-			}
-		}
+		path = extpath.toPosixPath(path); // we allow path to be a windows path
 		return base.with({
 			path: paths.posix.resolve(base.path, path)
 		});

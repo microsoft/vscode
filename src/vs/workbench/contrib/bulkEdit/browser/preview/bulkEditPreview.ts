@@ -10,7 +10,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { WorkspaceEditMetadata } from 'vs/editor/common/modes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { mergeSort, coalesceInPlace } from 'vs/base/common/arrays';
+import { coalesceInPlace } from 'vs/base/common/arrays';
 import { Range } from 'vs/editor/common/core/range';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -329,10 +329,7 @@ export class BulkFileOperations {
 					return [];
 				}
 
-				return mergeSort(
-					result,
-					(a, b) => Range.compareRangesUsingStarts(a.range, b.range)
-				);
+				return result.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			}
 		}
 		return [];

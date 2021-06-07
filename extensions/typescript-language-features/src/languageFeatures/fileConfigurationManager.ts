@@ -173,9 +173,8 @@ export default class FileConfigurationManager extends Disposable {
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
 
-		const preferences: Proto.UserPreferences = {
+		const preferences: Proto.UserPreferences & { displayPartsForJSDoc: true } = {
 			quotePreference: this.getQuoteStylePreference(preferencesConfig),
-			// @ts-expect-error until TypeScript 4.2 API
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferencesConfig),
 			importModuleSpecifierEnding: getImportModuleSpecifierEndingPreference(preferencesConfig),
 			allowTextChangesInNewFiles: document.uri.scheme === fileSchemes.file,
@@ -183,6 +182,10 @@ export default class FileConfigurationManager extends Disposable {
 			allowRenameOfImportPath: true,
 			includeAutomaticOptionalChainCompletions: config.get<boolean>('suggest.includeAutomaticOptionalChainCompletions', true),
 			provideRefactorNotApplicableReason: true,
+			generateReturnInDocTemplate: config.get<boolean>('suggest.jsdoc.generateReturns', true),
+			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
+			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
+			displayPartsForJSDoc: true,
 		};
 
 		return preferences;

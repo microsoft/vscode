@@ -68,9 +68,10 @@ export class CachedExtensionScanner {
 
 		const version = this._productService.version;
 		const commit = this._productService.commit;
+		const date = this._productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
-		const input = new ExtensionScannerInput(version, commit, locale, devMode, path, isBuiltin, false, translations);
+		const input = new ExtensionScannerInput(version, date, commit, locale, devMode, path, isBuiltin, false, translations);
 		return ExtensionScanner.scanSingleExtension(input, log);
 	}
 
@@ -150,7 +151,7 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			const cacheRawContents = await pfs.readFile(cacheFile, 'utf8');
+			const cacheRawContents = await pfs.Promises.readFile(cacheFile, 'utf8');
 			return JSON.parse(cacheRawContents);
 		} catch (err) {
 			// That's ok...
@@ -164,13 +165,13 @@ export class CachedExtensionScanner {
 		const cacheFile = path.join(cacheFolder, cacheKey);
 
 		try {
-			await pfs.mkdirp(cacheFolder);
+			await pfs.Promises.mkdir(cacheFolder, { recursive: true });
 		} catch (err) {
 			// That's ok...
 		}
 
 		try {
-			await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
 		} catch (err) {
 			// That's ok...
 		}
@@ -183,7 +184,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			const folderStat = await pfs.stat(input.absoluteFolderPath);
+			const folderStat = await pfs.Promises.stat(input.absoluteFolderPath);
 			input.mtime = folderStat.mtime.getTime();
 		} catch (err) {
 			// That's ok...
@@ -223,7 +224,7 @@ export class CachedExtensionScanner {
 	private static async _readTranslationConfig(): Promise<Translations> {
 		if (platform.translationsConfigFile) {
 			try {
-				const content = await pfs.readFile(platform.translationsConfigFile, 'utf8');
+				const content = await pfs.Promises.readFile(platform.translationsConfigFile, 'utf8');
 				return JSON.parse(content) as Translations;
 			} catch (err) {
 				// no problemo
@@ -244,6 +245,7 @@ export class CachedExtensionScanner {
 
 		const version = productService.version;
 		const commit = productService.commit;
+		const date = productService.date;
 		const devMode = !!process.env['VSCODE_DEV'];
 		const locale = platform.language;
 
@@ -252,7 +254,7 @@ export class CachedExtensionScanner {
 			notificationService,
 			environmentService,
 			BUILTIN_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, getSystemExtensionsRoot(), true, false, translations),
 			log
 		);
 
@@ -262,10 +264,10 @@ export class CachedExtensionScanner {
 			const builtInExtensions = Promise.resolve<IBuiltInExtension[]>(productService.builtInExtensions || []);
 
 			const controlFilePath = joinPath(environmentService.userHome, '.vscode-oss-dev', 'extensions', 'control.json').fsPath;
-			const controlFile = pfs.readFile(controlFilePath, 'utf8')
+			const controlFile = pfs.Promises.readFile(controlFilePath, 'utf8')
 				.then<IBuiltInExtensionControl>(raw => JSON.parse(raw), () => ({} as any));
 
-			const input = new ExtensionScannerInput(version, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
+			const input = new ExtensionScannerInput(version, date, commit, locale, devMode, getExtraDevSystemExtensionsRoot(), true, false, translations);
 			const extraBuiltinExtensions = Promise.all([builtInExtensions, controlFile])
 				.then(([builtInExtensions, control]) => new ExtraBuiltInExtensionResolver(builtInExtensions, control))
 				.then(resolver => ExtensionScanner.scanExtensions(input, log, resolver));
@@ -278,7 +280,7 @@ export class CachedExtensionScanner {
 			notificationService,
 			environmentService,
 			USER_MANIFEST_CACHE_FILE,
-			new ExtensionScannerInput(version, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
+			new ExtensionScannerInput(version, date, commit, locale, devMode, environmentService.extensionsPath, false, false, translations),
 			log
 		));
 
@@ -287,7 +289,7 @@ export class CachedExtensionScanner {
 		if (environmentService.isExtensionDevelopment && environmentService.extensionDevelopmentLocationURI) {
 			const extDescsP = environmentService.extensionDevelopmentLocationURI.filter(extLoc => extLoc.scheme === Schemas.file).map(extLoc => {
 				return ExtensionScanner.scanOneOrMultipleExtensions(
-					new ExtensionScannerInput(version, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
+					new ExtensionScannerInput(version, date, commit, locale, devMode, originalFSPath(extLoc), false, true, translations), log
 				);
 			});
 			developedExtensions = Promise.all(extDescsP).then((extDescArrays: IExtensionDescription[][]) => {

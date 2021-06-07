@@ -159,6 +159,10 @@ const presentation: IJSONSchema = {
 			type: 'string',
 			description: nls.localize('JsonSchema.tasks.presentation.group', 'Controls whether the task is executed in a specific terminal group using split panes.')
 		},
+		close: {
+			type: 'boolean',
+			description: nls.localize('JsonSchema.tasks.presentation.close', 'Controls whether the terminal the task runs in is closed when the task exits.')
+		}
 	}
 };
 
@@ -383,7 +387,18 @@ let taskConfiguration: IJSONSchema = {
 
 let taskDefinitions: IJSONSchema[] = [];
 TaskDefinitionRegistry.onReady().then(() => {
+	updateTaskDefinitions();
+});
+
+export function updateTaskDefinitions() {
 	for (let taskType of TaskDefinitionRegistry.all()) {
+		// Check that we haven't already added this task type
+		if (taskDefinitions.find(schema => {
+			return schema.properties?.type?.enum?.find ? schema.properties?.type.enum.find(element => element === taskType.taskType) : undefined;
+		})) {
+			continue;
+		}
+
 		let schema: IJSONSchema = Objects.deepClone(taskConfiguration);
 		const schemaProperties = schema.properties!;
 		// Since we do this after the schema is assigned we need to patch the refs.
@@ -408,7 +423,7 @@ TaskDefinitionRegistry.onReady().then(() => {
 		fixReferences(schema);
 		taskDefinitions.push(schema);
 	}
-});
+}
 
 let customize = Objects.deepClone(taskConfiguration);
 customize.properties!.customize = {
@@ -442,6 +457,8 @@ taskDescriptionProperties.taskName.deprecationMessage = nls.localize(
 	'JsonSchema.tasks.taskName.deprecated',
 	'The task\'s name property is deprecated. Use the label property instead.'
 );
+// Clone the taskDescription for process task before setting a default to prevent two defaults #115281
+const processTask = Objects.deepClone(taskDescription);
 taskDescription.default = {
 	label: 'My Task',
 	type: 'shell',
@@ -470,7 +487,6 @@ taskDescriptionProperties.isTestCommand.deprecationMessage = nls.localize(
 );
 
 // Process tasks are almost identical schema-wise to shell tasks, but they are required to have a command
-const processTask = Objects.deepClone(taskDescription);
 processTask.properties!.type = {
 	type: 'string',
 	enum: ['process'],

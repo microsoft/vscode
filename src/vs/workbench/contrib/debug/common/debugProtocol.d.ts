@@ -143,6 +143,12 @@ declare module DebugProtocol {
 				- If the attribute is missing or false, only the thread with the given threadId can be expanded.
 			*/
 			allThreadsStopped?: boolean;
+			/** Ids of the breakpoints that triggered the event. In most cases there will be only a single breakpoint but here are some examples for multiple breakpoints:
+				- Different types of breakpoints map to the same location.
+				- Multiple source breakpoints get collapsed to the same instruction by the compiler/runtime.
+				- Multiple function breakpoints with different function names map to the same location.
+			*/
+			hitBreakpointIds?: number[];
 		};
 	}
 
@@ -551,6 +557,8 @@ declare module DebugProtocol {
 
 	/** Arguments for 'restart' request. */
 	export interface RestartArguments {
+		/** The latest version of the 'launch' or 'attach' configuration. */
+		arguments?: LaunchRequestArguments | AttachRequestArguments;
 	}
 
 	/** Response to 'restart' request. This is just an acknowledgement, so no body field is required. */
@@ -578,6 +586,11 @@ declare module DebugProtocol {
 			The attribute is only honored by a debug adapter if the capability 'supportTerminateDebuggee' is true.
 		*/
 		terminateDebuggee?: boolean;
+		/** Indicates whether the debuggee should stay suspended when the debugger is disconnected.
+			If unspecified, the debuggee should resume execution.
+			The attribute is only honored by a debug adapter if the capability 'supportSuspendDebuggee' is true.
+		*/
+		suspendDebuggee?: boolean;
 	}
 
 	/** Response to 'disconnect' request. This is just an acknowledgement, so no body field is required. */
@@ -722,8 +735,18 @@ declare module DebugProtocol {
 		exceptionOptions?: ExceptionOptions[];
 	}
 
-	/** Response to 'setExceptionBreakpoints' request. This is just an acknowledgement, so no body field is required. */
+	/** Response to 'setExceptionBreakpoints' request.
+		The response contains an array of Breakpoint objects with information about each exception breakpoint or filter. The Breakpoint objects are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays given as arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
+		The mandatory 'verified' property of a Breakpoint object signals whether the exception breakpoint or filter could be successfully created and whether the optional condition or hit count expressions are valid. In case of an error the 'message' property explains the problem. An optional 'id' property can be used to introduce a unique ID for the exception breakpoint or filter so that it can be updated subsequently by sending breakpoint events.
+		For backward compatibility both the 'breakpoints' array and the enclosing 'body' are optional. If these elements are missing a client will not be able to show problems for individual exception breakpoints or filters.
+	*/
 	export interface SetExceptionBreakpointsResponse extends Response {
+		body?: {
+			/** Information about the exception breakpoints or filters.
+				The breakpoints returned are in the same order as the elements of the 'filters', 'filterOptions', 'exceptionOptions' arrays in the arguments. If both 'filters' and 'filterOptions' are given, the returned array must start with 'filters' information first, followed by 'filterOptions' information.
+			*/
+			breakpoints?: Breakpoint[];
+		};
 	}
 
 	/** DataBreakpointInfo request; value of command field is 'dataBreakpointInfo'.
@@ -1591,6 +1614,8 @@ declare module DebugProtocol {
 		supportsExceptionInfoRequest?: boolean;
 		/** The debug adapter supports the 'terminateDebuggee' attribute on the 'disconnect' request. */
 		supportTerminateDebuggee?: boolean;
+		/** The debug adapter supports the 'suspendDebuggee' attribute on the 'disconnect' request. */
+		supportSuspendDebuggee?: boolean;
 		/** The debug adapter supports the delayed loading of parts of the stack, which requires that both the 'startFrame' and 'levels' arguments and an optional 'totalFrames' result of the 'StackTrace' request are supported. */
 		supportsDelayedStackTraceLoading?: boolean;
 		/** The debug adapter supports the 'loadedSources' request. */
@@ -1629,10 +1654,14 @@ declare module DebugProtocol {
 		filter: string;
 		/** The name of the filter option. This will be shown in the UI. */
 		label: string;
+		/** An optional help text providing additional information about the exception filter. This string is typically shown as a hover and must be translated. */
+		description?: string;
 		/** Initial value of the filter option. If not specified a value 'false' is assumed. */
 		default?: boolean;
 		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set. */
 		supportsCondition?: boolean;
+		/** An optional help text providing information about the condition. This string is shown as the placeholder text for a text box and must be translated. */
+		conditionDescription?: string;
 	}
 
 	/** A structured message object. Used to return errors from requests. */
@@ -1774,6 +1803,8 @@ declare module DebugProtocol {
 		endLine?: number;
 		/** An optional end column of the range covered by the stack frame. */
 		endColumn?: number;
+		/** Indicates whether this frame can be restarted with the 'restart' request. Clients should only use this if the debug adapter supports the 'restart' request (capability 'supportsRestartRequest' is true). */
+		canRestart?: boolean;
 		/** Optional memory reference for the current instruction pointer in this frame. */
 		instructionPointerReference?: string;
 		/** The module associated with this frame, if any. */

@@ -32,12 +32,12 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 			this._xterm.buffer.active.getLine(startLine)!
 		];
 
-		while (this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
+		while (startLine >= 0 && this._xterm.buffer.active.getLine(startLine)?.isWrapped) {
 			lines.unshift(this._xterm.buffer.active.getLine(startLine - 1)!);
 			startLine--;
 		}
 
-		while (this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
+		while (endLine < this._xterm.buffer.active.length && this._xterm.buffer.active.getLine(endLine + 1)?.isWrapped) {
 			lines.push(this._xterm.buffer.active.getLine(endLine + 1)!);
 			endLine++;
 		}
@@ -48,7 +48,7 @@ export class TerminalProtocolLinkProvider extends TerminalBaseLinkProvider {
 		return links.map(link => {
 			const range = convertLinkRangeToBuffer(lines, this._xterm.cols, link.range, startLine);
 
-			// Check if the link if within the mouse position
+			// Check if the link is within the mouse position
 			const uri = link.url
 				? (typeof link.url === 'string' ? URI.parse(link.url) : link.url)
 				: undefined;

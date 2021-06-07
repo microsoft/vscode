@@ -8,7 +8,7 @@ import * as nls from 'vscode-nls';
 import type * as Proto from '../../protocol';
 import * as PConst from '../../protocol.const';
 import { CachedResponse } from '../../tsServer/cachedResponse';
-import { ExectuionTarget } from '../../tsServer/server';
+import { ExecutionTarget } from '../../tsServer/server';
 import { ClientCapability, ITypeScriptServiceClient } from '../../typescriptService';
 import { conditionalRegistration, requireConfiguration, requireSomeCapability } from '../../utils/dependentRegistration';
 import { DocumentSelector } from '../../utils/documentSelector';
@@ -19,7 +19,7 @@ const localize = nls.loadMessageBundle();
 
 export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
 	public constructor(
-		protected client: ITypeScriptServiceClient,
+		client: ITypeScriptServiceClient,
 		protected _cachedResponse: CachedResponse<Proto.NavTreeResponse>,
 		private modeId: string
 	) {
@@ -30,7 +30,7 @@ export class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLens
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		const response = await this.client.execute('references', args, token, {
 			lowPriority: true,
-			executionTarget: ExectuionTarget.Semantic,
+			executionTarget: ExecutionTarget.Semantic,
 			cancelOnResourceChange: codeLens.document,
 		});
 		if (response.type !== 'response' || !response.body) {

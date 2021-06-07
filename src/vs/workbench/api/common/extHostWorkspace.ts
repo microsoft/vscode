@@ -168,6 +168,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _onDidChangeWorkspace = new Emitter<vscode.WorkspaceFoldersChangeEvent>();
 	readonly onDidChangeWorkspace: Event<vscode.WorkspaceFoldersChangeEvent> = this._onDidChangeWorkspace.event;
 
+	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
+	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
+
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
 	private readonly _barrier: Barrier;
@@ -180,6 +183,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 	private readonly _extHostFileSystemInfo: IExtHostFileSystemInfo;
 
 	private readonly _activeSearchCallbacks: ((match: IRawFileMatch2) => any)[] = [];
+
+	private _trusted: boolean = false;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -198,7 +203,8 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		this._confirmedWorkspace = data ? new ExtHostWorkspaceImpl(data.id, data.name, [], data.configuration ? URI.revive(data.configuration) : null, !!data.isUntitled, uri => ignorePathCasing(uri, extHostFileSystemInfo)) : undefined;
 	}
 
-	$initializeWorkspace(data: IWorkspaceData | null): void {
+	$initializeWorkspace(data: IWorkspaceData | null, trusted: boolean): void {
+		this._trusted = trusted;
 		this.$acceptWorkspaceData(data);
 		this._barrier.open();
 	}
@@ -548,6 +554,23 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	resolveProxy(url: string): Promise<string | undefined> {
 		return this._proxy.$resolveProxy(url);
+	}
+
+	// --- trust ---
+
+	get trusted(): boolean {
+		return this._trusted;
+	}
+
+	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._proxy.$requestWorkspaceTrust(options);
+	}
+
+	$onDidGrantWorkspaceTrust(): void {
+		if (!this._trusted) {
+			this._trusted = true;
+			this._onDidGrantWorkspaceTrust.fire();
+		}
 	}
 }
 

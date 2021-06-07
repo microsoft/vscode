@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as scorer from 'vs/base/common/fuzzyScorer';
+import { IItemAccessor, FuzzyScore, FuzzyScore2, IItemScore, prepareQuery, scoreFuzzy, scoreFuzzy2, scoreItemFuzzy, compareItemsByFuzzyScore, pieceToQuery } from 'vs/base/common/fuzzyScorer';
 import { URI } from 'vs/base/common/uri';
 import { basename, dirname, sep, posix, win32 } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
 
-class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
+class ResourceAccessorClass implements IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
 		return basename(resource.fsPath);
@@ -27,7 +27,7 @@ class ResourceAccessorClass implements scorer.IItemAccessor<URI> {
 
 const ResourceAccessor = new ResourceAccessorClass();
 
-class ResourceWithSlashAccessorClass implements scorer.IItemAccessor<URI> {
+class ResourceWithSlashAccessorClass implements IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
 		return basename(resource.fsPath);
@@ -44,7 +44,7 @@ class ResourceWithSlashAccessorClass implements scorer.IItemAccessor<URI> {
 
 const ResourceWithSlashAccessor = new ResourceWithSlashAccessorClass();
 
-class ResourceWithBackslashAccessorClass implements scorer.IItemAccessor<URI> {
+class ResourceWithBackslashAccessorClass implements IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
 		return basename(resource.fsPath);
@@ -61,7 +61,7 @@ class ResourceWithBackslashAccessorClass implements scorer.IItemAccessor<URI> {
 
 const ResourceWithBackslashAccessor = new ResourceWithBackslashAccessorClass();
 
-class NullAccessorClass implements scorer.IItemAccessor<URI> {
+class NullAccessorClass implements IItemAccessor<URI> {
 
 	getItemLabel(resource: URI): string {
 		return undefined!;
@@ -76,24 +76,24 @@ class NullAccessorClass implements scorer.IItemAccessor<URI> {
 	}
 }
 
-function _doScore(target: string, query: string, fuzzy: boolean): scorer.FuzzyScore {
-	const preparedQuery = scorer.prepareQuery(query);
+function _doScore(target: string, query: string, fuzzy: boolean): FuzzyScore {
+	const preparedQuery = prepareQuery(query);
 
-	return scorer.scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
+	return scoreFuzzy(target, preparedQuery.normalized, preparedQuery.normalizedLowercase, fuzzy);
 }
 
-function _doScore2(target: string, query: string, matchOffset: number = 0): scorer.FuzzyScore2 {
-	const preparedQuery = scorer.prepareQuery(query);
+function _doScore2(target: string, query: string, matchOffset: number = 0): FuzzyScore2 {
+	const preparedQuery = prepareQuery(query);
 
-	return scorer.scoreFuzzy2(target, preparedQuery, 0, matchOffset);
+	return scoreFuzzy2(target, preparedQuery, 0, matchOffset);
 }
 
-function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>): scorer.IItemScore {
-	return scorer.scoreItemFuzzy(item, scorer.prepareQuery(query), fuzzy, accessor, Object.create(null));
+function scoreItem<T>(item: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): IItemScore {
+	return scoreItemFuzzy(item, prepareQuery(query), fuzzy, accessor, Object.create(null));
 }
 
-function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: scorer.IItemAccessor<T>): number {
-	return scorer.compareItemsByFuzzyScore(itemA, itemB, scorer.prepareQuery(query), fuzzy, accessor, Object.create(null));
+function compareItemsByScore<T>(itemA: T, itemB: T, query: string, fuzzy: boolean, accessor: IItemAccessor<T>): number {
+	return compareItemsByFuzzyScore(itemA, itemB, prepareQuery(query), fuzzy, accessor, Object.create(null));
 }
 
 const NullAccessor = new NullAccessorClass();
@@ -103,7 +103,7 @@ suite('Fuzzy Scorer', () => {
 	test('score (fuzzy)', function () {
 		const target = 'HeLlo-World';
 
-		const scores: scorer.FuzzyScore[] = [];
+		const scores: FuzzyScore[] = [];
 		scores.push(_doScore(target, 'HelLo-World', true)); // direct case match
 		scores.push(_doScore(target, 'hello-world', true)); // direct mix-case match
 		scores.push(_doScore(target, 'HW', true)); // direct case prefix (multiple)
@@ -1071,16 +1071,16 @@ suite('Fuzzy Scorer', () => {
 	});
 
 	test('prepareQuery', () => {
-		assert.strictEqual(scorer.prepareQuery(' f*a ').normalized, 'fa');
-		assert.strictEqual(scorer.prepareQuery('model Tester.ts').original, 'model Tester.ts');
-		assert.strictEqual(scorer.prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
-		assert.strictEqual(scorer.prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
-		assert.strictEqual(scorer.prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
-		assert.strictEqual(scorer.prepareQuery('ModelTester.ts').containsPathSeparator, false);
-		assert.strictEqual(scorer.prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
+		assert.strictEqual(prepareQuery(' f*a ').normalized, 'fa');
+		assert.strictEqual(prepareQuery('model Tester.ts').original, 'model Tester.ts');
+		assert.strictEqual(prepareQuery('model Tester.ts').originalLowercase, 'model Tester.ts'.toLowerCase());
+		assert.strictEqual(prepareQuery('model Tester.ts').normalized, 'modelTester.ts');
+		assert.strictEqual(prepareQuery('Model Tester.ts').normalizedLowercase, 'modeltester.ts');
+		assert.strictEqual(prepareQuery('ModelTester.ts').containsPathSeparator, false);
+		assert.strictEqual(prepareQuery('Model' + sep + 'Tester.ts').containsPathSeparator, true);
 
 		// with spaces
-		let query = scorer.prepareQuery('He*llo World');
+		let query = prepareQuery('He*llo World');
 		assert.strictEqual(query.original, 'He*llo World');
 		assert.strictEqual(query.normalized, 'HelloWorld');
 		assert.strictEqual(query.normalizedLowercase, 'HelloWorld'.toLowerCase());
@@ -1092,13 +1092,13 @@ suite('Fuzzy Scorer', () => {
 		assert.strictEqual(query.values?.[1].normalized, 'World');
 		assert.strictEqual(query.values?.[1].normalizedLowercase, 'World'.toLowerCase());
 
-		let restoredQuery = scorer.pieceToQuery(query.values!);
+		let restoredQuery = pieceToQuery(query.values!);
 		assert.strictEqual(restoredQuery.original, query.original);
 		assert.strictEqual(restoredQuery.values?.length, query.values?.length);
 		assert.strictEqual(restoredQuery.containsPathSeparator, query.containsPathSeparator);
 
 		// with spaces that are empty
-		query = scorer.prepareQuery(' Hello   World  	');
+		query = prepareQuery(' Hello   World  	');
 		assert.strictEqual(query.original, ' Hello   World  	');
 		assert.strictEqual(query.originalLowercase, ' Hello   World  	'.toLowerCase());
 		assert.strictEqual(query.normalized, 'HelloWorld');
@@ -1115,19 +1115,19 @@ suite('Fuzzy Scorer', () => {
 
 		// Path related
 		if (isWindows) {
-			assert.strictEqual(scorer.prepareQuery('C:\\some\\path').pathNormalized, 'C:\\some\\path');
-			assert.strictEqual(scorer.prepareQuery('C:\\some\\path').normalized, 'C:\\some\\path');
-			assert.strictEqual(scorer.prepareQuery('C:\\some\\path').containsPathSeparator, true);
-			assert.strictEqual(scorer.prepareQuery('C:/some/path').pathNormalized, 'C:\\some\\path');
-			assert.strictEqual(scorer.prepareQuery('C:/some/path').normalized, 'C:\\some\\path');
-			assert.strictEqual(scorer.prepareQuery('C:/some/path').containsPathSeparator, true);
+			assert.strictEqual(prepareQuery('C:\\some\\path').pathNormalized, 'C:\\some\\path');
+			assert.strictEqual(prepareQuery('C:\\some\\path').normalized, 'C:\\some\\path');
+			assert.strictEqual(prepareQuery('C:\\some\\path').containsPathSeparator, true);
+			assert.strictEqual(prepareQuery('C:/some/path').pathNormalized, 'C:\\some\\path');
+			assert.strictEqual(prepareQuery('C:/some/path').normalized, 'C:\\some\\path');
+			assert.strictEqual(prepareQuery('C:/some/path').containsPathSeparator, true);
 		} else {
-			assert.strictEqual(scorer.prepareQuery('/some/path').pathNormalized, '/some/path');
-			assert.strictEqual(scorer.prepareQuery('/some/path').normalized, '/some/path');
-			assert.strictEqual(scorer.prepareQuery('/some/path').containsPathSeparator, true);
-			assert.strictEqual(scorer.prepareQuery('\\some\\path').pathNormalized, '/some/path');
-			assert.strictEqual(scorer.prepareQuery('\\some\\path').normalized, '/some/path');
-			assert.strictEqual(scorer.prepareQuery('\\some\\path').containsPathSeparator, true);
+			assert.strictEqual(prepareQuery('/some/path').pathNormalized, '/some/path');
+			assert.strictEqual(prepareQuery('/some/path').normalized, '/some/path');
+			assert.strictEqual(prepareQuery('/some/path').containsPathSeparator, true);
+			assert.strictEqual(prepareQuery('\\some\\path').pathNormalized, '/some/path');
+			assert.strictEqual(prepareQuery('\\some\\path').normalized, '/some/path');
+			assert.strictEqual(prepareQuery('\\some\\path').containsPathSeparator, true);
 		}
 	});
 

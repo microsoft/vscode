@@ -2,10 +2,12 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+
 import * as assert from 'assert';
-import * as path from 'vs/base/common/path';
 import * as glob from 'vs/base/common/glob';
+import { sep } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
 
 suite('Glob', () => {
 
@@ -660,15 +662,15 @@ suite('Glob', () => {
 	});
 
 	test('split glob aware', function () {
-		assert.deepEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
-		assert.deepEqual(glob.splitGlobAware('foo', ','), ['foo']);
-		assert.deepEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
-		assert.deepEqual(glob.splitGlobAware('foo,bar,{foo,bar}', ','), ['foo', 'bar', '{foo,bar}']);
-		assert.deepEqual(glob.splitGlobAware('{foo,bar},foo,bar,{foo,bar}', ','), ['{foo,bar}', 'foo', 'bar', '{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar', ','), ['foo', 'bar']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo', ','), ['foo']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar}', ','), ['{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,{foo,bar}', ','), ['foo', 'bar', '{foo,bar}']);
+		assert.deepStrictEqual(glob.splitGlobAware('{foo,bar},foo,bar,{foo,bar}', ','), ['{foo,bar}', 'foo', 'bar', '{foo,bar}']);
 
-		assert.deepEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
-		assert.deepEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
-		assert.deepEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar]', ','), ['[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('foo,bar,[foo,bar]', ','), ['foo', 'bar', '[foo,bar]']);
+		assert.deepStrictEqual(glob.splitGlobAware('[foo,bar],foo,bar,[foo,bar]', ','), ['[foo,bar]', 'foo', 'bar', '[foo,bar]']);
 	});
 
 	test('expression with disabled glob', function () {
@@ -952,7 +954,7 @@ suite('Glob', () => {
 	}
 
 	function nativeSep(slashPath: string): string {
-		return slashPath.replace(/\//g, path.sep);
+		return slashPath.replace(/\//g, sep);
 	}
 
 	test('relative pattern - glob star', function () {
@@ -1017,5 +1019,10 @@ suite('Glob', () => {
 			assertGlobMatch(p, '/DNXConsoleApp/foo/styles/style.css');
 			assertNoGlobMatch(p, '/DNXConsoleApp/foo/Program.cs');
 		}
+	});
+
+	test('URI match', () => {
+		let p = 'scheme:/**/*.md';
+		assertGlobMatch(p, URI.file('super/duper/long/some/file.md').with({ scheme: 'scheme' }).toString());
 	});
 });

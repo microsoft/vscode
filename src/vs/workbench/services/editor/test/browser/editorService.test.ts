@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorActivation } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorsOrder, SideBySideEditorInput } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { FileEditorInput } from 'vs/workbench/contrib/files/common/editors/fileEditorInput';
+import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { timeout } from 'vs/base/common/async';
 import { toResource } from 'vs/base/test/common/utils';
 import { IFileService, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
@@ -30,37 +30,43 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-
-const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
-const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
-
-class FileServiceProvider extends Disposable {
-	constructor(scheme: string, @IFileService fileService: IFileService) {
-		super();
-
-		this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
-	}
-}
+import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 
 suite('EditorService', () => {
 
-	let disposables: IDisposable[] = [];
+	const TEST_EDITOR_ID = 'MyTestEditorForEditorService';
+	const TEST_EDITOR_INPUT_ID = 'testEditorInputForEditorService';
+
+	class FileServiceProvider extends Disposable {
+		constructor(scheme: string, @IFileService fileService: IFileService) {
+			super();
+
+			this._register(fileService.registerProvider(scheme, new NullFileSystemProvider()));
+		}
+	}
+
+	const disposables = new DisposableStore();
 
 	setup(() => {
-		disposables.push(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestEditor(TEST_EDITOR_ID, [new SyncDescriptor(TestFileEditorInput)], TEST_EDITOR_INPUT_ID));
+		disposables.add(registerTestResourceEditor());
+		disposables.add(registerTestSideBySideEditor());
 	});
 
 	teardown(() => {
-		dispose(disposables);
-		disposables = [];
+		disposables.clear();
 	});
 
-	function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): [EditorPart, EditorService, TestServiceAccessor] {
-		const part = instantiationService.createInstance(EditorPart);
-		part.create(document.createElement('div'));
-		part.layout(400, 300);
+	async function createEditorService(instantiationService: ITestInstantiationService = workbenchInstantiationService()): Promise<[EditorPart, EditorService, TestServiceAccessor]> {
+		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
@@ -69,7 +75,7 @@ suite('EditorService', () => {
 	}
 
 	test('basics', async () => {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
@@ -89,8 +95,6 @@ suite('EditorService', () => {
 			didCloseEditorListenerCounter++;
 		});
 
-		await part.whenRestored;
-
 		// Open input
 		let editor = await service.openEditor(input, { pinned: true });
 
@@ -105,8 +109,9 @@ suite('EditorService', () => {
 		assert.ok(!service.activeTextEditorControl);
 		assert.ok(!service.activeTextEditorMode);
 		assert.strictEqual(service.visibleTextEditorControls.length, 0);
-		assert.strictEqual(service.isOpen(input), true);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), true);
+		assert.strictEqual(service.isOpened(input), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId' }), false);
 		assert.strictEqual(activeEditorChangeEventCounter, 1);
 		assert.strictEqual(visibleEditorChangeEventCounter, 1);
 
@@ -138,10 +143,10 @@ suite('EditorService', () => {
 		assert.strictEqual(input, service.getEditors(EditorsOrder.SEQUENTIAL)[0].editor);
 		assert.strictEqual(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
 		assert.strictEqual(service.visibleEditorPanes.length, 1);
-		assert.strictEqual(service.isOpen(input), true);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), true);
-		assert.strictEqual(service.isOpen(otherInput), true);
-		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), true);
+		assert.strictEqual(service.isOpened(input), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
+		assert.strictEqual(service.isOpened(otherInput), true);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
 		assert.strictEqual(activeEditorChangeEventCounter, 4);
 		assert.strictEqual(visibleEditorChangeEventCounter, 4);
@@ -170,65 +175,53 @@ suite('EditorService', () => {
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
-
-		part.dispose();
 	});
 
 	test('isOpen() with side by side editor', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 		const sideBySideInput = new SideBySideEditorInput('sideBySide', '', input, otherInput);
 
-		await part.whenRestored;
-
 		const editor1 = await service.openEditor(sideBySideInput, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 1);
 
-		assert.strictEqual(service.isOpen(input), false);
-		assert.strictEqual(service.isOpen(otherInput), false);
-		assert.strictEqual(service.isOpen(sideBySideInput), true);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), false);
-		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), true);
+		assert.strictEqual(service.isOpened(input), false);
+		assert.strictEqual(service.isOpened(otherInput), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
 		const editor2 = await service.openEditor(input, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 2);
 
-		assert.strictEqual(service.isOpen(input), true);
-		assert.strictEqual(service.isOpen(otherInput), false);
-		assert.strictEqual(service.isOpen(sideBySideInput), true);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), true);
-		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), true);
+		assert.strictEqual(service.isOpened(input), true);
+		assert.strictEqual(service.isOpened(otherInput), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
 		await editor2?.group?.closeEditor(input);
 		assert.strictEqual(part.activeGroup.count, 1);
 
-		assert.strictEqual(service.isOpen(input), false);
-		assert.strictEqual(service.isOpen(otherInput), false);
-		assert.strictEqual(service.isOpen(sideBySideInput), true);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), false);
-		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), true);
+		assert.strictEqual(service.isOpened(input), false);
+		assert.strictEqual(service.isOpened(otherInput), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
 
 		await editor1?.group?.closeEditor(sideBySideInput);
 
-		assert.strictEqual(service.isOpen(input), false);
-		assert.strictEqual(service.isOpen(otherInput), false);
-		assert.strictEqual(service.isOpen(sideBySideInput), false);
-		assert.strictEqual(service.isOpen({ resource: input.resource }), false);
-		assert.strictEqual(service.isOpen({ resource: otherInput.resource }), false);
-
-		part.dispose();
+		assert.strictEqual(service.isOpened(input), false);
+		assert.strictEqual(service.isOpened(otherInput), false);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), false);
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 		const replaceInput = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		// Open editors
 		await service.openEditors([{ editor: input }, { editor: otherInput }]);
@@ -238,8 +231,104 @@ suite('EditorService', () => {
 		await service.replaceEditors([{ editor: input, replacement: replaceInput }], part.activeGroup);
 		assert.strictEqual(part.activeGroup.count, 2);
 		assert.strictEqual(part.activeGroup.getIndexOfEditor(replaceInput), 0);
+	});
 
-		part.dispose();
+	test('openEditors() handles workspace trust (typed editors)', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+
+			// Trust: cancel
+			let trustEditorUris: URI[] = [];
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => {
+				trustEditorUris = uris;
+				return WorkspaceTrustUriResponse.Cancel;
+			};
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			assert.strictEqual(part.activeGroup.count, 0);
+			assert.strictEqual(trustEditorUris.length, 4);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input1.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input2.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input3.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input4.resource.toString()), true);
+
+			// Trust: open in new window
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.OpenInNewWindow;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			assert.strictEqual(part.activeGroup.count, 0);
+
+			// Trust: allow
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Open;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			assert.strictEqual(part.activeGroup.count, 3);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
+	});
+
+	test('openEditors() ignores trust when `validateTrust: false', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+
+			// Trust: cancel
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Cancel;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			assert.strictEqual(part.activeGroup.count, 3);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
+	});
+
+	test('openEditors() extracts proper resources from untyped editors for workspace trust', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input = { resource: URI.parse('my://resource-openEditors') };
+		const otherInput: IResourceDiffEditorInput = {
+			originalInput: { resource: URI.parse('my://resource2-openEditors') },
+			modifiedInput: { resource: URI.parse('my://resource3-openEditors') }
+		};
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+			let trustEditorUris: URI[] = [];
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => {
+				trustEditorUris = uris;
+				return oldHandler(uris);
+			};
+
+			await service.openEditors([input, otherInput], undefined, { validateTrust: true });
+			assert.strictEqual(part.activeGroup.count, 0);
+			assert.strictEqual(trustEditorUris.length, 3);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.originalInput.resource?.toString()), true);
+			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === otherInput.modifiedInput.resource?.toString()), true);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
 	});
 
 	test('caching', function () {
@@ -333,6 +422,16 @@ suite('EditorService', () => {
 		assert(input instanceof FileEditorInput);
 		contentInput = <FileEditorInput>input;
 		assert.strictEqual(contentInput.getPreferredMode(), mode);
+		let fileModel = (await contentInput.resolve() as ITextFileEditorModel);
+		assert.strictEqual(fileModel.textEditorModel?.getModeId(), mode);
+
+		// Untyped Input (file, contents)
+		input = service.createEditorInput({ resource: toResource.call(this, '/index.html'), contents: 'My contents' });
+		assert(input instanceof FileEditorInput);
+		contentInput = <FileEditorInput>input;
+		fileModel = (await contentInput.resolve() as ITextFileEditorModel);
+		assert.strictEqual(fileModel.textEditorModel?.getValue(), 'My contents');
+		assert.strictEqual(fileModel.isDirty(), true);
 
 		// Untyped Input (file, different mode)
 		input = service.createEditorInput({ resource: toResource.call(this, '/index.html'), mode: 'text' });
@@ -377,14 +476,20 @@ suite('EditorService', () => {
 
 		// Untyped Input (resource)
 		input = service.createEditorInput({ resource: URI.parse('custom:resource') });
-		assert(input instanceof ResourceEditorInput);
+		assert(input instanceof TextResourceEditorInput);
 
 		// Untyped Input (diff)
-		input = service.createEditorInput({
-			leftResource: toResource.call(this, '/primary.html'),
-			rightResource: toResource.call(this, '/secondary.html')
-		});
+		const resourceDiffInput = {
+			originalInput: { resource: toResource.call(this, '/primary.html') },
+			modifiedInput: { resource: toResource.call(this, '/secondary.html') }
+		};
+		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
+		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
+		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
+		const untypedDiffInput = input.asResourceEditorInput(0) as IResourceDiffEditorInput;
+		assert.strictEqual(untypedDiffInput.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
+		assert.strictEqual(untypedDiffInput.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
 	});
 
 	test('delegate', function (done) {
@@ -396,7 +501,7 @@ suite('EditorService', () => {
 				super(id, undefined!, new TestThemeService(), new TestStorageService());
 			}
 
-			getId(): string {
+			override getId(): string {
 				return 'myEditor';
 			}
 
@@ -405,29 +510,27 @@ suite('EditorService', () => {
 			createEditor(): void { }
 		}
 
-		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
+		const editor = instantiationService.createInstance(MyEditor, 'my.editor');
 
-		const inp = instantiationService.createInstance(ResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined);
-		const delegate = instantiationService.createInstance(DelegatingEditorService, async (delegate, group, input) => {
-			assert.strictEqual(input, inp);
+		const input = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined, undefined);
+		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
+			assert.ok(group);
 
 			done();
 
-			return ed;
+			return editor;
 		});
 
-		delegate.openEditor(inp);
+		delegate.openEditor(input);
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-close1'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
-
-		await part.whenRestored;
 
 		// Open input
 		await service.openEditor(input, { pinned: true });
@@ -444,19 +547,15 @@ suite('EditorService', () => {
 
 		await rightGroup.closeEditor(input);
 		assert.strictEqual(input.isDisposed(), true);
-
-		part.dispose();
 	});
 
 	test('open to the side', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		let editor = await service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP);
@@ -470,19 +569,15 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup, rootGroup);
 		assert.strictEqual(part.count, 2);
 		assert.strictEqual(editor?.group, part.groups[1]);
-
-		part.dispose();
 	});
 
 	test('editor group activation', async () => {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true }, rootGroup);
 		let editor = await service.openEditor(input2, { pinned: true, preserveFocus: true, activation: EditorActivation.ACTIVATE }, SIDE_GROUP);
@@ -505,12 +600,34 @@ suite('EditorService', () => {
 		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
+	});
 
-		part.dispose();
+	test('inactive editor group does not activate when closing editor (#117686)', async () => {
+		const [part, service] = await createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openside'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openside'), TEST_EDITOR_INPUT_ID);
+
+		const rootGroup = part.activeGroup;
+
+		await service.openEditor(input1, { pinned: true }, rootGroup);
+		await service.openEditor(input2, { pinned: true }, rootGroup);
+
+		const sideGroup = (await service.openEditor(input2, { pinned: true }, SIDE_GROUP))?.group;
+		assert.strictEqual(part.activeGroup, sideGroup);
+		assert.notStrictEqual(rootGroup, sideGroup);
+
+		part.arrangeGroups(GroupsArrangement.MINIMIZE_OTHERS, part.activeGroup);
+
+		await rootGroup.closeEditor(input2);
+		assert.strictEqual(part.activeGroup, sideGroup);
+
+		assert.strictEqual(rootGroup.isMinimized, true);
+		assert.strictEqual(part.activeGroup.isMinimized, false);
 	});
 
 	test('active editor change / visible editor change events', async function () {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		let otherInput = new TestFileEditorInput(URI.parse('my://resource2-active'), TEST_EDITOR_INPUT_ID);
@@ -539,8 +656,6 @@ suite('EditorService', () => {
 			await group.closeEditor(input);
 			await timeout(0); // closing an editor will not immediately open the next one, so we need to wait
 		}
-
-		await part.whenRestored;
 
 		// 1.) open, open same, open other, close
 		let editor = await service.openEditor(input, { pinned: true });
@@ -725,12 +840,10 @@ suite('EditorService', () => {
 		// cleanup
 		activeEditorChangeListener.dispose();
 		visibleEditorChangeListener.dispose();
-
-		part.dispose();
 	});
 
 	test('two active editor change events when opening editor to the side', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 
@@ -743,8 +856,6 @@ suite('EditorService', () => {
 			assert.strictEqual(activeEditorChangeEvents, expected, `Unexpected active editor change state (got ${activeEditorChangeEvents}, expected ${expected})`);
 			activeEditorChangeEvents = 0;
 		}
-
-		await part.whenRestored;
 
 		await service.openEditor(input, { pinned: true });
 		assertActiveEditorChangedEvent(1);
@@ -762,14 +873,10 @@ suite('EditorService', () => {
 
 		// cleanup
 		activeEditorChangeListener.dispose();
-
-		part.dispose();
 	});
 
 	test('activeTextEditorControl / activeTextEditorMode', async () => {
-		const [part, service] = createEditorService();
-
-		await part.whenRestored;
+		const [, service] = await createEditorService();
 
 		// Open untitled input
 		let editor = await service.openEditor({});
@@ -777,19 +884,15 @@ suite('EditorService', () => {
 		assert.strictEqual(service.activeEditorPane, editor);
 		assert.strictEqual(service.activeTextEditorControl, editor?.getControl());
 		assert.strictEqual(service.activeTextEditorMode, 'plaintext');
-
-		part.dispose();
 	});
 
 	test('openEditor returns NULL when opening fails or is inactive', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-active'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-inactive'), TEST_EDITOR_INPUT_ID);
 		const failingInput = new TestFileEditorInput(URI.parse('my://resource3-failing'), TEST_EDITOR_INPUT_ID);
 		failingInput.setFailToOpen();
-
-		await part.whenRestored;
 
 		let editor = await service.openEditor(input, { pinned: true });
 		assert.ok(editor);
@@ -799,12 +902,10 @@ suite('EditorService', () => {
 
 		let failingEditor = await service.openEditor(failingInput);
 		assert.ok(!failingEditor);
-
-		part.dispose();
 	});
 
 	test('save, saveAll, revertAll', async function () {
-		const [part, service] = createEditorService();
+		const [part, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = true;
@@ -814,8 +915,6 @@ suite('EditorService', () => {
 		sameInput1.dirty = true;
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
@@ -880,12 +979,10 @@ suite('EditorService', () => {
 		assert.strictEqual(sameInput1.gotSaved, false);
 		assert.strictEqual(sameInput1.gotSavedAs, false);
 		assert.strictEqual(sameInput1.gotReverted, false);
-
-		part.dispose();
 	});
 
 	test('saveAll, revertAll (sticky editor)', async function () {
-		const [part, service] = createEditorService();
+		const [, service] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = true;
@@ -893,8 +990,6 @@ suite('EditorService', () => {
 		input2.dirty = true;
 		const sameInput1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		sameInput1.dirty = true;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true, sticky: true });
 		await service.openEditor(input2, { pinned: true });
@@ -922,8 +1017,6 @@ suite('EditorService', () => {
 		assert.strictEqual(input1.gotSaved, false);
 		assert.strictEqual(input2.gotSaved, true);
 		assert.strictEqual(sameInput1.gotSaved, true);
-
-		part.dispose();
 	});
 
 	test('file delete closes editor', async function () {
@@ -935,7 +1028,7 @@ suite('EditorService', () => {
 	});
 
 	async function testFileDeleteEditorClose(dirty: boolean): Promise<void> {
-		const [part, service, accessor] = createEditorService();
+		const [part, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		input1.dirty = dirty;
@@ -943,8 +1036,6 @@ suite('EditorService', () => {
 		input2.dirty = dirty;
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		await service.openEditor(input2, { pinned: true });
@@ -962,20 +1053,16 @@ suite('EditorService', () => {
 		} else {
 			assert.strictEqual(rootGroup.activeEditor, input1);
 		}
-
-		part.dispose();
 	}
 
 	test('file move asks input to move', async function () {
-		const [part, service, accessor] = createEditorService();
+		const [part, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('my://resource1'), TEST_EDITOR_INPUT_ID);
 		const movedInput = new TestFileEditorInput(URI.parse('my://resource2'), TEST_EDITOR_INPUT_ID);
 		input1.movedEditor = { editor: movedInput };
 
 		const rootGroup = part.activeGroup;
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 
@@ -989,13 +1076,12 @@ suite('EditorService', () => {
 			mtime: 0,
 			name: 'resource2',
 			size: 0,
-			isSymbolicLink: false
+			isSymbolicLink: false,
+			readonly: false
 		}));
 		await activeEditorChangePromise;
 
 		assert.strictEqual(rootGroup.activeEditor, movedInput);
-
-		part.dispose();
 	});
 
 	function awaitActiveEditorChange(editorService: IEditorService): Promise<void> {
@@ -1003,12 +1089,10 @@ suite('EditorService', () => {
 	}
 
 	test('file watcher gets installed for out of workspace files', async function () {
-		const [part, service, accessor] = createEditorService();
+		const [, service, accessor] = await createEditorService();
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 		assert.strictEqual(accessor.fileService.watches.length, 1);
@@ -1020,86 +1104,128 @@ suite('EditorService', () => {
 
 		await editor?.group?.closeAllEditors();
 		assert.strictEqual(accessor.fileService.watches.length, 0);
-
-		part.dispose();
 	});
 
 	test('activeEditorPane scopedContextKeyService', async function () {
 		const instantiationService = workbenchInstantiationService({ contextKeyService: instantiationService => instantiationService.createInstance(MockScopableContextKeyService) });
-		const [part, service] = createEditorService(instantiationService);
+		const [part, service] = await createEditorService(instantiationService);
 
 		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
 		new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		await service.openEditor(input1, { pinned: true });
 
 		const editorContextKeyService = service.activeEditorPane?.scopedContextKeyService;
 		assert.ok(!!editorContextKeyService);
 		assert.strictEqual(editorContextKeyService, part.activeGroup.activeEditorPane?.scopedContextKeyService);
-
-		part.dispose();
 	});
 
-	test('overrideOpenEditor', async function () {
-		const [part, service] = createEditorService();
+	test('editorOverrideService - openEditor', async function () {
+		const [, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerEditor(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
+		await service.openEditor(input1);
+		assert.strictEqual(overrideCount, 0);
+		// Open editor input 2 and it should trigger override as the glob doesn match
+		await service.openEditor(input2);
+		assert.strictEqual(overrideCount, 1);
+		// Because we specify an override we shouldn't see it triggered even if it matches
+		await service.openEditor(input2, { override: 'default' });
+		assert.strictEqual(overrideCount, 1);
 
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
-
-		let overrideCalled = false;
-
-		const handler = service.overrideOpenEditor({
-			open: editor => {
-				if (editor === input1) {
-					overrideCalled = true;
-
-					return { override: service.openEditor(input2, { pinned: true }) };
-				}
-
-				return undefined;
-			}
-		});
-
-		await service.openEditor(input1, { pinned: true });
-
-		assert.ok(overrideCalled);
-		assert.strictEqual(service.activeEditor, input2);
-
-		handler.dispose();
-		part.dispose();
+		registrationDisposable.dispose();
 	});
 
-	test('whenClosed', async function () {
-		const [part, service] = createEditorService();
+	test('editorOverrideService - openEditors', async function () {
+		const [, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerEditor(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.txt'), TEST_EDITOR_INPUT_ID);
+		const input3 = new TestFileEditorInput(URI.parse('file://test/path/resource3.md'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('file://test/path/resource4.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
+		await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: input3 }, { editor: input4 }]);
+		assert.strictEqual(overrideCount, 2);
 
-		const input1 = new TestFileEditorInput(URI.parse('file://resource1'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://resource2'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
-
-		const editor = await service.openEditor(input1, { pinned: true });
-		await service.openEditor(input2, { pinned: true });
-
-		const whenClosed = service.whenClosed([{ resource: input1.resource }, { resource: input2.resource }]);
-
-		editor?.group?.closeAllEditors();
-
-		await whenClosed;
-
-		part.dispose();
+		registrationDisposable.dispose();
 	});
 
-	test('findEditors', async () => {
-		const [part, service] = createEditorService();
+	test('editorOverrideService - replaceEditors', async function () {
+		const [part, service, accessor] = await createEditorService();
+		const editorOverrideService = accessor.editorOverrideService;
+		let overrideCount = 0;
+		const registrationDisposable = editorOverrideService.registerEditor(
+			'*.md',
+			{
+				id: 'TestEditor',
+				label: 'Test Editor',
+				detail: 'Test Editor Provider',
+				describes: () => false,
+				priority: ContributedEditorPriority.builtin
+			},
+			{},
+			(resource) => {
+				overrideCount++;
+				return ({ editor: service.createEditorInput({ resource }) });
+			},
+			diffEditor => ({ editor: diffEditor })
+		);
+		assert.strictEqual(overrideCount, 0);
+		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		// Open editor input 1 and it shouldn't trigger because I've disabled the override logic
+		await service.openEditor(input1, { override: EditorOverride.DISABLED });
+		assert.strictEqual(overrideCount, 0);
+		await service.replaceEditors([{
+			editor: input1,
+			replacement: input1,
+		}], part.activeGroup);
+		assert.strictEqual(overrideCount, 1);
+		registrationDisposable.dispose();
+	});
+
+	test('findEditors (in group)', async () => {
+		const [part, service] = await createEditorService();
 
 		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
-
-		await part.whenRestored;
 
 		// Open editors
 		await service.openEditors([{ editor: input }, { editor: otherInput }]);
@@ -1107,37 +1233,111 @@ suite('EditorService', () => {
 
 		// Try using find editors for opened editors
 		{
-			const found = service.findEditors(input.resource, part.activeGroup);
-			assert.strictEqual(found.length, 1);
-			assert.strictEqual(found[0], input);
+			const found1 = service.findEditors(input.resource, part.activeGroup);
+			assert.strictEqual(found1.length, 1);
+			assert.strictEqual(found1[0], input);
+
+			const found2 = service.findEditors(input, part.activeGroup);
+			assert.strictEqual(found2, input);
 		}
 		{
-			const found = service.findEditors(otherInput.resource, part.activeGroup);
-			assert.strictEqual(found.length, 1);
-			assert.strictEqual(found[0], otherInput);
+			const found1 = service.findEditors(otherInput.resource, part.activeGroup);
+			assert.strictEqual(found1.length, 1);
+			assert.strictEqual(found1[0], otherInput);
+
+			const found2 = service.findEditors(otherInput, part.activeGroup);
+			assert.strictEqual(found2, otherInput);
 		}
 
 		// Make sure we don't find non-opened editors
 		{
-			const found = service.findEditors(URI.parse('my://no-such-resource'), part.activeGroup);
-			assert.strictEqual(found.length, 0);
+			const found1 = service.findEditors(URI.parse('my://no-such-resource'), part.activeGroup);
+			assert.strictEqual(found1.length, 0);
+
+			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '' }, part.activeGroup);
+			assert.strictEqual(found2, undefined);
 		}
 
 		// Make sure we don't find editors across groups
 		{
 			const newEditor = await service.openEditor(new TestFileEditorInput(URI.parse('my://other-group-resource'), TEST_EDITOR_INPUT_ID), { pinned: true, preserveFocus: true }, SIDE_GROUP);
 
-			const found = service.findEditors(input.resource, newEditor!.group!.id);
-			assert.strictEqual(found.length, 0);
+			const found1 = service.findEditors(input.resource, newEditor!.group!.id);
+			assert.strictEqual(found1.length, 0);
+
+			const found2 = service.findEditors(input, newEditor!.group!.id);
+			assert.strictEqual(found2, undefined);
 		}
 
 		// Check we don't find editors after closing them
 		await part.activeGroup.closeAllEditors();
 		{
-			const found = service.findEditors(input.resource, part.activeGroup);
-			assert.strictEqual(found.length, 0);
+			const found1 = service.findEditors(input.resource, part.activeGroup);
+			assert.strictEqual(found1.length, 0);
+
+			const found2 = service.findEditors(input, part.activeGroup);
+			assert.strictEqual(found2, undefined);
+		}
+	});
+
+	test('findEditors (across groups)', async () => {
+		const [part, service] = await createEditorService();
+
+		const rootGroup = part.activeGroup;
+
+		const input = new TestFileEditorInput(URI.parse('my://resource-openEditors'), TEST_EDITOR_INPUT_ID);
+		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		// Open editors
+		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		const sideEditor = await service.openEditor(input, { pinned: true }, SIDE_GROUP);
+
+		// Try using find editors for opened editors
+		{
+			const found1 = service.findEditors(input.resource);
+			assert.strictEqual(found1.length, 2);
+			assert.strictEqual(found1[0].editor, input);
+			assert.strictEqual(found1[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found1[1].editor, input);
+			assert.strictEqual(found1[1].groupId, rootGroup.id);
+
+			const found2 = service.findEditors(input);
+			assert.strictEqual(found2.length, 2);
+			assert.strictEqual(found2[0].editor, input);
+			assert.strictEqual(found2[0].groupId, sideEditor?.group?.id);
+			assert.strictEqual(found2[1].editor, input);
+			assert.strictEqual(found2[1].groupId, rootGroup.id);
+		}
+		{
+			const found1 = service.findEditors(otherInput.resource);
+			assert.strictEqual(found1.length, 1);
+			assert.strictEqual(found1[0].editor, otherInput);
+			assert.strictEqual(found1[0].groupId, rootGroup.id);
+
+			const found2 = service.findEditors(otherInput);
+			assert.strictEqual(found2.length, 1);
+			assert.strictEqual(found2[0].editor, otherInput);
+			assert.strictEqual(found2[0].groupId, rootGroup.id);
 		}
 
-		part.dispose();
+		// Make sure we don't find non-opened editors
+		{
+			const found1 = service.findEditors(URI.parse('my://no-such-resource'));
+			assert.strictEqual(found1.length, 0);
+
+			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '' });
+			assert.strictEqual(found2.length, 0);
+		}
+
+		// Check we don't find editors after closing them
+		await rootGroup.closeAllEditors();
+		await sideEditor?.group?.closeAllEditors();
+		{
+			const found1 = service.findEditors(input.resource);
+			assert.strictEqual(found1.length, 0);
+
+			const found2 = service.findEditors(input);
+			assert.strictEqual(found2.length, 0);
+		}
 	});
 });

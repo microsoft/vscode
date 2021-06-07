@@ -28,7 +28,7 @@ const previewStrings = {
 
 	cspAlertMessageTitle: localize(
 		'preview.securityMessage.title',
-		'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
+		'Potentially unsafe or insecure content has been disabled in the Markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
 
 	cspAlertMessageLabel: localize(
 		'preview.securityMessage.label',
@@ -81,7 +81,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument);
+		const body = await this.engine.render(markdownDocument, resourceProvider);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>

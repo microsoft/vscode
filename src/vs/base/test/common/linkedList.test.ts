@@ -132,6 +132,5 @@ suite('LinkedList', function () {
 		let b = list.pop();
 		assert.strictEqual(b, 'b');
 		assertElements(list, 'a');
-
 	});
 });

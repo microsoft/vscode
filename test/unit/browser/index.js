@@ -131,9 +131,22 @@ const testModules = (async function () {
 	})
 })();
 
+function consoleLogFn(msg) {
+	const type = msg.type();
+	const candidate = console[type];
+	if (candidate) {
+		return candidate;
+	}
+
+	if (type === 'warning') {
+		return console.warn;
+	}
+
+	return console.log;
+}
 
 async function runTestsInBrowser(testModules, browserType) {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
+	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), args });
 	const context = await browser.newContext();
 	const page = await context.newPage();
@@ -149,7 +162,7 @@ async function runTestsInBrowser(testModules, browserType) {
 	});
 
 	page.on('console', async msg => {
-		console[msg.type()](msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
+		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
 	});
 
 	withReporter(browserType, new EchoRunner(emitter, browserType.toUpperCase()));

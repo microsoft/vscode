@@ -20,7 +20,7 @@ import { localize } from 'vs/nls';
 import { Action, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { getInstalledExtensions, IExtensionStatus, onExtensionChanged, isKeymapExtension } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { IExtensionManagementService, IExtensionGalleryService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -32,7 +32,7 @@ import { registerThemingParticipant } from 'vs/platform/theme/common/themeServic
 import { focusBorder, textLinkForeground, textLinkActiveForeground, foreground, descriptionForeground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
 import { IExtensionsViewPaneContainer, IExtensionsWorkbenchService, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { IEditorInputFactory, EditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { TimeoutTimer } from 'vs/base/common/async';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -46,87 +46,108 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { getGettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+
 
 const configurationKey = 'workbench.startupEditor';
 const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
+	private experimentManagementComplete: Promise<void>;
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IEditorService editorService: IEditorService,
-		@IBackupFileService backupFileService: IBackupFileService,
-		@IFileService fileService: IFileService,
-		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@ILifecycleService lifecycleService: ILifecycleService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
+		@IFileService private readonly fileService: IFileService,
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
-		const enabled = isWelcomePageEnabled(configurationService, contextService);
-		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			backupFileService.hasBackups().then(hasBackups => {
-				// Open the welcome even if we opened a set of default editors
-				if ((!editorService.activeEditor || layoutService.openedDefaultEditors) && !hasBackups) {
-					const startupEditorSetting = configurationService.inspect<string>(configurationKey);
-					const openWithReadme = startupEditorSetting.userValue === 'readme';
-					if (openWithReadme) {
-						return Promise.all(contextService.getWorkspace().folders.map(folder => {
-							const folderUri = folder.uri;
-							return fileService.resolve(folderUri)
-								.then(folder => {
-									const files = folder.children ? folder.children.map(child => child.name).sort() : [];
 
-									const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+		// Run immediately to minimize time spent waiting for exp service.
+		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
+		this.run().then(undefined, onUnexpectedError);
+	}
 
-									if (file) {
-										return joinPath(folderUri, file);
-									}
-									return undefined;
-								}, onUnexpectedError);
-						})).then(arrays.coalesce)
-							.then<any>(readmes => {
-								if (!editorService.activeEditor) {
-									if (readmes.length) {
-										const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
-										return Promise.all([
-											this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
-											editorService.openEditors(readmes.filter(readme => !isMarkDown(readme))
-												.map(readme => ({ resource: readme }))),
-										]);
-									} else {
-										return instantiationService.createInstance(WelcomePage).openEditor();
-									}
-								}
-								return undefined;
-							});
-					} else {
-						const startupEditorTypeID = startupEditorSetting.value === 'gettingStarted' ? gettingStartedInputTypeId : welcomeInputTypeId;
-						let options: IEditorOptions;
-						let editor = editorService.activeEditor;
-						if (editor) {
-							// Ensure that the welcome editor won't get opened more than once
-							if (editor.getTypeId() === startupEditorTypeID || editorService.editors.some(e => e.getTypeId() === startupEditorTypeID)) {
-								return undefined;
-							}
-							options = { pinned: false, index: 0 };
-						} else {
-							options = { pinned: false };
-						}
+	private async manageDefaultValuesForGettingStartedExperiment() {
+		const config = this.configurationService.inspect(configurationKey);
 
-						if (startupEditorTypeID === gettingStartedInputTypeId) {
-							editorService.openEditor(instantiationService.invokeFunction(getGettingStartedInput, {}), options);
-						} else {
-							const launchEditor = instantiationService.createInstance(WelcomePage);
-							return launchEditor.openEditor(options);
-						}
-					}
+		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
+			return;
+		}
+	}
+
+	private async run() {
+		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			const hasBackups = await this.workingCopyBackupService.hasBackups();
+			if (hasBackups) { return; }
+
+			// Open the welcome even if we opened a set of default editors
+			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
+				const startupEditorSetting = this.configurationService.inspect<string>(configurationKey);
+
+				// 'readme' should not be set in workspace settings to prevent tracking,
+				// but it can be set as a default (as in codespaces) or a user setting
+				const openWithReadme = startupEditorSetting.value === 'readme' &&
+					(startupEditorSetting.userValue === 'readme' || startupEditorSetting.defaultValue === 'readme');
+
+				if (openWithReadme) {
+					await this.openReadme();
+				} else {
+					await this.openWelcome();
 				}
-				return undefined;
-			}).then(undefined, onUnexpectedError);
+			}
+		}
+	}
+
+	private async openReadme() {
+		const readmes = arrays.coalesce(
+			await Promise.all(this.contextService.getWorkspace().folders.map(
+				async folder => {
+					const folderUri = folder.uri;
+					const folderStat = await this.fileService.resolve(folderUri).catch(onUnexpectedError);
+					const files = folderStat?.children ? folderStat.children.map(child => child.name).sort() : [];
+					const file = files.find(file => file.toLowerCase() === 'readme.md') || files.find(file => file.toLowerCase().startsWith('readme'));
+					if (file) { return joinPath(folderUri, file); }
+					else { return undefined; }
+				})));
+
+		if (!this.editorService.activeEditor) {
+			if (readmes.length) {
+				const isMarkDown = (readme: URI) => readme.path.toLowerCase().endsWith('.md');
+				await Promise.all([
+					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }),
+					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
+				]);
+			} else {
+				await this.openWelcome();
+			}
+		}
+	}
+
+	private async openWelcome() {
+		await this.experimentManagementComplete;
+
+		const startupEditorSetting = this.configurationService.getValue(configurationKey);
+		const startupEditorTypeID = (startupEditorSetting === 'gettingStarted' || startupEditorSetting === 'gettingStartedInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
+		const editor = this.editorService.activeEditor;
+
+		// Ensure that the welcome editor won't get opened more than once
+		if (editor?.typeId === startupEditorTypeID || this.editorService.editors.some(e => e.typeId === startupEditorTypeID)) {
+			return;
+		}
+		const options: IEditorOptions = editor ? { pinned: false, index: 0 } : { pinned: false };
+		if (startupEditorTypeID === gettingStartedInputTypeId) {
+			this.editorService.openEditor(this.instantiationService.createInstance(GettingStartedInput, {}), options);
+		} else {
+			this.instantiationService.createInstance(WelcomePage).openEditor(options);
 		}
 	}
 }
@@ -142,7 +163,10 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 	if (startupEditor.value === 'readme' && startupEditor.userValue !== 'readme') {
 		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
 	}
-	return startupEditor.value === 'welcomePage' || startupEditor.value === 'gettingStarted' || startupEditor.userValue === 'readme' || startupEditor.value === 'welcomePageInEmptyWorkbench' && contextService.getWorkbenchState() === WorkbenchState.EMPTY;
+	return startupEditor.value === 'welcomePage'
+		|| startupEditor.value === 'gettingStarted'
+		|| startupEditor.userValue === 'readme'
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'welcomePageInEmptyWorkbench' || startupEditor.value === 'gettingStartedInEmptyWorkbench'));
 }
 
 export class WelcomePageAction extends Action {
@@ -158,7 +182,7 @@ export class WelcomePageAction extends Action {
 		super(id, label);
 	}
 
-	public run(): Promise<void> {
+	public override run(): Promise<void> {
 		return this.instantiationService.createInstance(WelcomePage)
 			.openEditor()
 			.then(() => undefined);
@@ -307,7 +331,7 @@ class WelcomePage extends Disposable {
 
 	) {
 		super();
-		this._register(lifecycleService.onShutdown(() => this.dispose()));
+		this._register(lifecycleService.onDidShutdown(() => this.dispose()));
 
 		const recentlyOpened = this.workspacesService.getRecentlyOpened();
 		const installedExtensions = this.instantiationService.invokeFunction(getInstalledExtensions);
@@ -330,7 +354,7 @@ class WelcomePage extends Disposable {
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: Promise<IRecentlyOpened>, installedExtensions: Promise<IExtensionStatus[]>): void {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		const enabled = this.configurationService.getValue(configurationKey) === 'welcomePage';
 		const showOnStartup = <HTMLInputElement>container.querySelector('#showOnStartup');
 		if (enabled) {
 			showOnStartup.setAttribute('checked', 'checked');
@@ -410,7 +434,7 @@ class WelcomePage extends Disposable {
 					id: 'openRecentFolder',
 					from: telemetryFrom
 				});
-				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey });
+				this.hostService.openWindow([windowOpenable], { forceNewWindow: e.ctrlKey || e.metaKey, remoteAuthority: recent.remoteAuthority });
 				e.preventDefault();
 				e.stopPropagation();
 			});
@@ -630,7 +654,7 @@ class WelcomePage extends Disposable {
 	}
 }
 
-export class WelcomeInputFactory implements IEditorInputFactory {
+export class WelcomeInputSerializer implements IEditorInputSerializer {
 
 	static readonly ID = welcomeInputTypeId;
 
@@ -639,10 +663,10 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 	}
 
 	public serialize(editorInput: EditorInput): string {
-		return '{}';
+		return '';
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): WalkThroughInput {
+	public deserialize(instantiationService: IInstantiationService): WalkThroughInput {
 		return instantiationService.createInstance(WelcomePage)
 			.editorInput;
 	}

@@ -71,7 +71,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 		this._register(this._editor.onKeyUp((e) => e.keyCode === KeyCode.Escape && this.stop()));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.stop();
 		super.dispose();
 	}
@@ -214,7 +214,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		this._editor.addContentWidget(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposed = true;
 		this._editor.removeContentWidget(this);
 		this._currentRequestCancellationTokenSource.cancel();
@@ -416,10 +416,17 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const fontStyleLabels = new Array<HTMLElement | string>();
 
 		function addStyle(key: 'bold' | 'italic' | 'underline') {
+			let label: HTMLElement | string | undefined;
 			if (semantic && semantic[key]) {
-				fontStyleLabels.push($('span.tiw-metadata-semantic', undefined, key));
+				label = $('span.tiw-metadata-semantic', undefined, key);
 			} else if (tm && tm[key]) {
-				fontStyleLabels.push(key);
+				label = key;
+			}
+			if (label) {
+				if (fontStyleLabels.length) {
+					fontStyleLabels.push(' ');
+				}
+				fontStyleLabels.push(label);
 			}
 		}
 		addStyle('bold');
@@ -428,7 +435,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		if (fontStyleLabels.length) {
 			elements.push($('tr', undefined,
 				$('td.tiw-metadata-key', undefined, 'font style' as string),
-				$('td.tiw-metadata-value', undefined, fontStyleLabels.join(' '))
+				$('td.tiw-metadata-value', undefined, ...fontStyleLabels)
 			));
 		}
 		return elements;

@@ -104,6 +104,7 @@ export interface ILocalExtension extends IExtension {
 	isMachineScoped: boolean;
 	publisherId: string | null;
 	publisherDisplayName: string | null;
+	installedTimestamp?: number;
 }
 
 export const enum SortBy {
@@ -202,6 +203,7 @@ export class ExtensionManagementError extends Error {
 }
 
 export type InstallOptions = { isBuiltin?: boolean, isMachineScoped?: boolean, donotIncludePackAndDependencies?: boolean };
+export type InstallVSIXOptions = InstallOptions & { installOnlyNewlyAddedFromExtensionPack?: boolean };
 export type UninstallOptions = { donotIncludePack?: boolean, donotCheckDependents?: boolean };
 
 export const IExtensionManagementService = createDecorator<IExtensionManagementService>('extensionManagementService');
@@ -216,7 +218,7 @@ export interface IExtensionManagementService {
 	zip(extension: ILocalExtension): Promise<URI>;
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier>;
 	getManifest(vsix: URI): Promise<IExtensionManifest>;
-	install(vsix: URI, options?: InstallOptions): Promise<ILocalExtension>;
+	install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension>;
 	canInstall(extension: IGalleryExtension): Promise<boolean>;
 	installFromGallery(extension: IGalleryExtension, options?: InstallOptions): Promise<ILocalExtension>;
 	uninstall(extension: ILocalExtension, options?: UninstallOptions): Promise<void>;

@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache, UriIterator, ConfigKeysIterator } from 'vs/base/common/map';
 import * as assert from 'assert';
-import { URI } from 'vs/base/common/uri';
+import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 suite('Map', () => {
 
@@ -762,6 +762,9 @@ suite('Map', () => {
 
 		iter = map.findSuperstr(URI.file('/'))!;
 		item = iter.next();
+		assert.strictEqual(item.value[1], 4);
+		assert.strictEqual(item.done, false);
+		item = iter.next();
 		assert.strictEqual(item.value[1], 2);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
@@ -769,9 +772,6 @@ suite('Map', () => {
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 4);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value, undefined);
