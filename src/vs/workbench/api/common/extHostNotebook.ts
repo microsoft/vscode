@@ -106,18 +106,12 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	getEditorById(editorId: string, strict: true): ExtHostNotebookEditor;
-	getEditorById(editorId: string): ExtHostNotebookEditor | undefined;
-	getEditorById(editorId: string, strict?: true): ExtHostNotebookEditor | undefined {
+	getEditorById(editorId: string): ExtHostNotebookEditor {
 		const editor = this._editors.get(editorId);
-		if (!editor && strict) {
+		if (!editor) {
 			throw new Error(`unknown text editor: ${editorId}. known editors: ${[...this._editors.keys()]} `);
 		}
 		return editor;
-	}
-
-	allEditors(): ExtHostNotebookEditor[] {
-		return [...this._editors.values()];
 	}
 
 	getIdByEditor(editor: vscode.NotebookEditor): string | undefined {

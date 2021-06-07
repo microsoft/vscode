@@ -286,10 +286,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		const editor = this._extHostNotebook.getEditorById(editorId);
-		if (!editor) {
-			throw new Error(`send message for UNKNOWN editor: ${editorId}`);
-		}
-
 		obj.onDidReceiveMessage.fire(Object.freeze({ editor: editor.apiEditor, message }));
 	}
 

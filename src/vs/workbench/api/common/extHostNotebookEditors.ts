@@ -55,7 +55,7 @@ export class ExtHostNotebookEditors implements ExtHostNotebookEditorsShape {
 
 	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
 		this._logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);
-		const editor = this._notebooksAndEditors.getEditorById(id, true);
+		const editor = this._notebooksAndEditors.getEditorById(id);
 		// ONE: make all state updates
 		if (data.visibleRanges) {
 			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookRange.to));
@@ -81,7 +81,7 @@ export class ExtHostNotebookEditors implements ExtHostNotebookEditorsShape {
 
 	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
 		for (const id in data) {
-			const editor = this._notebooksAndEditors.getEditorById(id, true);
+			const editor = this._notebooksAndEditors.getEditorById(id);
 			editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
 		}
 	}
