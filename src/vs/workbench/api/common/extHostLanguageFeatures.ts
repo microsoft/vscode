@@ -1251,7 +1251,7 @@ class LinkProviderAdapter {
 			return undefined;
 		}
 		const link = await asPromise(() => this._provider.resolveDocumentLink!(item, token));
-		if (!link || LinkProviderAdapter._validateLink(link)) {
+		if (!link || !LinkProviderAdapter._validateLink(link)) {
 			return undefined;
 		}
 		return typeConvert.DocumentLink.from(link);
