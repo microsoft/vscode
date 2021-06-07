@@ -935,8 +935,8 @@ suite('Notebook API tests', function () {
 	});
 
 	test('multiple tabs: dirty + clean', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
 
@@ -945,8 +945,8 @@ suite('Notebook API tests', function () {
 		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
-		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondNotebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(secondNotebook);
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 
 		// make sure that the previous dirty editor is still restored in the extension host and no data loss
@@ -958,8 +958,8 @@ suite('Notebook API tests', function () {
 	});
 
 	test.skip('multiple tabs: two dirty tabs and switching', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
 
@@ -968,20 +968,20 @@ suite('Notebook API tests', function () {
 		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
-		const secondResource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		const secondNotebook = await openRandomNotebookDocument();
+		await vscode.window.showNotebookDocument(secondNotebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
 
 		// switch to the first editor
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true);
 		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellAt(1), getFocusedCell(vscode.window.activeNotebookEditor));
 		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellCount, 4);
 		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'var abc = 0;');
 
 		// switch to the second editor
-		await vscode.commands.executeCommand('vscode.openWith', secondResource, 'notebookCoreTest');
+		await vscode.window.showNotebookDocument(secondNotebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true);
 		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellAt(1), getFocusedCell(vscode.window.activeNotebookEditor));
 		assert.deepStrictEqual(vscode.window.activeNotebookEditor?.document.cellCount, 3);
@@ -1010,13 +1010,11 @@ suite('Notebook API tests', function () {
 	});
 
 	test('custom metadata should be supported', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.metadata.custom!['testMetadata'] as boolean, false);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.metadata.custom!['testCellMetadata'] as number, 123);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.languageId, 'typescript');
-
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+		assert.strictEqual(editor.document.metadata.custom!['testMetadata'] as boolean, false);
+		assert.strictEqual(getFocusedCell(editor)?.metadata.custom!['testCellMetadata'] as number, 123);
+		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
 	});
 
 	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
@@ -1050,22 +1048,21 @@ suite('Notebook API tests', function () {
 	});
 
 	test('#97830, #97764. Support switch to other editor types', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		const edit = new vscode.WorkspaceEdit();
-		edit.insert(getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
+		edit.insert(getFocusedCell(editor)!.document.uri, new vscode.Position(0, 0), 'var abc = 0;');
 		await vscode.workspace.applyEdit(edit);
 
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'var abc = 0;');
+		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'var abc = 0;');
 
 		// no kernel -> no default language
 		// assert.strictEqual(vscode.window.activeNotebookEditor!.kernel, undefined);
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.languageId, 'typescript');
+		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
 
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'default');
-		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, resource.path);
+		await vscode.commands.executeCommand('vscode.openWith', notebook.uri, 'default');
+		assert.strictEqual(vscode.window.activeTextEditor?.document.uri.path, notebook.uri.path);
 	});
 
 	// open text editor, pin, and then open a notebook
