@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { writeFileSync, writeFile, readdir, exists, rimraf, RimRafMode, Promises } from 'vs/base/node/pfs';
+import { writeFileSync, rimraf, RimRafMode, Promises } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -233,7 +233,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await Promises.exists(workspace.configPath.fsPath)) {
 						result.push(workspaceInfo);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
@@ -265,7 +265,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the folder has no backups, ignore it
 				if (hasBackups) {
-					if (folderURI.scheme !== Schemas.file || await exists(folderURI.fsPath)) {
+					if (folderURI.scheme !== Schemas.file || await Promises.exists(folderURI.fsPath)) {
 						result.push(folderURI);
 					} else {
 						// If the folder has backups, but the target workspace is missing, convert backups to empty ones
@@ -312,7 +312,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
-			if (await exists(backupPath)) {
+			if (await Promises.exists(backupPath)) {
 				await rimraf(backupPath, RimRafMode.MOVE);
 			}
 		} catch (error) {
@@ -405,11 +405,11 @@ export class BackupMainService implements IBackupMainService {
 
 	private async doHasBackups(backupPath: string): Promise<boolean> {
 		try {
-			const backupSchemas = await readdir(backupPath);
+			const backupSchemas = await Promises.readdir(backupPath);
 
 			for (const backupSchema of backupSchemas) {
 				try {
-					const backupSchemaChildren = await readdir(join(backupPath, backupSchema));
+					const backupSchemaChildren = await Promises.readdir(join(backupPath, backupSchema));
 					if (backupSchemaChildren.length > 0) {
 						return true;
 					}
@@ -434,7 +434,7 @@ export class BackupMainService implements IBackupMainService {
 
 	private async save(): Promise<void> {
 		try {
-			await writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+			await Promises.writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
 		} catch (error) {
 			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}

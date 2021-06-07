@@ -61,11 +61,11 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 				}
 				// Cleanup entries for language packs that aren't installed anymore
 				const cacheDir = path.join(this._environmentService.userDataPath, 'clp');
-				const exists = await pfs.exists(cacheDir);
+				const exists = await pfs.Promises.exists(cacheDir);
 				if (!exists) {
 					return;
 				}
-				for (let entry of await pfs.readdir(cacheDir)) {
+				for (let entry of await pfs.Promises.readdir(cacheDir)) {
 					if (installed[entry]) {
 						this._logService.info(`Skipping directory ${entry}. Language pack still in use.`);
 						continue;
@@ -77,7 +77,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 				const now = Date.now();
 				for (let packEntry of Object.keys(installed)) {
 					const folder = path.join(cacheDir, packEntry);
-					for (let entry of await pfs.readdir(folder)) {
+					for (let entry of await pfs.Promises.readdir(folder)) {
 						if (entry === 'tcf.json') {
 							continue;
 						}

@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Iterable } from 'vs/base/common/iterator';
 import { Schemas } from 'vs/base/common/network';
 import { ByteSize } from 'vs/platform/files/common/files';
-import { IDirent, Promises, readdir } from 'vs/base/node/pfs';
+import { IDirent, Promises } from 'vs/base/node/pfs';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -69,7 +69,7 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 		return new Promise(async resolve => {
 			let files: IDirent[];
 			try {
-				files = await readdir(dir, { withFileTypes: true });
+				files = await Promises.readdir(dir, { withFileTypes: true });
 			} catch (error) {
 				// Ignore folders that can't be read
 				resolve();

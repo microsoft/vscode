@@ -133,7 +133,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 				return this.cleanup(update.version).then(() => {
 					return this.getUpdatePackagePath(update.version).then(updatePackagePath => {
-						return pfs.exists(updatePackagePath).then(exists => {
+						return pfs.Promises.exists(updatePackagePath).then(exists => {
 							if (exists) {
 								return Promise.resolve(updatePackagePath);
 							}
@@ -191,7 +191,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		const filter = exceptVersion ? (one: string) => !(new RegExp(`${this.productService.quality}-${exceptVersion}\\.exe$`).test(one)) : () => true;
 
 		const cachePath = await this.cachePath;
-		const versions = await pfs.readdir(cachePath);
+		const versions = await pfs.Promises.readdir(cachePath);
 
 		const promises = versions.filter(filter).map(async one => {
 			try {
@@ -220,7 +220,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 		this.availableUpdate.updateFilePath = path.join(cachePath, `CodeSetup-${this.productService.quality}-${update.version}.flag`);
 
-		await pfs.writeFile(this.availableUpdate.updateFilePath, 'flag');
+		await pfs.Promises.writeFile(this.availableUpdate.updateFilePath, 'flag');
 		const child = spawn(this.availableUpdate.packagePath, ['/verysilent', `/update="${this.availableUpdate.updateFilePath}"`, '/nocloseapplications', '/mergetasks=runcode,!desktopicon,!quicklaunchicon'], {
 			detached: true,
 			stdio: ['ignore', 'ignore', 'ignore'],

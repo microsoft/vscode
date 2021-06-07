@@ -100,15 +100,15 @@ export interface IDirent {
  * for converting from macOS NFD unicon form to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
-export async function readdir(path: string): Promise<string[]>;
-export async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
-export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : Promises.readdir(path)));
+async function readdir(path: string): Promise<string[]>;
+async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
+async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : promisify(fs.readdir)(path)));
 }
 
 async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
-		return await Promises.readdir(path, { withFileTypes: true });
+		return await promisify(fs.readdir)(path, { withFileTypes: true });
 	} catch (error) {
 		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
 	}
@@ -360,11 +360,11 @@ const writeQueues = new ResourceQueue();
  *
  * In addition, multiple writes to the same path are queued.
  */
-export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
+function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
 	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
 		const ensuredOptions = ensureWriteOptions(options);
 
@@ -372,7 +372,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 	});
 }
 
-export interface IWriteFileOptions {
+interface IWriteFileOptions {
 	mode?: number;
 	flag?: string;
 }
@@ -627,20 +627,6 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 
 //#endregion
 
-//#region Async FS Methods
-
-export async function exists(path: string): Promise<boolean> {
-	try {
-		await Promises.access(path);
-
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-//#endregion
-
 //#region Promise based fs methods
 
 /**
@@ -661,6 +647,8 @@ export async function exists(path: string): Promise<boolean> {
  */
 export const Promises = new class {
 
+	//#region Implemented by node.js
+
 	get access() { return promisify(fs.access); }
 
 	get stat() { return promisify(fs.stat); }
@@ -671,7 +659,6 @@ export const Promises = new class {
 	get readFile() { return promisify(fs.readFile); }
 
 	get write() { return promisify(fs.write); }
-	get writeFile() { return promisify(fs.writeFile); }
 
 	get appendFile() { return promisify(fs.appendFile); }
 
@@ -689,13 +676,31 @@ export const Promises = new class {
 
 	get chmod() { return promisify(fs.chmod); }
 
-	get readdir() { return promisify(fs.readdir); }
 	get mkdir() { return promisify(fs.mkdir); }
 
 	get unlink() { return promisify(fs.unlink); }
 	get rmdir() { return promisify(fs.rmdir); }
 
 	get realpath() { return promisify(fs.realpath); }
+
+	//#endregion
+
+	//#region Implemented by us
+
+	async exists(path: string): Promise<boolean> {
+		try {
+			await Promises.access(path);
+
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	get readdir() { return readdir; }
+	get writeFile() { return writeFile; }
+
+	//#endregion
 };
 
 //#endregion

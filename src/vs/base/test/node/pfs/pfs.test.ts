@@ -8,7 +8,7 @@ import * as fs from 'fs';
 import { tmpdir } from 'os';
 import { join, sep } from 'vs/base/common/path';
 import { generateUuid } from 'vs/base/common/uuid';
-import { copy, exists, move, Promises, readdir, readDirsInDir, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFile, writeFileSync } from 'vs/base/node/pfs';
+import { copy, move, Promises, readDirsInDir, rimraf, RimRafMode, rimrafSync, SymlinkSupport, writeFileSync } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { canNormalize } from 'vs/base/common/normalization';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -32,9 +32,9 @@ flakySuite('PFS', function () {
 	test('writeFile', async () => {
 		const testFile = join(testDir, 'writefile.txt');
 
-		assert.ok(!(await exists(testFile)));
+		assert.ok(!(await Promises.exists(testFile)));
 
-		await writeFile(testFile, 'Hello World', (null!));
+		await Promises.writeFile(testFile, 'Hello World', (null!));
 
 		assert.strictEqual((await Promises.readFile(testFile)).toString(), 'Hello World');
 	});
@@ -47,11 +47,11 @@ flakySuite('PFS', function () {
 		const testFile5 = join(testDir, 'writefile5.txt');
 
 		await Promise.all([
-			writeFile(testFile1, 'Hello World 1', (null!)),
-			writeFile(testFile2, 'Hello World 2', (null!)),
-			writeFile(testFile3, 'Hello World 3', (null!)),
-			writeFile(testFile4, 'Hello World 4', (null!)),
-			writeFile(testFile5, 'Hello World 5', (null!))
+			Promises.writeFile(testFile1, 'Hello World 1', (null!)),
+			Promises.writeFile(testFile2, 'Hello World 2', (null!)),
+			Promises.writeFile(testFile3, 'Hello World 3', (null!)),
+			Promises.writeFile(testFile4, 'Hello World 4', (null!)),
+			Promises.writeFile(testFile5, 'Hello World 5', (null!))
 		]);
 		assert.strictEqual(fs.readFileSync(testFile1).toString(), 'Hello World 1');
 		assert.strictEqual(fs.readFileSync(testFile2).toString(), 'Hello World 2');
@@ -64,11 +64,11 @@ flakySuite('PFS', function () {
 		const testFile = join(testDir, 'writefile.txt');
 
 		await Promise.all([
-			writeFile(testFile, 'Hello World 1', undefined),
-			writeFile(testFile, 'Hello World 2', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 3', undefined)),
-			writeFile(testFile, 'Hello World 4', undefined),
-			timeout(10).then(() => writeFile(testFile, 'Hello World 5', undefined))
+			Promises.writeFile(testFile, 'Hello World 1', undefined),
+			Promises.writeFile(testFile, 'Hello World 2', undefined),
+			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 3', undefined)),
+			Promises.writeFile(testFile, 'Hello World 4', undefined),
+			timeout(10).then(() => Promises.writeFile(testFile, 'Hello World 5', undefined))
 		]);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), 'Hello World 5');
 	});
@@ -254,7 +254,7 @@ flakySuite('PFS', function () {
 		const sourceLinkMD5JSFolder = join(sourceLinkTestFolder, 'md5');	// copy-test/link-test/md5
 		const sourceLinkMD5JSFile = join(sourceLinkMD5JSFolder, 'md5.js');	// copy-test/link-test/md5/md5.js
 		await Promises.mkdir(sourceLinkMD5JSFolder, { recursive: true });
-		await writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
+		await Promises.writeFile(sourceLinkMD5JSFile, 'Hello from MD5');
 
 		const sourceLinkMD5JSFolderLinked = join(sourceLinkTestFolder, 'md5-linked');	// copy-test/link-test/md5-linked
 		fs.symlinkSync(sourceLinkMD5JSFolder, sourceLinkMD5JSFolderLinked, 'junction');
@@ -354,7 +354,7 @@ flakySuite('PFS', function () {
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(join(testDir, 'pfs', id));
+			const children = await Promises.readdir(join(testDir, 'pfs', id));
 			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 		}
 	});
@@ -364,11 +364,11 @@ flakySuite('PFS', function () {
 			const newDir = join(testDir, 'öäü');
 			await Promises.mkdir(newDir, { recursive: true });
 
-			await writeFile(join(testDir, 'somefile.txt'), 'contents');
+			await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
 
 			assert.ok(fs.existsSync(newDir));
 
-			const children = await readdir(testDir, { withFileTypes: true });
+			const children = await Promises.readdir(testDir, { withFileTypes: true });
 
 			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
 			assert.strictEqual(children.some(n => n.isDirectory()), true);
@@ -409,10 +409,10 @@ flakySuite('PFS', function () {
 
 		assert.ok(fs.existsSync(testDir));
 
-		await writeFile(testFile, smallData);
+		await Promises.writeFile(testFile, smallData);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), smallDataValue);
 
-		await writeFile(testFile, bigData);
+		await Promises.writeFile(testFile, bigData);
 		assert.strictEqual(fs.readFileSync(testFile).toString(), bigDataValue);
 	}
 
@@ -423,7 +423,7 @@ flakySuite('PFS', function () {
 
 		let expectedError: Error | undefined;
 		try {
-			await writeFile(testFile, 'Hello World');
+			await Promises.writeFile(testFile, 'Hello World');
 		} catch (error) {
 			expectedError = error;
 		}
