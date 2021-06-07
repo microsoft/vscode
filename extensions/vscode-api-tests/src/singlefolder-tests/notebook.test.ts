@@ -87,6 +87,60 @@ async function assertKernel(kernel: Kernel, notebook: vscode.NotebookDocument): 
 	assert.ok(kernel.associatedNotebooks.has(notebook.uri.toString()));
 }
 
+const apiTestContentProvider: vscode.NotebookContentProvider = {
+	openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
+		if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
+			return {
+				metadata: {},
+				cells: []
+			};
+		}
+
+		const dto: vscode.NotebookData = {
+			metadata: { custom: { testMetadata: false } },
+			cells: [
+				{
+					value: 'test',
+					languageId: 'typescript',
+					kind: vscode.NotebookCellKind.Code,
+					outputs: [],
+					metadata: { custom: { testCellMetadata: 123 } },
+					executionSummary: { timing: { startTime: 10, endTime: 20 } }
+				},
+				{
+					value: 'test2',
+					languageId: 'typescript',
+					kind: vscode.NotebookCellKind.Code,
+					outputs: [
+						new vscode.NotebookCellOutput([
+							vscode.NotebookCellOutputItem.text('Hello World', 'text/plain')
+						],
+							{
+								testOutputMetadata: true,
+								['text/plain']: { testOutputItemMetadata: true }
+							})
+					],
+					executionSummary: { executionOrder: 5, success: true },
+					metadata: { custom: { testCellMetadata: 456 } }
+				}
+			]
+		};
+		return dto;
+	},
+	saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+		return;
+	},
+	saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
+		return;
+	},
+	backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
+		return {
+			id: '1',
+			delete: () => { }
+		};
+	}
+};
+
 suite('Notebook API tests', function () {
 
 	const testDisposables: vscode.Disposable[] = [];
@@ -104,59 +158,7 @@ suite('Notebook API tests', function () {
 	});
 
 	suiteSetup(function () {
-		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', {
-			openNotebook: async (resource: vscode.Uri): Promise<vscode.NotebookData> => {
-				if (/.*empty\-.*\.vsctestnb$/.test(resource.path)) {
-					return {
-						metadata: {},
-						cells: []
-					};
-				}
-
-				const dto: vscode.NotebookData = {
-					metadata: { custom: { testMetadata: false } },
-					cells: [
-						{
-							value: 'test',
-							languageId: 'typescript',
-							kind: vscode.NotebookCellKind.Code,
-							outputs: [],
-							metadata: { custom: { testCellMetadata: 123 } },
-							executionSummary: { timing: { startTime: 10, endTime: 20 } }
-						},
-						{
-							value: 'test2',
-							languageId: 'typescript',
-							kind: vscode.NotebookCellKind.Code,
-							outputs: [
-								new vscode.NotebookCellOutput([
-									vscode.NotebookCellOutputItem.text('Hello World', 'text/plain')
-								],
-									{
-										testOutputMetadata: true,
-										['text/plain']: { testOutputItemMetadata: true }
-									})
-							],
-							executionSummary: { executionOrder: 5, success: true },
-							metadata: { custom: { testCellMetadata: 456 } }
-						}
-					]
-				};
-				return dto;
-			},
-			saveNotebook: async (_document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-				return;
-			},
-			saveNotebookAs: async (_targetResource: vscode.Uri, _document: vscode.NotebookDocument, _cancellation: vscode.CancellationToken) => {
-				return;
-			},
-			backupNotebook: async (_document: vscode.NotebookDocument, _context: vscode.NotebookDocumentBackupContext, _cancellation: vscode.CancellationToken) => {
-				return {
-					id: '1',
-					delete: () => { }
-				};
-			}
-		}));
+		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
 	let kernel1: Kernel;
@@ -1009,14 +1011,6 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test('custom metadata should be supported', async function () {
-		const notebook = await openRandomNotebookDocument();
-		const editor = await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(editor.document.metadata.custom!['testMetadata'] as boolean, false);
-		assert.strictEqual(getFocusedCell(editor)?.metadata.custom!['testCellMetadata'] as number, 123);
-		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
-	});
-
 	test.skip('#106657. Opening a notebook from markers view is broken ', async function () {
 
 		const document = await openRandomNotebookDocument();
@@ -1258,4 +1252,42 @@ suite('Notebook API tests', function () {
 	// 	await promise;
 	// 	await closeAllEditors();
 	// });
+});
+
+suite('Notebook API tests (no kernel)', function () {
+	const testDisposables: vscode.Disposable[] = [];
+	const suiteDisposables: vscode.Disposable[] = [];
+
+	suiteTeardown(async function () {
+		assertNoRpc();
+
+		await revertAllDirty();
+		await closeAllEditors();
+
+		disposeAll(suiteDisposables);
+		suiteDisposables.length = 0;
+	});
+
+	suiteSetup(function () {
+		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+	});
+
+	setup(async function () {
+		await saveAllFilesAndCloseAll();
+	});
+
+	teardown(async function () {
+		disposeAll(testDisposables);
+		testDisposables.length = 0;
+		await saveAllFilesAndCloseAll();
+	});
+
+	test('custom metadata should be supported', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
+
+		assert.strictEqual(editor.document.metadata.custom?.testMetadata, false);
+		assert.strictEqual(getFocusedCell(editor)?.metadata.custom?.testCellMetadata, 123);
+		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
+	});
 });
