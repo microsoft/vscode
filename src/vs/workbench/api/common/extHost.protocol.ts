@@ -1909,21 +1909,6 @@ export interface INotebookDocumentsAndEditorsDelta {
 	visibleEditors?: string[];
 }
 
-export interface INotebookKernelInfoDto2 {
-	id?: string;
-	friendlyId: string;
-	label: string;
-	extension: ExtensionIdentifier;
-	extensionLocation: UriComponents;
-	providerHandle?: number;
-	description?: string;
-	detail?: string;
-	isPreferred?: boolean;
-	preloads?: { uri: UriComponents; provides: string[] }[];
-	supportedLanguages?: string[]
-	implementsInterrupt?: boolean;
-}
-
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape, ExtHostNotebookDocumentsShape {
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
