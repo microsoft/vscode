@@ -28,7 +28,7 @@ export interface IWebviewManagerService {
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
-	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInPageOptions): Promise<void>;
+	findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: FindInFrameOptions): Promise<void>;
 
 	stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void>;
 }
