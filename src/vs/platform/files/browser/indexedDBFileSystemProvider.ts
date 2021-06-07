@@ -99,7 +99,7 @@ class IndexedDBFileSystemNode {
 	}
 
 
-	read(path: string) {
+	read(path: string): IndexedDBFileSystemEntry | undefined {
 		return this.doRead(path.split('/').filter(p => p.length));
 	}
 

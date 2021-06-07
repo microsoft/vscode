@@ -56,7 +56,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
 		await cli.main(args);
 
 		return;

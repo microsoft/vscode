@@ -152,7 +152,7 @@ class ReportExtensionSlowAction extends Action {
 		this._dialogService.show(
 			Severity.Info,
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			[localize('ok', 'OK')],
+			undefined,
 			{ detail: localize('attach.msg', "This is a reminder to make sure that you have not forgotten to attach '{0}' to the issue you have just created.", path) }
 		);
 	}
@@ -186,7 +186,7 @@ class ShowExtensionSlowAction extends Action {
 		this._dialogService.show(
 			Severity.Info,
 			localize('attach.title', "Did you attach the CPU-Profile?"),
-			[localize('ok', 'OK')],
+			undefined,
 			{ detail: localize('attach.msg2', "This is a reminder to make sure that you have not forgotten to attach '{0}' to an existing performance issue.", path) }
 		);
 	}

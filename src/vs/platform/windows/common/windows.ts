@@ -56,8 +56,7 @@ export interface IOpenedWindow {
 	readonly dirty: boolean;
 }
 
-export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions {
-}
+export interface IOpenEmptyWindowOptions extends IBaseOpenWindowsOptions { }
 
 export type IWindowOpenable = IWorkspaceToOpen | IFolderToOpen | IFileToOpen;
 

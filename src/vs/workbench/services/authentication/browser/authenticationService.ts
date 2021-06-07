@@ -37,7 +37,7 @@ export interface IAccountUsage {
 	lastUsed: number;
 }
 
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser', 'ms-vscode.remotehub', 'ms-vscode.remotehub-insiders', 'github.codespaces'];
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'ms-vscode.remotehub', 'ms-vscode.remotehub-insiders', 'github.remotehub', 'github.remotehub-insiders', 'github.codespaces'];
 
 export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;

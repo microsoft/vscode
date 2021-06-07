@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -672,15 +672,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if
-		// we should proceed with opening the editors
-		const editorsTrusted = await this.handleWorkspaceTrust(editors);
-		if (!editorsTrusted) {
-			return [];
+		// we should proceed with opening the editors if we
+		// are asked to validate trust.
+		if (options?.validateTrust) {
+			const editorsTrusted = await this.handleWorkspaceTrust(editors);
+			if (!editorsTrusted) {
+				return [];
+			}
 		}
 
 		// Convert to typed editors and options
@@ -746,22 +749,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
-		const resources = this.extractEditorResources(editors);
+		const { resources, diffMode } = this.extractEditorResources(editors);
 
 		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(resources);
 		switch (trustResult) {
 			case WorkspaceTrustUriResponse.Open:
 				return true;
 			case WorkspaceTrustUriResponse.OpenInNewWindow:
-				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true });
+				await this.hostService.openWindow(resources.map(resource => ({ fileUri: resource })), { forceNewWindow: true, diffMode });
 				return false;
 			case WorkspaceTrustUriResponse.Cancel:
 				return false;
 		}
 	}
 
-	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): URI[] {
+	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): { resources: URI[], diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
+		let diffMode = false;
 
 		for (const editor of editors) {
 
@@ -778,6 +782,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (resource.secondary) {
 						resources.set(resource.secondary, true);
 					}
+
+					diffMode = editor.editor instanceof DiffEditorInput;
 				}
 			}
 
@@ -794,6 +800,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (URI.isUri(modifiedResourceEditor.resource)) {
 						resources.set(modifiedResourceEditor.resource, true);
 					}
+
+					diffMode = true;
 				}
 
 				const resourceEditor = editor as IResourceEditorInput;
@@ -803,7 +811,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		return Array.from(resources.keys());
+		return {
+			resources: Array.from(resources.keys()),
+			diffMode
+		};
 	}
 
 	//#endregion
@@ -1321,10 +1332,10 @@ export class DelegatingEditorService implements IEditorService {
 
 	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] { return this.editorService.getEditors(order, options); }
 
-	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup): Promise<IEditorPane[]>;
-	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup): Promise<IEditorPane[]> {
-		return this.editorService.openEditors(editors, group);
+	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
+		return this.editorService.openEditors(editors, group, options);
 	}
 
 	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;

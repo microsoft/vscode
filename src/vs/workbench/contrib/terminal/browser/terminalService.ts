@@ -220,6 +220,16 @@ export class TerminalService implements ITerminalService {
 		this._refreshAvailableProfiles();
 	}
 
+	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+		if (this.configHelper.config.confirmOnExit) {
+			const notConfirmed = await this._showTerminalCloseConfirmation(true);
+			if (notConfirmed) {
+				return;
+			}
+		}
+		instance.dispose();
+	}
+
 	private _setConnected() {
 		this._connectionState = TerminalConnectionState.Connected;
 		this._onDidChangeConnectionState.fire();
@@ -370,7 +380,8 @@ export class TerminalService implements ITerminalService {
 		if (!offProcService) {
 			return this._availableProfiles || [];
 		}
-		return offProcService?.getProfiles(includeDetectedProfiles);
+		const platform = await this._getPlatformKey();
+		return offProcService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -816,6 +827,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	instanceIsSplit(instance: ITerminalInstance): boolean {
+		const group = this.getGroupForInstance(instance);
+		if (!group) {
+			return false;
+		}
+		return group.terminalInstances.length > 1;
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this._terminalGroups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
@@ -862,9 +881,9 @@ export class TerminalService implements ITerminalService {
 		return terminalIndex;
 	}
 
-	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
+	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		if (this.terminalInstances.length === 1) {
+		if (this.terminalInstances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
@@ -1028,6 +1047,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+		await this.getActiveInstance()?.focusWhenReady();
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

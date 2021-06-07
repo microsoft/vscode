@@ -23,7 +23,7 @@ async function main() {
     const outAppPath = path.join(buildDir, `VSCode-darwin-${arch}`, appName);
     const productJsonPath = path.resolve(outAppPath, 'Contents', 'Resources', 'app', 'product.json');
     const infoPlistPath = path.resolve(outAppPath, 'Contents', 'Info.plist');
-    await (0, vscode_universal_1.makeUniversalApp)({
+    await vscode_universal_1.makeUniversalApp({
         x64AppPath,
         arm64AppPath,
         x64AsarPath,

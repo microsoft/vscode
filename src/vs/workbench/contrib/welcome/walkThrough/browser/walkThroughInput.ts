@@ -131,10 +131,7 @@ export class WalkThroughInput extends EditorInput {
 		}
 
 		if (otherInput instanceof WalkThroughInput) {
-			let otherResourceEditorInput = <WalkThroughInput>otherInput;
-
-			// Compare by properties
-			return isEqual(otherResourceEditorInput.options.resource, this.options.resource);
+			return isEqual(otherInput.options.resource, this.options.resource);
 		}
 
 		return false;

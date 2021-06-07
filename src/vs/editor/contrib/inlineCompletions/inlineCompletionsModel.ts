@@ -7,7 +7,7 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
@@ -18,6 +18,9 @@ import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/ed
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -33,14 +36,22 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	) {
 		super();
 
-		this._register(this.editor.onDidChangeModelContent((e) => {
-			if (this.session && !this.session.isValid) {
-				this.hide();
+		this._register(commandService.onDidExecuteCommand(e => {
+			// These commands don't trigger onDidType.
+			const commands = new Set([
+				UndoCommand.id,
+				RedoCommand.id,
+				CoreEditingCommands.Tab.id,
+				CoreEditingCommands.DeleteLeft.id,
+				CoreEditingCommands.DeleteRight.id
+			]);
+			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				this.handleUserInput();
 			}
-			setTimeout(() => {
-				// Wait for the cursor update that happens in the same iteration loop iteration
-				this.startSessionIfTriggered();
-			}, 0);
+		}));
+
+		this._register(this.editor.onDidType((e) => {
+			this.handleUserInput();
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
@@ -48,6 +59,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 		}));
+	}
+
+	private handleUserInput() {
+		if (this.session && !this.session.isValid) {
+			this.hide();
+		}
+		setTimeout(() => {
+			// Wait for the cursor update that happens in the same iteration loop iteration
+			this.startSessionIfTriggered();
+		}, 0);
 	}
 
 	private get session(): InlineCompletionsSession | undefined {
@@ -78,8 +99,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		if (!suggestOptions.showInlineCompletions) {
+		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+		if (!suggestOptions.enabled) {
 			return;
 		}
 
@@ -108,6 +129,7 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public commitCurrentSuggestion(): void {
+		// Don't dispose the session, so that after committing, more suggestions are shown.
 		this.session?.commitCurrentCompletion();
 	}
 
@@ -272,6 +294,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
+		// Since updateSoon debounces, starvation can happen.
+		// To prevent stale cache, we clear the current update operation.
+		this.updateOperation.clear();
 		this.updateSoon.schedule();
 	}
 
@@ -327,15 +352,25 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: LiveInlineCompletion): void {
-		this.cache.clear();
+		// Mark the cache as stale, but don't dispose it yet,
+		// otherwise command args might get disposed.
+		const cache = this.cache.replace(undefined);
+
 		this.editor.executeEdits(
-			'inlineCompletions.accept',
+			'inlineSuggestion.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
 		if (completion.command) {
-			this.commandService.executeCommand(completion.command.id, ...(completion.command.arguments || [])).then(undefined, onUnexpectedExternalError);
+			this.commandService
+				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
+				.finally(() => {
+					cache?.dispose();
+				})
+				.then(undefined, onUnexpectedExternalError);
+		} else {
+			cache?.dispose();
 		}
 
 		this.onDidChangeEmitter.fire();
@@ -428,22 +463,55 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
+function leftTrim(str: string): string {
+	return str.replace(/^\s+/, '');
+}
+
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
+	// This is a single line string
 	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-	if (!inlineCompletion.text.startsWith(valueToBeReplaced)) {
+
+	let remainingInsertText: string;
+
+	// Consider these cases
+	// valueToBeReplaced -> inlineCompletion.text
+	// "\t\tfoo" -> "\t\tfoobar" (+"bar")
+	// "\t" -> "\t\tfoobar" (+"\tfoobar")
+	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
+	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
+
+	const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(inlineCompletion.range.startLineNumber);
+
+	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
+		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
+	} else if (firstNonWsCol === 0 || inlineCompletion.range.startColumn < firstNonWsCol) {
+		// Only allow ignoring leading whitespace in indentation.
+		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
+		const insertTextTrimmed = leftTrim(inlineCompletion.text);
+		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
+			return undefined;
+		}
+		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
+	} else {
 		return undefined;
 	}
 
-	const lines = strings.splitLines(inlineCompletion.text.substr(valueToBeReplaced.length));
+	const position = inlineCompletion.range.getEndPosition();
+
+	const lines = strings.splitLines(remainingInsertText);
+
+	if (lines.length > 1 && textModel.getLineMaxColumn(position.lineNumber) !== position.column) {
+		// Such ghost text is not supported.
+		return undefined;
+	}
 
 	return {
 		lines,
-		position: inlineCompletion.range.getEndPosition()
+		position
 	};
 }
 
-export interface LiveInlineCompletion extends InlineCompletion {
-	range: Range;
+export interface LiveInlineCompletion extends NormalizedInlineCompletion {
 	sourceProvider: InlineCompletionsProvider;
 	sourceInlineCompletion: InlineCompletion;
 	sourceInlineCompletions: InlineCompletions;
@@ -504,6 +572,10 @@ async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item
 			}))) {
+				if (item.range.startLineNumber !== item.range.endLineNumber) {
+					// Ignore invalid ranges.
+					continue;
+				}
 				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
 			}
 		}

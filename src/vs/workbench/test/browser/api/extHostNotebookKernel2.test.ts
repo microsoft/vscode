@@ -124,12 +124,12 @@ suite('NotebookKernel', function () {
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 
 		assert.throws(() => (<any>kernel).id = 'dd');
-		assert.throws(() => (<any>kernel).viewType = 'dd');
+		assert.throws(() => (<any>kernel).notebookType = 'dd');
 
 		assert.ok(kernel);
 		assert.strictEqual(kernel.id, 'foo');
 		assert.strictEqual(kernel.label, 'Foo');
-		assert.strictEqual(kernel.viewType, '*');
+		assert.strictEqual(kernel.notebookType, '*');
 
 		await rpcProtocol.sync();
 		assert.strictEqual(kernelData.size, 1);
@@ -138,7 +138,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(first.id, 'nullExtensionDescription/foo');
 		assert.strictEqual(ExtensionIdentifier.equals(first.extensionId, nullExtensionDescription.identifier), true);
 		assert.strictEqual(first.label, 'Foo');
-		assert.strictEqual(first.viewType, '*');
+		assert.strictEqual(first.notebookType, '*');
 
 		kernel.dispose();
 		await rpcProtocol.sync();
@@ -173,7 +173,7 @@ suite('NotebookKernel', function () {
 		const cell1 = notebook.apiNotebook.cellAt(0);
 		const task = kernel.createNotebookCellExecution(cell1);
 		task.start();
-		task.end();
+		task.end(undefined);
 	});
 
 	test('createNotebookCellExecution, must be selected/associated', function () {
