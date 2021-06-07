@@ -148,7 +148,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 200));
+	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
