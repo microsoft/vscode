@@ -204,24 +204,6 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('shared document in notebook editors', async function () {
-		let counter = 0;
-		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(() => {
-			counter++;
-		}));
-
-		const notebook = await openRandomNotebookDocument();
-		assert.strictEqual(counter, 1);
-
-		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(counter, 1);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 1);
-
-		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(counter, 1);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
-	});
-
 	test('editor onDidChangeVisibleNotebookEditors-event', async function () {
 		const resource = await createRandomNotebookFile();
 		const firstEditorOpen = asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
@@ -388,38 +370,6 @@ suite('Notebook API tests', function () {
 		await firstEditorDeactivate;
 	});
 
-	test('edit API (replaceMetadata)', async function () {
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: true });
-		});
-
-		const document = vscode.window.activeNotebookEditor?.document!;
-		assert.strictEqual(document.cellCount, 2);
-		assert.strictEqual(document.cellAt(0).metadata.inputCollapsed, true);
-
-		assert.strictEqual(document.isDirty, true);
-	});
-
-	test('edit API (replaceMetadata, event)', async function () {
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-
-		const event = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
-
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
-			editBuilder.replaceCellMetadata(0, { inputCollapsed: true });
-		});
-
-		const data = await event;
-		assert.strictEqual(data.document, vscode.window.activeNotebookEditor?.document);
-		assert.strictEqual(data.cell.metadata.inputCollapsed, true);
-
-		assert.strictEqual(data.document.isDirty, true);
-	});
-
 	test('edit API batch edits', async function () {
 		const resource = await createRandomNotebookFile();
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
@@ -461,7 +411,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 2);
 	});
 
-	test('initialzation should not emit cell change events.', async function () {
+	test('#98841, initialzation should not emit cell change events.', async function () {
 		let count = 0;
 
 		testDisposables.push(vscode.notebooks.onDidChangeNotebookCells(() => {
@@ -1254,7 +1204,7 @@ suite('Notebook API tests', function () {
 	// });
 });
 
-suite('Notebook API tests (no kernel)', function () {
+suite('Notebook API tests (metadata)', function () {
 	const testDisposables: vscode.Disposable[] = [];
 	const suiteDisposables: vscode.Disposable[] = [];
 
