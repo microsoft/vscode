@@ -34,7 +34,7 @@ export class GhostTextController extends Disposable {
 	private triggeredExplicitly = false;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -251,6 +251,7 @@ export const commitInlineSuggestionAction = new GhostTextCommand({
 	},
 	handler(x) {
 		x.commit();
+		x.editor.focus();
 	}
 });
 registerEditorCommand(commitInlineSuggestionAction);
