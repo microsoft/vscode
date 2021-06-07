@@ -186,4 +186,12 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 			notebookEditor.setEditorDecorations(key, range);
 		}
 	}
+
+	$trySetSelections(id: string, ranges: ICellRange[]): void {
+		const editor = this._notebookEditorService.getNotebookEditor(id);
+		if (editor) {
+			// @rebornix how to set an editor selection?
+			// editor.setSelections(ranges)
+		}
+	}
 }

@@ -894,6 +894,7 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
+	$trySetSelections(id: string, range: ICellRange[]): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
 }
