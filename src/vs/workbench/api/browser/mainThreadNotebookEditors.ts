@@ -121,8 +121,6 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		return editor.textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined);
 	}
 
-
-
 	async $tryShowNotebookDocument(resource: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string> {
 		const editorOptions: INotebookEditorOptions = {
 			cellSelections: options.selections,
