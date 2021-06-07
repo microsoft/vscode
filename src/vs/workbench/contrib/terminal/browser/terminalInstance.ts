@@ -377,7 +377,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(TerminalSettingPrefix.Profiles + platform).userValue || {};
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + platform).userValue } || {};
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
 									profileConfig.args = profile.args;
