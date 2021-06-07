@@ -898,10 +898,16 @@ export class CodeApplication extends Disposable {
 
 			// Logging
 			let message: string;
-			if (typeof details === 'string') {
-				message = details;
-			} else {
-				message = `SharedProcess: crashed (detail: ${details.reason}, code: ${details.exitCode})`;
+			switch (type) {
+				case WindowError.UNRESPONSIVE:
+					message = 'SharedProcess: detected unresponsive window';
+					break;
+				case WindowError.CRASHED:
+					message = `SharedProcess: crashed (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					break;
+				case WindowError.LOAD:
+					message = `SharedProcess: failed to load (detail: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`;
+					break;
 			}
 			onUnexpectedError(new Error(message));
 
@@ -909,18 +915,21 @@ export class CodeApplication extends Disposable {
 			type SharedProcessErrorClassification = {
 				type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+				code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				visible: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 				shuttingdown: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			};
 			type SharedProcessErrorEvent = {
 				type: WindowError;
 				reason: string | undefined;
+				code: number | undefined;
 				visible: boolean;
 				shuttingdown: boolean;
 			};
 			telemetryService.publicLog2<SharedProcessErrorEvent, SharedProcessErrorClassification>('sharedprocesserror', {
 				type,
-				reason: typeof details !== 'string' ? details?.reason : undefined,
+				reason: details?.reason,
+				code: details?.exitCode,
 				visible: sharedProcess.isVisible(),
 				shuttingdown: willShutdown
 			});
