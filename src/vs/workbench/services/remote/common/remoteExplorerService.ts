@@ -546,7 +546,7 @@ export class TunnelModel extends Disposable {
 		this.mismatchCooldown = newCooldown;
 		const mismatchString = nls.localize('remote.localPortMismatch.single', "Local port {0} could not be used for forwarding to remote port {1}.\n\nThis usually happens when there is already another process using local port {0}.\n\nPort number {2} has been used instead.",
 			expectedLocal, tunnel.tunnelRemotePort, tunnel.tunnelLocalPort);
-		return this.dialogService.show(Severity.Info, mismatchString, [nls.localize('remote.localPortMismatch.Ok', "Ok")]);
+		return this.dialogService.show(Severity.Info, mismatchString);
 	}
 
 	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean,

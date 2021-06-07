@@ -187,15 +187,8 @@ export class NativeWindow extends Disposable {
 		ipcRenderer.on('vscode:showInfoMessage', (event: unknown, message: string) => this.notificationService.info(message));
 
 		// Fullscreen Events
-		ipcRenderer.on('vscode:enterFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(true);
-		});
-
-		ipcRenderer.on('vscode:leaveFullScreen', async () => {
-			await this.lifecycleService.when(LifecyclePhase.Ready);
-			setFullscreen(false);
-		});
+		ipcRenderer.on('vscode:enterFullScreen', async () => setFullscreen(true));
+		ipcRenderer.on('vscode:leaveFullScreen', async () => setFullscreen(false));
 
 		// Proxy Login Dialog
 		ipcRenderer.on('vscode:openProxyAuthenticationDialog', async (event: unknown, payload: { authInfo: AuthInfo, username?: string, password?: string, replyChannel: string }) => {
@@ -473,7 +466,7 @@ export class NativeWindow extends Disposable {
 				this.logService.error('Error: There is a dependency cycle in the AMD modules that needs to be resolved!');
 				this.nativeHostService.exit(37); // running on a build machine, just exit without showing a dialog
 			} else {
-				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"), [localize('ok', "OK")]);
+				this.dialogService.show(Severity.Error, localize('loaderCycle', "There is a dependency cycle in the AMD modules that needs to be resolved!"));
 				this.nativeHostService.openDevTools();
 			}
 		}
@@ -669,8 +662,6 @@ export class NativeWindow extends Disposable {
 	}
 
 	private async openResources(resources: Array<IResourceEditorInput | IUntitledTextResourceEditorInput>, diffMode: boolean): Promise<unknown> {
-		await this.lifecycleService.when(LifecyclePhase.Ready);
-
 		const editors: IBaseResourceEditorInput[] = [];
 
 		// In diffMode we open 2 resources as diff

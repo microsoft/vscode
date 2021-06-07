@@ -644,8 +644,8 @@ export async function exists(path: string): Promise<boolean> {
 //#region Promise based fs methods
 
 /**
- * Note: prefer this namespace over the `fs.promises` API
- * to enable `graceful-fs` to function properly. Given issue
+ * Prefer this helper class over the `fs.promises` API to
+ * enable `graceful-fs` to function properly. Given issue
  * https://github.com/isaacs/node-graceful-fs/issues/160 it
  * is evident that the module only takes care of the non-promise
  * based fs methods.
@@ -653,43 +653,49 @@ export async function exists(path: string): Promise<boolean> {
  * Another reason is `realpath` being entirely different in
  * the promise based implementation compared to the other
  * one (https://github.com/microsoft/vscode/issues/118562)
+ *
+ * Note: using getters for a reason, since `graceful-fs`
+ * patching might kick in later after modules have been
+ * loaded we need to defer access to fs methods.
+ * (https://github.com/microsoft/vscode/issues/124176)
  */
-export namespace Promises {
-	export const access = promisify(fs.access);
+export const Promises = new class {
 
-	export const stat = promisify(fs.stat);
-	export const lstat = promisify(fs.lstat);
-	export const utimes = promisify(fs.utimes);
+	get access() { return promisify(fs.access); }
 
-	export const read = promisify(fs.read);
-	export const readFile = promisify(fs.readFile);
+	get stat() { return promisify(fs.stat); }
+	get lstat() { return promisify(fs.lstat); }
+	get utimes() { return promisify(fs.utimes); }
 
-	export const write = promisify(fs.write);
-	export const writeFile = promisify(fs.writeFile);
+	get read() { return promisify(fs.read); }
+	get readFile() { return promisify(fs.readFile); }
 
-	export const appendFile = promisify(fs.appendFile);
+	get write() { return promisify(fs.write); }
+	get writeFile() { return promisify(fs.writeFile); }
 
-	export const fdatasync = promisify(fs.fdatasync);
-	export const truncate = promisify(fs.truncate);
+	get appendFile() { return promisify(fs.appendFile); }
 
-	export const rename = promisify(fs.rename);
-	export const copyFile = promisify(fs.copyFile);
+	get fdatasync() { return promisify(fs.fdatasync); }
+	get truncate() { return promisify(fs.truncate); }
 
-	export const open = promisify(fs.open);
-	export const close = promisify(fs.close);
+	get rename() { return promisify(fs.rename); }
+	get copyFile() { return promisify(fs.copyFile); }
 
-	export const symlink = promisify(fs.symlink);
-	export const readlink = promisify(fs.readlink);
+	get open() { return promisify(fs.open); }
+	get close() { return promisify(fs.close); }
 
-	export const chmod = promisify(fs.chmod);
+	get symlink() { return promisify(fs.symlink); }
+	get readlink() { return promisify(fs.readlink); }
 
-	export const readdir = promisify(fs.readdir);
-	export const mkdir = promisify(fs.mkdir);
+	get chmod() { return promisify(fs.chmod); }
 
-	export const unlink = promisify(fs.unlink);
-	export const rmdir = promisify(fs.rmdir);
+	get readdir() { return promisify(fs.readdir); }
+	get mkdir() { return promisify(fs.mkdir); }
 
-	export const realpath = promisify(fs.realpath);
-}
+	get unlink() { return promisify(fs.unlink); }
+	get rmdir() { return promisify(fs.rmdir); }
+
+	get realpath() { return promisify(fs.realpath); }
+};
 
 //#endregion

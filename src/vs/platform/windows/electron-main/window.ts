@@ -186,7 +186,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
-					enableRemoteModule: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,

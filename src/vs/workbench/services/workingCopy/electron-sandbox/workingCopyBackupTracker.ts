@@ -143,7 +143,7 @@ export class NativeWorkingCopyBackupTracker extends WorkingCopyBackupTracker imp
 			? getFileNamesMessage(dirtyWorkingCopies.map(x => x.name)) + '\n' + advice
 			: advice;
 
-		this.dialogService.show(Severity.Error, msg, [localize('ok', 'OK')], { detail });
+		this.dialogService.show(Severity.Error, msg, undefined, { detail });
 
 		this.logService.error(error ? `[backup tracker] ${msg}: ${error}` : `[backup tracker] ${msg}`);
 	}
