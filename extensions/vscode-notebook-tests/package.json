@@ -36,7 +36,7 @@
     ],
     "notebooks": [
       {
-        "viewType": "notebookSmokeTest",
+        "type": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
         "selector": [
           {
@@ -60,7 +60,7 @@
       "notebook/cell/title": [
         {
           "command": "vscode-notebook-tests.debugAction",
-          "when": "notebookViewType == notebookSmokeTest",
+          "when": "notebookType == notebookSmokeTest",
           "group": "inline@1"
         }
       ]

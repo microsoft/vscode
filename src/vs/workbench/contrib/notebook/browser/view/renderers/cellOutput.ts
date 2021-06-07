@@ -72,7 +72,7 @@ export class CellOutputElement extends Disposable {
 	) {
 		super();
 
-		this.contextKeyService = this._register(parentContextKeyService.createScoped(this.outputContainer));
+		this.contextKeyService = parentContextKeyService;
 
 		this._register(this.output.model.onDidChangeData(() => {
 			this.updateOutputRendering();
@@ -149,7 +149,7 @@ export class CellOutputElement extends Disposable {
 			this.renderResult = this.notebookEditor.getOutputRenderer().render(this.output, this.domNode, pickedMimeTypeRenderer.mimeType, notebookUri);
 		}
 
-		this.output.pickedMimeType = pick;
+		this.output.pickedMimeType = pickedMimeTypeRenderer;
 
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
@@ -327,7 +327,7 @@ export class CellOutputElement extends Disposable {
 			this.notebookEditor.removeInset(viewModel);
 		}
 
-		viewModel.pickedMimeType = pick.index;
+		viewModel.pickedMimeType = mimeTypes[pick.index];
 		this.viewCell.updateOutputMinHeight(this.viewCell.layoutInfo.outputTotalHeight);
 
 		const { mimeType, rendererId } = mimeTypes[pick.index];

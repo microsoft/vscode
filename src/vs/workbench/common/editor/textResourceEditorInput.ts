@@ -165,6 +165,17 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 	}
 
 	override async resolve(): Promise<ITextEditorModel> {
+
+		// Unset preferred contents and mode after resolving
+		// once to prevent these properties to stick. We still
+		// want the user to change the language mode in the editor
+		// and want to show updated contents (if any) in future
+		// `resolve` calls.
+		const preferredContents = this.preferredContents;
+		const preferredMode = this.preferredMode;
+		this.preferredContents = undefined;
+		this.preferredMode = undefined;
+
 		if (!this.modelReference) {
 			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
 		}
@@ -183,23 +194,15 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		this.cachedModel = model;
 
 		// Set contents and mode if preferred
-		if (typeof this.preferredContents === 'string' || typeof this.preferredMode === 'string') {
-			model.updateTextEditorModel(typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined, this.preferredMode);
+		if (typeof preferredContents === 'string' || typeof preferredMode === 'string') {
+			model.updateTextEditorModel(typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined, preferredMode);
 		}
-
-		// Unset preferred contents and mode after having applied
-		// them once to prevent these properties to stick. We still
-		// want the user to change the language mode in the editor
-		// and want to show updated contents (if any) in future
-		// `resolve` calls.
-		this.preferredContents = undefined;
-		this.preferredMode = undefined;
 
 		return model;
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

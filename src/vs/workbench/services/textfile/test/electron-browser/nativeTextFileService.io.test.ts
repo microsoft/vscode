@@ -9,7 +9,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, copy, exists, Promises } from 'vs/base/node/pfs';
+import { rimraf, copy, Promises } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -68,7 +68,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			return rimraf(testDir);
 		},
 
-		exists,
+		exists: Promises.exists,
 		stat: Promises.stat,
 		readFile,
 		detectEncodingByBOM

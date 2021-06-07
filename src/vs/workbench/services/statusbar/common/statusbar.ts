@@ -8,6 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 import { Command } from 'vs/editor/common/modes';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export const IStatusbarService = createDecorator<IStatusbarService>('statusbarService');
 
@@ -48,7 +49,7 @@ export interface IStatusbarEntry {
 	/**
 	 * An optional tooltip text to show when you hover over the entry
 	 */
-	readonly tooltip?: string;
+	readonly tooltip?: string | IMarkdownString;
 
 	/**
 	 * An optional color to use for the entry
@@ -74,6 +75,7 @@ export interface IStatusbarEntry {
 	 * Will enable a spinning icon in front of the text to indicate progress.
 	 */
 	readonly showProgress?: boolean;
+
 }
 
 export interface IStatusbarService {

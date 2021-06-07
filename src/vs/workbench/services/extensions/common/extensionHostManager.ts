@@ -133,6 +133,10 @@ export class ExtensionHostManager extends Disposable {
 		return p.value;
 	}
 
+	public async ready(): Promise<void> {
+		await this._getProxy();
+	}
+
 	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
 		const COUNT = 10;
 

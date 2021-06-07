@@ -110,6 +110,10 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 		return false;
 	}
 
+	hasAssociatedFilePath(): boolean {
+		return false;
+	}
+
 	isDirty() {
 		return this._dirty;
 	}

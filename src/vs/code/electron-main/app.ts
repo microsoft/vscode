@@ -71,7 +71,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { mnemonicButtonLabel, getPathLabel } from 'vs/base/common/labels';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
-import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { stripComments } from 'vs/base/common/json';
 import { generateUuid } from 'vs/base/common/uuid';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -148,37 +148,6 @@ export class CodeApplication extends Disposable {
 		//
 		// !!! DO NOT CHANGE without consulting the documentation !!!
 		//
-		app.on('remote-require', (event, sender, module) => {
-			this.logService.trace('app#on(remote-require): prevented');
-
-			event.preventDefault();
-		});
-		app.on('remote-get-global', (event, sender, module) => {
-			this.logService.trace(`app#on(remote-get-global): prevented on ${module}`);
-
-			event.preventDefault();
-		});
-		app.on('remote-get-builtin', (event, sender, module) => {
-			this.logService.trace(`app#on(remote-get-builtin): prevented on ${module}`);
-
-			if (module !== 'clipboard') {
-				event.preventDefault();
-			}
-		});
-		app.on('remote-get-current-window', event => {
-			this.logService.trace(`app#on(remote-get-current-window): prevented`);
-
-			event.preventDefault();
-		});
-		app.on('remote-get-current-web-contents', event => {
-			if (this.environmentMainService.args.driver) {
-				return; // the driver needs access to web contents
-			}
-
-			this.logService.trace(`app#on(remote-get-current-web-contents): prevented`);
-
-			event.preventDefault();
-		});
 		app.on('web-contents-created', (event, contents) => {
 			contents.on('will-attach-webview', (event, webPreferences, params) => {
 
@@ -222,19 +191,19 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			contents.on('new-window', (event, url) => {
-				event.preventDefault(); // prevent code that wants to open links
-
+			contents.setWindowOpenHandler(({ url }) => {
 				this.nativeHostMainService?.openExternal(undefined, url);
+
+				return { action: 'deny' };
 			});
 
-			const isUrlFromWebview = (requestingUrl: string) =>
-				requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
+			const isUrlFromWebview = (requestingUrl: string) => requestingUrl.startsWith(`${Schemas.vscodeWebview}://`);
 
 			session.defaultSession.setPermissionRequestHandler((_webContents, permission /* 'media' | 'geolocation' | 'notifications' | 'midiSysex' | 'pointerLock' | 'fullscreen' | 'openExternal' */, callback, details) => {
 				if (isUrlFromWebview(details.requestingUrl)) {
 					return callback(permission === 'clipboard-read');
 				}
+
 				return callback(false);
 			});
 
@@ -242,6 +211,7 @@ export class CodeApplication extends Disposable {
 				if (isUrlFromWebview(details.requestingUrl)) {
 					return permission === 'clipboard-read';
 				}
+
 				return false;
 			});
 		});
@@ -378,18 +348,6 @@ export class CodeApplication extends Disposable {
 		this.logService.debug('Starting VS Code');
 		this.logService.debug(`from: ${this.environmentMainService.appRoot}`);
 		this.logService.debug('args:', this.environmentMainService.args);
-
-		// TODO@bpasero TODO@deepak1556 workaround for #120655
-		try {
-			const cachedDataPath = URI.file(this.environmentMainService.chromeCachedDataDir);
-			this.logService.trace(`Deleting Chrome cached data path: ${cachedDataPath.fsPath}`);
-
-			await this.fileService.del(cachedDataPath, { recursive: true });
-		} catch (error) {
-			if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
-				this.logService.error(error);
-			}
-		}
 
 		// Make sure we associate the program with the app user model id
 		// This will help Windows to associate the running program with
@@ -678,16 +636,18 @@ export class CodeApplication extends Disposable {
 		// Check for initial URLs to handle from protocol link invocations
 		const pendingWindowOpenablesFromProtocolLinks: IWindowOpenable[] = [];
 		const pendingProtocolLinksToHandle = [
+
 			// Windows/Linux: protocol handler invokes CLI with --open-url
 			...this.environmentMainService.args['open-url'] ? this.environmentMainService.args._urls || [] : [],
 
 			// macOS: open-url events
 			...((<any>global).getOpenUrls() || []) as string[]
+
 		].map(url => {
 			try {
 				return { uri: URI.parse(url), url };
 			} catch {
-				return null;
+				return undefined;
 			}
 		}).filter((obj): obj is { uri: URI, url: string } => {
 			if (!obj) {
@@ -741,7 +701,7 @@ export class CodeApplication extends Disposable {
 						cli: { ...environmentService.args },
 						urisToOpen: [windowOpenableFromProtocolLink],
 						gotoLineMode: true
-						/* remoteAuthority will be determined based on windowOpenableFromProtocolLink */
+						// remoteAuthority: will be determined based on windowOpenableFromProtocolLink
 					});
 
 					window.focus(); // this should help ensuring that the right window gets focus when multiple are opened
@@ -804,7 +764,7 @@ export class CodeApplication extends Disposable {
 				urisToOpen: pendingWindowOpenablesFromProtocolLinks,
 				gotoLineMode: true,
 				initialStartup: true
-				/* remoteAuthority will be determined based on pendingWindowOpenablesFromProtocolLinks */
+				// remoteAuthority: will be determined based on pendingWindowOpenablesFromProtocolLinks
 			});
 		}
 
@@ -831,7 +791,7 @@ export class CodeApplication extends Disposable {
 				noRecentEntry,
 				waitMarkerFileURI,
 				initialStartup: true,
-				/* remoteAuthority will be determined based on macOpenFiles */
+				// remoteAuthority: will be determined based on macOpenFiles
 			});
 		}
 

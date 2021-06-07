@@ -232,9 +232,11 @@ export class WindowsStateHandler extends Disposable {
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
 		// Window state is not from a previous session: only allow fullscreen if we inherit it or user wants fullscreen
+		// or to address a Electron issue on macOS (https://github.com/microsoft/vscode/issues/125122)
 		let allowFullscreen: boolean;
 		if (state.hasDefaultState) {
-			allowFullscreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			const configAllowsFullScreen = !!(windowConfig?.newWindowDimensions && ['fullscreen', 'inherit', 'offset'].indexOf(windowConfig.newWindowDimensions) >= 0);
+			allowFullscreen = configAllowsFullScreen || (isMacintosh && windowConfig?.nativeFullScreen !== false);
 		}
 
 		// Window state is from a previous session: only allow fullscreen when we got updated or user wants to restore
@@ -337,14 +339,22 @@ export class WindowsStateHandler extends Disposable {
 		// Compute x/y based on display bounds
 		// Note: important to use Math.round() because Electron does not seem to be too happy about
 		// display coordinates that are not absolute numbers.
-		let state = defaultWindowState();
+		let state: INewWindowState = defaultWindowState();
 		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width! / 2));
 		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height! / 2));
 
-		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
 		let ensureNoOverlap = true;
-		if (windowConfig?.newWindowDimensions) {
+
+		// TODO@electron macOS: if the current window is fullscreen and native fullscreen
+		// is not disabled, always open a new window in fullscreen. This is a workaround
+		// for regression https://github.com/microsoft/vscode/issues/125122
+		if (isMacintosh && windowConfig?.nativeFullScreen !== false && lastActive?.isFullScreen) {
+			state.mode = WindowMode.Fullscreen;
+		}
+
+		// Adjust according to `newWindowDimensions` user setting
+		else if (windowConfig?.newWindowDimensions) {
 			if (windowConfig.newWindowDimensions === 'maximized') {
 				state.mode = WindowMode.Maximized;
 				ensureNoOverlap = false;
@@ -367,7 +377,7 @@ export class WindowsStateHandler extends Disposable {
 			state = this.ensureNoOverlap(state);
 		}
 
-		(state as INewWindowState).hasDefaultState = true; // flag as default state
+		state.hasDefaultState = true; // flag as default state
 
 		return state;
 	}

@@ -433,7 +433,9 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	private mapContributionsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all contribution points
-		let contributionPoints = resource.scheme === Schemas.untitled ? distinct(this._allContributions) : this.findMatchingContributions(resource);
+		let contributionPoints = resource.scheme === Schemas.untitled ? this._allContributions : this.findMatchingContributions(resource);
+		// We don't want duplicate Id entries
+		contributionPoints = distinct(contributionPoints, c => c.editorInfo.id);
 		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
 		// Not the most efficient way to do this, but we want to ensure the text editor is at the top of the quickpick
 		contributionPoints = contributionPoints.sort((a, b) => {
@@ -457,7 +459,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (!defaultViewType) {
 			defaultViewType = DEFAULT_EDITOR_ASSOCIATION.id;
 		}
-		// Get the matching contribtuions and call resolve whether they're active for the picker
+		// Map the contributions to quickpick entries
 		contributionPoints.forEach(contribPoint => {
 			const isActive = currentEditor ? contribPoint.editorInfo.describes(currentEditor) : false;
 			const isDefault = contribPoint.editorInfo.id === defaultViewType;

@@ -14,7 +14,7 @@ import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsServi
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IOutputChannelRegistry, Extensions as OutputExtensions } from 'vs/workbench/services/output/common/output';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, DefaultViewsContext, ExtensionsSortByContext, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -251,14 +251,29 @@ CommandsRegistry.registerCommand({
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
-				name: localize('workbench.extensions.installExtension.arg.name', "Extension id or VSIX resource uri"),
+				name: 'extensionIdOrVSIXUri',
+				description: localize('workbench.extensions.installExtension.arg.decription', "Extension id or VSIX resource uri"),
+				constraint: (value: any) => typeof value === 'string' || value instanceof URI,
+			},
+			{
+				name: 'options',
+				description: '(optional) Options for installing the extension. Object with the following properties: ' +
+					'`installOnlyNewlyAddedFromExtensionPackVSIX`: When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only when installing VSIX. ',
+				isOptional: true,
 				schema: {
-					'type': ['object', 'string']
+					'type': 'object',
+					'properties': {
+						'installOnlyNewlyAddedFromExtensionPackVSIX': {
+							'type': 'boolean',
+							'description': localize('workbench.extensions.installExtension.option.installOnlyNewlyAddedFromExtensionPackVSIX', "When enabled, VS Code installs only newly added extensions from the extension pack VSIX. This option is considered only while installing a VSIX."),
+							default: false
+						}
+					}
 				}
 			}
 		]
 	},
-	handler: async (accessor, arg: string | UriComponents) => {
+	handler: async (accessor, arg: string | UriComponents, options?: { installOnlyNewlyAddedFromExtensionPackVSIX?: boolean }) => {
 		const extensionManagementService = accessor.get(IExtensionManagementService);
 		const extensionGalleryService = accessor.get(IExtensionGalleryService);
 		try {
@@ -271,7 +286,7 @@ CommandsRegistry.registerCommand({
 				}
 			} else {
 				const vsix = URI.revive(arg);
-				await extensionManagementService.install(vsix);
+				await extensionManagementService.install(vsix, { installOnlyNewlyAddedFromExtensionPack: options?.installOnlyNewlyAddedFromExtensionPackVSIX });
 			}
 		} catch (e) {
 			onUnexpectedError(e);
@@ -531,7 +546,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				if (outdated.length) {
 					return runAction(this.instantiationService.createInstance(SearchExtensionsAction, '@outdated '));
 				} else {
-					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."), []);
+					return this.dialogService.show(Severity.Info, localize('noUpdatesAvailable', "All extensions are up to date."));
 				}
 			}
 		});
@@ -885,7 +900,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		});
 
 		this.registerExtensionAction({
-			id: 'workbench.extensions.action.listWorkspaceUnsupportedExtensions',
+			id: LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID,
 			title: { value: localize('showWorkspaceUnsupportedExtensions', "Show Extensions Unsupported By Workspace"), original: 'Show Extensions Unsupported By Workspace' },
 			category: ExtensionsLocalizedLabel,
 			menu: [{

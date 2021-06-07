@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { CellToolbarLocKey, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarPosition, NotebookCellEditorOptionsCustomizations, ShowCellStatusBarAfterExecuteKey, ShowCellStatusBarKey, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellToolbarLocation, CellToolbarVisibility, CompactView, ConsolidatedOutputButton, ConsolidatedRunButton, DragAndDropEnabled, ExperimentalInsertToolbarAlignment, FocusIndicator, GlobalToolbar, InsertToolbarLocation, NotebookCellEditorOptionsCustomizations, NotebookCellInternalMetadata, ShowCellStatusBar, ShowCellStatusBarType, ShowFoldingControls } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 const SCROLLABLE_ELEMENT_PADDING_TOP = 18;
 
@@ -43,10 +43,9 @@ export interface NotebookLayoutConfiguration {
 	editorBottomPadding: number;
 	editorBottomPaddingWithoutStatusBar: number;
 	collapsedIndicatorHeight: number;
-	showCellStatusBar: boolean;
-	showCellStatusBarAfterExecute: boolean;
+	showCellStatusBar: ShowCellStatusBarType;
 	cellStatusBarHeight: number;
-	cellToolbarLocation: string | { [key: string]: string };
+	cellToolbarLocation: string | { [key: string]: string; };
 	cellToolbarInteraction: string;
 	compactView: boolean;
 	focusIndicator: 'border' | 'gutter';
@@ -54,6 +53,7 @@ export interface NotebookLayoutConfiguration {
 	insertToolbarAlignment: 'left' | 'center';
 	globalToolbar: boolean;
 	consolidatedOutputButton: boolean;
+	consolidatedRunButton: boolean;
 	showFoldingControls: 'always' | 'mouseover';
 	dragAndDropEnabled: boolean;
 	fontSize: number;
@@ -63,7 +63,6 @@ export interface NotebookLayoutConfiguration {
 
 interface NotebookOptionsChangeEvent {
 	cellStatusBarVisibility?: boolean;
-	cellStatusBarAfterExecuteVisibility?: boolean;
 	cellToolbarLocation?: boolean;
 	cellToolbarInteraction?: boolean;
 	editorTopPadding?: boolean;
@@ -74,6 +73,7 @@ interface NotebookOptionsChangeEvent {
 	globalToolbar?: boolean;
 	showFoldingControls?: boolean;
 	consolidatedOutputButton?: boolean;
+	consolidatedRunButton?: boolean;
 	dragAndDropEnabled?: boolean;
 	fontSize?: boolean;
 	editorOptionsCustomizations?: boolean;
@@ -106,12 +106,12 @@ export class NotebookOptions {
 	private _disposables: IDisposable[];
 
 	constructor(private readonly configurationService: IConfigurationService) {
-		const showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		const showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
-		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
+		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
+		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
+		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
-		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey) ?? { 'default': 'right' };
+		const cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
 		const cellToolbarInteraction = this.configurationService.getValue<string>(CellToolbarVisibility);
 		const compactView = this.configurationService.getValue<boolean | undefined>(CompactView) ?? true;
 		const focusIndicator = this._computeFocusIndicatorOption();
@@ -139,9 +139,9 @@ export class NotebookOptions {
 			editorBottomPaddingWithoutStatusBar: 12,
 			collapsedIndicatorHeight: 24,
 			showCellStatusBar,
-			showCellStatusBarAfterExecute,
 			globalToolbar,
 			consolidatedOutputButton,
+			consolidatedRunButton,
 			dragAndDropEnabled,
 			cellToolbarLocation,
 			cellToolbarInteraction,
@@ -167,16 +167,16 @@ export class NotebookOptions {
 	}
 
 	private _updateConfiguration(e: IConfigurationChangeEvent) {
-		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBarKey);
-		const cellStatusBarAfterExecuteVisibility = e.affectsConfiguration(ShowCellStatusBarAfterExecuteKey);
-		const cellToolbarLocation = e.affectsConfiguration(CellToolbarLocKey);
+		const cellStatusBarVisibility = e.affectsConfiguration(ShowCellStatusBar);
+		const cellToolbarLocation = e.affectsConfiguration(CellToolbarLocation);
 		const cellToolbarInteraction = e.affectsConfiguration(CellToolbarVisibility);
 		const compactView = e.affectsConfiguration(CompactView);
 		const focusIndicator = e.affectsConfiguration(FocusIndicator);
-		const insertToolbarPosition = e.affectsConfiguration(InsertToolbarPosition);
+		const insertToolbarPosition = e.affectsConfiguration(InsertToolbarLocation);
 		const insertToolbarAlignment = e.affectsConfiguration(ExperimentalInsertToolbarAlignment);
 		const globalToolbar = e.affectsConfiguration(GlobalToolbar);
 		const consolidatedOutputButton = e.affectsConfiguration(ConsolidatedOutputButton);
+		const consolidatedRunButton = e.affectsConfiguration(ConsolidatedRunButton);
 		const showFoldingControls = e.affectsConfiguration(ShowFoldingControls);
 		const dragAndDropEnabled = e.affectsConfiguration(DragAndDropEnabled);
 		const fontSize = e.affectsConfiguration('editor.fontSize');
@@ -184,7 +184,6 @@ export class NotebookOptions {
 
 		if (
 			!cellStatusBarVisibility
-			&& !cellStatusBarAfterExecuteVisibility
 			&& !cellToolbarLocation
 			&& !cellToolbarInteraction
 			&& !compactView
@@ -193,6 +192,7 @@ export class NotebookOptions {
 			&& !insertToolbarAlignment
 			&& !globalToolbar
 			&& !consolidatedOutputButton
+			&& !consolidatedRunButton
 			&& !showFoldingControls
 			&& !dragAndDropEnabled
 			&& !fontSize
@@ -203,15 +203,11 @@ export class NotebookOptions {
 		let configuration = Object.assign({}, this._layoutConfiguration);
 
 		if (cellStatusBarVisibility) {
-			configuration.showCellStatusBar = this.configurationService.getValue<boolean>(ShowCellStatusBarKey);
-		}
-
-		if (cellStatusBarAfterExecuteVisibility) {
-			configuration.showCellStatusBarAfterExecute = this.configurationService.getValue<boolean>(ShowCellStatusBarAfterExecuteKey);
+			configuration.showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
 		}
 
 		if (cellToolbarLocation) {
-			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocKey) ?? { 'default': 'right' };
+			configuration.cellToolbarLocation = this.configurationService.getValue<string | { [key: string]: string; }>(CellToolbarLocation) ?? { 'default': 'right' };
 		}
 
 		if (cellToolbarInteraction) {
@@ -239,11 +235,15 @@ export class NotebookOptions {
 		}
 
 		if (globalToolbar) {
-			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? false;
+			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? true;
 		}
 
 		if (consolidatedOutputButton) {
 			configuration.consolidatedOutputButton = this.configurationService.getValue<boolean>(ConsolidatedOutputButton) ?? true;
+		}
+
+		if (consolidatedRunButton) {
+			configuration.consolidatedRunButton = this.configurationService.getValue<boolean>(ConsolidatedRunButton) ?? true;
 		}
 
 		if (showFoldingControls) {
@@ -267,7 +267,6 @@ export class NotebookOptions {
 		// trigger event
 		this._onDidChangeOptions.fire({
 			cellStatusBarVisibility,
-			cellStatusBarAfterExecuteVisibility,
 			cellToolbarLocation,
 			cellToolbarInteraction,
 			compactView,
@@ -277,6 +276,7 @@ export class NotebookOptions {
 			globalToolbar,
 			showFoldingControls,
 			consolidatedOutputButton,
+			consolidatedRunButton,
 			dragAndDropEnabled,
 			fontSize,
 			editorOptionsCustomizations
@@ -284,7 +284,7 @@ export class NotebookOptions {
 	}
 
 	private _computeInsertToolbarPositionOption() {
-		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(InsertToolbarPosition) ?? 'both';
+		return this.configurationService.getValue<'betweenCells' | 'notebookToolbar' | 'both' | 'hidden'>(InsertToolbarLocation) ?? 'both';
 	}
 
 	private _computeInsertToolbarAlignmentOption() {
@@ -292,11 +292,11 @@ export class NotebookOptions {
 	}
 
 	private _computeShowFoldingControlsOption() {
-		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'always';
+		return this.configurationService.getValue<'always' | 'mouseover'>(ShowFoldingControls) ?? 'mouseover';
 	}
 
 	private _computeFocusIndicatorOption() {
-		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'border';
+		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'gutter';
 	}
 
 	getLayoutConfiguration(): NotebookLayoutConfiguration {
@@ -329,7 +329,8 @@ export class NotebookOptions {
 
 	computeMarkdownCellEditorWidth(outerWidth: number): number {
 		return outerWidth
-			- this._layoutConfiguration.codeCellLeftMargin
+			- this._layoutConfiguration.markdownCellGutter
+			- this._layoutConfiguration.markdownCellLeftMargin
 			- this._layoutConfiguration.cellRightMargin;
 	}
 
@@ -337,7 +338,7 @@ export class NotebookOptions {
 		return this._layoutConfiguration.cellStatusBarHeight;
 	}
 
-	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+	private _computeBottomToolbarDimensions(compactView: boolean, insertToolbarPosition: 'betweenCells' | 'notebookToolbar' | 'both' | 'hidden', insertToolbarAlignment: 'left' | 'center', cellToolbar: 'right' | 'left' | 'hidden'): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
 		if (insertToolbarAlignment === 'left' || cellToolbar !== 'hidden') {
 			return {
 				bottomToolbarGap: 18,
@@ -361,7 +362,7 @@ export class NotebookOptions {
 		}
 	}
 
-	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number } {
+	computeBottomToolbarDimensions(viewType?: string): { bottomToolbarGap: number, bottomToolbarHeight: number; } {
 		const configuration = this._layoutConfiguration;
 		const cellToolbarPosition = this.computeCellToolbarLocation(viewType);
 		const { bottomToolbarGap, bottomToolbarHeight } = this._computeBottomToolbarDimensions(configuration.compactView, configuration.insertToolbarPosition, configuration.insertToolbarAlignment, cellToolbarPosition);
@@ -419,13 +420,28 @@ export class NotebookOptions {
 		return 0;
 	}
 
-	computeEditorPadding() {
+	computeEditorPadding(internalMetadata: NotebookCellInternalMetadata) {
 		return {
 			top: getEditorTopPadding(),
-			bottom: this._layoutConfiguration.showCellStatusBar
+			bottom: this.statusBarIsVisible(internalMetadata)
 				? this._layoutConfiguration.editorBottomPadding
 				: this._layoutConfiguration.editorBottomPaddingWithoutStatusBar
 		};
+	}
+
+
+	computeEditorStatusbarHeight(internalMetadata: NotebookCellInternalMetadata) {
+		return this.statusBarIsVisible(internalMetadata) ? this.computeStatusBarHeight() : 0;
+	}
+
+	private statusBarIsVisible(internalMetadata: NotebookCellInternalMetadata): boolean {
+		if (this._layoutConfiguration.showCellStatusBar === 'visible') {
+			return true;
+		} else if (this._layoutConfiguration.showCellStatusBar === 'visibleAfterExecute') {
+			return typeof internalMetadata.lastRunSuccess === 'boolean' || internalMetadata.runState !== undefined;
+		} else {
+			return false;
+		}
 	}
 
 	computeWebviewOptions() {

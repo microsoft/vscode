@@ -776,16 +776,6 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	getUpdated(): IFileChange[] {
-		return this.getOfType(FileChangeType.UPDATED);
-	}
-
-	/**
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
@@ -803,16 +793,6 @@ export class FileChangesEvent {
 		}
 
 		return changes;
-	}
-
-	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
 	}
 }
 

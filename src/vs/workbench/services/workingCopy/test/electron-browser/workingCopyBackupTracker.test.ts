@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Promises, rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises, rimraf } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hash } from 'vs/base/common/hash';
@@ -107,7 +107,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await Promises.mkdir(backupHome, { recursive: true });
 		await Promises.mkdir(workspaceBackupPath, { recursive: true });
 
-		return writeFile(workspacesJsonPath, '');
+		return Promises.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(async () => {

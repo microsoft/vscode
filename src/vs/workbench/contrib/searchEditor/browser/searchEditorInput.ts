@@ -148,10 +148,12 @@ export class SearchEditorInput extends EditorInput {
 			this._cachedResultsModel = data.resultsModel;
 			this._cachedConfigurationModel = data.configurationModel;
 			this._onDidChangeLabel.fire();
-			this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
-				this._onDidChangeLabel.fire();
-				this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
-			}));
+			if (!this.isDisposed()) {
+				this._register(this._cachedConfigurationModel.onConfigDidUpdate(() => {
+					this._onDidChangeLabel.fire();
+					this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE).searchConfig = this._cachedConfigurationModel?.config;
+				}));
+			}
 			return data;
 		});
 	}
@@ -214,7 +216,7 @@ export class SearchEditorInput extends EditorInput {
 	}
 
 	override matches(other: unknown) {
-		if (this === other) { return true; }
+		if (super.matches(other)) { return true; }
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment) || !!(other.backingUri && isEqual(other.backingUri, this.backingUri));

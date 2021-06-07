@@ -16,6 +16,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 
 suite('Untitled text editors', () => {
 
@@ -41,6 +42,11 @@ suite('Untitled text editors', () => {
 
 		assert.ok(service.get(input1.resource));
 		assert.ok(!service.get(URI.file('testing')));
+
+		assert.ok(input1.hasCapability(EditorInputCapabilities.Untitled));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Readonly));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.Singleton));
+		assert.ok(!input1.hasCapability(EditorInputCapabilities.RequiresTrust));
 
 		const input2 = instantiationService.createInstance(UntitledTextEditorInput, service.create());
 		assert.strictEqual(service.get(input2.resource), input2.model);

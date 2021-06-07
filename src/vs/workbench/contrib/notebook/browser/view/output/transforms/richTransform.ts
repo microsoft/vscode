@@ -22,7 +22,6 @@ import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContributi
 import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
 import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 
 class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
@@ -126,7 +125,6 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -138,7 +136,7 @@ class StreamRendererContrib extends Disposable implements IOutputRendererContrib
 		items.forEach(item => {
 			const text = getStringValue(item);
 			const contentNode = DOM.$('span.output-stream');
-			truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.textFileService, this.themeService);
+			truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.themeService);
 			container.appendChild(contentNode);
 		});
 
@@ -229,7 +227,6 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 		public notebookEditor: ICommonNotebookEditor,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IThemeService private readonly themeService: IThemeService,
-		@ITextFileService private readonly textFileService: ITextFileService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -240,7 +237,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 
 		const str = items.map(getStringValue);
 		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, str, linkDetector, this.openerService, this.textFileService, this.themeService);
+		truncatedArrayOfString(notebookUri!, output.cellViewModel, contentNode, str, linkDetector, this.openerService, this.themeService);
 		container.appendChild(contentNode);
 
 		return { type: RenderOutputType.Mainframe, supportAppend: true };

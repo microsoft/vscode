@@ -21,10 +21,10 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 	private _onDidInitiateWorkspaceTrustRequestOnStartup = new Emitter<void>();
 	onDidInitiateWorkspaceTrustRequestOnStartup = this._onDidInitiateWorkspaceTrustRequestOnStartup.event;
 
-	private trusted: boolean;
 
-	constructor(trusted: boolean = true) {
-		this.trusted = trusted;
+	constructor(
+		private enabled: boolean = true,
+		private trusted: boolean = true) {
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
@@ -39,7 +39,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	getTrustedFolders(): URI[] {
+	getTrustedUris(): URI[] {
 		throw new Error('Method not implemented.');
 	}
 
@@ -51,7 +51,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	async setTrustedFolders(folders: URI[]): Promise<void> {
+	async setTrustedUris(folders: URI[]): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 
@@ -63,11 +63,7 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		throw new Error('Method not implemented.');
 	}
 
-	canSetWorkspaceTrust(): Promise<boolean> {
-		throw new Error('Method not implemented.');
-	}
-
-	initializeWorkspaceTrust(): Promise<void> {
+	canSetWorkspaceTrust(): boolean {
 		throw new Error('Method not implemented.');
 	}
 
@@ -75,8 +71,20 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 		return this.trusted;
 	}
 
-	recalculateWorkspaceTrust(): Promise<void> {
-		throw new Error('Method not implemented.');
+	isWorkspaceTrustForced(): boolean {
+		return false;
+	}
+
+	get workspaceTrustEnabled(): boolean {
+		return this.enabled;
+	}
+
+	get workspaceTrustInitialized(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	get workspaceResolved(): Promise<void> {
+		return Promise.resolve();
 	}
 
 	async setWorkspaceTrust(trusted: boolean): Promise<void> {

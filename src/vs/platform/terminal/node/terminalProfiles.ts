@@ -9,17 +9,20 @@ import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node
 import * as cp from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
-import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, SafeConfigProvider, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
+	profiles: unknown,
+	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
-	safeConfigProvider: SafeConfigProvider,
+	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
 	logService?: ILogService,
 	variableResolver?: (text: string[]) => Promise<string[]>,
@@ -34,9 +37,9 @@ export function detectAvailableProfiles(
 			includeDetectedProfiles,
 			fsProvider,
 			logService,
-			safeConfigProvider<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			safeConfigProvider(TerminalSettingId.ProfilesWindows),
-			safeConfigProvider(TerminalSettingId.DefaultProfileWindows),
+			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPaths,
 			variableResolver
 		);
@@ -45,8 +48,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		safeConfigProvider(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		safeConfigProvider(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPaths,
 		variableResolver
 	);

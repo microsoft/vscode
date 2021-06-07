@@ -12,7 +12,7 @@ import { NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common
 
 export class CellContextKeyManager extends Disposable {
 
-	private cellType!: IContextKey<string>;
+	private cellType!: IContextKey<'code' | 'markup'>;
 	private cellEditable!: IContextKey<boolean>;
 	private cellFocused!: IContextKey<boolean>;
 	private cellEditorFocused!: IContextKey<boolean>;
@@ -62,7 +62,7 @@ export class CellContextKeyManager extends Disposable {
 
 		this.element = element;
 		if (this.element instanceof MarkdownCellViewModel) {
-			this.cellType.set('markdown');
+			this.cellType.set('markup');
 		} else if (this.element instanceof CodeCellViewModel) {
 			this.cellType.set('code');
 		}

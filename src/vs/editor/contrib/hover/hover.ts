@@ -216,7 +216,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
-		this._getOrCreateContentWidget().startShowingAt(range, mode, focus);
+		this._getOrCreateContentWidget().startShowingAtRange(range, mode, focus);
 	}
 
 	public dispose(): void {

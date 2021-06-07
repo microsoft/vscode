@@ -43,6 +43,11 @@ import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { hash } from 'vs/base/common/hash';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 
 interface IStatusbarEntryPriority {
 
@@ -426,6 +431,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
+	private hoverDelegate: IHoverDelegate;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -434,10 +441,18 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
+
+		this.hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions) => hoverService.showHover(options),
+			delay: <number>configurationService.getValue('workbench.hover.delay'),
+			placement: 'element'
+		};
 	}
 
 	private registerListeners(): void {
@@ -489,7 +504,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
-		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
+		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry, this.hoverDelegate);
 
 		// Append to parent
 		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
@@ -821,6 +836,8 @@ class StatusbarEntryItem extends Disposable {
 	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
+	private customHover: IDisposable | undefined;
+
 	private entry: IStatusbarEntry | undefined = undefined;
 	get name(): string { return assertIsDefined(this.entry).name; }
 
@@ -833,6 +850,7 @@ class StatusbarEntryItem extends Disposable {
 	constructor(
 		private container: HTMLElement,
 		entry: IStatusbarEntry,
+		private readonly customHoverDelegate: IHoverDelegate,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -881,8 +899,15 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		// Update: Tooltip (on the container, because label can be disabled)
-		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
-			if (entry.tooltip) {
+		if (!this.entry || !isEqualTooltip(this.entry, entry)) {
+			if (this.customHover) {
+				this.customHover.dispose();
+				this.customHover = undefined;
+			}
+			if (isMarkdownString(entry.tooltip)) {
+				this.container.removeAttribute('title');
+				this.customHover = setupCustomHover(this.customHoverDelegate, this.container, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
+			} else if (entry.tooltip) {
 				this.container.title = entry.tooltip;
 			} else {
 				this.container.title = '';
@@ -993,7 +1018,22 @@ class StatusbarEntryItem extends Disposable {
 		dispose(this.backgroundListener);
 		dispose(this.commandMouseListener);
 		dispose(this.commandKeyboardListener);
+		if (this.customHover) {
+			this.customHover.dispose();
+		}
 	}
+}
+
+function isEqualTooltip(e1: IStatusbarEntry, e2: IStatusbarEntry) {
+	const t1 = e1.tooltip;
+	const t2 = e2.tooltip;
+	if (t1 === undefined) {
+		return t2 === undefined;
+	}
+	if (isMarkdownString(t1)) {
+		return isMarkdownString(t2) && markdownStringEqual(t1, t2);
+	}
+	return t1 === t2;
 }
 
 registerThemingParticipant((theme, collector) => {

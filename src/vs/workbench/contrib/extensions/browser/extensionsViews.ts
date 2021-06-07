@@ -722,6 +722,7 @@ export class ExtensionsListView extends ViewPane {
 	private isRecommendationsQuery(query: Query): boolean {
 		return ExtensionsListView.isWorkspaceRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isKeymapsRecommendedExtensionsQuery(query.value)
+			|| ExtensionsListView.isLanguageRecommendedExtensionsQuery(query.value)
 			|| ExtensionsListView.isExeRecommendedExtensionsQuery(query.value)
 			|| /@recommended:all/i.test(query.value)
 			|| ExtensionsListView.isSearchRecommendedExtensionsQuery(query.value)

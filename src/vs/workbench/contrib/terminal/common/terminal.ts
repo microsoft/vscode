@@ -69,6 +69,8 @@ export const KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED = new RawContextKey<b
 
 export const KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION = new RawContextKey<boolean>('terminalTabsSingularSelection', false, nls.localize('terminalTabsSingularSelectedContextKey', "Whether one terminal tab is selected"));
 
+export const IS_SPLIT_TERMINAL_CONTEXT_KEY = new RawContextKey<boolean>('isSplitTerminal', false, nls.localize('isSplitTerminalContextKey', "Whether or not the focused tab's terminal is a split terminal"));
+
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 export const TERMINAL_CREATION_COMMANDS = ['workbench.action.terminal.toggleTerminal', 'workbench.action.terminal.new', 'workbench.action.togglePanel', 'workbench.action.terminal.focus'];
@@ -110,11 +112,7 @@ export interface ITerminalProfileResolverService {
 	getDefaultShell(options: IShellLaunchConfigResolveOptions): Promise<string>;
 	getDefaultShellArgs(options: IShellLaunchConfigResolveOptions): Promise<string | string[]>;
 	getEnvironment(remoteAuthority: string | undefined): Promise<IProcessEnvironment>;
-
-	// TODO: Remove when workspace trust is enabled
-	getSafeConfigValue(key: string, os: OperatingSystem): unknown | undefined;
-	getSafeConfigValueFullKey(key: string): unknown | undefined;
-	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | undefined>;
+	createProfileFromShellAndShellArgs(shell?: unknown, shellArgs?: unknown): Promise<ITerminalProfile | string>;
 }
 
 export interface IShellLaunchConfigResolveOptions {
@@ -209,7 +207,6 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
-	allowWorkspaceConfiguration: boolean;
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -395,6 +392,7 @@ export const enum TerminalCommandId {
 	SplitInstance = 'workbench.action.terminal.splitInstance',
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	Unsplit = 'workbench.action.terminal.unsplit',
+	UnsplitInstance = 'workbench.action.terminal.unsplitInstance',
 	JoinInstance = 'workbench.action.terminal.joinInstance',
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
@@ -628,7 +626,7 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 					type: 'object',
 					required: ['id', 'title'],
 					properties: {
-						command: {
+						id: {
 							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),
 							type: 'string',
 						},

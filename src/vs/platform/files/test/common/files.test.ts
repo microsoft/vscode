@@ -60,7 +60,6 @@ suite('Files', () => {
 			assert.strictEqual(6, event.changes.length);
 			assert.strictEqual(1, event.getAdded().length);
 			assert.strictEqual(true, event.gotAdded());
-			assert.strictEqual(2, event.getUpdated().length);
 			assert.strictEqual(true, event.gotUpdated());
 			assert.strictEqual(ignorePathCasing ? 2 : 3, event.getDeleted().length);
 			assert.strictEqual(true, event.gotDeleted());
@@ -101,9 +100,6 @@ suite('Files', () => {
 				switch (type) {
 					case FileChangeType.ADDED:
 						assert.strictEqual(8, event.getAdded().length);
-						break;
-					case FileChangeType.UPDATED:
-						assert.strictEqual(8, event.getUpdated().length);
 						break;
 					case FileChangeType.DELETED:
 						assert.strictEqual(8, event.getDeleted().length);
