@@ -1619,7 +1619,7 @@ export class TestLocalTerminalService implements ILocalTerminalService {
 	async attachToProcess(id: number): Promise<ITerminalChildProcess | undefined> { throw new Error('Method not implemented.'); }
 	async listProcesses(): Promise<IProcessDetails[]> { throw new Error('Method not implemented.'); }
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> { throw new Error('Method not implemented.'); }
-	getProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
+	getProfiles(isWorkspaceTrusted: boolean, includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> { throw new Error('Method not implemented.'); }
 	getEnvironment(): Promise<IProcessEnvironment> { throw new Error('Method not implemented.'); }
 	getShellEnvironment(): Promise<IProcessEnvironment | undefined> { throw new Error('Method not implemented.'); }
 	getWslPath(original: string): Promise<string> { throw new Error('Method not implemented.'); }

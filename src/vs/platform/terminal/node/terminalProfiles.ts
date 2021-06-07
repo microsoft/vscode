@@ -11,7 +11,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import * as pfs from 'vs/base/node/pfs';
 import { ITerminalEnvironment, ITerminalProfile, ITerminalProfileObject, ProfileSource, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,6 +19,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 let profileSources: Map<string, IPotentialTerminalProfile> | undefined;
 
 export function detectAvailableProfiles(
+	profiles: unknown,
+	defaultProfile: unknown,
 	includeDetectedProfiles: boolean,
 	configurationService: IConfigurationService,
 	fsProvider?: IFsProvider,
@@ -36,8 +38,8 @@ export function detectAvailableProfiles(
 			fsProvider,
 			logService,
 			configurationService.getValue<boolean>(TerminalSettingId.UseWslProfiles) !== false,
-			configurationService.getValue(TerminalSettingId.ProfilesWindows),
-			configurationService.getValue(TerminalSettingId.DefaultProfileWindows),
+			profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(TerminalSettingId.ProfilesWindows),
+			typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(TerminalSettingId.DefaultProfileWindows),
 			testPaths,
 			variableResolver
 		);
@@ -46,8 +48,8 @@ export function detectAvailableProfiles(
 		fsProvider,
 		logService,
 		includeDetectedProfiles,
-		configurationService.getValue(isMacintosh ? TerminalSettingId.ProfilesMacOs : TerminalSettingId.ProfilesLinux),
-		configurationService.getValue(isMacintosh ? TerminalSettingId.DefaultProfileMacOs : TerminalSettingId.DefaultProfileLinux),
+		profiles && typeof profiles === 'object' ? { ...profiles } : configurationService.getValue<{ [key: string]: ITerminalProfileObject }>(isLinux ? TerminalSettingId.ProfilesLinux : TerminalSettingId.ProfilesMacOs),
+		typeof defaultProfile === 'string' ? defaultProfile : configurationService.getValue<string>(isLinux ? TerminalSettingId.DefaultProfileLinux : TerminalSettingId.DefaultProfileMacOs),
 		testPaths,
 		variableResolver
 	);

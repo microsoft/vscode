@@ -538,7 +538,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 								if (href.startsWith('command:')) {
 									return 'onCommand:' + href.slice('command:'.length, href.includes('?') ? href.indexOf('?') : undefined);
 								}
-								if (href.startsWith('https://')) {
+								if (href.startsWith('https://') || href.startsWith('http://')) {
 									return 'onLink:' + href;
 								}
 								return undefined;

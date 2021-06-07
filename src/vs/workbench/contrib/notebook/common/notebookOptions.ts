@@ -107,7 +107,7 @@ export class NotebookOptions {
 
 	constructor(private readonly configurationService: IConfigurationService) {
 		const showCellStatusBar = this.configurationService.getValue<ShowCellStatusBarType>(ShowCellStatusBar);
-		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;
+		const globalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? true;
 		const consolidatedOutputButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedOutputButton) ?? true;
 		const consolidatedRunButton = this.configurationService.getValue<boolean | undefined>(ConsolidatedRunButton) ?? false;
 		const dragAndDropEnabled = this.configurationService.getValue<boolean | undefined>(DragAndDropEnabled) ?? true;
@@ -235,7 +235,7 @@ export class NotebookOptions {
 		}
 
 		if (globalToolbar) {
-			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? false;
+			configuration.globalToolbar = this.configurationService.getValue<boolean>(GlobalToolbar) ?? true;
 		}
 
 		if (consolidatedOutputButton) {
@@ -296,7 +296,7 @@ export class NotebookOptions {
 	}
 
 	private _computeFocusIndicatorOption() {
-		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'border';
+		return this.configurationService.getValue<'border' | 'gutter'>(FocusIndicator) ?? 'gutter';
 	}
 
 	getLayoutConfiguration(): NotebookLayoutConfiguration {

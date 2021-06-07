@@ -292,7 +292,7 @@ export class LinuxExternalTerminalService extends ExternalTerminalService implem
 		if (!LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY) {
 			LinuxExternalTerminalService._DEFAULT_TERMINAL_LINUX_READY = new Promise(async r => {
 				if (env.isLinux) {
-					const isDebian = await pfs.exists('/etc/debian_version');
+					const isDebian = await pfs.Promises.exists('/etc/debian_version');
 					if (isDebian) {
 						r('x-terminal-emulator');
 					} else if (process.env.DESKTOP_SESSION === 'gnome' || process.env.DESKTOP_SESSION === 'gnome-classic') {

@@ -6,7 +6,7 @@
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Promises, readdir, rimraf } from 'vs/base/node/pfs';
+import { Promises, rimraf } from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 
 export class NodeCachedDataCleaner {
@@ -44,7 +44,7 @@ export class NodeCachedDataCleaner {
 		let handle: NodeJS.Timeout | undefined = setTimeout(() => {
 			handle = undefined;
 
-			readdir(nodeCachedDataRootDir).then(entries => {
+			Promises.readdir(nodeCachedDataRootDir).then(entries => {
 
 				const now = Date.now();
 				const deletes: Promise<unknown>[] = [];

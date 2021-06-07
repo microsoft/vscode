@@ -19,8 +19,8 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class GhostTextController extends Disposable {
-	public static readonly inlineCompletionsVisible = new RawContextKey<boolean>('inlineCompletionsVisible ', false, nls.localize('inlineCompletionsVisible', "Whether inline suggestions are visible"));
-	public static readonly inlineCompletionSuggestsIndentation = new RawContextKey<boolean>('inlineCompletionSuggestsIndentation', false, nls.localize('inlineCompletionSuggestsIndentation', "Whether the inline suggestion suggests extending indentation"));
+	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
+	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
 
 	static ID = 'editor.contrib.ghostTextController';
 
@@ -34,7 +34,7 @@ export class GhostTextController extends Disposable {
 	private triggeredExplicitly = false;
 
 	constructor(
-		private readonly editor: ICodeEditor,
+		public readonly editor: ICodeEditor,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -57,11 +57,12 @@ export class GhostTextController extends Disposable {
 	// Don't call this method when not neccessary. It will recreate the activeController.
 	private updateModelController(): void {
 		const suggestOptions = this.editor.getOption(EditorOption.suggest);
+		const inlineSuggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
 
 		this.activeController.value = undefined;
 		// ActiveGhostTextController is only created if one of those settings is set or if the inline completions are triggered explicitly.
 		this.activeController.value =
-			this.editor.hasModel() && (suggestOptions.showSuggestionPreview || suggestOptions.showInlineCompletions || this.triggeredExplicitly)
+			this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly)
 				? this.instantiationService.createInstance(
 					ActiveGhostTextController,
 					this.editor,
@@ -109,10 +110,10 @@ export class GhostTextController extends Disposable {
 // Currently the global state is updated directly, which may lead to conflicts if multiple ghost texts are active.
 class GhostTextContextKeys {
 	private lastInlineCompletionVisibleValue = false;
-	private readonly inlineCompletionVisible = GhostTextController.inlineCompletionsVisible.bindTo(this.contextKeyService);
+	private readonly inlineCompletionVisible = GhostTextController.inlineSuggestionVisible.bindTo(this.contextKeyService);
 
 	private lastInlineCompletionSuggestsIndentationValue = false;
-	private readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineCompletionSuggestsIndentation.bindTo(this.contextKeyService);
+	private readonly inlineCompletionSuggestsIndentation = GhostTextController.inlineSuggestionHasIndentation.bindTo(this.contextKeyService);
 
 	constructor(private readonly contextKeyService: IContextKeyService) {
 	}
@@ -158,6 +159,9 @@ export class ActiveGhostTextController extends Disposable {
 
 		this._register(this.suggestWidgetAdapterModel.onDidChange(() => {
 			this.updateModel();
+			// When the suggest widget becomes inactive and an inline completion
+			// becomes visible, we need to update the context keys.
+			this.updateContextKeys();
 		}));
 		this.updateModel();
 
@@ -237,11 +241,11 @@ export class ActiveGhostTextController extends Disposable {
 
 const GhostTextCommand = EditorCommand.bindToContribution(GhostTextController.get);
 
-registerEditorCommand(new GhostTextCommand({
-	id: 'commitInlineCompletion',
+export const commitInlineSuggestionAction = new GhostTextCommand({
+	id: 'editor.action.inlineSuggest.commit',
 	precondition: ContextKeyExpr.and(
-		GhostTextController.inlineCompletionsVisible,
-		GhostTextController.inlineCompletionSuggestsIndentation.toNegated(),
+		GhostTextController.inlineSuggestionVisible,
+		GhostTextController.inlineSuggestionHasIndentation.toNegated(),
 		EditorContextKeys.tabMovesFocus.toNegated()
 	),
 	kbOpts: {
@@ -250,12 +254,14 @@ registerEditorCommand(new GhostTextCommand({
 	},
 	handler(x) {
 		x.commit();
+		x.editor.focus();
 	}
-}));
+});
+registerEditorCommand(commitInlineSuggestionAction);
 
 registerEditorCommand(new GhostTextCommand({
-	id: 'hideInlineCompletion',
-	precondition: GhostTextController.inlineCompletionsVisible,
+	id: 'editor.action.inlineSuggest.hide',
+	precondition: GhostTextController.inlineSuggestionVisible,
 	kbOpts: {
 		weight: 100,
 		primary: KeyCode.Escape,
@@ -265,13 +271,13 @@ registerEditorCommand(new GhostTextCommand({
 	}
 }));
 
-export class ShowNextInlineCompletionAction extends EditorAction {
-	public static ID = 'editor.action.showNextInlineCompletion';
+export class ShowNextInlineSuggestionAction extends EditorAction {
+	public static ID = 'editor.action.inlineSuggest.showNext';
 	constructor() {
 		super({
-			id: ShowNextInlineCompletionAction.ID,
-			label: nls.localize('showNextInlineCompletion', "Show Next Inline Completion"),
-			alias: 'Show Next Inline Completion',
+			id: ShowNextInlineSuggestionAction.ID,
+			label: nls.localize('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
+			alias: 'Show Next Inline Suggestion',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
@@ -289,13 +295,13 @@ export class ShowNextInlineCompletionAction extends EditorAction {
 	}
 }
 
-export class ShowPreviousInlineCompletionAction extends EditorAction {
-	public static ID = 'editor.action.showPreviousInlineCompletion';
+export class ShowPreviousInlineSuggestionAction extends EditorAction {
+	public static ID = 'editor.action.inlineSuggest.showPrevious';
 	constructor() {
 		super({
-			id: ShowPreviousInlineCompletionAction.ID,
-			label: nls.localize('showPreviousInlineCompletion', "Show Previous Inline Completion"),
-			alias: 'Show Previous Inline Completion',
+			id: ShowPreviousInlineSuggestionAction.ID,
+			label: nls.localize('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
+			alias: 'Show Previous Inline Suggestion',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: 100,
@@ -313,12 +319,12 @@ export class ShowPreviousInlineCompletionAction extends EditorAction {
 	}
 }
 
-export class TriggerInlineCompletionsAction extends EditorAction {
+export class TriggerInlineSuggestionAction extends EditorAction {
 	constructor() {
 		super({
-			id: 'editor.action.triggerInlineCompletions',
-			label: nls.localize('triggerInlineCompletionsAction', "Trigger Inline Completions"),
-			alias: 'Trigger Inline Completions',
+			id: 'editor.action.inlineSuggest.trigger',
+			label: nls.localize('action.inlineSuggest.trigger', "Trigger Inline Suggestion"),
+			alias: 'Trigger Inline Suggestion',
 			precondition: EditorContextKeys.writable
 		});
 	}
@@ -332,6 +338,6 @@ export class TriggerInlineCompletionsAction extends EditorAction {
 }
 
 registerEditorContribution(GhostTextController.ID, GhostTextController);
-registerEditorAction(TriggerInlineCompletionsAction);
-registerEditorAction(ShowNextInlineCompletionAction);
-registerEditorAction(ShowPreviousInlineCompletionAction);
+registerEditorAction(TriggerInlineSuggestionAction);
+registerEditorAction(ShowNextInlineSuggestionAction);
+registerEditorAction(ShowPreviousInlineSuggestionAction);

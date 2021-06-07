@@ -140,6 +140,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-updates',
 		'--disable-keytar',
 		'--disable-crash-reporter',
+		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
 		'--driver', handle

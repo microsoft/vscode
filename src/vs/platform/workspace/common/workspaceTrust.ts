@@ -46,6 +46,7 @@ export interface IWorkspaceTrustManagementService {
 	acceptsOutOfWorkspaceFiles: boolean;
 
 	isWorkpaceTrusted(): boolean;
+	isWorkspaceTrustForced(): boolean;
 
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): Promise<void>;

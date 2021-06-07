@@ -19,6 +19,8 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
@@ -36,7 +38,13 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 
 		this._register(commandService.onDidExecuteCommand(e => {
 			// These commands don't trigger onDidType.
-			const commands = new Set(['undo', 'redo', 'tab']);
+			const commands = new Set([
+				UndoCommand.id,
+				RedoCommand.id,
+				CoreEditingCommands.Tab.id,
+				CoreEditingCommands.DeleteLeft.id,
+				CoreEditingCommands.DeleteRight.id
+			]);
 			if (commands.has(e.commandId) && editor.hasTextFocus()) {
 				this.handleUserInput();
 			}
@@ -91,8 +99,8 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
-		const suggestOptions = this.editor.getOption(EditorOption.suggest);
-		if (!suggestOptions.showInlineCompletions) {
+		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+		if (!suggestOptions.enabled) {
 			return;
 		}
 
@@ -286,6 +294,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
+		// Since updateSoon debounces, starvation can happen.
+		// To prevent stale cache, we clear the current update operation.
+		this.updateOperation.clear();
 		this.updateSoon.schedule();
 	}
 
@@ -346,7 +357,7 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		const cache = this.cache.replace(undefined);
 
 		this.editor.executeEdits(
-			'inlineCompletions.accept',
+			'inlineSuggestion.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
@@ -358,6 +369,8 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 					cache?.dispose();
 				})
 				.then(undefined, onUnexpectedExternalError);
+		} else {
+			cache?.dispose();
 		}
 
 		this.onDidChangeEmitter.fire();
@@ -467,15 +480,20 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
 	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
 
+	const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(inlineCompletion.range.startLineNumber);
+
 	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
 		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
-	} else {
+	} else if (firstNonWsCol === 0 || inlineCompletion.range.startColumn < firstNonWsCol) {
+		// Only allow ignoring leading whitespace in indentation.
 		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
 		const insertTextTrimmed = leftTrim(inlineCompletion.text);
 		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
 			return undefined;
 		}
 		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
+	} else {
+		return undefined;
 	}
 
 	const position = inlineCompletion.range.getEndPosition();
