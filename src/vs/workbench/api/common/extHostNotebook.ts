@@ -8,7 +8,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { hash } from 'vs/base/common/hash';
-import { IdGenerator } from 'vs/base/common/idGenerator';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
@@ -17,7 +16,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, INotebookEditorPropertiesChangeData, INotebookEditorViewColumnInfo, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentPropertiesChangeData, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
@@ -28,26 +27,6 @@ import { INotebookExclusiveDocumentFilter, INotebookContributionData, NotebookCe
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
-
-
-export class NotebookEditorDecorationType {
-
-	private static readonly _Keys = new IdGenerator('NotebookEditorDecorationType');
-
-	readonly value: vscode.NotebookEditorDecorationType;
-
-	constructor(proxy: MainThreadNotebookEditorsShape, options: vscode.NotebookDecorationRenderOptions) {
-		const key = NotebookEditorDecorationType._Keys.nextId();
-		proxy.$registerNotebookEditorDecorationType(key, typeConverters.NotebookDecorationRenderOptions.from(options));
-
-		this.value = {
-			key,
-			dispose() {
-				proxy.$removeNotebookEditorDecorationType(key);
-			}
-		};
-	}
-}
 
 
 type NotebookContentProviderData = {
@@ -67,10 +46,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private readonly _documents = new ResourceMap<ExtHostNotebookDocument>();
 	private readonly _editors = new Map<string, ExtHostNotebookEditor>();
 	private readonly _commandsConverter: CommandsConverter;
-	private readonly _onDidChangeNotebookEditorSelection = new Emitter<vscode.NotebookEditorSelectionChangeEvent>();
-	readonly onDidChangeNotebookEditorSelection = this._onDidChangeNotebookEditorSelection.event;
-	private readonly _onDidChangeNotebookEditorVisibleRanges = new Emitter<vscode.NotebookEditorVisibleRangesChangeEvent>();
-	readonly onDidChangeNotebookEditorVisibleRanges = this._onDidChangeNotebookEditorVisibleRanges.event;
+
 	private readonly _onDidChangeNotebookDocumentMetadata = new Emitter<vscode.NotebookDocumentMetadataChangeEvent>();
 	readonly onDidChangeNotebookDocumentMetadata = this._onDidChangeNotebookDocumentMetadata.event;
 	private readonly _onDidChangeNotebookCells = new Emitter<vscode.NotebookCellsChangeEvent>();
@@ -135,8 +111,18 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 		});
 	}
 
-	getEditorById(editorId: string): ExtHostNotebookEditor | undefined {
-		return this._editors.get(editorId);
+	getEditorById(editorId: string, strict: true): ExtHostNotebookEditor;
+	getEditorById(editorId: string): ExtHostNotebookEditor | undefined;
+	getEditorById(editorId: string, strict?: true): ExtHostNotebookEditor | undefined {
+		const editor = this._editors.get(editorId);
+		if (!editor && strict) {
+			throw new Error(`unknown text editor: ${editorId}. known editors: ${[...this._editors.keys()]} `);
+		}
+		return editor;
+	}
+
+	allEditors(): ExtHostNotebookEditor[] {
+		return [...this._editors.values()];
 	}
 
 	getIdByEditor(editor: vscode.NotebookEditor): string | undefined {
@@ -248,10 +234,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 				subscription.dispose();
 			}
 		});
-	}
-
-	createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
-		return new NotebookEditorDecorationType(this._notebookEditorsProxy, options).value;
 	}
 
 	async createNotebookDocument(options: { viewType: string, content?: vscode.NotebookData }): Promise<URI> {
@@ -433,47 +415,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 	$acceptModelSaved(uri: UriComponents): void {
 		const document = this.getNotebookDocument(URI.revive(uri));
 		this._onDidSaveNotebookDocument.fire(document.apiNotebook);
-	}
-
-	$acceptEditorPropertiesChanged(id: string, data: INotebookEditorPropertiesChangeData): void {
-		this.logService.debug('ExtHostNotebook#$acceptEditorPropertiesChanged', id, data);
-
-		const editor = this._editors.get(id);
-		if (!editor) {
-			throw new Error(`unknown text editor: ${id}. known editors: ${[...this._editors.keys()]} `);
-		}
-
-		// ONE: make all state updates
-		if (data.visibleRanges) {
-			editor._acceptVisibleRanges(data.visibleRanges.ranges.map(typeConverters.NotebookRange.to));
-		}
-		if (data.selections) {
-			editor._acceptSelections(data.selections.selections.map(typeConverters.NotebookRange.to));
-		}
-
-		// TWO: send all events after states have been updated
-		if (data.visibleRanges) {
-			this._onDidChangeNotebookEditorVisibleRanges.fire({
-				notebookEditor: editor.apiEditor,
-				visibleRanges: editor.apiEditor.visibleRanges
-			});
-		}
-		if (data.selections) {
-			this._onDidChangeNotebookEditorSelection.fire(Object.freeze({
-				notebookEditor: editor.apiEditor,
-				selections: editor.apiEditor.selections
-			}));
-		}
-	}
-
-	$acceptEditorViewColumns(data: INotebookEditorViewColumnInfo): void {
-		for (const id in data) {
-			const editor = this._editors.get(id);
-			if (!editor) {
-				throw new Error(`unknown text editor: ${id}. known editors: ${[...this._editors.keys()]} `);
-			}
-			editor._acceptViewColumn(typeConverters.ViewColumn.to(data[id]));
-		}
 	}
 
 	$acceptDocumentPropertiesChanged(uri: UriComponents, data: INotebookDocumentPropertiesChangeData): void {

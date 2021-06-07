@@ -6,7 +6,7 @@
 import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import { getNotebookEditorFromEditorPane, INotebookEditor, INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookEditorsShape, IExtHostContext, INotebookDocumentShowOptions, INotebookEditorViewColumnInfo, MainThreadNotebookEditorsShape, NotebookEditorRevealType } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { ICellEditOperation, INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -36,7 +36,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _proxy: ExtHostNotebookShape;
+	private readonly _proxy: ExtHostNotebookEditorsShape;
 	private readonly _mainThreadEditors = new Map<string, MainThreadNotebook>();
 
 	private _currentViewColumnInfo?: INotebookEditorViewColumnInfo;
@@ -50,7 +50,7 @@ export class MainThreadNotebookEditors implements MainThreadNotebookEditorsShape
 		@INotebookEditorService private readonly _notebookEditorService: INotebookEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookEditors);
 
 		notebooksAndEditors.onDidAddEditors(this._handleEditorsAdded, this, this._disposables);
 		notebooksAndEditors.onDidRemoveEditors(this._handleEditorsRemoved, this, this._disposables);
