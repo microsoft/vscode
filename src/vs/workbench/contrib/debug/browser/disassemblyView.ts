@@ -27,6 +27,8 @@ interface IDisassembledInstructionEntry {
 
 export class DisassemblyView extends EditorPane {
 
+	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
+
 	private _fontInfo: BareFontInfo;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | null;
 
@@ -96,7 +98,18 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this.loadDisassembledInstructions('0x00005000');
+		this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2, '0x00005000');
+		this._disassembledInstructions.reveal(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, 0.5);
+
+		this._disassembledInstructions.onDidScroll(e => {
+			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
+				const topElement = Math.floor(e.scrollTop / this._fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
+				this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, '0x00004000');
+				this._disassembledInstructions!.reveal(topElement, 0);
+			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
+				this.loadDisassembledInstructions(this._disassembledInstructions!.length, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, '0x00004000');
+			}
+		});
 	}
 
 	layout(dimension: Dimension): void {
@@ -105,14 +118,14 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
-	private loadDisassembledInstructions(address: string): void {
+	private loadDisassembledInstructions(index: number, numInstructions: number, address: string): void {
 		const newEntries: IDisassembledInstructionEntry[] = [];
-		for (let i = 0; i < 50; i++) {
-			newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: { address, instruction: 'instruction instruction, instruction' } });
+		for (let i = 0; i < numInstructions; i++) {
+			newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: { address: `${address}${i}`, instruction: 'instruction instruction, instruction' } });
 		}
 		if (this._disassembledInstructions) {
 			// TODO: append/insert
-			this._disassembledInstructions.splice(0, this._disassembledInstructions.length, newEntries);
+			this._disassembledInstructions.splice(index, 0, newEntries);
 		}
 	}
 
