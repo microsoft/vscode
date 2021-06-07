@@ -252,7 +252,7 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
-	test('editor editing event 2', async function () {
+	test('editor editing event', async function () {
 		// const notebook = await openRandomNotebookDocument();
 		// await vscode.window.showNotebookDocument(notebook);
 		const resource = await createRandomNotebookFile();
@@ -422,9 +422,6 @@ suite('Notebook API tests', function () {
 		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(count, 0);
 	});
-	// });
-
-	// suite('notebook workflow', () => {
 
 	test('notebook open', async function () {
 		const notebook = await openRandomNotebookDocument();
@@ -1134,74 +1131,31 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
 
 	});
+});
 
-
-	suite('statusbar', () => {
-		const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-		const onDidCallProvide = emitter.event;
-		suiteSetup(() => {
-			vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-				async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-					emitter.fire(cell);
-					return [];
-				}
-			});
-		});
-
-		test('provideCellStatusBarItems called on metadata change', async function () {
-			const provideCalled = asPromise(onDidCallProvide);
-			const resource = await createRandomNotebookFile();
-			await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-			await provideCalled;
-
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
-			vscode.workspace.applyEdit(edit);
-			await provideCalled;
+suite('statusbar', () => {
+	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
+	const onDidCallProvide = emitter.event;
+	suiteSetup(() => {
+		vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
+			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
+				emitter.fire(cell);
+				return [];
+			}
 		});
 	});
 
-	// });
+	test('provideCellStatusBarItems called on metadata change', async function () {
+		const provideCalled = asPromise(onDidCallProvide);
+		const resource = await createRandomNotebookFile();
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await provideCalled;
 
-	// suite('webview', () => {
-	// for web, `asWebUri` gets `https`?
-	// test('asWebviewUri', async function () {
-	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
-	// 		return;
-	// 	}
-
-	// 	const resource = await createRandomNotebookFile();
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-	// 	assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-	// 	const uri = vscode.window.activeNotebookEditor!.asWebviewUri(vscode.Uri.file('./hello.png'));
-	// 	assert.strictEqual(uri.scheme, 'vscode-webview-resource');
-	// 	await closeAllEditors();
-	// });
-
-
-	// 404 on web
-	// test('custom renderer message', async function () {
-	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
-	// 		return;
-	// 	}
-
-	// 	const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-	// 	const editor = vscode.window.activeNotebookEditor;
-	// 	const promise = new Promise(resolve => {
-	// 		const messageEmitter = editor?.onDidReceiveMessage(e => {
-	// 			if (e.type === 'custom_renderer_initialize') {
-	// 				resolve();
-	// 				messageEmitter?.dispose();
-	// 			}
-	// 		});
-	// 	});
-
-	// 	await vscode.commands.executeCommand('notebook.cell.execute');
-	// 	await promise;
-	// 	await closeAllEditors();
-	// });
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
+		vscode.workspace.applyEdit(edit);
+		await provideCalled;
+	});
 });
 
 suite('Notebook API tests (metadata)', function () {
