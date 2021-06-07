@@ -497,14 +497,10 @@ export class TernarySearchTree<K, V> {
 		yield* this._entries(this._root);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined, i: number = 0): IterableIterator<[K, V]> {
-		if (i > 5000) {
-			console.log('potential CYCLE detected', new Error().stack);
-			return;
-		}
+	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
 		if (node) {
 			// left
-			yield* this._entries(node.left, i++);
+			yield* this._entries(node.left);
 
 			// node
 			if (node.value) {
@@ -512,10 +508,10 @@ export class TernarySearchTree<K, V> {
 				yield [node.key, node.value];
 			}
 			// mid
-			yield* this._entries(node.mid, i++);
+			yield* this._entries(node.mid);
 
 			// right
-			yield* this._entries(node.right, i++);
+			yield* this._entries(node.right);
 		}
 	}
 }
