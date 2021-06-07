@@ -378,7 +378,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}));
 		const socketMap = getSockets(procSockets);
 
-		const procChildren = await pfs.readdir('/proc');
+		const procChildren = await pfs.Promises.readdir('/proc');
 		const processes: {
 			pid: number, cwd: string, cmd: string
 		}[] = [];

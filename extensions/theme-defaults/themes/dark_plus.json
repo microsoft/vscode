@@ -91,7 +91,8 @@
 				"variable",
 				"meta.definition.variable.name",
 				"support.variable",
-				"entity.name.variable"
+				"entity.name.variable",
+				"constant.other.placeholder", // placeholders in strings
 			],
 			"settings": {
 				"foreground": "#9CDCFE"

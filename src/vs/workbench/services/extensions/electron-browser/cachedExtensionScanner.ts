@@ -171,7 +171,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
 		} catch (err) {
 			// That's ok...
 		}

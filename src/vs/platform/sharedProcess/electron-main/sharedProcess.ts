@@ -170,7 +170,6 @@ export class SharedProcess extends Disposable implements ISharedProcess {
 				nodeIntegration: true,
 				contextIsolation: false,
 				enableWebSQL: false,
-				enableRemoteModule: false,
 				spellcheck: false,
 				nativeWindowOpen: true,
 				images: false,

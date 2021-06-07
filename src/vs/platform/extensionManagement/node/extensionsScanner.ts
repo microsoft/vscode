@@ -161,7 +161,7 @@ export class ExtensionsScanner extends Disposable {
 		const raw = await pfs.Promises.readFile(manifestPath, 'utf8');
 		const { manifest } = await this.parseManifest(raw);
 		(manifest as ILocalExtensionManifest).__metadata = storedMetadata;
-		await pfs.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
+		await pfs.Promises.writeFile(manifestPath, JSON.stringify(manifest, null, '\t'));
 		return local;
 	}
 
@@ -208,7 +208,7 @@ export class ExtensionsScanner extends Disposable {
 			if (updateFn) {
 				updateFn(uninstalled);
 				if (Object.keys(uninstalled).length) {
-					await pfs.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
+					await pfs.Promises.writeFile(this.uninstalledPath, JSON.stringify(uninstalled));
 				} else {
 					await pfs.rimraf(this.uninstalledPath);
 				}
