@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -12,10 +13,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { AutoRunMode, getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestDiffOpType, TestIdWithMaybeSrc } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
-import { isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { isRunningTests, ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { getCollectionItemParents, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 
 export interface ITestingAutoRun {
@@ -116,7 +116,7 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 		store.add(this.results.onTestChanged(evt => {
 			if (evt.reason === TestResultItemChangeReason.Retired) {
 				addToRerun({ testId: evt.item.item.extId });
-			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange) && isStateWithResult(evt.item.computedState)) {
+			} else if ((evt.reason === TestResultItemChangeReason.OwnStateChange || evt.reason === TestResultItemChangeReason.ComputedStateChange)) {
 				removeFromRerun({ testId: evt.item.item.extId });
 			}
 		}));
@@ -142,11 +142,18 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 				}
 			});
 
-			store.add(listener.onDiff(({ diff }) => {
+			store.add(listener.onDiff(({ diff, folder }) => {
 				for (const entry of diff) {
 					if (entry[0] === TestDiffOpType.Add) {
-						const { item, src } = entry[1];
-						addToRerun({ testId: item.extId, src });
+						const test = entry[1];
+						const isQueued = Iterable.some(
+							getCollectionItemParents(folder.collection, test),
+							t => rerunIds.has(identifyTest({ testId: t.item.extId, src: t.src })),
+						);
+
+						if (!isQueued) {
+							addToRerun({ testId: test.item.extId, src: test.src });
+						}
 					}
 				}
 			}));
