@@ -8,7 +8,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IIconLabelMarkdownString } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IHoverDelegate, IHoverDelegateOptions, IHoverDelegateTarget } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { combinedDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { localize } from 'vs/nls';
@@ -37,6 +37,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 	let isHovering = false;
 	let tokenSource: CancellationTokenSource;
 	let hoverDisposable: IDisposable | undefined;
+	let timeout: number | undefined;
 
 	const mouseOverDomEmitter = new DomEmitter(htmlElement, dom.EventType.MOUSE_OVER, true);
 	mouseOverDomEmitter.event((e: MouseEvent) => {
@@ -69,7 +70,11 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		}
 		const mouseMoveDomEmitter = new DomEmitter(htmlElement, dom.EventType.MOUSE_MOVE, true);
 		mouseMoveDomEmitter.event(mouseMove);
-		setTimeout(async () => {
+		if (timeout !== undefined) {
+			window.clearTimeout(timeout);
+		}
+		timeout = window.setTimeout(async () => {
+			timeout = undefined;
 			if (isHovering && tooltip) {
 				// Re-use the already computed hover options if they exist.
 				if (!hoverOptions) {
@@ -93,6 +98,7 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 							hoverPosition: HoverPosition.BELOW
 						};
 						// awaiting the tooltip could take a while. Make sure we're still hovering.
+						hoverDisposable?.dispose();
 						hoverDisposable = adjustXAndShowCustomHover(hoverOptions, mouseX, hoverDelegate, isHovering);
 					} else if (hoverDisposable) {
 						hoverDisposable.dispose();
@@ -104,7 +110,12 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			mouseMoveDomEmitter.dispose();
 		}, hoverDelegate.delay);
 	});
-	return mouseOverDomEmitter;
+	return combinedDisposable(mouseOverDomEmitter, toDisposable(() => {
+		if (timeout !== undefined) {
+			window.clearTimeout(timeout);
+		}
+		hoverDisposable?.dispose();
+	}));
 }
 
 
