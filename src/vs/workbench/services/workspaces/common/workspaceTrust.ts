@@ -272,6 +272,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		// Update workspace trust
 		this._trustState.isTrusted = trusted;
 
+		// Reset acceptsOutOfWorkspaceFiles
+		if (!trusted) {
+			this._trustState.acceptsOutOfWorkspaceFiles = false;
+		}
+
 		// Run workspace trust transition participants
 		await this._trustTransitionManager.participate(trusted);
 
@@ -742,10 +747,6 @@ class WorkspaceTrustState {
 
 	set isTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isTrustedKey] = value;
-		if (!value) {
-			this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
-		}
-
 		this._memento.saveMemento();
 	}
 }
