@@ -269,14 +269,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				});
 			});
 
+			const selectionHandles = this.selectionHandles;
+
 			this._onDidChangeViewCells.fire({
 				synchronous: synchronous,
 				splices: diffs
 			});
 
 			let endSelectionHandles: number[] = [];
-			if (this.selectionHandles.length) {
-				const primaryHandle = this.selectionHandles[0];
+			if (selectionHandles.length) {
+				const primaryHandle = selectionHandles[0];
 				const primarySelectionIndex = this._viewCells.indexOf(this.getCellByHandle(primaryHandle)!);
 				endSelectionHandles = [primaryHandle];
 				let delta = 0;
@@ -301,7 +303,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 
 			// TODO@rebornix
-			this.selectionHandles = endSelectionHandles;
+			const selectionIndexes = endSelectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
+			this._selectionCollection.setState(cellIndexesToRanges([selectionIndexes[0]])[0], cellIndexesToRanges(selectionIndexes), true, 'model');
 		};
 
 		this._register(this._notebook.onDidChangeContent(e => {
