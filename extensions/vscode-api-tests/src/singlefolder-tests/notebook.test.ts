@@ -1136,13 +1136,26 @@ suite('Notebook API tests', function () {
 suite('statusbar', () => {
 	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
 	const onDidCallProvide = emitter.event;
+	const suiteDisposables: vscode.Disposable[] = [];
+	suiteTeardown(async function () {
+		assertNoRpc();
+
+		await revertAllDirty();
+		await closeAllEditors();
+
+		disposeAll(suiteDisposables);
+		suiteDisposables.length = 0;
+	});
+
 	suiteSetup(() => {
-		vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
+		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
 			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
 				emitter.fire(cell);
 				return [];
 			}
-		});
+		}));
+
+		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
 	test('provideCellStatusBarItems called on metadata change', async function () {
