@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -91,11 +91,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Always ensure inputs have populated resource fields
-		if (editor instanceof DiffEditorInput) {
-			if ((!editor.modifiedInput.resource || !editor.originalInput.resource)) {
-				return { editor, options, group };
-			}
-		} else if (!editor.resource) {
+		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		if (!resource) {
 			return { editor, options, group };
 		}
 
@@ -116,7 +113,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Resolved the override as much as possible, now find a given contribution
-		const { contributionPoint, conflictingDefault } = this.getContributionPoint(editor instanceof DiffEditorInput ? editor.modifiedInput.resource! : editor.resource!, override);
+		const { contributionPoint, conflictingDefault } = this.getContributionPoint(resource, override);
 		const selectedContribution = contributionPoint;
 		if (!selectedContribution) {
 			return { editor, options, group };
@@ -131,10 +128,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (selectedContribution.editorInfo.describes(editor)) {
 			return;
 		}
-		const input = await this.doOverrideEditorInput(editor, options, group, selectedContribution);
+		const input = await this.doOverrideEditorInput(resource, editor, options, group, selectedContribution);
 		if (conflictingDefault && input) {
 			// Show the conflicting default dialog
-			await this.doHandleConflictingDefaults(selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
+			await this.doHandleConflictingDefaults(resource, selectedContribution.editorInfo.label, input.editor, input.options ?? options, group);
 		}
 
 		// Add the group as we might've changed it with the quickpick
@@ -152,10 +149,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable {
-		if (this._contributionPoints.get(globPattern) === undefined) {
-			this._contributionPoints.set(globPattern, []);
+		let contributionPoint = this._contributionPoints.get(globPattern);
+		if (contributionPoint === undefined) {
+			contributionPoint = [];
+			this._contributionPoints.set(globPattern, contributionPoint);
 		}
-		const remove = insert(this._contributionPoints.get(globPattern)!, {
+		const remove = insert(contributionPoint, {
 			globPattern,
 			editorInfo,
 			options,
@@ -231,8 +230,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const userSettings = this.getAssociationsForResource(resource);
 		let contributions: ContributionPoint[] = [];
 		// Then all glob patterns
-		for (const key of this._contributionPoints.keys()) {
-			const contributionPoints = this._contributionPoints.get(key)!;
+		for (const [key, contributionPoints] of this._contributionPoints) {
 			for (const contributionPoint of contributionPoints) {
 				const foundInSettings = userSettings.find(setting => setting.viewType === contributionPoint.editorInfo.id);
 				if (foundInSettings || globMatchesResource(key, resource)) {
@@ -292,7 +290,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 	}
 
-	private async doOverrideEditorInput(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint): Promise<IEditorInputWithOptions | undefined> {
+	private async doOverrideEditorInput(resource: URI, editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, selectedContribution: ContributionPoint): Promise<IEditorInputWithOptions | undefined> {
 
 		// If no activation option is provided, populate it.
 		if (options && typeof options.activation === 'undefined') {
@@ -307,9 +305,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			const inputWithOptions = selectedContribution.createDiffEditorInput(editor, options, group);
 			return inputWithOptions;
 		}
-
-		// We only call this function from one place and there we do the check to ensure editor.resource is not undefined
-		const resource = editor.resource!;
 
 		// Respect options passed back
 		const inputWithOptions = selectedContribution.createEditorInput(resource, options, group);
@@ -375,13 +370,13 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+	private async doHandleConflictingDefaults(resource: URI, editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		type StoredChoice = {
 			[key: string]: string[];
 		};
-		const contributionPoints = this.findMatchingContributions(currentEditor.resource!);
+		const contributionPoints = this.findMatchingContributions(resource);
 		const storedChoices: StoredChoice = JSON.parse(this.storageService.get(EditorOverrideService.conflictingDefaultsStorageID, StorageScope.GLOBAL, '{}'));
-		const globForResource = `*${extname(currentEditor.resource!)}`;
+		const globForResource = `*${extname(resource)}`;
 		// Writes to the storage service that a choice has been made for the currently installed editors
 		const writeCurrentEditorsToStorage = () => {
 			storedChoices[globForResource] = [];
@@ -599,8 +594,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const cacheStorage: Set<string> = new Set<string>();
 
 		// Store just the relative pattern pieces without any path info
-		for (const globPattern of this._contributionPoints.keys()) {
-			const contribPoint = this._contributionPoints.get(globPattern)!;
+		for (const [globPattern, contribPoint] of this._contributionPoints) {
 			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {
