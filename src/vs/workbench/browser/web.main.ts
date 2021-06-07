@@ -331,7 +331,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, environmentService, fileService);
+		const storageService = new BrowserStorageService(payload, logService, environmentService, fileService);
 
 		try {
 			await storageService.initialize();

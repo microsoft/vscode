@@ -856,6 +856,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isFileToOpen(openable)) {
 				options = { ...options, forceOpenWorkspaceAsFile: true };
 			}
+
 			return this.doResolveFilePath(uri.fsPath, options);
 		}
 

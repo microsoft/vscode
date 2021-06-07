@@ -87,7 +87,7 @@ export class Dialog extends Disposable {
 	private readonly inputs: InputBox[];
 	private readonly buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
 		super();
 
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
@@ -96,7 +96,7 @@ export class Dialog extends Disposable {
 		this.element.setAttribute('role', 'dialog');
 		hide(this.element);
 
-		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
+		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
