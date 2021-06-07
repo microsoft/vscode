@@ -204,35 +204,6 @@ suite('Notebook API tests', function () {
 		await saveAllFilesAndCloseAll();
 	});
 
-	test('editor onDidChangeVisibleNotebookEditors-event', async function () {
-		const resource = await createRandomNotebookFile();
-		const firstEditorOpen = asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		await vscode.window.showNotebookDocument(resource);
-		await firstEditorOpen;
-
-		const firstEditorClose = asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		await closeAllEditors();
-		await firstEditorClose;
-	});
-
-	test('editor onDidChangeVisibleNotebookEditors-event 2', async function () {
-		const resource = await createRandomNotebookFile();
-		let count = 0;
-		const disposables: vscode.Disposable[] = [];
-		disposables.push(vscode.window.onDidChangeVisibleNotebookEditors(() => {
-			count = vscode.window.visibleNotebookEditors.length;
-		}));
-
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(count, 1);
-
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(count, 2);
-
-		await closeAllEditors();
-		assert.strictEqual(count, 0);
-	});
-
 	test('correct cell selection on undo/redo of cell creation', async function () {
 		const notebook = await openRandomNotebookDocument();
 		await vscode.window.showNotebookDocument(notebook);
@@ -326,48 +297,6 @@ suite('Notebook API tests', function () {
 		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
 		const firstEditor = vscode.window.activeNotebookEditor;
 		assert.strictEqual(firstEditor?.document.cellCount, 2);
-	});
-
-	test('notebook editor active/visible', async function () {
-		const resource = await createRandomNotebookFile();
-		const firstEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(firstEditor === vscode.window.activeNotebookEditor, true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
-
-		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
-
-		assert.notStrictEqual(firstEditor, secondEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(secondEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
-
-		const untitledEditorChange = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
-		await untitledEditorChange;
-		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) >= 0, true);
-		assert.notStrictEqual(firstEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) < 0, true);
-		assert.notStrictEqual(secondEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 1);
-
-		const activeEditorClose = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-		await activeEditorClose;
-		assert.strictEqual(secondEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
-		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) >= 0, true);
-	});
-
-	test('notebook active editor change', async function () {
-		const firstEditorOpen = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await firstEditorOpen;
-
-		const firstEditorDeactivate = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
-		await firstEditorDeactivate;
 	});
 
 	test('edit API batch edits', async function () {
