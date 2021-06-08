@@ -1078,7 +1078,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			if (typeof newContent === 'string') {
 				cell.updateContentAndRender(newContent);
 			} else {
-				this.updateMarkupDimensions(id);
+				this.updateMarkupDimensions(cell);
 			}
 		}
 
@@ -1100,16 +1100,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 
 			cell.element.style.visibility = 'visible';
-			this.updateMarkupDimensions(id);
+			this.updateMarkupDimensions(cell);
 		}
 
-		private async updateMarkupDimensions(id: string) {
-			const entry = this._markupCells.get(id);
-			if (entry) {
-				dimensionUpdater.update(id, entry.element.clientHeight, {
-					isOutput: false
-				});
-			}
+		private async updateMarkupDimensions(cell: MarkdownCell) {
+			dimensionUpdater.update(cell.id, cell.element.clientHeight, {
+				isOutput: false
+			});
 		}
 	}();
 
