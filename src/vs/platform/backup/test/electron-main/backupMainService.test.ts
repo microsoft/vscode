@@ -132,7 +132,7 @@ flakySuite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.rimraf(testDir);
+		return pfs.Promises.rm(testDir);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {

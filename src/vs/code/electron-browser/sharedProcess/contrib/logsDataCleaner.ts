@@ -5,7 +5,7 @@
 
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join, dirname, basename } from 'vs/base/common/path';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -41,7 +41,7 @@ export class LogsDataCleaner extends Disposable {
 			if (sessionsToDelete.length > 0) {
 				this.logService.info(`[logs cleanup]: Removing log folders '${sessionsToDelete.join(', ')}'`);
 
-				await Promise.all(sessionsToDelete.map(sessionToDelete => rimraf(join(logsRoot, sessionToDelete))));
+				await Promise.all(sessionsToDelete.map(sessionToDelete => Promises.rm(join(logsRoot, sessionToDelete))));
 			}
 		} catch (error) {
 			onUnexpectedError(error);

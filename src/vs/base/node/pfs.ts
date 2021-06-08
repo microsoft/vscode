@@ -39,7 +39,7 @@ export enum RimRafMode {
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
  */
-export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
@@ -179,7 +179,7 @@ function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDir
  * A convinience method to read all children of a path that
  * are directories.
  */
-export async function readDirsInDir(dirPath: string): Promise<string[]> {
+async function readDirsInDir(dirPath: string): Promise<string[]> {
 	const children = await readdir(dirPath);
 	const directories: string[] = [];
 
@@ -474,7 +474,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
-export async function move(source: string, target: string): Promise<void> {
+async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
@@ -536,7 +536,7 @@ interface ICopyPayload {
  * links should be handled when encountered. Set to
  * `false` to not preserve them and `true` otherwise.
  */
-export async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
+async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
 	return doCopy(source, target, { root: { source, target }, options, handledSourcePaths: new Set<string>() });
 }
 
@@ -698,7 +698,14 @@ export const Promises = new class {
 	}
 
 	get readdir() { return readdir; }
+	get readDirsInDir() { return readDirsInDir; }
+
 	get writeFile() { return writeFile; }
+
+	get rm() { return rimraf; }
+
+	get move() { return move; }
+	get copy() { return copy; }
 
 	//#endregion
 };

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import * as path from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { extract } from 'vs/base/node/zip';
-import { rimraf, Promises } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { createCancelablePromise } from 'vs/base/common/async';
 import { getRandomTestPath, getPathFromAmdModule } from 'vs/base/test/node/testUtils';
 
@@ -22,7 +22,7 @@ suite('Zip', () => {
 	});
 
 	teardown(() => {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('extract should handle directories', async () => {

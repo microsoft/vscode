@@ -281,6 +281,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
+		// When a custom pty is used set the name immediately so it gets passed over to the exthost
+		// and is available when Pseudoterminal.open fires.
+		if (this.shellLaunchConfig.customPtyImplementation) {
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+		}
+
 		this._initDimensions();
 		this._createProcessManager();
 
