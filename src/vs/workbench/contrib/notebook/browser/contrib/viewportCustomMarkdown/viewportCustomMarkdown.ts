@@ -65,7 +65,7 @@ class NotebookViewportContribution extends Disposable implements INotebookEditor
 					if (pickedMimeTypeRenderer.rendererId === BUILTIN_RENDERER_ID) {
 						const renderer = this._notebookEditor.getOutputRenderer().getContribution(pickedMimeTypeRenderer.mimeType);
 						if (renderer?.getType() === RenderOutputType.Html) {
-							const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType), DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
+							const renderResult = renderer.render(output, output.model.outputs.filter(op => op.mime === pickedMimeTypeRenderer.mimeType)[0], DOM.$(''), this._notebookEditor.viewModel.uri) as IInsetRenderOutput;
 							this._notebookEditor.createOutput(viewCell, renderResult, 0);
 						}
 						return;
