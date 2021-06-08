@@ -51,6 +51,9 @@ const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
 
+const Button = (title: string, href: string) => `[${title}](${href})`;
+const featuresAreDisabledTranslated = localize('status.tooltipUntrustedWindow2.featuresAreDisabled', "features are disabled");
+
 /*
  * Trust Request via Service UX handler
  */
@@ -374,7 +377,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
 					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
 				toolTip = trusted ? ariaLabel : {
-					value: localize('status.tooltipUntrustedWindow', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [window is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					value: localize(
+						'status.tooltipUntrustedWindow2',
+						"Running in Restricted Mode\n\n\Some {0} because this {1}.",
+						Button(featuresAreDisabledTranslated, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`),
+						Button(localize('status.tooltipUntrustedWindow2.WindowIsNotTrusted', "window is not trusted"), `command:${MANAGE_TRUST_COMMAND_ID}`)),
 					isTrusted: true,
 					supportThemeIcons: true
 				};
@@ -384,7 +391,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
 					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
 				toolTip = trusted ? ariaLabel : {
-					value: localize('status.tooltipUntrustedFolder', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [folder is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					value: localize(
+						'status.tooltipUntrustedFolder2',
+						"Running in Restricted Mode\n\n\Some {0} because this {1}.",
+						Button(featuresAreDisabledTranslated, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`),
+						Button(localize('status.tooltipUntrustedFolder2.FolderNotTrusted', "folder is not trusted"), `command:${MANAGE_TRUST_COMMAND_ID}`)),
 					isTrusted: true,
 					supportThemeIcons: true
 				};
@@ -394,7 +405,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
 					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
 				toolTip = trusted ? ariaLabel : {
-					value: localize('status.tooltipUntrustedWorkspace', "Running in Restricted Mode\n\n\Some [features are disabled](command:{0}) because this [workspace is not trusted](command:{1}).", LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, MANAGE_TRUST_COMMAND_ID),
+					value: localize(
+						'status.tooltipUntrustedWorkspace2',
+						"Running in Restricted Mode\n\n\Some {0} because this {1}.",
+						Button(featuresAreDisabledTranslated, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`),
+						Button(localize('status.tooltipUntrustedWorkspace2.workspaceNotTrusted', "workspace is not trusted"), `command:${MANAGE_TRUST_COMMAND_ID}`)),
 					isTrusted: true,
 					supportThemeIcons: true
 				};
