@@ -125,7 +125,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 		});
 
-		this._sessions.map(session => {
+		this._sessions.forEach(session => {
 			const matchesExisting = storedSessions.some(s => s.id === session.id);
 			// Another window has logged out, remove from our state
 			if (!matchesExisting) {

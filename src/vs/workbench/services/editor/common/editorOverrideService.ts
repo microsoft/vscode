@@ -23,7 +23,7 @@ export const IEditorOverrideService = createDecorator<IEditorOverrideService>('e
 
 //#region Editor Associations
 
-// Static values for editor contributions
+// Static values for registered editors
 
 export type EditorAssociation = {
 	readonly viewType: string;
@@ -72,7 +72,7 @@ export enum ContributedEditorPriority {
 	default = 'default'
 }
 
-export type ContributionPointOptions = {
+export type RegisteredEditorOptions = {
 	/**
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
@@ -118,16 +118,16 @@ export interface IEditorOverrideService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
-	 * Registers a specific editor contribution.
-	 * @param globPattern The glob pattern for this contribution point
-	 * @param editorInfo Information about the contribution point
-	 * @param options Specific options which apply to this contribution
+	 * Registers a specific editor.
+	 * @param globPattern The glob pattern for this registration
+	 * @param editorInfo Information about the registration
+	 * @param options Specific options which apply to this registration
 	 * @param createEditorInput The factory method for creating inputs
 	 */
-	registerContributionPoint(
+	registerEditor(
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: ContributedEditorInfo,
-		options: ContributionPointOptions,
+		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;

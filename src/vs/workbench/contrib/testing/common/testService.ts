@@ -65,6 +65,17 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	getReviverDiff(): TestsDiff;
 }
 
+/**
+ * Iterates through the item and its parents to the root.
+ */
+export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
+	let p: InternalTestItem | undefined = item;
+	while (p) {
+		yield p;
+		p = p.parent ? collection.getNodeById(p.parent) : undefined;
+	}
+};
+
 export const waitForAllRoots = (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
 	if (collection.pendingRootProviders === 0 || ct.isCancellationRequested) {
 		return Promise.resolve();

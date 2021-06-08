@@ -13,6 +13,8 @@
 		"allowJs": true,
 		"checkJs": true,
 		"strict": true,
+		"strictOptionalProperties": false,
+		"useUnknownInCatchVariables": false,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"newLine": "lf"

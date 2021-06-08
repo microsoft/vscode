@@ -82,7 +82,6 @@ export class Application {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
-		await this.code.waitForElement('.explorer-folders-view');
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {

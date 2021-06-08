@@ -154,7 +154,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	/** @inheritdoc */
 	public closeAllPeeks() {
 		for (const editor of this.codeEditorService.listCodeEditors()) {
-			TestingOutputPeekController.get(editor).removePeek();
+			TestingOutputPeekController.get(editor)?.removePeek();
 		}
 	}
 

@@ -305,6 +305,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		}
 
 		if (!this._modelRef) {
+			const oldCapabilities = this.capabilities;
 			this._modelRef = this._register(assertIsDefined(await this.customEditorService.models.tryRetain(this.resource, this.viewType)));
 			this._register(this._modelRef.object.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 			this._register(this._modelRef.object.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
@@ -315,6 +316,9 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 			}
 			if (this.isDirty()) {
 				this._onDidChangeDirty.fire();
+			}
+			if (this.capabilities !== oldCapabilities) {
+				this._onDidChangeCapabilities.fire();
 			}
 		}
 
