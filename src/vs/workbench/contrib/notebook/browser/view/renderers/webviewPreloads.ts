@@ -533,7 +533,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						if (typeof data.content === 'string') {
 							notebookDocument.updateMarkupContent(data.id, data.content);
 						} else {
-							notebookDocument.updateMarkupDimensions(data.id, cellContainer);
+							notebookDocument.updateMarkupDimensions(data.id);
 						}
 					}
 				}
@@ -554,7 +554,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						const cellContainer = document.getElementById(id);
 						if (cellContainer) {
 							cellContainer.style.visibility = 'visible';
-							notebookDocument.updateMarkupDimensions(id, cellContainer);
+							notebookDocument.updateMarkupDimensions(id);
 						}
 					}
 				}
@@ -1120,13 +1120,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				});
 			}
 
-			this.updateMarkupDimensions(cell.id, cell.element);
+			this.updateMarkupDimensions(cell.id);
 		}
 
-		public async updateMarkupDimensions(id: string, previewContainerNode: HTMLElement) {
-			dimensionUpdater.update(id, previewContainerNode.clientHeight, {
-				isOutput: false
-			});
+		public async updateMarkupDimensions(id: string) {
+			const entry = this._markupCells.get(id);
+			if (entry) {
+				dimensionUpdater.update(id, entry.element.clientHeight, {
+					isOutput: false
+				});
+			}
 		}
 	}();
 
