@@ -512,13 +512,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		switch (event.data.type) {
 			case 'initializeMarkup':
 				{
-					await ensureMarkdownPreviewCells(event.data.cells);
+					await ensureMarkupCells(event.data.cells);
 					dimensionUpdater.updateImmediately();
 					postNotebookMessage('initializedMarkdownPreview', {});
 				}
 				break;
 			case 'createMarkupCell':
-				ensureMarkdownPreviewCells([event.data.cell]);
+				ensureMarkupCells([event.data.cell]);
 				break;
 			case 'showMarkupCell':
 				{
@@ -528,7 +528,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (cellContainer) {
 						cellContainer.style.visibility = 'visible';
 						cellContainer.style.top = `${data.top}px`;
-						updateMarkdownPreview(cellContainer, data.id, data.content);
+						if (typeof data.content === 'string') {
+							const item = createMarkdownOutputItem(data.id, cellContainer, data.content);
+							updateMarkupContent(cellContainer, item);
+						} else {
+							updateMarkupDimensions(cellContainer, data.id);
+						}
+
 					}
 				}
 				break;
@@ -548,7 +554,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						const cellContainer = document.getElementById(id);
 						if (cellContainer) {
 							cellContainer.style.visibility = 'visible';
-							updateMarkdownPreview(cellContainer, id, undefined);
+							updateMarkupDimensions(cellContainer, id);
 						}
 					}
 				}
@@ -1050,17 +1056,17 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
+	async function createMarkup(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
 
-		const existing = document.getElementById(cellId);
+		const existing = document.getElementById(init.cellId);
 		if (existing) {
-			console.error(`Trying to create markdown preview that already exists: ${cellId}`);
+			console.error(`Trying to create markup that already exists: ${init.cellId}`);
 			return existing;
 		}
 
-		cellContainer.id = cellId;
+		cellContainer.id = init.cellId;
 		cellContainer.classList.add('preview');
 
 		cellContainer.style.position = 'absolute';
@@ -1068,12 +1074,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		container.appendChild(cellContainer);
 
 		cellContainer.addEventListener('dblclick', () => {
-			postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId: init.cellId });
 		});
 
 		cellContainer.addEventListener('click', e => {
 			postNotebookMessage<webviewMessages.IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
-				cellId,
+				cellId: init.cellId,
 				altKey: e.altKey,
 				ctrlKey: e.ctrlKey,
 				metaKey: e.metaKey,
@@ -1083,48 +1089,50 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		cellContainer.addEventListener('contextmenu', e => {
 			postNotebookMessage<webviewMessages.IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
-				cellId,
+				cellId: init.cellId,
 				clientX: e.clientX,
 				clientY: e.clientY,
 			});
 		});
 
 		cellContainer.addEventListener('mouseenter', () => {
-			postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId: init.cellId });
 		});
 
 		cellContainer.addEventListener('mouseleave', () => {
-			postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId: init.cellId });
 		});
 
 		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
 
 		cellContainer.addEventListener('dragstart', e => {
-			markdownPreviewDragManager.startDrag(e, cellId);
+			markdownPreviewDragManager.startDrag(e, init.cellId);
 		});
 
 		cellContainer.addEventListener('drag', e => {
-			markdownPreviewDragManager.updateDrag(e, cellId);
+			markdownPreviewDragManager.updateDrag(e, init.cellId);
 		});
 
 		cellContainer.addEventListener('dragend', e => {
-			markdownPreviewDragManager.endDrag(e, cellId);
+			markdownPreviewDragManager.endDrag(e, init.cellId);
 		});
 
-		await updateMarkdownPreview(cellContainer, cellId, content);
+		const ouputItem = createMarkdownOutputItem(init.cellId, cellContainer, init.content);
+		await updateMarkupContent(cellContainer, ouputItem);
 
-		resizeObserver.observe(cellContainer, cellId, false);
+		resizeObserver.observe(cellContainer, init.cellId, false);
 
 		return cellContainer;
 	}
 
-	async function ensureMarkdownPreviewCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
+	async function ensureMarkupCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
 		await Promise.all(update.map(async cell => {
 			let container = document.getElementById(cell.cellId);
 			if (container) {
-				await updateMarkdownPreview(container, cell.cellId, cell.content);
+				const item = createMarkdownOutputItem(cell.cellId, container, cell.content);
+				await updateMarkupContent(container, item);
 			} else {
-				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+				container = await createMarkup(cell, cell.offset);
 			}
 
 			container.style.visibility = cell.visible ? 'visible' : 'hidden';
@@ -1145,28 +1153,30 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	let hasPostedRenderedMathTelemetry = false;
 	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
-		if (typeof content === 'string') {
+	async function updateMarkupContent(element: HTMLElement, outputItem: IOutputItem) {
 
-			await renderers.render(createMarkdownOutputItem(cellId, previewContainerNode, content), previewContainerNode);
+		await renderers.render(outputItem, element);
 
-			if (!hasPostedRenderedMathTelemetry) {
-				const hasRenderedMath = previewContainerNode.querySelector('.katex');
-				if (hasRenderedMath) {
-					hasPostedRenderedMathTelemetry = true;
-					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-				}
-			}
-
-			const matches = previewContainerNode.innerText.match(unsupportedKatexTermsRegex);
-			if (matches) {
-				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-					latexDirective: matches[0],
-				});
+		if (!hasPostedRenderedMathTelemetry) {
+			const hasRenderedMath = element.querySelector('.katex');
+			if (hasRenderedMath) {
+				hasPostedRenderedMathTelemetry = true;
+				postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
 			}
 		}
 
-		dimensionUpdater.update(cellId, previewContainerNode.clientHeight, {
+		const matches = element.innerText.match(unsupportedKatexTermsRegex);
+		if (matches) {
+			postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+				latexDirective: matches[0],
+			});
+		}
+
+		updateMarkupDimensions(element, outputItem.id);
+	}
+
+	async function updateMarkupDimensions(previewContainerNode: HTMLElement, id: string) {
+		dimensionUpdater.update(id, previewContainerNode.clientHeight, {
 			isOutput: false
 		});
 	}
