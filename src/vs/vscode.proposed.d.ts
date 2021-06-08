@@ -1434,11 +1434,13 @@ declare module 'vscode' {
 		/**
 		 * The parameters without the return type. Render after `name`.
 		 */
+		//todo@API rename to signature
 		parameters?: string;
 
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
 		 */
+		//todo@API find better name
 		qualifier?: string;
 
 		/**
