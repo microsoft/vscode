@@ -46,7 +46,7 @@ export interface ISandboxConfiguration {
 	zoomLevel?: number;
 
 	/**
-	 * @deprecated to be removed soon
+	 * Location of V8 code cache.
 	 */
-	nodeCachedDataDir?: string;
+	codeCachePath?: string;
 }

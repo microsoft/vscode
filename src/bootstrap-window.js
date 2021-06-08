@@ -148,9 +148,9 @@
 		}
 
 		// Cached data config
-		if (configuration.nodeCachedDataDir) {
+		if (configuration.codeCachePath) {
 			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
+				path: configuration.codeCachePath,
 				seed: modulePaths.join('')
 			};
 		}
