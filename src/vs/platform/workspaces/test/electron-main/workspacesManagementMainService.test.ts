@@ -115,7 +115,7 @@ flakySuite('WorkspacesManagementMainService', () => {
 	teardown(() => {
 		service.dispose();
 
-		return pfs.rimraf(testDir);
+		return pfs.Promises.rm(testDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {

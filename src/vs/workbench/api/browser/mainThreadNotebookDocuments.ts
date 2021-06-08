@@ -13,7 +13,7 @@ import { IImmediateCellEditOperation, IMainCellDto, NotebookCellsChangeType, Not
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ExtHostContext, ExtHostNotebookShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
@@ -23,7 +23,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 	private readonly _disposables = new DisposableStore();
 
-	private readonly _proxy: ExtHostNotebookShape;
+	private readonly _proxy: ExtHostNotebookDocumentsShape;
 	private readonly _documentEventListenersMapping = new ResourceMap<DisposableStore>();
 	private readonly _modelReferenceCollection: BoundModelReferenceCollection;
 
@@ -34,7 +34,7 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebook);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookDocuments);
 		this._modelReferenceCollection = new BoundModelReferenceCollection(this._uriIdentityService.extUri);
 
 		notebooksAndEditors.onDidAddNotebooks(this._handleNotebooksAdded, this, this._disposables);

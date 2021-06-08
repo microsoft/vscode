@@ -5,7 +5,7 @@
 
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { StorageScope, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
+import { StorageScope, IS_NEW_KEY, AbstractStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
 import { IStorage, Storage, IStorageDatabase, IUpdateRequest, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
 import { Promises } from 'vs/base/common/async';
@@ -154,16 +154,22 @@ export class BrowserStorageService extends AbstractStorageService {
 
 	async clear(): Promise<void> {
 
-		// Note: used for testing purposes only!
+		// Clear key/values
+		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of this.keys(scope, target)) {
+					this.remove(key, scope);
+				}
+			}
 
-		// Clear DBs
+			await this.getStorage(scope)?.whenFlushed();
+		}
+
+		// Clear databases
 		await Promises.settled([
 			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
 			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
 		]);
-
-		// Flush to ensure data has been cleared
-		await this.flush();
 	}
 }
 

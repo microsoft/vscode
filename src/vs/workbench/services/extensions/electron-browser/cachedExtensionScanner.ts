@@ -130,7 +130,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.rimraf(cacheFile, pfs.RimRafMode.MOVE);
+			await pfs.Promises.rm(cacheFile, pfs.RimRafMode.MOVE);
 		} catch (err) {
 			errors.onUnexpectedError(err);
 			console.error(err);

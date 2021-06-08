@@ -173,7 +173,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				globPattern,
 				notebookEditorInfo,
 				notebookEditorOptions,
@@ -181,7 +181,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
 				{ ...notebookEditorInfo, priority: ContributedEditorPriority.exclusive },
 				notebookEditorOptions,

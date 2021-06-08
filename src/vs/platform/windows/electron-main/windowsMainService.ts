@@ -1169,7 +1169,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			appRoot: this.environmentMainService.appRoot,
 			execPath: process.execPath,
-			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			codeCachePath: this.environmentMainService.codeCachePath,
 			// If we know the backup folder upfront (for empty windows to restore), we can set it
 			// directly here which helps for restoring UI state associated with that window.
 			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before

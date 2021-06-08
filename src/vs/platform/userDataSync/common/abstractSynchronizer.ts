@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import {
 	SyncResource, SyncStatus, IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, UserDataSyncError, IUserDataSyncLogService, IUserDataSyncUtilService,
 	IUserDataSyncResourceEnablementService, IUserDataSyncBackupStoreService, ISyncResourceHandle, USER_DATA_SYNC_SCHEME, ISyncResourcePreview as IBaseSyncResourcePreview,
-	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState, IUserDataInitializer
+	IUserDataManifest, ISyncData, IRemoteUserData, PREVIEW_DIR_NAME, IResourcePreview as IBaseResourcePreview, Change, MergeState, IUserDataInitializer, getLastSyncResourceUri
 } from 'vs/platform/userDataSync/common/userDataSync';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtUri, extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
@@ -51,10 +51,6 @@ export function isSyncData(thing: any): thing is ISyncData {
 	}
 
 	return false;
-}
-
-function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
-	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
 }
 
 export interface IResourcePreview {
@@ -273,9 +269,10 @@ export abstract class AbstractSynchroniser extends Disposable {
 			this.setStatus(SyncStatus.Syncing);
 			const lastSyncUserData = await this.getLastSyncUserData();
 			const remoteUserData = await this.getLatestRemoteUserData(null, lastSyncUserData);
+			const isRemoteDataFromCurrentMachine = await this.isRemoteDataFromCurrentMachine(remoteUserData);
 
 			/* use replace sync data */
-			const resourcePreviewResults = await this.generateSyncPreview({ ref: remoteUserData.ref, syncData }, lastSyncUserData, CancellationToken.None);
+			const resourcePreviewResults = await this.generateSyncPreview({ ref: remoteUserData.ref, syncData }, lastSyncUserData, isRemoteDataFromCurrentMachine, CancellationToken.None);
 
 			const resourcePreviews: [IResourcePreview, IAcceptResult][] = [];
 			for (const resourcePreviewResult of resourcePreviewResults) {
@@ -293,6 +290,11 @@ export abstract class AbstractSynchroniser extends Disposable {
 		}
 
 		return true;
+	}
+
+	private async isRemoteDataFromCurrentMachine(remoteUserData: IRemoteUserData): Promise<boolean> {
+		const machineId = await this.currentMachineIdPromise;
+		return !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
 	}
 
 	protected async getLatestRemoteUserData(manifest: IUserDataManifest | null, lastSyncUserData: IRemoteUserData | null): Promise<IRemoteUserData> {
@@ -564,11 +566,8 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	private async doGenerateSyncResourcePreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, apply: boolean, token: CancellationToken): Promise<ISyncResourcePreview> {
-		const machineId = await this.currentMachineIdPromise;
-		const isLastSyncFromCurrentMachine = !!remoteUserData.syncData?.machineId && remoteUserData.syncData.machineId === machineId;
-
-		const lastSyncUserDataForPreview = lastSyncUserData === null && isLastSyncFromCurrentMachine && !this.hasSyncResourceStateVersionChanged ? remoteUserData : lastSyncUserData;
-		const resourcePreviewResults = await this.generateSyncPreview(remoteUserData, lastSyncUserDataForPreview, token);
+		const isRemoteDataFromCurrentMachine = await this.isRemoteDataFromCurrentMachine(remoteUserData);
+		const resourcePreviewResults = await this.generateSyncPreview(remoteUserData, lastSyncUserData, isRemoteDataFromCurrentMachine, token);
 
 		const resourcePreviews: IEditableResourcePreview[] = [];
 		for (const resourcePreviewResult of resourcePreviewResults) {
@@ -609,7 +608,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 			}
 		}
 
-		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine };
+		return { remoteUserData, lastSyncUserData, resourcePreviews, isLastSyncFromCurrentMachine: isRemoteDataFromCurrentMachine };
 	}
 
 	async getLastSyncUserData<T extends IRemoteUserData>(): Promise<T | null> {
@@ -716,7 +715,7 @@ export abstract class AbstractSynchroniser extends Disposable {
 	}
 
 	protected abstract readonly version: number;
-	protected abstract generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<IResourcePreview[]>;
+	protected abstract generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<IResourcePreview[]>;
 	protected abstract getMergeResult(resourcePreview: IResourcePreview, token: CancellationToken): Promise<IMergeResult>;
 	protected abstract getAcceptResult(resourcePreview: IResourcePreview, resource: URI, content: string | null | undefined, token: CancellationToken): Promise<IAcceptResult>;
 	protected abstract applyResult(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, result: [IResourcePreview, IAcceptResult][], force: boolean): Promise<void>;

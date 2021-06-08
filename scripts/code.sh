@@ -71,7 +71,8 @@ function code-wsl()
 	fi
 }
 
-if ! [ -z ${IN_WSL+x} ]; then
+if [ "$IN_WSL" == "true" ] && [ -z "$DISPLAY" ]; then
 	code-wsl "$@"
 fi
 code "$@"
+exit $?

@@ -28,8 +28,11 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const DEBUGGERS_AVAILABLE_KEY = 'debug.debuggersavailable';
+
 export class AdapterManager implements IAdapterManager {
 
 	private debuggers: Debugger[];
@@ -49,12 +52,15 @@ export class AdapterManager implements IAdapterManager {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IModeService private readonly modeService: IModeService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IStorageService private readonly storageService: IStorageService
 	) {
 		this.adapterDescriptorFactories = [];
 		this.debuggers = [];
 		this.registerListeners();
+		const debuggersAvailable = this.storageService.getBoolean(DEBUGGERS_AVAILABLE_KEY, StorageScope.WORKSPACE, false);
 		this.debuggersAvailable = CONTEXT_DEBUGGERS_AVAILABLE.bindTo(contextKeyService);
+		this.debuggersAvailable.set(debuggersAvailable);
 	}
 
 	private registerListeners(): void {
@@ -158,6 +164,7 @@ export class AdapterManager implements IAdapterManager {
 	registerDebugAdapterFactory(debugTypes: string[], debugAdapterLauncher: IDebugAdapterFactory): IDisposable {
 		debugTypes.forEach(debugType => this.debugAdapterFactories.set(debugType, debugAdapterLauncher));
 		this.debuggersAvailable.set(this.debugAdapterFactories.size > 0);
+		this.storageService.store(DEBUGGERS_AVAILABLE_KEY, this.debugAdapterFactories.size > 0, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		this._onDidRegisterDebugger.fire();
 
 		return {

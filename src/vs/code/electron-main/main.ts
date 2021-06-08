@@ -209,7 +209,7 @@ class CodeMain {
 			// Environment service (paths)
 			Promise.all<string | undefined>([
 				environmentMainService.extensionsPath,
-				environmentMainService.nodeCachedDataDir,
+				environmentMainService.codeCachePath,
 				environmentMainService.logsPath,
 				environmentMainService.globalStorageHome.fsPath,
 				environmentMainService.workspaceStorageHome.fsPath,

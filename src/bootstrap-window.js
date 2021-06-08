@@ -147,10 +147,10 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// Cached data config
-		if (configuration.nodeCachedDataDir) {
+		// Cached data config (node.js loading only)
+		if (!useCustomProtocol && configuration.codeCachePath) {
 			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
+				path: configuration.codeCachePath,
 				seed: modulePaths.join('')
 			};
 		}

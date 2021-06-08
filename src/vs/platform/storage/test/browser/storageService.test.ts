@@ -15,30 +15,72 @@ import { InMemoryFileSystemProvider } from 'vs/platform/files/common/inMemoryFil
 import { Schemas } from 'vs/base/common/network';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+
+async function createStorageService(): Promise<[DisposableStore, BrowserStorageService]> {
+	const disposables = new DisposableStore();
+	const logService = new NullLogService();
+
+	const fileService = disposables.add(new FileService(logService));
+
+	const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
+	disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
+
+	const storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, { userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
+
+	await storageService.initialize();
+
+	return [disposables, storageService];
+}
 
 flakySuite('StorageService (browser)', function () {
-
 	const disposables = new DisposableStore();
 	let storageService: BrowserStorageService;
 
 	createSuite<BrowserStorageService>({
 		setup: async () => {
-			const logService = new NullLogService();
-
-			const fileService = disposables.add(new FileService(logService));
-
-			const userDataProvider = disposables.add(new InMemoryFileSystemProvider());
-			disposables.add(fileService.registerProvider(Schemas.userData, userDataProvider));
-
-			storageService = disposables.add(new BrowserStorageService({ id: 'workspace-storage-test' }, logService, { userRoamingDataHome: URI.file('/User').with({ scheme: Schemas.userData }) } as unknown as IEnvironmentService, fileService));
-
-			await storageService.initialize();
+			const res = await createStorageService();
+			disposables.add(res[0]);
+			storageService = res[1];
 
 			return storageService;
 		},
 		teardown: async () => {
 			await storageService.clear();
 			disposables.clear();
+		}
+	});
+});
+
+flakySuite('StorageService (browser specific)', () => {
+	const disposables = new DisposableStore();
+	let storageService: BrowserStorageService;
+
+	setup(async () => {
+		const res = await createStorageService();
+		disposables.add(res[0]);
+
+		storageService = res[1];
+	});
+
+	teardown(async () => {
+		await storageService.clear();
+		disposables.clear();
+	});
+
+	test('clear', async () => {
+		storageService.store('bar', 'foo', StorageScope.GLOBAL, StorageTarget.MACHINE);
+		storageService.store('bar', 3, StorageScope.GLOBAL, StorageTarget.USER);
+		storageService.store('bar', 'foo', StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		storageService.store('bar', 3, StorageScope.WORKSPACE, StorageTarget.USER);
+
+		await storageService.clear();
+
+		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				strictEqual(storageService.get('bar', scope), undefined);
+				strictEqual(storageService.keys(scope, target).length, 0);
+			}
 		}
 	});
 });
@@ -71,6 +113,9 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('barUndefined'), undefined);
 		strictEqual(storage.get('barNull'), undefined);
 
+		strictEqual(storage.size, 3);
+		strictEqual(storage.items.size, 3);
+
 		await storage.close();
 
 		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
@@ -83,6 +128,9 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('barBoolean'), 'true');
 		strictEqual(storage.get('barUndefined'), undefined);
 		strictEqual(storage.get('barNull'), undefined);
+
+		strictEqual(storage.size, 3);
+		strictEqual(storage.items.size, 3);
 
 		// Update data
 		storage.set('bar', 'foo2');
@@ -104,6 +152,9 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('barUndefined'), undefined);
 		strictEqual(storage.get('barNull'), undefined);
 
+		strictEqual(storage.size, 3);
+		strictEqual(storage.items.size, 3);
+
 		// Delete data
 		storage.delete('bar');
 		storage.delete('barNumber');
@@ -112,6 +163,9 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('bar', 'undefined'), 'undefined');
 		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
 		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+
+		strictEqual(storage.size, 0);
+		strictEqual(storage.items.size, 0);
 
 		await storage.close();
 
@@ -122,6 +176,38 @@ flakySuite('IndexDBStorageDatabase (browser)', () => {
 		strictEqual(storage.get('bar', 'undefined'), 'undefined');
 		strictEqual(storage.get('barNumber', 'undefinedNumber'), 'undefinedNumber');
 		strictEqual(storage.get('barBoolean', 'undefinedBoolean'), 'undefinedBoolean');
+
+		strictEqual(storage.size, 0);
+		strictEqual(storage.items.size, 0);
+	});
+
+	test('Clear', async () => {
+		let storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+
+		await storage.init();
+
+		storage.set('bar', 'foo');
+		storage.set('barNumber', 55);
+		storage.set('barBoolean', true);
+
+		await storage.close();
+
+		const db = await IndexedDBStorageDatabase.create(id, logService);
+		storage = new Storage(db);
+
+		await storage.init();
+		await db.clear();
+
+		storage = new Storage(await IndexedDBStorageDatabase.create(id, logService));
+
+		await storage.init();
+
+		strictEqual(storage.get('bar'), undefined);
+		strictEqual(storage.get('barNumber'), undefined);
+		strictEqual(storage.get('barBoolean'), undefined);
+
+		strictEqual(storage.size, 0);
+		strictEqual(storage.items.size, 0);
 	});
 
 	test('Inserts and Deletes at the same time', async () => {

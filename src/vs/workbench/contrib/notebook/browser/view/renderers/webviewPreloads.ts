@@ -958,7 +958,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		/**
-		 * Cancells the rendering of all outputs.
+		 * Cancels the rendering of all outputs.
 		 */
 		public cancelAll() {
 			for (const record of this.outputs.values()) {
