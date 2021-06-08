@@ -1111,20 +1111,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			markdownPreviewDragManager.endDrag(e, cellId);
 		});
 
-		const previewRoot = cellContainer.attachShadow({ mode: 'open' });
-
-		// Add default webview style
-		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
-		previewRoot.appendChild(defaultStyles.cloneNode(true));
-
-		// Add default preview style
-		const previewStyles = document.getElementById('preview-styles') as HTMLTemplateElement;
-		previewRoot.appendChild(previewStyles.content.cloneNode(true));
-
-		const previewNode = document.createElement('div');
-		previewNode.id = 'preview';
-		previewRoot.appendChild(previewNode);
-
 		await updateMarkdownPreview(cellContainer, cellId, content);
 
 		resizeObserver.observe(cellContainer, cellId, false);
@@ -1160,29 +1146,23 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
 	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
-		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview');
-		if (!previewNode) {
-			return;
-		}
-
 		if (typeof content === 'string') {
 			if (content.trim().length === 0) {
 				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewNode.innerText = '';
+				previewContainerNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				await renderers.render(createMarkdownOutputItem(cellId, previewNode, content), previewNode);
+				await renderers.render(createMarkdownOutputItem(cellId, previewContainerNode, content), previewContainerNode);
 
 				if (!hasPostedRenderedMathTelemetry) {
-					const hasRenderedMath = previewNode.querySelector('.katex');
+					const hasRenderedMath = previewContainerNode.querySelector('.katex');
 					if (hasRenderedMath) {
 						hasPostedRenderedMathTelemetry = true;
 						postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
 					}
 				}
 
-				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
+				const matches = previewContainerNode.innerText.match(unsupportedKatexTermsRegex);
 				if (matches) {
 					postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
 						latexDirective: matches[0],
