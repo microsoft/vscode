@@ -134,7 +134,7 @@ export class RemoteTerminalService extends Disposable implements IRemoteTerminal
 				}));
 			}
 			this._register(channel.onPtyHostRequestResolveVariables(async e => {
-				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+				const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.vscodeRemote);
 				const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 				const resolveCalls: Promise<string>[] = e.originalText.map(t => {
 					return configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, t);
