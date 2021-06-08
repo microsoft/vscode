@@ -557,13 +557,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
 				break;
 			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load workbench window (reason: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: failed to load workbench window (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 		}
 
