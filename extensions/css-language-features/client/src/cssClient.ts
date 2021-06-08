@@ -92,26 +92,6 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 	// client can be deactivated on extension deactivation
 	context.subscriptions.push(disposable);
 
-	let indentationRules = {
-		increaseIndentPattern: /(^.*\{[^}]*$)/,
-		decreaseIndentPattern: /^\s*\}/
-	};
-
-	languages.setLanguageConfiguration('css', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
-		indentationRules: indentationRules
-	});
-
-	languages.setLanguageConfiguration('less', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]+(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g,
-		indentationRules: indentationRules
-	});
-
-	languages.setLanguageConfiguration('scss', {
-		wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\w-?]+%?|[@#!$.])/g,
-		indentationRules: indentationRules
-	});
-
 	client.onReady().then(() => {
 		context.subscriptions.push(initCompletionProvider());
 	});
