@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath, IMarkdownCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -71,7 +71,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
-		postNotebookMessage<IClickedDataUrlMessage>('clicked-data-url', {
+		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
 			data,
 			downloadName
 		});
@@ -201,7 +201,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	});
 
 	const dimensionUpdater = new class {
-		private readonly pending = new Map<string, DimensionUpdate>();
+		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
 		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
@@ -221,7 +221,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return;
 			}
 
-			postNotebookMessage<IDimensionMessage>('dimension', {
+			postNotebookMessage<webviewMessages.IDimensionMessage>('dimension', {
 				updates: Array.from(this.pending.values())
 			});
 			this.pending.clear();
@@ -300,7 +300,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
-		postNotebookMessage<IWheelMessage>('did-scroll-wheel', {
+		postNotebookMessage<webviewMessages.IWheelMessage>('did-scroll-wheel', {
 			payload: {
 				deltaMode: event.deltaMode,
 				deltaX: event.deltaX,
@@ -324,7 +324,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
 				id: outputId,
 				focusNext
 			});
@@ -335,12 +335,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	function addMouseoverListeners(element: HTMLElement, outputId: string): void {
 		element.addEventListener('mouseenter', () => {
-			postNotebookMessage<IMouseEnterMessage>('mouseenter', {
+			postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', {
 				id: outputId,
 			});
 		});
 		element.addEventListener('mouseleave', () => {
-			postNotebookMessage<IMouseLeaveMessage>('mouseleave', {
+			postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', {
 				id: outputId,
 			});
 		});
@@ -376,7 +376,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._loosingFocus = false;
 			if (!this._hasFocus) {
 				this._hasFocus = true;
-				postNotebookMessage<IOutputFocusMessage>('outputFocus', {
+				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
 					id: this._outputId,
 				});
 			}
@@ -389,7 +389,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (this._loosingFocus) {
 						this._loosingFocus = false;
 						this._hasFocus = false;
-						postNotebookMessage<IOutputBlurMessage>('outputBlur', {
+						postNotebookMessage<webviewMessages.IOutputBlurMessage>('outputBlur', {
 							id: this._outputId,
 						});
 					}
@@ -507,7 +507,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', async rawEvent => {
-		const event = rawEvent as ({ data: ToWebviewMessage; });
+		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
@@ -1068,11 +1068,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		container.appendChild(cellContainer);
 
 		cellContainer.addEventListener('dblclick', () => {
-			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
 		});
 
 		cellContainer.addEventListener('click', e => {
-			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
+			postNotebookMessage<webviewMessages.IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
 				cellId,
 				altKey: e.altKey,
 				ctrlKey: e.ctrlKey,
@@ -1082,7 +1082,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		});
 
 		cellContainer.addEventListener('contextmenu', e => {
-			postNotebookMessage<IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
+			postNotebookMessage<webviewMessages.IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
 				cellId,
 				clientX: e.clientX,
 				clientY: e.clientY,
@@ -1090,11 +1090,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		});
 
 		cellContainer.addEventListener('mouseenter', () => {
-			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
 		});
 
 		cellContainer.addEventListener('mouseleave', () => {
-			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
+			postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
 		});
 
 		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
@@ -1132,7 +1132,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		return cellContainer;
 	}
 
-	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
+	async function ensureMarkdownPreviewCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
 		await Promise.all(update.map(async cell => {
 			let container = document.getElementById(cell.cellId);
 			if (container) {
@@ -1145,7 +1145,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}));
 	}
 
-	function postNotebookMessage<T extends FromWebviewMessage>(
+	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
 		type: T['type'],
 		properties: Omit<T, '__vscode_notebook_message' | 'type'>
 	) {
@@ -1178,13 +1178,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					const hasRenderedMath = previewNode.querySelector('.katex');
 					if (hasRenderedMath) {
 						hasPostedRenderedMathTelemetry = true;
-						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+						postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
 					}
 				}
 
 				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
 				if (matches) {
-					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+					postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
 						latexDirective: matches[0],
 					});
 				}
@@ -1215,7 +1215,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				}
 
 				this.currentDrag = undefined;
-				postNotebookMessage<ICellDropMessage>('cell-drop', {
+				postNotebookMessage<webviewMessages.ICellDropMessage>('cell-drop', {
 					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
@@ -1237,7 +1237,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			(e.target as HTMLElement).classList.add('dragging');
 
-			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
+			postNotebookMessage<webviewMessages.ICellDragStartMessage>('cell-drag-start', {
 				cellId: cellId,
 				dragOffsetY: e.clientY,
 			});
@@ -1249,7 +1249,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					return;
 				}
 
-				postNotebookMessage<ICellDragMessage>('cell-drag', {
+				postNotebookMessage<webviewMessages.ICellDragMessage>('cell-drag', {
 					cellId: cellId,
 					dragOffsetY: this.currentDrag.clientY,
 				});
@@ -1268,7 +1268,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		endDrag(e: DragEvent, cellId: string) {
 			this.currentDrag = undefined;
 			(e.target as HTMLElement).classList.remove('dragging');
-			postNotebookMessage<ICellDragEndMessage>('cell-drag-end', {
+			postNotebookMessage<webviewMessages.ICellDragEndMessage>('cell-drag-end', {
 				cellId: cellId
 			});
 		}
