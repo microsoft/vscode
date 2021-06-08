@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import minimist = require('minimist');
 import * as path from 'path';
 import { Application, ApplicationOptions } from '../../../../automation';
 
@@ -35,7 +34,7 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 	return workspaceFilePath;
 }
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup() {
 	describe('Multiroot', () => {
 
 		before(async function () {

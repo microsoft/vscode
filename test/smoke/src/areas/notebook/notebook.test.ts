@@ -13,16 +13,16 @@ import { Application } from '../../../../automation';
 
 export function setup() {
 	describe('Notebooks', () => {
-		afterEach(async function () {
-			const app = this.app as Application;
-			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
-			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
-		});
-
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+		});
+
+		afterEach(async function () {
+			const app = this.app as Application;
+			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
+			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
 		});
 
 		// it('inserts/edits code cell', async function () {

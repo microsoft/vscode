@@ -7,7 +7,6 @@ import { Application, Quality } from '../../../../automation';
 
 export function setup() {
 	describe('Localization', () => {
-
 		before(async function () {
 			const app = this.app as Application;
 

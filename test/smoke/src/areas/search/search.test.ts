@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import minimist = require('minimist');
 import { Application } from '../../../../automation';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup() {
 	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
 		after(async function () {
