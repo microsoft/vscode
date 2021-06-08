@@ -1460,7 +1460,7 @@ export namespace NotebookData {
 
 	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
 		const res: notebooks.NotebookDataDto = {
-			metadata: isEmptyObject(data.metadata) ? Object.create(null) : data.metadata,
+			metadata: isEmptyObject(data.metadata) ? Object.create({ custom: {} }) : data.metadata,
 			cells: [],
 		};
 		for (let cell of data.cells) {
