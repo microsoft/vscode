@@ -837,7 +837,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					setMarkupContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
 				}
 
-
 				break;
 		}
 	});
@@ -1042,96 +1041,41 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	const notebookDocument = new class {
 
-		private readonly _markupCells = new Map<string, { element: HTMLElement, item: MarkdownOutputItem }>();
+		private readonly _markupCells = new Map<string, MarkdownCell>();
 
 		async createMarkupCell(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<HTMLElement> {
-			const container = document.getElementById('container')!;
-			const cellContainer = document.createElement('div');
-
 			const existingNode = document.getElementById(init.cellId);
 			if (existingNode) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
 				return existingNode;
 			}
+
 			const existingEntry = this._markupCells.get(init.cellId);
 			if (existingEntry) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
 				return existingEntry.element;
 			}
 
-			cellContainer.id = init.cellId;
-			cellContainer.classList.add('preview');
+			const markdownCell = new MarkdownCell(init.cellId, init.content);
+			this._markupCells.set(init.cellId, markdownCell);
+			await this.renderMarkup(markdownCell);
 
-			cellContainer.style.position = 'absolute';
-			cellContainer.style.top = top + 'px';
-			container.appendChild(cellContainer);
-
-			cellContainer.addEventListener('dblclick', () => {
-				postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId: init.cellId });
-			});
-
-			cellContainer.addEventListener('click', e => {
-				postNotebookMessage<webviewMessages.IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
-					cellId: init.cellId,
-					altKey: e.altKey,
-					ctrlKey: e.ctrlKey,
-					metaKey: e.metaKey,
-					shiftKey: e.shiftKey,
-				});
-			});
-
-			cellContainer.addEventListener('contextmenu', e => {
-				postNotebookMessage<webviewMessages.IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
-					cellId: init.cellId,
-					clientX: e.clientX,
-					clientY: e.clientY,
-				});
-			});
-
-			cellContainer.addEventListener('mouseenter', () => {
-				postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId: init.cellId });
-			});
-
-			cellContainer.addEventListener('mouseleave', () => {
-				postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId: init.cellId });
-			});
-
-			setMarkupContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
-
-			cellContainer.addEventListener('dragstart', e => {
-				markdownPreviewDragManager.startDrag(e, init.cellId);
-			});
-
-			cellContainer.addEventListener('drag', e => {
-				markdownPreviewDragManager.updateDrag(e, init.cellId);
-			});
-
-			cellContainer.addEventListener('dragend', e => {
-				markdownPreviewDragManager.endDrag(e, init.cellId);
-			});
-
-			const outputItem = new MarkdownOutputItem(init.cellId, cellContainer, init.content);
-			this._markupCells.set(init.cellId, { element: cellContainer, item: outputItem });
-			await this.renderMarkup(outputItem, cellContainer);
-
-			resizeObserver.observe(cellContainer, init.cellId, false);
-
-			return cellContainer;
+			return markdownCell.element;
 		}
 
 		public async ensureMarkupCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
-			await Promise.all(update.map(async cell => {
+			await Promise.all(update.map(async info => {
 				let container: HTMLElement;
 
-				const entry = this._markupCells.get(cell.cellId);
-				if (entry) {
-					await this.renderMarkup(entry.item, entry.element);
-					container = entry.element;
+				const cell = this._markupCells.get(info.cellId);
+				if (cell) {
+					await this.renderMarkup(cell);
+					container = cell.element;
 				} else {
-					container = await this.createMarkupCell(cell, cell.offset);
+					container = await this.createMarkupCell(info, info.offset);
 				}
 
-				container.style.visibility = cell.visible ? 'visible' : 'hidden';
+				container.style.visibility = info.visible ? 'visible' : 'hidden';
 			}));
 		}
 
@@ -1148,35 +1092,35 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
 		public async updateMarkupContent(id: string, content: string): Promise<void> {
-			const entry = this._markupCells.get(id);
-			if (!entry) {
+			const cell = this._markupCells.get(id);
+			if (!cell) {
 				throw new Error('Trying to update a cell that does not exist');
 			}
 
-			entry.item.content = content;
-			return this.renderMarkup(entry.item, entry.element);
+			cell.content = content;
+			return this.renderMarkup(cell);
 		}
 
-		private async renderMarkup(item: IOutputItem, element: HTMLElement): Promise<void> {
+		private async renderMarkup(cell: MarkdownCell): Promise<void> {
 
-			await renderers.render(item, element);
+			await renderers.render(cell, cell.element);
 
 			if (!this.hasPostedRenderedMathTelemetry) {
-				const hasRenderedMath = element.querySelector('.katex');
+				const hasRenderedMath = cell.element.querySelector('.katex');
 				if (hasRenderedMath) {
 					this.hasPostedRenderedMathTelemetry = true;
 					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
 				}
 			}
 
-			const matches = element.innerText.match(this.unsupportedKatexTermsRegex);
+			const matches = cell.element.innerText.match(this.unsupportedKatexTermsRegex);
 			if (matches) {
 				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
 					latexDirective: matches[0],
 				});
 			}
 
-			this.updateMarkupDimensions(item.id, element);
+			this.updateMarkupDimensions(cell.id, cell.element);
 		}
 
 		public async updateMarkupDimensions(id: string, previewContainerNode: HTMLElement) {
@@ -1186,11 +1130,32 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}();
 
-	class MarkdownOutputItem implements IOutputItem {
+	class MarkdownCell implements IOutputItem {
 
 		public readonly mime = 'text/markdown';
 
+		/// Internal field that holds markdown text
+		public content: string;
+
+		constructor(id: string, content: string) {
+			this.id = id;
+			this.content = content;
+
+			const root = document.getElementById('container')!;
+
+			this.element = document.createElement('div');
+			this.element.id = this.id;
+			this.element.classList.add('preview');
+			this.element.style.position = 'absolute';
+			this.element.style.top = top + 'px';
+			root.appendChild(this.element);
+
+			this.addEventListeners();
+		}
+
+		//#region IOutputItem
 		public readonly id: string;
+
 		public readonly element: HTMLElement;
 
 		// deprecated fields
@@ -1198,20 +1163,60 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public readonly metadata2 = undefined;
 		public readonly outputId?: string | undefined;
 
-		/// Internal field that holds markdown text
-		public content: string;
-
-		constructor(id: string, element: HTMLElement, content: string) {
-			this.id = id;
-			this.element = element;
-			this.content = content;
-		}
-
 		text() { return this.content; }
 		json() { return undefined; }
 		bytes() { return this.data(); }
 		data() { return new TextEncoder().encode(this.content); }
 		blob() { return new Blob([this.data()], { type: this.mime }); }
+		//#endregion
+
+		private addEventListeners() {
+			this.element.addEventListener('dblclick', () => {
+				postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId: this.id });
+			});
+
+			this.element.addEventListener('click', e => {
+				postNotebookMessage<webviewMessages.IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
+					cellId: this.id,
+					altKey: e.altKey,
+					ctrlKey: e.ctrlKey,
+					metaKey: e.metaKey,
+					shiftKey: e.shiftKey,
+				});
+			});
+
+			this.element.addEventListener('contextmenu', e => {
+				postNotebookMessage<webviewMessages.IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
+					cellId: this.id,
+					clientX: e.clientX,
+					clientY: e.clientY,
+				});
+			});
+
+			this.element.addEventListener('mouseenter', () => {
+				postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId: this.id });
+			});
+
+			this.element.addEventListener('mouseleave', () => {
+				postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId: this.id });
+			});
+
+			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);
+
+			this.element.addEventListener('dragstart', e => {
+				markdownPreviewDragManager.startDrag(e, this.id);
+			});
+
+			this.element.addEventListener('drag', e => {
+				markdownPreviewDragManager.updateDrag(e, this.id);
+			});
+
+			this.element.addEventListener('dragend', e => {
+				markdownPreviewDragManager.endDrag(e, this.id);
+			});
+
+			resizeObserver.observe(this.element, this.id, false);
+		}
 	}
 
 	vscode.postMessage({
