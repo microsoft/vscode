@@ -511,61 +511,37 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				{
-					await notebookDocument.ensureMarkupCells(event.data.cells);
-					dimensionUpdater.updateImmediately();
-					postNotebookMessage('initializedMarkdownPreview', {});
-				}
+				await notebookDocument.ensureMarkupCells(event.data.cells);
+				dimensionUpdater.updateImmediately();
+				postNotebookMessage('initializedMarkdownPreview', {});
 				break;
-			case 'createMarkupCell':
-				{
-					notebookDocument.ensureMarkupCells([event.data.cell]);
-					break;
-				}
-			case 'showMarkupCell':
-				{
-					const data = event.data;
 
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
-						cellContainer.style.top = `${data.top}px`;
-						if (typeof data.content === 'string') {
-							notebookDocument.updateMarkupContent(data.id, data.content);
-						} else {
-							notebookDocument.updateMarkupDimensions(data.id);
-						}
-					}
-				}
+			case 'createMarkupCell':
+				notebookDocument.ensureMarkupCells([event.data.cell]);
 				break;
+
+			case 'showMarkupCell':
+				notebookDocument.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				break;
+
 			case 'hideMarkupCells':
-				{
-					for (const id of event.data.ids) {
-						const cellContainer = document.getElementById(id);
-						if (cellContainer) {
-							cellContainer.style.visibility = 'hidden';
-						}
-					}
+				for (const id of event.data.ids) {
+					notebookDocument.hideMarkupCell(id);
 				}
 				break;
+
 			case 'unhideMarkupCells':
-				{
-					for (const id of event.data.ids) {
-						const cellContainer = document.getElementById(id);
-						if (cellContainer) {
-							cellContainer.style.visibility = 'visible';
-							notebookDocument.updateMarkupDimensions(id);
-						}
-					}
+				for (const id of event.data.ids) {
+					notebookDocument.unhideMarkupCell(id);
 				}
 				break;
+
 			case 'deleteMarkupCell':
-				{
-					for (const id of event.data.ids) {
-						notebookDocument.deleteMarkupCell(id);
-					}
+				for (const id of event.data.ids) {
+					notebookDocument.deleteMarkupCell(id);
 				}
 				break;
+
 			case 'updateSelectedMarkupCells':
 				{
 					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
@@ -1068,7 +1044,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				} else {
 					cell = await this.createMarkupCell(info, info.offset);
 				}
-				console.log(info.visible);
 				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 			}));
 		}
@@ -1091,7 +1066,44 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			return cell.updateContentAndRender(newContent);
 		}
 
-		public async updateMarkupDimensions(id: string) {
+		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
+			const cell = this._markupCells.get(id);
+			if (!cell) {
+				console.log(`Could not find markup cell '${id}'`);
+				return;
+			}
+
+			cell.element.style.visibility = 'visible';
+			cell.element.style.top = `${top}px`;
+			if (typeof newContent === 'string') {
+				cell.updateContentAndRender(newContent);
+			} else {
+				this.updateMarkupDimensions(id);
+			}
+		}
+
+		public hideMarkupCell(id: string): void {
+			const cell = this._markupCells.get(id);
+			if (!cell) {
+				console.log(`Could not find markup cell '${id}'`);
+				return;
+			}
+
+			cell.element.style.visibility = 'hidden';
+		}
+
+		public unhideMarkupCell(id: string): void {
+			const cell = this._markupCells.get(id);
+			if (!cell) {
+				console.log(`Could not find markup cell '${id}'`);
+				return;
+			}
+
+			cell.element.style.visibility = 'visible';
+			this.updateMarkupDimensions(id);
+		}
+
+		private async updateMarkupDimensions(id: string) {
 			const entry = this._markupCells.get(id);
 			if (entry) {
 				dimensionUpdater.update(id, entry.element.clientHeight, {
