@@ -142,8 +142,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				.then(async result => {
 					this._remoteAuthority = result;
 
-					// Update workspace trust based on resolver
-					if (this._remoteAuthority?.options?.isTrusted !== undefined) {
+					// Override workspace trust based on resolver result. At the moment we only factor
+					// in the resolver result, if it sets workspace trust to true. We do not support the
+					// scenario in which the resolver results sets workspace trust to false.
+					if (this._remoteAuthority?.options?.isTrusted) {
 						await this.updateWorkspaceTrust(true);
 					}
 
@@ -249,7 +251,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise use the user setting
 			// Workspace may transition to trusted based on the opened editors
-			return this._trustState.isTrusted || this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW);
+			if (this._trustState.isTrusted !== undefined) {
+				return this._trustState.isTrusted;
+			}
+
+			return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
 		}
 
 		// Pending initialization
