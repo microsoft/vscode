@@ -1021,38 +1021,17 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async renderCustom(rendererId: string, info: IOutputItem, element: HTMLElement) {
-			const api = await this.load(rendererId);
-			if (!api) {
-				throw new Error(`renderer ${rendererId} did not return an API`);
-			}
+		public async render(info: IOutputItem, element: HTMLElement) {
+			const renderers = Array.from(this._renderers.values())
+				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
-			api.renderOutputItem(info, element);
-		}
-
-		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
-			const markdownRenderers = Array.from(this._renderers.values())
-				.filter(renderer => renderer.data.mimeTypes.includes('text/markdown') && !renderer.data.extends);
-
-			if (!markdownRenderers.length) {
+			if (!renderers.length) {
 				throw new Error('Could not find renderer');
 			}
 
-			await Promise.all(markdownRenderers.map(x => x.load()));
+			await Promise.all(renderers.map(x => x.load()));
 
-			markdownRenderers[0].api?.renderOutputItem({
-				id,
-				element,
-				mime: 'text/markdown',
-				metadata: undefined,
-				metadata2: undefined,
-				outputId: undefined,
-				text() { return content; },
-				json() { return undefined; },
-				bytes() { return this.data(); },
-				data() { return new TextEncoder().encode(content); },
-				blob() { return new Blob([this.data()], { type: this.mime }); },
-			}, element);
+			renderers[0].api?.renderOutputItem(info, element);
 		}
 	}();
 
@@ -1193,7 +1172,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				previewNode.innerText = '';
 			} else {
 				previewContainerNode.classList.remove('emptyMarkdownCell');
-				await renderers.renderMarkdown(cellId, previewNode, content);
+				await renderers.render(createMarkdownOutputItem(cellId, previewNode, content), previewNode);
 
 				if (!hasPostedRenderedMathTelemetry) {
 					const hasRenderedMath = previewNode.querySelector('.katex');
@@ -1294,6 +1273,22 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			});
 		}
 	}();
+
+	function createMarkdownOutputItem(id: string, element: HTMLElement, content: string): IOutputItem {
+		return {
+			id,
+			element,
+			mime: 'text/markdown',
+			metadata: undefined,
+			metadata2: undefined,
+			outputId: undefined,
+			text() { return content; },
+			json() { return undefined; },
+			bytes() { return this.data(); },
+			data() { return new TextEncoder().encode(content); },
+			blob() { return new Blob([this.data()], { type: this.mime }); },
+		};
+	}
 }
 
 export interface RendererMetadata {
