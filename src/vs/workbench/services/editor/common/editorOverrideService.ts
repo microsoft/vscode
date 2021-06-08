@@ -12,11 +12,10 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
@@ -61,6 +60,8 @@ export interface IEditorType {
 	readonly providerDisplayName: string;
 }
 
+export type UntypedEditorInput = IResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
+
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 
@@ -91,7 +92,7 @@ export type RegisteredEditorOptions = {
 
 export type ContributedEditorInfo = {
 	id: string;
-	describes: (currentEditor: IEditorInput) => boolean;
+	describes: (override: string) => boolean;
 	label: string;
 	detail?: string;
 	priority: ContributedEditorPriority;
@@ -99,7 +100,7 @@ export type ContributedEditorInfo = {
 
 export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;

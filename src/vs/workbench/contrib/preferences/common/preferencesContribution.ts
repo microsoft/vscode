@@ -65,7 +65,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 				'**/settings.json',
 				{
 					id: PreferencesEditorInput.ID,
-					describes: editor => editor instanceof PreferencesEditorInput,
+					describes: override => override === PreferencesEditorInput.ID,
 					detail: 'Split Settings Editor (deprecated)',
 					label: 'label',
 					priority: ContributedEditorPriority.builtin,

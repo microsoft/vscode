@@ -24,8 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
-import { IEditorInput } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { INotebookEditorContribution, notebooksExtensionPoint, notebookRendererExtensionPoint } from 'vs/workbench/contrib/notebook/browser/extensionPoint';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -145,7 +144,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				id: notebookProviderInfo.id,
 				label: notebookProviderInfo.displayName,
 				detail: notebookProviderInfo.providerDisplayName,
-				describes: (currentEditor: IEditorInput) => currentEditor instanceof NotebookEditorInput && currentEditor.viewType === notebookProviderInfo.id,
+				describes: (override: string) => override === notebookProviderInfo.id,
 				priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
 			};
 			const notebookEditorOptions = {
@@ -165,12 +164,12 @@ export class NotebookProviderInfoStore extends Disposable {
 				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
-			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options, group) => {
+			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, options, group) => {
 				const modifiedInput = diffEditorInput.modifiedInput;
 				const originalInput = diffEditorInput.originalInput;
 				const notebookUri = modifiedInput.resource!;
 				const originalNotebookUri = originalInput.resource!;
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, 'Modified Input Name', originalNotebookUri, 'Original Input Name', 'Diff Editor Input Name', notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
 			disposables.add(this._editorOverrideService.registerEditor(

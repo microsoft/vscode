@@ -126,7 +126,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			},
 			{},
 			resource => ({ editor: this.createEditorInput({ resource }) }),
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: this.createEditorInput(diffEditor) })
 		));
 	}
 
@@ -1352,7 +1352,7 @@ export class DelegatingEditorService implements IEditorService {
 	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 	findEditors(arg1: URI | IResourceEditorInputIdentifier, arg2?: IEditorGroup | GroupIdentifier): readonly IEditorIdentifier[] | readonly IEditorInput[] | IEditorInput | undefined { return this.editorService.findEditors(arg1, arg2); }
 
-	createEditorInput(input: IResourceEditorInputType): IEditorInput { return this.editorService.createEditorInput(input); }
+	createEditorInput(input: IResourceEditorInputType): EditorInput { return this.editorService.createEditorInput(input); }
 
 	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean> { return this.editorService.save(editors, options); }
 	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean> { return this.editorService.saveAll(options); }
