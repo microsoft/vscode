@@ -296,10 +296,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						.code {
 							white-space: pre-wrap;
 						}
-
-						dragging {
-							background-color: var(--theme-background);
-						}
 					</style>
 				</template>
 				<style>
