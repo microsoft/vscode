@@ -153,11 +153,18 @@ export class WorkspaceTestCollectionService implements IWorkspaceTestCollectionS
 			return TestSubscriptionListener.None;
 		}
 
+		const subFolder: ITestSubscriptionFolder = {
+			folder,
+			get collection() {
+				return sub.object;
+			},
+			getChildren: () => sub.object.all,
+		};
+
 		const store = new DisposableStore();
 		const diffEmitter = store.add(new Emitter<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>());
 		const onDiff = (diff: TestsDiff) => diffEmitter.fire({ diff, folder: subFolder });
 		const sub = store.add(this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, documentUri, onDiff));
-		const subFolder: ITestSubscriptionFolder = { folder, collection: sub.object, getChildren: () => sub.object.all };
 
 		return new TestSubscriptionListener({
 			get busyProviders() { return sub.object.busyProviders; },

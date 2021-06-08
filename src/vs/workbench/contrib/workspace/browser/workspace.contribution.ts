@@ -441,8 +441,10 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				}
 			}));
 			// TODO: Consider moving the check into setWorkspaceTrust()
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
-				this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			// TODO: Consider moving this into calculateWorkspaceTrust()
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust() &&
+				this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW)) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(true);
 			}
 		}
 	}

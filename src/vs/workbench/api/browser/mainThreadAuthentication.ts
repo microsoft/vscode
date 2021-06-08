@@ -34,7 +34,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 
 		if (!allowedExtensions.length) {
-			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."), []);
+			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."));
 			return;
 		}
 

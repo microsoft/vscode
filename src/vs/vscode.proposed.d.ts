@@ -1110,7 +1110,7 @@ declare module 'vscode' {
 		 *
 		 * The primary selection (or focused range) is `selections[0]`. When the document has no cells, the primary selection is empty `{ start: 0, end: 0 }`;
 		 */
-		readonly selections: NotebookRange[];
+		selections: NotebookRange[];
 
 		/**
 		 * The current visible ranges in the editor (vertically).

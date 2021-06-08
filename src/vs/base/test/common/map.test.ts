@@ -762,6 +762,9 @@ suite('Map', () => {
 
 		iter = map.findSuperstr(URI.file('/'))!;
 		item = iter.next();
+		assert.strictEqual(item.value[1], 4);
+		assert.strictEqual(item.done, false);
+		item = iter.next();
 		assert.strictEqual(item.value[1], 2);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
@@ -769,9 +772,6 @@ suite('Map', () => {
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 4);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value, undefined);

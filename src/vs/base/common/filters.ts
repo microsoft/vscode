@@ -526,7 +526,7 @@ const enum Arrow { Diag = 1, Left = 2, LeftLeft = 3 }
  * 3. `<match_pos_1>`
  * 4. `<match_pos_0>` etc
  */
-export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];// [number, number, number];
+export type FuzzyScore = [score: number, wordStart: number, ...matches: number[]];
 
 export namespace FuzzyScore {
 	/**

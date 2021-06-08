@@ -121,7 +121,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 				}
 				this.label += '?';
 			}
-			if (kindModifiers.has(PConst.KindModifiers.depreacted)) {
+			if (kindModifiers.has(PConst.KindModifiers.deprecated)) {
 				this.tags = [vscode.CompletionItemTag.Deprecated];
 			}
 

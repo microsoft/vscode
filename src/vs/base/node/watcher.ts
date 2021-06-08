@@ -8,7 +8,7 @@ import { watch } from 'fs';
 import { isMacintosh } from 'vs/base/common/platform';
 import { normalizeNFC } from 'vs/base/common/normalization';
 import { toDisposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { exists, readdir } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 
 export function watchFile(path: string, onChange: (type: 'added' | 'changed' | 'deleted', path: string) => void, onError: (error: string) => void): IDisposable {
 	return doWatchNonRecursive({ path, isDirectory: false }, onChange, onError);
@@ -42,7 +42,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 		// Folder: resolve children to emit proper events
 		const folderChildren: Set<string> = new Set<string>();
 		if (file.isDirectory) {
-			readdir(file.path).then(children => children.forEach(child => folderChildren.add(child)));
+			Promises.readdir(file.path).then(children => children.forEach(child => folderChildren.add(child)));
 		}
 
 		watcher.on('error', (code: number, signal: string) => {
@@ -87,7 +87,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 					// does indeed not exist anymore.
 
 					const timeoutHandle = setTimeout(async () => {
-						const fileExists = await exists(changedFilePath);
+						const fileExists = await Promises.exists(changedFilePath);
 
 						if (disposed) {
 							return; // ignore if disposed by now
@@ -131,7 +131,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 					const timeoutHandle = setTimeout(async () => {
 						mapPathToStatDisposable.delete(changedFilePath);
 
-						const fileExists = await exists(changedFilePath);
+						const fileExists = await Promises.exists(changedFilePath);
 
 						if (disposed) {
 							return; // ignore if disposed by now
@@ -177,7 +177,7 @@ function doWatchNonRecursive(file: { path: string, isDirectory: boolean }, onCha
 			}
 		});
 	} catch (error) {
-		exists(file.path).then(exists => {
+		Promises.exists(file.path).then(exists => {
 			if (exists && !disposed) {
 				onError(`Failed to watch ${file.path} for changes using fs.watch() (${error.toString()})`);
 			}
