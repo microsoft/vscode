@@ -898,24 +898,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
-
-	export interface TerminalOptions {
-		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface ExtensionTerminalOptions {
-		/**
-		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	//#endregion
-
 	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
 
 	export namespace window {
