@@ -123,7 +123,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If it's the currently active editor we shouldn't do anything
-		if (override && selectedEditor.editorInfo.describes(override)) {
+		const currentEditor = firstOrDefault(group.findEditors(resource));
+		let currentViewType = undefined;
+		if (currentEditor) {
+			currentViewType = (currentEditor as IContributedEditorInput).viewType;
+		}
+		if (currentViewType && selectedEditor.editorInfo.describes(currentViewType)) {
 			return;
 		}
 		const input = await this.doOverrideEditorInput(resource, editor, options, group, selectedEditor);
