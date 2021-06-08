@@ -1124,7 +1124,7 @@ suite('EditorService', () => {
 		const [, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -1160,7 +1160,7 @@ suite('EditorService', () => {
 		const [, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
@@ -1192,7 +1192,7 @@ suite('EditorService', () => {
 		const [part, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',

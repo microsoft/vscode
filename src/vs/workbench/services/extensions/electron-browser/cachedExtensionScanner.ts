@@ -130,7 +130,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.rimraf(cacheFile, pfs.RimRafMode.MOVE);
+			await pfs.Promises.rm(cacheFile, pfs.RimRafMode.MOVE);
 		} catch (err) {
 			errors.onUnexpectedError(err);
 			console.error(err);
@@ -171,7 +171,7 @@ export class CachedExtensionScanner {
 		}
 
 		try {
-			await pfs.writeFile(cacheFile, JSON.stringify(cacheContents));
+			await pfs.Promises.writeFile(cacheFile, JSON.stringify(cacheContents));
 		} catch (err) {
 			// That's ok...
 		}

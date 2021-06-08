@@ -22,6 +22,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 
 suite('NotebookKernel', function () {
 
@@ -31,6 +32,7 @@ suite('NotebookKernel', function () {
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 	let extHostDocuments: ExtHostDocuments;
 	let extHostNotebooks: ExtHostNotebookController;
+	let extHostNotebookDocuments: ExtHostNotebookDocuments;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const kernelData = new Map<number, INotebookKernelDto2>();
@@ -71,7 +73,9 @@ suite('NotebookKernel', function () {
 				return URI.from({ scheme: 'test', path: generateUuid() });
 			}
 		};
-		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, new NullLogService(), extHostStoragePaths);
+		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService()), extHostDocumentsAndEditors, extHostDocuments, extHostStoragePaths);
+
+		extHostNotebookDocuments = new ExtHostNotebookDocuments(new NullLogService(), extHostNotebooks);
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta({
 			addedDocuments: [{
@@ -192,7 +196,7 @@ suite('NotebookKernel', function () {
 		const cell1 = notebook.apiNotebook.cellAt(0);
 
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
-		extHostNotebooks.$acceptModelChanged(notebook.uri, {
+		extHostNotebookDocuments.$acceptModelChanged(notebook.uri, {
 			versionId: 12,
 			rawEvents: [{
 				kind: NotebookCellsChangeType.ModelChange,

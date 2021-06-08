@@ -39,7 +39,7 @@ export enum RimRafMode {
  * - `MOVE`: faster variant that first moves the target to temp dir and then
  *           deletes it in the background without waiting for that to finish.
  */
-export async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
+async function rimraf(path: string, mode = RimRafMode.UNLINK): Promise<void> {
 	if (isRootOrDriveLetter(path)) {
 		throw new Error('rimraf - will refuse to recursively delete root');
 	}
@@ -100,15 +100,15 @@ export interface IDirent {
  * for converting from macOS NFD unicon form to NFC
  * (https://github.com/nodejs/node/issues/2165)
  */
-export async function readdir(path: string): Promise<string[]>;
-export async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
-export async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
-	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : Promises.readdir(path)));
+async function readdir(path: string): Promise<string[]>;
+async function readdir(path: string, options: { withFileTypes: true }): Promise<IDirent[]>;
+async function readdir(path: string, options?: { withFileTypes: true }): Promise<(string | IDirent)[]> {
+	return handleDirectoryChildren(await (options ? safeReaddirWithFileTypes(path) : promisify(fs.readdir)(path)));
 }
 
 async function safeReaddirWithFileTypes(path: string): Promise<IDirent[]> {
 	try {
-		return await Promises.readdir(path, { withFileTypes: true });
+		return await promisify(fs.readdir)(path, { withFileTypes: true });
 	} catch (error) {
 		console.warn('[node.js fs] readdir with filetypes failed with error: ', error);
 	}
@@ -179,7 +179,7 @@ function handleDirectoryChildren(children: (string | IDirent)[]): (string | IDir
  * A convinience method to read all children of a path that
  * are directories.
  */
-export async function readDirsInDir(dirPath: string): Promise<string[]> {
+async function readDirsInDir(dirPath: string): Promise<string[]> {
 	const children = await readdir(dirPath);
 	const directories: string[] = [];
 
@@ -360,11 +360,11 @@ const writeQueues = new ResourceQueue();
  *
  * In addition, multiple writes to the same path are queued.
  */
-export function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
-export function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
+function writeFile(path: string, data: string, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Buffer, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void>;
+function writeFile(path: string, data: string | Buffer | Uint8Array, options?: IWriteFileOptions): Promise<void> {
 	return writeQueues.queueFor(URI.file(path), extUriBiasedIgnorePathCase).queue(() => {
 		const ensuredOptions = ensureWriteOptions(options);
 
@@ -372,7 +372,7 @@ export function writeFile(path: string, data: string | Buffer | Uint8Array, opti
 	});
 }
 
-export interface IWriteFileOptions {
+interface IWriteFileOptions {
 	mode?: number;
 	flag?: string;
 }
@@ -474,7 +474,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  * - updates the `mtime` of the `source` after the operation
  * - allows to move across multiple disks
  */
-export async function move(source: string, target: string): Promise<void> {
+async function move(source: string, target: string): Promise<void> {
 	if (source === target) {
 		return;  // simulate node.js behaviour here and do a no-op if paths match
 	}
@@ -536,7 +536,7 @@ interface ICopyPayload {
  * links should be handled when encountered. Set to
  * `false` to not preserve them and `true` otherwise.
  */
-export async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
+async function copy(source: string, target: string, options: { preserveSymlinks: boolean }): Promise<void> {
 	return doCopy(source, target, { root: { source, target }, options, handledSourcePaths: new Set<string>() });
 }
 
@@ -627,25 +627,11 @@ async function doCopySymlink(source: string, target: string, payload: ICopyPaylo
 
 //#endregion
 
-//#region Async FS Methods
-
-export async function exists(path: string): Promise<boolean> {
-	try {
-		await Promises.access(path);
-
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-//#endregion
-
 //#region Promise based fs methods
 
 /**
- * Note: prefer this namespace over the `fs.promises` API
- * to enable `graceful-fs` to function properly. Given issue
+ * Prefer this helper class over the `fs.promises` API to
+ * enable `graceful-fs` to function properly. Given issue
  * https://github.com/isaacs/node-graceful-fs/issues/160 it
  * is evident that the module only takes care of the non-promise
  * based fs methods.
@@ -653,43 +639,75 @@ export async function exists(path: string): Promise<boolean> {
  * Another reason is `realpath` being entirely different in
  * the promise based implementation compared to the other
  * one (https://github.com/microsoft/vscode/issues/118562)
+ *
+ * Note: using getters for a reason, since `graceful-fs`
+ * patching might kick in later after modules have been
+ * loaded we need to defer access to fs methods.
+ * (https://github.com/microsoft/vscode/issues/124176)
  */
-export namespace Promises {
-	export const access = promisify(fs.access);
+export const Promises = new class {
 
-	export const stat = promisify(fs.stat);
-	export const lstat = promisify(fs.lstat);
-	export const utimes = promisify(fs.utimes);
+	//#region Implemented by node.js
 
-	export const read = promisify(fs.read);
-	export const readFile = promisify(fs.readFile);
+	get access() { return promisify(fs.access); }
 
-	export const write = promisify(fs.write);
-	export const writeFile = promisify(fs.writeFile);
+	get stat() { return promisify(fs.stat); }
+	get lstat() { return promisify(fs.lstat); }
+	get utimes() { return promisify(fs.utimes); }
 
-	export const appendFile = promisify(fs.appendFile);
+	get read() { return promisify(fs.read); }
+	get readFile() { return promisify(fs.readFile); }
 
-	export const fdatasync = promisify(fs.fdatasync);
-	export const truncate = promisify(fs.truncate);
+	get write() { return promisify(fs.write); }
 
-	export const rename = promisify(fs.rename);
-	export const copyFile = promisify(fs.copyFile);
+	get appendFile() { return promisify(fs.appendFile); }
 
-	export const open = promisify(fs.open);
-	export const close = promisify(fs.close);
+	get fdatasync() { return promisify(fs.fdatasync); }
+	get truncate() { return promisify(fs.truncate); }
 
-	export const symlink = promisify(fs.symlink);
-	export const readlink = promisify(fs.readlink);
+	get rename() { return promisify(fs.rename); }
+	get copyFile() { return promisify(fs.copyFile); }
 
-	export const chmod = promisify(fs.chmod);
+	get open() { return promisify(fs.open); }
+	get close() { return promisify(fs.close); }
 
-	export const readdir = promisify(fs.readdir);
-	export const mkdir = promisify(fs.mkdir);
+	get symlink() { return promisify(fs.symlink); }
+	get readlink() { return promisify(fs.readlink); }
 
-	export const unlink = promisify(fs.unlink);
-	export const rmdir = promisify(fs.rmdir);
+	get chmod() { return promisify(fs.chmod); }
 
-	export const realpath = promisify(fs.realpath);
-}
+	get mkdir() { return promisify(fs.mkdir); }
+
+	get unlink() { return promisify(fs.unlink); }
+	get rmdir() { return promisify(fs.rmdir); }
+
+	get realpath() { return promisify(fs.realpath); }
+
+	//#endregion
+
+	//#region Implemented by us
+
+	async exists(path: string): Promise<boolean> {
+		try {
+			await Promises.access(path);
+
+			return true;
+		} catch {
+			return false;
+		}
+	}
+
+	get readdir() { return readdir; }
+	get readDirsInDir() { return readDirsInDir; }
+
+	get writeFile() { return writeFile; }
+
+	get rm() { return rimraf; }
+
+	get move() { return move; }
+	get copy() { return copy; }
+
+	//#endregion
+};
 
 //#endregion

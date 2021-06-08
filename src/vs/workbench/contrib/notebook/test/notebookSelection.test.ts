@@ -303,4 +303,25 @@ suite('NotebookCellList focus/selection', () => {
 				assert.deepStrictEqual(viewModel.getSelections(), []);
 			});
 	});
+
+	test('notebook cell selection w/ cell deletion from applyEdits', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['var c = 2;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor) => {
+				const viewModel = editor.viewModel;
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				viewModel.notebookDocument.applyEdits([{
+					editType: CellEditType.Replace,
+					index: 1,
+					count: 1,
+					cells: []
+				}], true, undefined, () => undefined, undefined, true);
+				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
+			});
+	});
 });

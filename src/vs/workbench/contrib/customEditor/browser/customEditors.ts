@@ -111,7 +111,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 				if (!globPattern.filenamePattern) {
 					continue;
 				}
-				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerContributionPoint(
+				this._editorOverrideDisposables.push(this._register(this.extensionContributedEditorService.registerEditor(
 					globPattern.filenamePattern,
 					{
 						id: contributedEditor.id,

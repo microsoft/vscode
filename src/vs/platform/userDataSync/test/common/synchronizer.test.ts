@@ -53,7 +53,7 @@ class TestSynchroniser extends AbstractSynchroniser {
 		return super.doSync(remoteUserData, lastSyncUserData, apply);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ITestResourcePreview[]> {
+	protected override async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ITestResourcePreview[]> {
 		if (this.syncResult.hasError) {
 			throw new Error('failed');
 		}

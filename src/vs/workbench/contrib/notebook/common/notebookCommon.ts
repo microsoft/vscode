@@ -600,11 +600,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	// old, todo@jrieken remove these...
-	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {

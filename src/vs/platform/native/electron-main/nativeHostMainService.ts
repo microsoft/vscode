@@ -19,7 +19,7 @@ import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { AddFirstParameterToFunctions } from 'vs/base/common/types';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
-import { exists, Promises, SymlinkSupport } from 'vs/base/node/pfs';
+import { Promises, SymlinkSupport } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -345,7 +345,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const source = `/usr/local/bin/${this.productService.applicationName}`;
 
 		// Ensure source exists
-		const sourceExists = await exists(target);
+		const sourceExists = await Promises.exists(target);
 		if (!sourceExists) {
 			throw new Error(localize('sourceMissing', "Unable to find shell script in '{0}'", target));
 		}
