@@ -9,7 +9,7 @@ import { Application } from '../../../../automation';
 export function setup() {
 	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
-		after(async function () {
+		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
