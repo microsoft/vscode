@@ -27,6 +27,7 @@ import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewEleme
 import { WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { Delayer } from 'vs/base/common/async';
 
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
@@ -39,6 +40,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	private _findStarted: boolean = false;
 
 	private readonly _webviewMainService: IWebviewManagerService;
+	private readonly _iframeDelayer = new Delayer<void>(200);
 
 	constructor(
 		id: string,
@@ -81,6 +83,10 @@ export class ElectronIframeWebview extends IFrameWebview {
 
 			this._register(addDisposableListener(this.element!, 'found-in-page', e => {
 				this._hasFindResult.fire(e.result.matches > 0);
+			}));
+
+			this._register(this._webviewMainService.onFoundInFrame((result) => {
+				this._hasFindResult.fire(result.matches > 0);
 			}));
 
 			this.styledFindWidget();
@@ -136,8 +142,10 @@ export class ElectronIframeWebview extends IFrameWebview {
 			matchCase: false
 		};
 
-		this._findStarted = true;
-		this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+		this._iframeDelayer.trigger(() => {
+			this._findStarted = true;
+			this._webviewMainService.findInFrame({ windowId: this.nativeHostService.windowId }, this.id, value, options);
+		});
 	}
 
 	/**

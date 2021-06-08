@@ -70,6 +70,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		this.oninput(this._findInput.domNode, (e) => {
 			this.foundMatch = this._onInputChanged();
+
 			this.updateButtons(this.foundMatch);
 			this._delayedUpdateHistory();
 		});
@@ -269,6 +270,8 @@ export abstract class SimpleFindWidget extends Widget {
 		const hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+		this.nextBtn.focus();
+		this._findInput.inputBox.focus();
 	}
 }
 

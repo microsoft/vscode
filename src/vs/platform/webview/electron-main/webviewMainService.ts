@@ -4,15 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { session, WebContents, webContents, WebFrameMain } from 'electron';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { FoundInFrameResult, IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
 export class WebviewMainService extends Disposable implements IWebviewManagerService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private frameHandlers = new Map<string, WebFrameMain>();
+	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
+	public onFoundInFrame = this._onFoundInFrame.event;
 
 	constructor(
 		@ITunnelService tunnelService: ITunnelService,
@@ -64,6 +69,14 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			findNext: options.findNext,
 			forward: options.forward,
 		});
+		if (!this.frameHandlers.has(frameName)) {
+			const event = frame.on('found-in-frame', (_, result) => {
+				if (result.finalUpdate) {
+					this._onFoundInFrame.fire(result);
+				}
+			});
+			this.frameHandlers.set(frameName, event);
+		}
 	}
 
 	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
@@ -83,5 +96,9 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			throw new Error(`Unknown frame: ${frameName}`);
 		}
 		return frame;
+	}
+
+	override dispose() {
+		this.frameHandlers.clear();
 	}
 }

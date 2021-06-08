@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { Event } from 'vs/base/common/event';
 
 export const IWebviewManagerService = createDecorator<IWebviewManagerService>('webviewManagerService');
 
@@ -23,8 +24,18 @@ export interface FindInFrameOptions {
 	matchCase?: boolean;
 }
 
+export interface FoundInFrameResult {
+	requestId: number;
+	activeMatchOrdinal: number;
+	matches: number;
+	selectionArea: any;
+	finalUpdate: boolean;
+}
+
 export interface IWebviewManagerService {
 	_serviceBrand: unknown;
+
+	onFoundInFrame: Event<FoundInFrameResult>;
 
 	setIgnoreMenuShortcuts(id: WebviewWebContentsId | WebviewWindowId, enabled: boolean): Promise<void>;
 
