@@ -1039,43 +1039,37 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}();
 
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
+
 	const notebookDocument = new class {
 
 		private readonly _markupCells = new Map<string, MarkdownCell>();
 
-		async createMarkupCell(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<HTMLElement> {
-			const existingNode = document.getElementById(init.cellId);
-			if (existingNode) {
-				console.error(`Trying to create markup that already exists: ${init.cellId}`);
-				return existingNode;
-			}
-
+		private async createMarkupCell(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<MarkdownCell> {
 			const existingEntry = this._markupCells.get(init.cellId);
 			if (existingEntry) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
-				return existingEntry.element;
+				return existingEntry;
 			}
 
-			const markdownCell = new MarkdownCell(init.cellId, init.content);
+			const markdownCell = new MarkdownCell(init.cellId, init.content, top);
 			this._markupCells.set(init.cellId, markdownCell);
-			await this.renderMarkup(markdownCell);
 
-			return markdownCell.element;
+			await markdownCell.ready;
+			return markdownCell;
 		}
 
 		public async ensureMarkupCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
 			await Promise.all(update.map(async info => {
-				let container: HTMLElement;
-
-				const cell = this._markupCells.get(info.cellId);
+				let cell = this._markupCells.get(info.cellId);
 				if (cell) {
-					await this.renderMarkup(cell);
-					container = cell.element;
+					await cell.updateContentAndRender(info.content);
 				} else {
-					container = await this.createMarkupCell(info, info.offset);
+					cell = await this.createMarkupCell(info, info.offset);
 				}
-
-				container.style.visibility = info.visible ? 'visible' : 'hidden';
+				console.log(info.visible);
+				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 			}));
 		}
 
@@ -1088,39 +1082,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._markupCells.delete(id);
 		}
 
-		private hasPostedRenderedMathTelemetry = false;
-		private readonly unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
-
-		public async updateMarkupContent(id: string, content: string): Promise<void> {
+		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
 				throw new Error('Trying to update a cell that does not exist');
 			}
 
-			cell.content = content;
-			return this.renderMarkup(cell);
-		}
-
-		private async renderMarkup(cell: MarkdownCell): Promise<void> {
-
-			await renderers.render(cell, cell.element);
-
-			if (!this.hasPostedRenderedMathTelemetry) {
-				const hasRenderedMath = cell.element.querySelector('.katex');
-				if (hasRenderedMath) {
-					this.hasPostedRenderedMathTelemetry = true;
-					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-				}
-			}
-
-			const matches = cell.element.innerText.match(this.unsupportedKatexTermsRegex);
-			if (matches) {
-				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-					latexDirective: matches[0],
-				});
-			}
-
-			this.updateMarkupDimensions(cell.id);
+			return cell.updateContentAndRender(newContent);
 		}
 
 		public async updateMarkupDimensions(id: string) {
@@ -1135,14 +1103,18 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	class MarkdownCell implements IOutputItem {
 
-		public readonly mime = 'text/markdown';
+		public readonly ready: Promise<void>;
 
 		/// Internal field that holds markdown text
-		public content: string;
+		private _content: string;
 
-		constructor(id: string, content: string) {
+
+		constructor(id: string, content: string, top: number) {
 			this.id = id;
-			this.content = content;
+			this._content = content;
+
+			let resolveReady: () => void;
+			this.ready = new Promise<void>(r => resolveReady = r);
 
 			const root = document.getElementById('container')!;
 
@@ -1154,9 +1126,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			root.appendChild(this.element);
 
 			this.addEventListeners();
+
+			this.updateContentAndRender(this._content).then(() => {
+				resizeObserver.observe(this.element, this.id, false);
+				resolveReady();
+			});
 		}
 
 		//#region IOutputItem
+		public readonly mime = 'text/markdown';
+
 		public readonly id: string;
 
 		public readonly element: HTMLElement;
@@ -1166,10 +1145,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public readonly metadata2 = undefined;
 		public readonly outputId?: string | undefined;
 
-		text() { return this.content; }
+		text() { return this._content; }
 		json() { return undefined; }
 		bytes() { return this.data(); }
-		data() { return new TextEncoder().encode(this.content); }
+		data() { return new TextEncoder().encode(this._content); }
 		blob() { return new Blob([this.data()], { type: this.mime }); }
 		//#endregion
 
@@ -1217,8 +1196,31 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this.element.addEventListener('dragend', e => {
 				markdownPreviewDragManager.endDrag(e, this.id);
 			});
+		}
 
-			resizeObserver.observe(this.element, this.id, false);
+		public async updateContentAndRender(newContent: string): Promise<void> {
+			this._content = newContent;
+
+			await renderers.render(this, this.element);
+
+			if (!hasPostedRenderedMathTelemetry) {
+				const hasRenderedMath = this.element.querySelector('.katex');
+				if (hasRenderedMath) {
+					hasPostedRenderedMathTelemetry = true;
+					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+				}
+			}
+
+			const matches = this.element.innerText.match(unsupportedKatexTermsRegex);
+			if (matches) {
+				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+					latexDirective: matches[0],
+				});
+			}
+
+			dimensionUpdater.update(this.id, this.element.clientHeight, {
+				isOutput: false
+			});
 		}
 	}
 
