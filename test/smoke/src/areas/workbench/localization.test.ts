@@ -3,15 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup() {
 	describe('Localization', () => {
+
 		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
+			const app = this.app as Application;
 
 			// Don't run the localization tests in dev or remote.
 			if (app.quality === Quality.Dev || app.remote) {
@@ -22,10 +20,6 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 
 			await app.restart({ extraArgs: ['--locale=DE'] });
-		});
-
-		after(async function () {
-			await this.app.stop();
 		});
 
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {

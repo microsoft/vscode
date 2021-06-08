@@ -3,21 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { Application } from '../../../../automation';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup() {
 	describe('Dataloss', () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
 		it(`verifies that 'hot exit' works for dirty files`, async function () {
 			const app = this.app as Application;
 			await app.workbench.editors.newUntitledFile();

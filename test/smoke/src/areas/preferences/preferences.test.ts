@@ -3,21 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import minimist = require('minimist');
 import { Application, ActivityBarPosition } from '../../../../automation';
 
-export function setup(opts: minimist.ParsedArgs) {
+export function setup() {
 	describe('Preferences', () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 

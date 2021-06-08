@@ -39,16 +39,11 @@ export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
 
 		before(async function () {
+			const app = this.app as Application;
 			const defaultOptions = this.defaultOptions as ApplicationOptions;
 			const workspaceFilePath = await createWorkspaceFile(defaultOptions.workspacePath);
 
-			const app = new Application({ ...defaultOptions, workspacePath: workspaceFilePath });
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
+			await app.restart({ workspaceOrFolder: workspaceFilePath });
 		});
 
 		it('shows results from all folders', async function () {

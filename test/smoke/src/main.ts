@@ -300,17 +300,40 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	}
 
 	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-		if (!opts.web) { setupDataLossTests(opts); }
-		if (!opts.web) { setupDataPreferencesTests(opts); }
+		before(function () {
+			const suites = this.test?.parent?.suites || [];
+			for (const suite of suites) {
+				// Add beforeAll hook
+				suite.beforeAll(async function () {
+					const app = new Application(this.defaultOptions);
+					await app!.start(opts.web ? false : undefined);
+					this.app = app;
+				});
+
+				// Move beforeAll to the front of the hook list
+				const suiteBeforeAll = suite['_beforeAll'].pop();
+				suite['_beforeAll'].unshift(suiteBeforeAll);
+
+				// Add afterAll hook
+				suite.afterAll(async function () {
+					const app = this.app as Application;
+					if (app) {
+						await app.stop();
+					}
+				});
+			}
+		});
+
+		if (!opts.web) { setupDataLossTests(); }
+		if (!opts.web) { setupDataPreferencesTests(); }
 		setupDataSearchTests(opts);
-		setupDataNotebookTests(opts);
-		setupDataLanguagesTests(opts);
-		setupDataEditorTests(opts);
+		setupDataNotebookTests();
+		setupDataLanguagesTests();
+		setupDataEditorTests();
 		setupDataStatusbarTests(opts);
-		setupDataExtensionTests(opts);
+		setupDataExtensionTests();
 		if (!opts.web) { setupDataMultirootTests(opts); }
-		if (!opts.web) { setupDataLocalizationTests(opts); }
+		if (!opts.web) { setupDataLocalizationTests(); }
 		if (!opts.web) { setupLaunchTests(); }
 	});
 });
-

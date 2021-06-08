@@ -10,18 +10,10 @@ import { Application } from '../../../../automation';
 export function setup(opts: minimist.ParsedArgs) {
 	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
 		after(async function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
 			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
-
-			await this.app.stop();
 		});
 
 		// https://github.com/microsoft/vscode/issues/124146
@@ -77,16 +69,6 @@ export function setup(opts: minimist.ParsedArgs) {
 	});
 
 	describe('Quick Access', () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [

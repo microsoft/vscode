@@ -8,16 +8,6 @@ import { Application, Quality, StatusBarElement } from '../../../../automation';
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Statusbar', () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
 		it('verifies presence of all default status bar elements', async function () {
 			const app = this.app as Application;
 
