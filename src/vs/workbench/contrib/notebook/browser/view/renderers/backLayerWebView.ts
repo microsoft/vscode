@@ -287,35 +287,36 @@ export interface ICustomRendererMessage extends BaseToWebviewMessage {
 	message: unknown;
 }
 
-export interface ICreateMarkdownMessage {
-	type: 'createMarkdownPreview',
+export interface ICreateMarkupCellMessage {
+	type: 'createMarkupCell',
 	cell: IMarkdownCellInitialization;
 }
-export interface IDeleteMarkdownMessage {
-	type: 'deleteMarkdownPreview',
+
+export interface IDeleteMarkupCellMessage {
+	type: 'deleteMarkupCell',
 	ids: readonly string[];
 }
 
-export interface IHideMarkdownMessage {
-	type: 'hideMarkdownPreviews';
+export interface IHideMarkupCellMessage {
+	type: 'hideMarkupCells';
 	ids: readonly string[];
 }
 
-export interface IUnhideMarkdownMessage {
-	type: 'unhideMarkdownPreviews';
+export interface IUnhideMarkupCellMessage {
+	type: 'unhideMarkupCells';
 	ids: readonly string[];
 }
 
-export interface IShowMarkdownMessage {
-	type: 'showMarkdownPreview',
+export interface IShowMarkupCellMessage {
+	type: 'showMarkupCell',
 	id: string;
 	handle: number;
 	content: string | undefined;
 	top: number;
 }
 
-export interface IUpdateSelectedMarkdownPreviews {
-	readonly type: 'updateSelectedMarkdownPreviews',
+export interface IUpdateSelectedMarkupCellsMessage {
+	readonly type: 'updateSelectedMarkupCells',
 	readonly selectedCellIds: readonly string[]
 }
 
@@ -327,8 +328,8 @@ export interface IMarkdownCellInitialization {
 	visible: boolean;
 }
 
-export interface IInitializeMarkdownMessage {
-	type: 'initializeMarkdownPreview';
+export interface IInitializeMarkupCells {
+	type: 'initializeMarkup';
 	cells: ReadonlyArray<IMarkdownCellInitialization>;
 }
 
@@ -385,13 +386,13 @@ export type ToWebviewMessage =
 	| IUpdateDecorationsMessage
 	| ICustomKernelMessage
 	| ICustomRendererMessage
-	| ICreateMarkdownMessage
-	| IDeleteMarkdownMessage
-	| IShowMarkdownMessage
-	| IHideMarkdownMessage
-	| IUnhideMarkdownMessage
-	| IUpdateSelectedMarkdownPreviews
-	| IInitializeMarkdownMessage
+	| ICreateMarkupCellMessage
+	| IDeleteMarkupCellMessage
+	| IShowMarkupCellMessage
+	| IHideMarkupCellMessage
+	| IUnhideMarkupCellMessage
+	| IUpdateSelectedMarkupCellsMessage
+	| IInitializeMarkupCells
 	| INotebookStylesMessage
 	| INotebookOptionsMessage;
 
@@ -1335,7 +1336,7 @@ var requirejs = (function() {
 
 		this.markdownPreviewMapping.set(initialization.cellId, initialization);
 		this._sendMessageToWebview({
-			type: 'createMarkdownPreview',
+			type: 'createMarkupCell',
 			cell: initialization
 		});
 	}
@@ -1353,7 +1354,7 @@ var requirejs = (function() {
 		const sameContent = initialization.content === entry.content;
 		if (!sameContent || !entry.visible) {
 			this._sendMessageToWebview({
-				type: 'showMarkdownPreview',
+				type: 'showMarkupCell',
 				id: initialization.cellId,
 				handle: initialization.cellHandle,
 				// If the content has not changed, we still want to make sure the
@@ -1386,7 +1387,7 @@ var requirejs = (function() {
 
 		if (cellsToHide.length) {
 			this._sendMessageToWebview({
-				type: 'hideMarkdownPreviews',
+				type: 'hideMarkupCells',
 				ids: cellsToHide
 			});
 		}
@@ -1411,7 +1412,7 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview({
-			type: 'unhideMarkdownPreviews',
+			type: 'unhideMarkupCells',
 			ids: toUnhide,
 		});
 	}
@@ -1430,7 +1431,7 @@ var requirejs = (function() {
 
 		if (cellIds.length) {
 			this._sendMessageToWebview({
-				type: 'deleteMarkdownPreview',
+				type: 'deleteMarkupCell',
 				ids: cellIds
 			});
 		}
@@ -1442,7 +1443,7 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview({
-			type: 'updateSelectedMarkdownPreviews',
+			type: 'updateSelectedMarkupCells',
 			selectedCellIds: selectedCellsIds.filter(id => this.markdownPreviewMapping.has(id)),
 		});
 	}
@@ -1466,7 +1467,7 @@ var requirejs = (function() {
 		}
 
 		this._sendMessageToWebview({
-			type: 'initializeMarkdownPreview',
+			type: 'initializeMarkup',
 			cells,
 		});
 

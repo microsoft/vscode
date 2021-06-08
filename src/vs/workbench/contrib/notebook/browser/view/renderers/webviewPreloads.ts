@@ -510,17 +510,17 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		const event = rawEvent as ({ data: ToWebviewMessage; });
 
 		switch (event.data.type) {
-			case 'initializeMarkdownPreview':
+			case 'initializeMarkup':
 				{
 					await ensureMarkdownPreviewCells(event.data.cells);
 					dimensionUpdater.updateImmediately();
 					postNotebookMessage('initializedMarkdownPreview', {});
 				}
 				break;
-			case 'createMarkdownPreview':
+			case 'createMarkupCell':
 				ensureMarkdownPreviewCells([event.data.cell]);
 				break;
-			case 'showMarkdownPreview':
+			case 'showMarkupCell':
 				{
 					const data = event.data;
 
@@ -532,7 +532,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 				}
 				break;
-			case 'hideMarkdownPreviews':
+			case 'hideMarkupCells':
 				{
 					for (const id of event.data.ids) {
 						const cellContainer = document.getElementById(id);
@@ -542,7 +542,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 				}
 				break;
-			case 'unhideMarkdownPreviews':
+			case 'unhideMarkupCells':
 				{
 					for (const id of event.data.ids) {
 						const cellContainer = document.getElementById(id);
@@ -553,7 +553,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 				}
 				break;
-			case 'deleteMarkdownPreview':
+			case 'deleteMarkupCell':
 				{
 					for (const id of event.data.ids) {
 						const cellContainer = document.getElementById(id);
@@ -561,7 +561,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 				}
 				break;
-			case 'updateSelectedMarkdownPreviews':
+			case 'updateSelectedMarkupCells':
 				{
 					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
 
