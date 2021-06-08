@@ -321,7 +321,7 @@ export abstract class BaseTerminalProfileResolverService implements ITerminalPro
 
 		// Resolve path variables
 		const env = await this._context.getEnvironment(options.remoteAuthority);
-		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const activeWorkspaceRootUri = this._historyService.getLastActiveWorkspaceRoot(options.remoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspace = activeWorkspaceRootUri ? withNullAsUndefined(this._workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		profile.path = this._resolveVariables(profile.path, env, lastActiveWorkspace);
 
