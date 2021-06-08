@@ -1049,64 +1049,40 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		public deleteMarkupCell(id: string) {
-			const entry = this._markupCells.get(id);
-			if (!entry) {
-				return;
+			const cell = this.getExpectedMarkupCell(id);
+			if (cell) {
+				cell.element.remove();
+				this._markupCells.delete(id);
 			}
-			entry.element.remove();
-			this._markupCells.delete(id);
 		}
 
 		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
-			const cell = this._markupCells.get(id);
-			if (!cell) {
-				throw new Error('Trying to update a cell that does not exist');
-			}
-
-			return cell.updateContentAndRender(newContent);
+			const cell = this.getExpectedMarkupCell(id);
+			await cell?.updateContentAndRender(newContent);
 		}
 
 		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
-			const cell = this._markupCells.get(id);
-			if (!cell) {
-				console.log(`Could not find markup cell '${id}'`);
-				return;
-			}
-
-			cell.element.style.visibility = 'visible';
-			cell.element.style.top = `${top}px`;
-			if (typeof newContent === 'string') {
-				cell.updateContentAndRender(newContent);
-			} else {
-				this.updateMarkupDimensions(cell);
-			}
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.show(id, top, newContent);
 		}
 
 		public hideMarkupCell(id: string): void {
-			const cell = this._markupCells.get(id);
-			if (!cell) {
-				console.log(`Could not find markup cell '${id}'`);
-				return;
-			}
-
-			cell.element.style.visibility = 'hidden';
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.hide();
 		}
 
 		public unhideMarkupCell(id: string): void {
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.unhide();
+		}
+
+		private getExpectedMarkupCell(id: string): MarkdownCell | undefined {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
 				console.log(`Could not find markup cell '${id}'`);
-				return;
+				return undefined;
 			}
-
-			cell.element.style.visibility = 'visible';
-			this.updateMarkupDimensions(cell);
-		}
-
-		private async updateMarkupDimensions(cell: MarkdownCell) {
-			dimensionUpdater.update(cell.id, cell.element.clientHeight, {
-				isOutput: false
-			});
+			return cell;
 		}
 	}();
 
@@ -1227,6 +1203,31 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				});
 			}
 
+			dimensionUpdater.update(this.id, this.element.clientHeight, {
+				isOutput: false
+			});
+		}
+
+		public show(id: string, top: number, newContent: string | undefined): void {
+			this.element.style.visibility = 'visible';
+			this.element.style.top = `${top}px`;
+			if (typeof newContent === 'string') {
+				this.updateContentAndRender(newContent);
+			} else {
+				this.updateMarkupDimensions();
+			}
+		}
+
+		public hide() {
+			this.element.style.visibility = 'hidden';
+		}
+
+		public unhide() {
+			this.element.style.visibility = 'visible';
+			this.updateMarkupDimensions();
+		}
+
+		private async updateMarkupDimensions() {
 			dimensionUpdater.update(this.id, this.element.clientHeight, {
 				isOutput: false
 			});
