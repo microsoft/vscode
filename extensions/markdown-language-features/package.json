@@ -26,6 +26,7 @@
     "onCommand:markdown.showSource",
     "onCommand:markdown.showPreviewSecuritySelector",
     "onCommand:markdown.api.render",
+    "onCommand:markdown.api.reloadPlugins",
     "onWebviewPanel:markdown.preview",
     "onCustomEditor:vscode.markdown.preview.editor"
   ],

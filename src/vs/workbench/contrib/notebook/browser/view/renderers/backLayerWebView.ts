@@ -650,7 +650,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 
 						code,
 						.code {
-							font-family: var(--monaco-monospace-font);
 							font-size: 1em;
 							line-height: 1.357em;
 						}
