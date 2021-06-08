@@ -9389,7 +9389,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		 readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
@@ -9410,7 +9410,7 @@ declare module 'vscode' {
 		/**
 		 * The icon path or {@link ThemeIcon} for the terminal.
 		 */
-		 readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
