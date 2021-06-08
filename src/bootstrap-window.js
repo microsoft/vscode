@@ -147,8 +147,8 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// Cached data config
-		if (configuration.codeCachePath) {
+		// Cached data config (node.js loading only)
+		if (!useCustomProtocol && configuration.codeCachePath) {
 			loaderConfig.nodeCachedData = {
 				path: configuration.codeCachePath,
 				seed: modulePaths.join('')
