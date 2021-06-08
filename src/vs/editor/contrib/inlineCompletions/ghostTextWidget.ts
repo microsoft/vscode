@@ -215,25 +215,31 @@ export class GhostTextWidget extends Disposable {
 				changeAccessor.removeZone(this.viewZoneId);
 				this.viewZoneId = null;
 			}
+			
+			if(!renderData) {
+			    return;
+			}
 
-			if (renderData) {
-				const remainingLines = renderData.lines.slice(1);
-				const heightInLines = Math.max(remainingLines.length, renderData.minReservedLineCount);
-				if (heightInLines > 0) {
-					if (renderData.expanded) {
-						const domNode = document.createElement('div');
-						this.renderLines(domNode, renderData.tabSize, remainingLines);
+			
+			const remainingLines = renderData.lines.slice(1);
+			const heightInLines = Math.max(remainingLines.length, renderData.minReservedLineCount);
+			
+			if (heightInLines <= 0) {
+				return;
+			}
+			
+			if (renderData.expanded) {
+				const domNode = document.createElement('div');
+				this.renderLines(domNode, renderData.tabSize, remainingLines);
 
-						this.viewZoneId = changeAccessor.addZone({
-							afterLineNumber: renderData.position.lineNumber,
-							afterColumn: renderData.position.column,
-							heightInLines: heightInLines,
-							domNode,
-						});
-					} else if (remainingLines.length > 0) {
-						this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length);
-					}
-				}
+				this.viewZoneId = changeAccessor.addZone({
+					afterLineNumber: renderData.position.lineNumber,
+					afterColumn: renderData.position.column,
+					heightInLines: heightInLines,
+					domNode,
+				});
+			} else if (remainingLines.length > 0) {
+					this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length);
 			}
 		});
 	}
