@@ -746,7 +746,6 @@ class WorkspaceTrustState {
 	}
 
 	set isTrusted(value: boolean | undefined) {
-		console.log('SET: ' + value);
 		this._mementoObject[this._isTrustedKey] = value;
 		this._memento.saveMemento();
 	}
