@@ -69,19 +69,21 @@ export interface ITestResult {
 	toJSON(): ISerializedTestResults | undefined;
 }
 
-export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
-	const path = [test];
-	while (true) {
-		const parentId = path[0].parent;
-		const parent = parentId && results.getStateById(parentId);
-		if (!parent) {
-			break;
-		}
+export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
+	let i: TestResultItem | undefined = item;
+	while (i) {
+		yield i;
+		i = i.parent ? results.getStateById(i.parent) : undefined;
+	}
+};
 
-		path.unshift(parent);
+export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
+	const path: TestIdPath = [];
+	for (const node of resultItemParents(results, test)) {
+		path.unshift(node.item.extId);
 	}
 
-	return path.map(t => t.item.extId);
+	return path;
 };
 
 /**
