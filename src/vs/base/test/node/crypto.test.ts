@@ -6,7 +6,7 @@
 import { checksum } from 'vs/base/node/crypto';
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 
 flakySuite('Crypto', () => {
@@ -20,7 +20,7 @@ flakySuite('Crypto', () => {
 	});
 
 	teardown(function () {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('checksum', async () => {

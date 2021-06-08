@@ -6,7 +6,7 @@
 import { basename, dirname, join } from 'vs/base/common/path';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -58,7 +58,7 @@ export class CodeCacheCleaner extends Disposable {
 				if (codeCacheEntryStat.isDirectory() && (now - codeCacheEntryStat.mtime.getTime()) > this._DataMaxAge) {
 					this.logService.info(`[code cache cleanup]: Removing code cache folder ${codeCache}.`);
 
-					return rimraf(codeCacheEntryPath);
+					return Promises.rm(codeCacheEntryPath);
 				}
 			}));
 		} catch (error) {

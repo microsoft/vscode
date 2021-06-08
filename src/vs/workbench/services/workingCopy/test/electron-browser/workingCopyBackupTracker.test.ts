@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hash } from 'vs/base/common/hash';
@@ -113,7 +113,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 	teardown(async () => {
 		disposables.clear();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {

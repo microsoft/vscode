@@ -9,7 +9,7 @@ import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, File
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, move, copy, rimraf, RimRafMode, IDirent, Promises } from 'vs/base/node/pfs';
+import { SymlinkSupport, RimRafMode, IDirent, Promises } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -435,7 +435,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (opts.recursive) {
-			await rimraf(filePath, RimRafMode.MOVE);
+			await Promises.rm(filePath, RimRafMode.MOVE);
 		} else {
 			await Promises.unlink(filePath);
 		}
@@ -455,7 +455,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
 
 			// Move
-			await move(fromFilePath, toFilePath);
+			await Promises.move(fromFilePath, toFilePath);
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -482,7 +482,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
-			await copy(fromFilePath, toFilePath, { preserveSymlinks: true });
+			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
