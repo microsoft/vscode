@@ -128,7 +128,7 @@ export class OpenerService implements IOpenerService {
 			}
 		};
 
-		// Default opener: any external, maito, http(s), command, and catch-all-editors
+		// Default opener: any external, mailto, http(s), command, and catch-all-editors
 		this._openers.push({
 			open: async (target: URI | string, options?: OpenOptions) => {
 				if (options?.openExternal || matchesScheme(target, Schemas.mailto) || matchesScheme(target, Schemas.http) || matchesScheme(target, Schemas.https)) {
