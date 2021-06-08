@@ -23,11 +23,11 @@ export class EditorState {
 
 	private readonly flags: number;
 
-	private readonly position: Position | null;
-	private readonly selection: Range | null;
-	private readonly modelVersionId: string | null;
-	private readonly scrollLeft: number;
-	private readonly scrollTop: number;
+	private readonly position: Position | null = null;
+	private readonly selection: Range | null = null;
+	private readonly modelVersionId: string | null = null;
+	private readonly scrollLeft: number = -1;
+	private readonly scrollTop: number = -1;
 
 	constructor(editor: ICodeEditor, flags: number) {
 		this.flags = flags;
@@ -35,25 +35,16 @@ export class EditorState {
 		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
 			const model = editor.getModel();
 			this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
-		} else {
-			this.modelVersionId = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Position) !== 0) {
 			this.position = editor.getPosition();
-		} else {
-			this.position = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Selection) !== 0) {
 			this.selection = editor.getSelection();
-		} else {
-			this.selection = null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Scroll) !== 0) {
 			this.scrollLeft = editor.getScrollLeft();
 			this.scrollTop = editor.getScrollTop();
-		} else {
-			this.scrollLeft = -1;
-			this.scrollTop = -1;
 		}
 	}
 
