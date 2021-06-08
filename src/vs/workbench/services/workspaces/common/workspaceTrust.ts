@@ -73,7 +73,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 
-	private _initialized: boolean;
 	private _workspaceResolvedPromise: Promise<void>;
 	private _workspaceResolvedPromiseResolve!: () => void;
 	private _workspaceTrustInitializedPromise: Promise<void>;
@@ -87,7 +86,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
 	private _trustStateInfo: IWorkspaceTrustInfo;
-	private _canonicalWorkspace: IWorkspace;
+	private _canonicalWorkspace: IWorkspace | undefined;
 
 	protected readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
@@ -103,8 +102,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	) {
 		super();
 
-		this._canonicalWorkspace = this.workspaceService.getWorkspace();
-		this._initialized = false;
 		this._workspaceResolvedPromise = new Promise((resolve) => {
 			this._workspaceResolvedPromiseResolve = resolve;
 		});
@@ -127,7 +124,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Resolve the workspace uris and resolve the initialization promise
 		this.resolveCanonicalWorkspaceUris().then(async () => {
-			this._initialized = true;
 			await this.updateWorkspaceTrust();
 
 			this._workspaceResolvedPromiseResolve();
@@ -227,6 +223,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private getWorkspaceUris(): URI[] {
+		if (!this._canonicalWorkspace) {
+			return [];
+		}
+
 		const workspaceUris = this._canonicalWorkspace.folders.map(f => f.uri);
 		const workspaceConfiguration = this._canonicalWorkspace.configuration;
 		if (workspaceConfiguration && !isUntitledWorkspace(workspaceConfiguration, this.environmentService)) {
@@ -258,8 +258,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
 		}
 
-		// Pending initialization
-		if (!this._initialized) {
+		// Pending workspace resolution
+		if (!this._canonicalWorkspace) {
 			return false;
 		}
 
@@ -411,11 +411,19 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	canSetParentFolderTrust(): boolean {
+		if (!this._canonicalWorkspace) {
+			return false;
+		}
+
 		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
 		return isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file;
 	}
 
 	async setParentFolderTrust(trusted: boolean): Promise<void> {
+		if (!this._canonicalWorkspace) {
+			return;
+		}
+
 		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
@@ -448,23 +456,26 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Trusted workspace
 		// Can only be trusted explicitly in the single folder scenario
-		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
-		if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
-			return false;
-		}
-
-		// If the current folder isn't trusted directly, return false
-		const trustInfo = this.doGetUriTrustInfo(workspaceIdentifier.uri);
-		if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
-			return false;
-		}
-
-		// Check if the parent is also trusted
-		if (this.canSetParentFolderTrust()) {
-			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
-			const parentPathTrustInfo = this.doGetUriTrustInfo(URI.file(parentPath));
-			if (parentPathTrustInfo.trusted) {
+		if (this._canonicalWorkspace) {
+			const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
+			if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
 				return false;
+			}
+
+
+			// If the current folder isn't trusted directly, return false
+			const trustInfo = this.doGetUriTrustInfo(workspaceIdentifier.uri);
+			if (!trustInfo.trusted || !this.uriIdentityService.extUri.isEqual(workspaceIdentifier.uri, trustInfo.uri)) {
+				return false;
+			}
+
+			// Check if the parent is also trusted
+			if (this.canSetParentFolderTrust()) {
+				const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+				const parentPathTrustInfo = this.doGetUriTrustInfo(URI.file(parentPath));
+				if (parentPathTrustInfo.trusted) {
+					return false;
+				}
 			}
 		}
 
