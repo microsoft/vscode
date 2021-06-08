@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Application, ApplicationOptions } from '../../../../automation';
+import { Application } from '../../../../automation';
 
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
@@ -39,8 +39,7 @@ export function setup() {
 
 		before(async function () {
 			const app = this.app as Application;
-			const defaultOptions = this.defaultOptions as ApplicationOptions;
-			const workspaceFilePath = await createWorkspaceFile(defaultOptions.workspacePath);
+			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
 
 			await app.restart({ workspaceOrFolder: workspaceFilePath });
 		});
