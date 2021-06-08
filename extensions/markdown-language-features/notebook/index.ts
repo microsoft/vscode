@@ -13,6 +13,12 @@ export function activate() {
 	const style = document.createElement('style');
 	style.classList.add('markdown-style');
 	style.textContent = `
+		.emptyMarkdownCell::before {
+			content: "${document.documentElement.style.getPropertyValue('--notebook-cell-markup-empty-content')}";
+			font-style: italic;
+			opacity: 0.6;
+		}
+
 		img {
 			max-width: 100%;
 			max-height: 100%;
@@ -153,8 +159,16 @@ export function activate() {
 				previewNode = element.shadowRoot.getElementById('preview')!;
 			}
 
-			const rendered = markdownIt.render(outputInfo.text());
-			previewNode.innerHTML = rendered;
+			const text = outputInfo.text();
+			if (text.trim().length === 0) {
+				previewNode.innerText = '';
+				previewNode.classList.add('emptyMarkdownCell');
+			} else {
+				previewNode.classList.remove('emptyMarkdownCell');
+
+				const rendered = markdownIt.render(text);
+				previewNode.innerHTML = rendered;
+			}
 		},
 		extendMarkdownIt: (f: (md: typeof markdownIt) => void) => {
 			f(markdownIt);

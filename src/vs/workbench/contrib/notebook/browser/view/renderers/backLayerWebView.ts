@@ -164,7 +164,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
-			'notebook-cell-output-font-size': `${this.options.fontSize}px`
+			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
+			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 		};
 	}
 
@@ -216,12 +217,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-webkit-user-select: none;
 						-ms-user-select: none;
 						cursor: grab;
-					}
-
-					#container > div.preview.emptyMarkdownCell::before {
-						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
-						font-style: italic;
-						opacity: 0.6;
 					}
 
 					#container > div.preview.selected {

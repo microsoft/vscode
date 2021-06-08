@@ -1147,27 +1147,22 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
 		if (typeof content === 'string') {
-			if (content.trim().length === 0) {
-				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewContainerNode.innerText = '';
-			} else {
-				previewContainerNode.classList.remove('emptyMarkdownCell');
-				await renderers.render(createMarkdownOutputItem(cellId, previewContainerNode, content), previewContainerNode);
 
-				if (!hasPostedRenderedMathTelemetry) {
-					const hasRenderedMath = previewContainerNode.querySelector('.katex');
-					if (hasRenderedMath) {
-						hasPostedRenderedMathTelemetry = true;
-						postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-					}
-				}
+			await renderers.render(createMarkdownOutputItem(cellId, previewContainerNode, content), previewContainerNode);
 
-				const matches = previewContainerNode.innerText.match(unsupportedKatexTermsRegex);
-				if (matches) {
-					postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-						latexDirective: matches[0],
-					});
+			if (!hasPostedRenderedMathTelemetry) {
+				const hasRenderedMath = previewContainerNode.querySelector('.katex');
+				if (hasRenderedMath) {
+					hasPostedRenderedMathTelemetry = true;
+					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
 				}
+			}
+
+			const matches = previewContainerNode.innerText.match(unsupportedKatexTermsRegex);
+			if (matches) {
+				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+					latexDirective: matches[0],
+				});
 			}
 		}
 
