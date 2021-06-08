@@ -132,7 +132,10 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
 					description: localize('gettingStarted.pickColor.description', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n[Browse Color Themes](command:workbench.action.selectTheme)"),
-					completionEvents: ['onSettingChanged:workbench.colorTheme'],
+					completionEvents: [
+						'onSettingChanged:workbench.colorTheme',
+						'onCommand:workbench.action.selectTheme'
+					],
 					media: { type: 'markdown', path: 'example_markdown_media', }
 				},
 				{
