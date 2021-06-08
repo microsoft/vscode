@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
-import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution, NOTEBOOK_CELL_EXECUTION_STATE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
@@ -232,7 +232,8 @@ class TimerCellStatusBarHelper extends Disposable {
  */
 class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	private _currentItemIds: string[] = [];
-	private readonly _contextKeyService: IContextKeyService;
+	private readonly _codeContextKeyService: IContextKeyService;
+	private readonly _markupContextKeyService: IContextKeyService;
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,
@@ -243,12 +244,20 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 		super();
 
 		// Create a fake ContextKeyService, and look up the keybindings within this context.
-		this._contextKeyService = this._register(_contextKeyService.createScoped(document.createElement('div')));
-		InputFocusedContext.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.editorTextFocus.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.focus.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.textInputFocus.bindTo(this._contextKeyService).set(true);
-		NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this._contextKeyService).set('idle');
+		const commonContextKeyService = this._register(_contextKeyService.createScoped(document.createElement('div')));
+		InputFocusedContext.bindTo(commonContextKeyService).set(true);
+		EditorContextKeys.editorTextFocus.bindTo(commonContextKeyService).set(true);
+		EditorContextKeys.focus.bindTo(commonContextKeyService).set(true);
+		EditorContextKeys.textInputFocus.bindTo(commonContextKeyService).set(true);
+		NOTEBOOK_CELL_EXECUTION_STATE.bindTo(commonContextKeyService).set('idle');
+		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(commonContextKeyService).set(true);
+		NOTEBOOK_EDITOR_FOCUSED.bindTo(commonContextKeyService).set(true);
+
+		this._codeContextKeyService = this._register(commonContextKeyService.createScoped(document.createElement('div')));
+		NOTEBOOK_CELL_TYPE.bindTo(this._codeContextKeyService).set('code');
+
+		this._markupContextKeyService = this._register(commonContextKeyService.createScoped(document.createElement('div')));
+		NOTEBOOK_CELL_TYPE.bindTo(this._markupContextKeyService).set('markup');
 
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
@@ -268,14 +277,14 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 
 		let text: string;
 		if (cell.cellKind === CellKind.Code) {
-			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID, this._contextKeyService)?.getLabel();
+			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID, this._codeContextKeyService)?.getLabel();
 			if (!keybinding) {
 				return [];
 			}
 
 			text = localize('notebook.cell.status.codeExecuteTip', "Press {0} to execute cell", keybinding);
 		} else {
-			const keybinding = this._keybindingService.lookupKeybinding(QUIT_EDIT_CELL_COMMAND_ID, this._contextKeyService)?.getLabel();
+			const keybinding = this._keybindingService.lookupKeybinding(QUIT_EDIT_CELL_COMMAND_ID, this._markupContextKeyService)?.getLabel();
 			if (!keybinding) {
 				return [];
 			}
