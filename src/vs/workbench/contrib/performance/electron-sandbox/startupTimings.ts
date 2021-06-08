@@ -23,6 +23,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -39,8 +40,8 @@ export class StartupTimings implements IWorkbenchContribution {
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
 		@IProductService private readonly _productService: IProductService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
-		//
 		this._report().catch(onUnexpectedError);
 	}
 
@@ -110,7 +111,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (activePanel) {
 			return 'Current active panel : ' + this._panelService.getPanel(activePanel.getId())?.name;
 		}
-		if (!didUseCachedData()) {
+		if (!didUseCachedData(this._productService, this._storageService, this._environmentService)) {
 			return 'Either cache data is rejected or not created';
 		}
 		if (!await this._updateService.isLatestVersion()) {
