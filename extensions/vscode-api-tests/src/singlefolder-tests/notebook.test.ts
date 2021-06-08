@@ -56,18 +56,13 @@ class Kernel {
 	}
 
 	protected async _runCell(cell: vscode.NotebookCell) {
+		// create a single output with exec order 1 and output is plain/text
+		// of either the cell itself or (iff empty) the cell's document's uri
 		const task = this.controller.createNotebookCellExecution(cell);
 		task.start();
 		task.executionOrder = 1;
-		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
-			await task.replaceOutput([new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('test', 'text/custom')
-			])]);
-			return;
-		}
-
 		await task.replaceOutput([new vscode.NotebookCellOutput([
-			vscode.NotebookCellOutputItem.text('my output', 'text/plain')
+			vscode.NotebookCellOutputItem.text(cell.document.getText() || cell.document.uri.toString(), 'text/plain')
 		])]);
 		task.end(true);
 	}
@@ -165,7 +160,7 @@ suite('Notebook API tests', function () {
 
 	setup(async function () {
 		// there should be ONE default kernel in this suite
-		defaultKernel = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
+		defaultKernel = new Kernel('mainKernel', 'Notebook Default Kernel');
 		testDisposables.push(defaultKernel.controller);
 		await saveAllFilesAndCloseAll();
 	});
@@ -557,7 +552,7 @@ suite('Notebook API tests', function () {
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].items.length, 1);
 			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my output');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), cell.document.getText());
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
