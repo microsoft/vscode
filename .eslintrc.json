@@ -104,6 +104,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -139,6 +140,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -212,6 +214,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
@@ -225,6 +228,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
@@ -289,6 +293,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
@@ -311,6 +316,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -334,6 +340,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -357,6 +364,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -383,6 +391,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -397,6 +406,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",
@@ -921,6 +931,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"vscode"
 				]
@@ -952,6 +963,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
@@ -962,6 +974,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
