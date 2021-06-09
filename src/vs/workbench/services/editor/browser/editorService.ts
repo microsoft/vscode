@@ -34,7 +34,7 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -518,11 +518,16 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				const resolvedInputWithOptionsAndGroup = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
-				if (resolvedInputWithOptionsAndGroup) {
-					return (resolvedInputWithOptionsAndGroup.group ?? resolvedGroup).openEditor(
-						resolvedInputWithOptionsAndGroup.editor,
-						resolvedInputWithOptionsAndGroup.options ?? resolvedOptions
+				const returnedOverride = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
+				if (returnedOverride === OverrideStatus.ABORT) {
+					return;
+				} else if (returnedOverride === OverrideStatus.NONE) {
+					return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
+				}
+				if (returnedOverride) {
+					return (returnedOverride.group ?? resolvedGroup).openEditor(
+						returnedOverride.editor,
+						returnedOverride.options ?? resolvedOptions
 					);
 				}
 			}
@@ -722,7 +727,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			for (const { editor, options } of editorsWithOptions) {
 				let editorOverride: IEditorInputWithOptionsAndGroup | undefined;
 				if (options?.override !== EditorOverride.DISABLED) {
-					editorOverride = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+					if (overrideResult === OverrideStatus.ABORT) {
+						continue;
+					} else {
+						editorOverride = overrideResult === OverrideStatus.NONE ? undefined : overrideResult;
+					}
 				}
 
 				const targetGroup = editorOverride?.group ?? group;
@@ -923,8 +933,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				const replacementArg = replaceEditorArg as IEditorReplacement;
 				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
 					const override = await this.editorOverrideService.resolveEditorOverride(replacementArg.replacement, replacementArg.options, targetGroup);
-					replacementArg.options = override?.options ?? replacementArg.options;
-					replacementArg.replacement = override?.editor ?? replacementArg.replacement;
+					if (override === OverrideStatus.ABORT) {
+						continue;
+					} else if (override !== OverrideStatus.NONE) {
+						replacementArg.options = override?.options ?? replacementArg.options;
+						replacementArg.replacement = override?.editor ?? replacementArg.replacement;
+					}
+
 				}
 				typedEditors.push({
 					editor: replacementArg.editor,
