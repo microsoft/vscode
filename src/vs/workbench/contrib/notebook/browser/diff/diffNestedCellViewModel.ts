@@ -81,11 +81,9 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 		this._id = generateUuid();
 
 		this._outputViewModels = this.textModel.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
-		this._register(this.textModel.onDidChangeOutputs((splices) => {
-			splices.reverse().forEach(splice => {
-				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-				this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService)));
-			});
+		this._register(this.textModel.onDidChangeOutputs((splice) => {
+			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
+			this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService)));
 
 			this._outputsTop = null;
 			this._onDidChangeOutputLayout.fire();

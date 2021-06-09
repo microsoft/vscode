@@ -663,4 +663,49 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(notebook.cells[1].outputs[0].outputId, 'i44');
 		});
 	});
+
+	test('Output edits splice', async function () {
+		await withTestNotebook([
+			['var a = 1;', 'javascript', CellKind.Code, [], {}]
+		], (editor) => {
+			const model = editor.viewModel.notebookDocument;
+
+			assert.strictEqual(model.cells.length, 1);
+			assert.strictEqual(model.cells[0].outputs.length, 0);
+
+			const success1 = model.applyEdits(
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [1] }] },
+						{ outputId: 'out2', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [2] }] },
+						{ outputId: 'out3', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [3] }] },
+						{ outputId: 'out4', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [4] }] }
+					],
+					append: false
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success1);
+			assert.strictEqual(model.cells[0].outputs.length, 4);
+
+			const success2 = model.applyEdits(
+				[{
+					editType: CellEditType.Output, index: 0, outputs: [
+						{ outputId: 'out1', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [1] }] },
+						{ outputId: 'out5', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [5] }] },
+						{ outputId: 'out3', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [3] }] },
+						{ outputId: 'out6', outputs: [{ mime: 'application/x.notebook.stream', valueBytes: [6] }] }
+					],
+					append: false
+				}], true, undefined, () => undefined, undefined, false
+			);
+
+			assert.ok(success2);
+			assert.strictEqual(model.cells[0].outputs.length, 4);
+			assert.strictEqual(model.cells[0].outputs[0].outputId, 'out1');
+			assert.strictEqual(model.cells[0].outputs[1].outputId, 'out5');
+			assert.strictEqual(model.cells[0].outputs[2].outputId, 'out3');
+			assert.strictEqual(model.cells[0].outputs[3].outputId, 'out6');
+		});
+	});
 });

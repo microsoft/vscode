@@ -397,8 +397,8 @@ export class CellOutputContainer extends Disposable {
 	) {
 		super();
 
-		this._register(viewCell.onDidChangeOutputs(splices => {
-			this._updateOutputs(splices);
+		this._register(viewCell.onDidChangeOutputs(splice => {
+			this._updateOutputs(splice);
 		}));
 
 		this._register(viewCell.onDidChangeLayout(() => {
@@ -500,11 +500,7 @@ export class CellOutputContainer extends Disposable {
 		}
 	}
 
-	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
-		if (!splices.length) {
-			return;
-		}
-
+	private _updateOutputs(splice: NotebookCellOutputsSplice) {
 		const previousOutputHeight = this.viewCell.layoutInfo.outputTotalHeight;
 
 		// for cell output update, we make sure the cell does not shrink before the new outputs are rendered.
@@ -516,12 +512,9 @@ export class CellOutputContainer extends Disposable {
 			DOM.hide(this.templateData.outputContainer);
 		}
 
-		const reversedSplices = splices.reverse();
+		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
 
-		reversedSplices.forEach(splice => {
-			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
-		});
-
+		// avoid output splices flushing the renderer process
 		if (Date.now() - this._lastRenderTime < 2) {
 			this._pendingRenderTask?.dispose();
 			this._pendingRenderTask = DOM.scheduleAtNextAnimationFrame(() => {
