@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
+
 /**
  * Formats a message from the product to be written to the terminal.
  */
@@ -10,3 +12,22 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
 	// Wrap in bold and ensure it's on a new line
 	return `${excludeLeadingNewLine ? '' : '\r\n'}\x1b[1m${message}\x1b[0m\n\r`;
 }
+
+/**
+ * An object holding strings shared by multiple parts of the terminal
+ */
+export const terminalStrings = {
+	kill: {
+		value: localize('killTerminal', "Kill Terminal"),
+		original: 'Kill Terminal'
+	},
+	split: {
+		value: localize('splitTerminal', "Split Terminal"),
+		original: 'Split Terminal',
+		short: localize('splitTerminal.short', "Split"),
+	},
+	unsplit: {
+		value: localize('unsplitTerminal', "Unsplit Terminal"),
+		original: 'Unsplit Terminal'
+	}
+};

@@ -41,6 +41,7 @@ import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const $ = DOM.$;
 
@@ -436,7 +437,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
 		const actions = [
-			new Action(TerminalCommandId.SplitInstance, localize('terminal.split', "Split"), ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
+			new Action(TerminalCommandId.SplitInstance, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, e => this._terminalService.splitInstance(e));
 			}),
 			new Action(TerminalCommandId.KillInstance, localize('terminal.kill', "Kill"), ThemeIcon.asClassName(Codicon.trashcan), true, async () => {
