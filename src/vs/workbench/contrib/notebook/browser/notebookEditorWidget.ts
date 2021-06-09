@@ -72,7 +72,6 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { Mimes } from 'vs/base/common/mime';
 import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
@@ -1419,7 +1418,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private createMarkupCellInitialization(model: ICellViewModel, offset: number): IMarkupCellInitialization {
 		return ({
-			mime: Mimes.markdown,
+			mime: model.mime,
 			cellId: model.id,
 			cellHandle: model.handle,
 			content: model.getText(),
@@ -2272,7 +2271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkdownPreview({
-			mime: Mimes.markdown,
+			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),
