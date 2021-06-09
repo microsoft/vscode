@@ -28,8 +28,8 @@ export class GhostTextController extends Disposable {
 		return editor.getContribution<GhostTextController>(GhostTextController.ID);
 	}
 
-	private readonly widget: GhostTextWidget;
-	private readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
+	protected readonly widget: GhostTextWidget;
+	protected readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
 	private readonly contextKeys: GhostTextContextKeys;
 	private triggeredExplicitly = false;
 
@@ -142,7 +142,7 @@ export class ActiveGhostTextController extends Disposable {
 	private readonly suggestWidgetAdapterModel = this._register(new SuggestWidgetAdapterModel(this.editor));
 	private readonly inlineCompletionsModel = this._register(new InlineCompletionsModel(this.editor, this.commandService));
 
-	private get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
+	public get activeInlineCompletionsModel(): InlineCompletionsModel | undefined {
 		if (this.widget.model === this.inlineCompletionsModel) {
 			return this.inlineCompletionsModel;
 		}
@@ -210,7 +210,7 @@ export class ActiveGhostTextController extends Disposable {
 	}
 
 	public triggerInlineCompletion(): void {
-		this.activeInlineCompletionsModel?.startSession();
+		this.activeInlineCompletionsModel?.trigger();
 	}
 
 	public commitInlineCompletion(): void {

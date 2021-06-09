@@ -84,6 +84,13 @@ export class GhostTextWidget extends Disposable {
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
 
+	private readonly onWillRenderEmitter = new Emitter<void>();
+
+	/**
+	 * @deprecated Only use this for testing. This will get removed after the GhostTextController is refactored to use a single model.
+	*/
+	public readonly onWillRender = this.onWillRenderEmitter.event;
+
 	constructor(
 		private readonly editor: ICodeEditor,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
@@ -147,6 +154,8 @@ export class GhostTextWidget extends Disposable {
 	}
 
 	private render(): void {
+		this.onWillRenderEmitter.fire();
+
 		const renderData = this.getRenderData();
 
 		if (this.codeEditorDecorationTypeKey) {

@@ -26,13 +26,13 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	private readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
 
 	private active: boolean = false;
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -108,10 +108,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			return;
 		}
 
-		this.startSession();
+		this.trigger();
 	}
 
-	public startSession(): void {
+	public trigger(): void {
 		if (this.completionSession.value) {
 			return;
 		}
@@ -142,13 +142,13 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 }
 
-class InlineCompletionsSession extends BaseGhostTextWidgetModel {
+export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
+	private readonly updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
@@ -345,6 +345,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commitCurrentCompletion(): void {
+		if (!this.ghostText) {
+			// No ghost text was shown for this completion.
+			// Thus, we don't want to commit anything.
+			return;
+		}
 		const completion = this.currentCompletion;
 		if (completion) {
 			this.commit(completion);
