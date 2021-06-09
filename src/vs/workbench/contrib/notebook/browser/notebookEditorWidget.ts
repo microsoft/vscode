@@ -73,6 +73,7 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { Mimes } from 'vs/base/common/mime';
+import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
 
@@ -1386,18 +1387,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			await this._webview!.initializeMarkup(requests.map(request => ({
-				mime: Mimes.markdown,
-				cellId: request[0].id,
-				cellHandle: request[0].handle,
-				content: request[0].getText(),
-				offset: request[1],
-				visible: false,
-			})));
+			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
 		} else {
-			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({
-				cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false, mime: Mimes.markdown,
-			}));
+			const initRequests = viewModel.viewCells
+				.filter(cell => cell.cellKind === CellKind.Markup)
+				.slice(0, 5)
+				.map(cell => this.createMarkupCellInitialization(cell, -10000));
+
 			await this._webview!.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
@@ -1419,6 +1415,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._webview?.updateScrollTops([], offsetUpdateRequests);
 		}
+	}
+
+	private createMarkupCellInitialization(model: ICellViewModel, offset: number): IMarkupCellInitialization {
+		return ({
+			mime: Mimes.markdown,
+			cellId: model.id,
+			cellHandle: model.handle,
+			content: model.getText(),
+			offset: offset,
+			visible: false,
+		});
 	}
 
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
