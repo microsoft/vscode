@@ -16,37 +16,54 @@ import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import sinon = require('sinon');
 
-test('inlineCompletionToGhostText', function () {
+suite('inlineCompletionToGhostText', () => {
 	function getOutput(text: string, suggestion: string): unknown {
 		const range = new Range(1, text.indexOf('[') + 1, 1, text.indexOf(']'));
-		const tempModel = createTextModel(text.replace('[', '').replace(']', ''));
+		const cleanedText = text.replace('[', '').replace(']', '');
+		const tempModel = createTextModel(cleanedText);
 		const ghostText = inlineCompletionToGhostText({ text: suggestion, range }, tempModel);
 		if (!ghostText) {
 			return undefined;
 		}
-		return {
-			text: ghostText.lines.join('\n'),
-			column: ghostText.position.column,
-		};
+
+		let str = cleanedText.substr(0, ghostText.position.column - 1);
+		let ghostStr = ghostText.lines.join('\n');
+		if (ghostStr.length > 0) {
+			str += `[${ghostStr}]`;
+		}
+		str += cleanedText.substr(ghostText.position.column - 1);
+
+		return str;
 	}
 
-	assert.deepStrictEqual(getOutput('[foo]baz', 'foobar'), { text: 'bar', column: 4 });
-	assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
+	test('Basic', () => {
+		assert.deepStrictEqual(getOutput('[foo]baz', 'foobar'), 'foo[bar]baz');
+		assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
+		assert.deepStrictEqual(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
+	});
 
-	// Empty ghost text
-	assert.deepStrictEqual(getOutput('[foo]', 'foo'), { text: '', column: 4 });
+	test('Empty ghost text', () => {
+		assert.deepStrictEqual(getOutput('[foo]', 'foo'), 'foo');
+	});
 
-	// Whitespace (in indentation)
-	assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), { text: 'bar', column: 5 });
-	assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), { text: 'bar', column: 5 });
-	assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), { text: 'bar', column: 6 });
-	assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { text: 'bar', column: 5 });
-	assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), { text: '\tfoobar', column: 2 });
+	test('Whitespace (in indentation)', () => {
+		assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
+		assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
+		assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
+		assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), '\tfoo[bar]');
+		assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
+		assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
+		assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
+	});
 
-	// (outside of indentation)
-	assert.deepStrictEqual(getOutput('bar[ foo]', 'foobar'), undefined);
-	assert.deepStrictEqual(getOutput('bar[\tfoo]', 'foobar'), undefined);
+	test('Whitespace (outside of indentation)', () => {
+		assert.deepStrictEqual(getOutput('bar[ foo]', 'foobar'), undefined);
+		assert.deepStrictEqual(getOutput('bar[\tfoo]', 'foobar'), undefined);
+	});
 
+	test('Other', () => {
+		assert.deepStrictEqual(getOutput('foo[()]', '(x);'), undefined);
+	});
 });
 
 test('Does not trigger automatically by default', async function () {
