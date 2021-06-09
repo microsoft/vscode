@@ -6,6 +6,7 @@ pushd %~dp0\..
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
 set VSCODECRASHDIR=%~dp0\..\.build\crashes
 set VSCODETRACEFILE=%~dp0\..\.build\traces\chrometrace.log
+mkdir %~dp0\..\.build\traces
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
