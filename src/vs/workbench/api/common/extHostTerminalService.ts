@@ -598,18 +598,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
 		const token = new CancellationTokenSource().token;
-		const options = await this._profileProviders.get(id)?.provideProfileOptions(token);
+		const profile = await this._profileProviders.get(id)?.provideTerminalProfile(token);
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (!options) {
+		if (!profile) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
-		if ('pty' in options) {
-			this.createExtensionTerminal(options, { isSplitTerminal });
+		if ('pty' in profile.options) {
+			this.createExtensionTerminal(profile.options, { isSplitTerminal });
 			return;
 		}
-		this.createTerminalFromOptions(options, { isSplitTerminal });
+		this.createTerminalFromOptions(profile.options, { isSplitTerminal });
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {

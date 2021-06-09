@@ -903,12 +903,26 @@ declare module 'vscode' {
 		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
 	}
 
+	/**
+	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * command.
+	 */
 	export interface TerminalProfileProvider {
 		/**
-		 * Provide terminal profile options for the requested terminal.
+		 * Provide the terminal profile.
 		 * @param token A cancellation token that indicates the result is no longer needed.
 		 */
-		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
+		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+	}
+
+	/**
+	 * A terminal profile defines how a termianl will be launched.
+	 */
+	export interface TerminalProfile {
+		/**
+		 * The options that the terminal will launch with.
+		 */
+		options: TerminalOptions | ExtensionTerminalOptions;
 	}
 
 	//#endregion
