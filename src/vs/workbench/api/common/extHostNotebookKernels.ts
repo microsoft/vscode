@@ -379,12 +379,9 @@ class NotebookCellExecutionTask extends Disposable {
 		this.applyEdits([edit]);
 	}
 
-	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | number | undefined): number {
+	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
 		let cell: ExtHostCell | undefined = this._cell;
-		if (typeof cellOrCellIndex === 'number') {
-			// todo@jrieken remove support for number shortly
-			cell = this._document.getCellFromIndex(cellOrCellIndex);
-		} else if (cellOrCellIndex) {
+		if (cellOrCellIndex) {
 			cell = this._document.getCellFromApiCell(cellOrCellIndex);
 		}
 		if (!cell) {
@@ -407,18 +404,15 @@ class NotebookCellExecutionTask extends Disposable {
 		});
 	}
 
-	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | number | undefined, append: boolean): Promise<void> {
+	private async updateOutputs(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell: vscode.NotebookCell | undefined, append: boolean): Promise<void> {
 		const handle = this.cellIndexToHandle(cell);
 		const outputDtos = this.validateAndConvertOutputs(asArray(outputs));
 		return this.applyEditSoon({ editType: CellEditType.Output, handle, append, outputs: outputDtos });
 	}
 
-	private async updateOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], outputOrOutputId: vscode.NotebookCellOutput | string, append: boolean): Promise<void> {
-		if (NotebookCellOutput.isNotebookCellOutput(outputOrOutputId)) {
-			outputOrOutputId = outputOrOutputId.id;
-		}
+	private async updateOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput, append: boolean): Promise<void> {
 		items = NotebookCellOutput.ensureUniqueMimeTypes(asArray(items), true);
-		return this.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId: outputOrOutputId, append });
+		return this.applyEditSoon({ editType: CellEditType.OutputItems, items: items.map(extHostTypeConverters.NotebookCellOutputItem.from), outputId: output.id, append });
 	}
 
 	asApiObject(): vscode.NotebookCellExecution {
@@ -463,27 +457,27 @@ class NotebookCellExecutionTask extends Disposable {
 				});
 			},
 
-			clearOutput(cell?: vscode.NotebookCell | number): Thenable<void> {
+			clearOutput(cell?: vscode.NotebookCell): Thenable<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs([], cell, false);
 			},
 
-			appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			appendOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, true);
 			},
 
-			replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell | number): Promise<void> {
+			replaceOutput(outputs: vscode.NotebookCellOutput | vscode.NotebookCellOutput[], cell?: vscode.NotebookCell): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputs(outputs, cell, false);
 			},
 
-			appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			appendOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputItems(items, output, true);
 			},
 
-			replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput | string): Promise<void> {
+			replaceOutputItems(items: vscode.NotebookCellOutputItem | vscode.NotebookCellOutputItem[], output: vscode.NotebookCellOutput): Promise<void> {
 				that.verifyStateForOutput();
 				return that.updateOutputItems(items, output, false);
 			}
