@@ -1385,7 +1385,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			await this._webview!.initializeMarkdown(requests.map(request => ({
+			await this._webview!.initializeMarkup(requests.map(request => ({
 				cellId: request[0].id,
 				cellHandle: request[0].handle,
 				content: request[0].getText(),
@@ -1394,7 +1394,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			})));
 		} else {
 			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
-			await this._webview!.initializeMarkdown(initRequests);
+			await this._webview!.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset

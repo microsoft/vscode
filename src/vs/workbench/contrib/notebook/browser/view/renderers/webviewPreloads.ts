@@ -1007,7 +1007,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		private readonly _markupCells = new Map<string, MarkdownCell>();
 
-		private async createMarkupCell(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<MarkdownCell> {
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkdownCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
@@ -1021,7 +1021,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			return markdownCell;
 		}
 
-		public async ensureMarkupCells(update: readonly webviewMessages.IMarkdownCellInitialization[]): Promise<void> {
+		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
 			await Promise.all(update.map(async info => {
 				let cell = this._markupCells.get(info.cellId);
 				if (cell) {

@@ -34,7 +34,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICreationRequestMessage, IMarkdownCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage } from './webviewMessages';
+import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -63,7 +63,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, IMarkdownCellInitialization>();
+	readonly markdownPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -752,7 +752,7 @@ var requirejs = (function() {
 
 		const mdCells = [...this.markdownPreviewMapping.values()];
 		this.markdownPreviewMapping.clear();
-		this.initializeMarkdown(mdCells);
+		this.initializeMarkup(mdCells);
 		this._updateStyles();
 		this._updateOptions();
 	}
@@ -830,7 +830,7 @@ var requirejs = (function() {
 		});
 	}
 
-	private async createMarkdownPreview(initialization: IMarkdownCellInitialization) {
+	private async createMarkdownPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
@@ -847,7 +847,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkdownPreview(initialization: IMarkdownCellInitialization) {
+	async showMarkdownPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
@@ -954,7 +954,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: ReadonlyArray<IMarkdownCellInitialization>) {
+	async initializeMarkup(cells: readonly IMarkupCellInitialization[]) {
 		if (this._disposed) {
 			return;
 		}

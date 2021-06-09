@@ -258,7 +258,7 @@ export interface ICustomRendererMessage extends BaseToWebviewMessage {
 
 export interface ICreateMarkupCellMessage {
 	readonly type: 'createMarkupCell';
-	readonly cell: IMarkdownCellInitialization;
+	readonly cell: IMarkupCellInitialization;
 }
 
 export interface IDeleteMarkupCellMessage {
@@ -289,7 +289,7 @@ export interface IUpdateSelectedMarkupCellsMessage {
 	readonly selectedCellIds: readonly string[];
 }
 
-export interface IMarkdownCellInitialization {
+export interface IMarkupCellInitialization {
 	cellId: string;
 	cellHandle: number;
 	content: string;
@@ -299,7 +299,7 @@ export interface IMarkdownCellInitialization {
 
 export interface IInitializeMarkupCells {
 	readonly type: 'initializeMarkup';
-	readonly cells: ReadonlyArray<IMarkdownCellInitialization>;
+	readonly cells: ReadonlyArray<IMarkupCellInitialization>;
 }
 
 export interface INotebookStylesMessage {
