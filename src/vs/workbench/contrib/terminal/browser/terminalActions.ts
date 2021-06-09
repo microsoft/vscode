@@ -1609,10 +1609,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(t => {
-				t.clear();
-				t.focus();
-			});
+			accessor.get(ITerminalService).doWithActiveInstance(t => t.clear());
 		}
 	});
 	registerAction2(class extends Action2 {
