@@ -155,7 +155,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 }
 
 function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
-	if (environmentService.skipGettingStarted) {
+	if (environmentService.skipWelcome) {
 		return false;
 	}
 
