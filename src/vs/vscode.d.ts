@@ -5814,6 +5814,28 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * command.
+	 */
+	export interface TerminalProfileProvider {
+		/**
+		 * Provide the terminal profile.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 */
+		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+	}
+
+	/**
+	 * A terminal profile defines how a termianl will be launched.
+	 */
+	export interface TerminalProfile {
+		/**
+		 * The options that the terminal will launch with.
+		 */
+		options: TerminalOptions | ExtensionTerminalOptions;
+	}
+
+	/**
 	 * A file decoration represents metadata that can be rendered with a file.
 	 */
 	export class FileDecoration {
@@ -8994,6 +9016,12 @@ declare module 'vscode' {
 		 */
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
+		/**
+		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
+		 */
+		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
 		/**
 		 * Register a file decoration provider.
 		 *

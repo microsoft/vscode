@@ -892,41 +892,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
-
-	export namespace window {
-		/**
-		 * Registers a provider for a contributed terminal profile.
-		 * @param id The ID of the contributed terminal profile.
-		 * @param provider The terminal profile provider.
-		 */
-		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
-	}
-
-	/**
-	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
-	 * command.
-	 */
-	export interface TerminalProfileProvider {
-		/**
-		 * Provide the terminal profile.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 */
-		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
-	}
-
-	/**
-	 * A terminal profile defines how a termianl will be launched.
-	 */
-	export interface TerminalProfile {
-		/**
-		 * The options that the terminal will launch with.
-		 */
-		options: TerminalOptions | ExtensionTerminalOptions;
-	}
-
-	//#endregion
-
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
