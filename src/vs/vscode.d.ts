@@ -9902,7 +9902,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<T[]>;
+		readonly onDidChangeActive: Event<readonly T[]>;
 
 		/**
 		 * Selected items. This can be read and updated by the extension.
@@ -9912,7 +9912,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the selected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<T[]>;
+		readonly onDidChangeSelection: Event<readonly T[]>;
 	}
 
 	/**
