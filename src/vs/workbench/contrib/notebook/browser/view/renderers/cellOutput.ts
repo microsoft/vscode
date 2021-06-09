@@ -173,7 +173,6 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// user chooses another mimetype
-		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 		const nextElement = this.domNode.nextElementSibling;
 		this._renderDisposableStore.clear();
 		const element = this.domNode;
@@ -183,11 +182,13 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// this.output.pickedMimeType = pick;
-		this.render(index, nextElement as HTMLElement);
+		this.render(nextElement as HTMLElement);
 		this.relayoutCell();
 	}
 
-	render(index: number, beforeElement?: HTMLElement): IRenderResult | undefined {
+	render(beforeElement?: HTMLElement): IRenderResult | undefined {
+		const index = this.viewCell.outputsViewModels.indexOf(this.output);
+
 		if (this.viewCell.metadata.outputCollapsed || !this.notebookEditor.hasModel()) {
 			return undefined;
 		}
@@ -392,7 +393,6 @@ export class CellOutputElement extends Disposable {
 		}
 
 		// user chooses another mimetype
-		const index = this.viewCell.outputsViewModels.indexOf(viewModel);
 		const nextElement = this.domNode.nextElementSibling;
 		this._renderDisposableStore.clear();
 		const element = this.domNode;
@@ -406,7 +406,7 @@ export class CellOutputElement extends Disposable {
 
 		const { mimeType, rendererId } = mimeTypes[pick.index];
 		this.notebookService.updateMimePreferredRenderer(mimeType, rendererId);
-		this.render(index, nextElement as HTMLElement);
+		this.render(nextElement as HTMLElement);
 		this._validateFinalOutputHeight(false);
 		this.relayoutCell();
 	}
@@ -685,10 +685,10 @@ export class CellOutputContainer extends Disposable {
 			const next = index + 1;
 			const nextOutput = this.viewCell.outputsViewModels[next];
 			const beforeElement = nextOutput ? this.outputEntries.get(nextOutput)?.domNode : undefined;
-			return this.outputEntries.get(currOutput)!.render(index, beforeElement);
+			return this.outputEntries.get(currOutput)!.render(beforeElement);
 		}
 
-		return this.outputEntries.get(currOutput)!.render(index);
+		return this.outputEntries.get(currOutput)!.render();
 
 	}
 
