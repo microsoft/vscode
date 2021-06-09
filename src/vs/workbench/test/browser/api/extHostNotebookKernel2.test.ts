@@ -64,11 +64,12 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}
-		});
-		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
-			override async $applyEdits(resource: UriComponents, _edits: IImmediateCellEditOperation[]) {
+			override async $applyExecutionEdits(resource: UriComponents, _edits: IImmediateCellEditOperation[]) {
 				edits.push(..._edits);
 			}
+		});
+		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
+
 		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
 			override async $registerNotebookProvider() { }
