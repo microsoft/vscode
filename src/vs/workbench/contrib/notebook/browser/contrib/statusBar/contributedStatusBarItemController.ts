@@ -7,10 +7,10 @@ import { flatten } from 'vs/base/common/arrays';
 import { disposableTimeout, Throttler } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
+import { NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
 import { ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/common/notebookCellStatusBarService';
 import { INotebookCellStatusBarItemList } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -37,15 +37,15 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 	private _updateEverything(): void {
 		const newCells = this._observer.visibleCells.filter(cell => !this._visibleCells.has(cell.handle));
 		this._visibleCells.forEach(helper => helper.update());
-		this._updateVisibleCells({ added: newCells, removed: [] });
 		const visibleCellHandles = new Set(this._observer.visibleCells.map(item => item.handle));
-		Array.from(this._visibleCells.keys()).filter(handle => !visibleCellHandles.has(handle)).forEach(handle => {
-			this._visibleCells.get(handle)?.dispose();
-			this._visibleCells.delete(handle);
-		});
+		const removedCells = Array.from(this._visibleCells.keys()).filter(handle => !visibleCellHandles.has(handle));
+		this._updateVisibleCells({ added: newCells, removed: removedCells.map(handle => ({ handle })) });
 	}
 
-	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
+	private _updateVisibleCells(e: {
+		added: CellViewModel[];
+		removed: { handle: number }[];
+	}): void {
 		const vm = this._notebookEditor.viewModel;
 		if (!vm) {
 			return;
@@ -127,8 +127,7 @@ class CellStatusBarHelper extends Disposable {
 
 	override dispose() {
 		super.dispose();
-		this._activeToken?.cancel();
-		this._activeToken?.dispose();
+		this._activeToken?.dispose(true);
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
