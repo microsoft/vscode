@@ -301,7 +301,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const workspaceLabel = this.getWorkspaceLabel();
 			if (workspaceLabel) {
 				const toolTip: IMarkdownString = {
-					value: nls.localize('workspace.tooltip', "Virtual workspace on {0}\n\n[Some features](command:{1}) are not available for resources located on a virtual file system.", workspaceLabel, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					value: nls.localize(
+						{ key: 'workspace.tooltip2', comment: ['[abc]({1}) is a link. Only translate `Some features`. Do not change brackets and parentheses or {1}'] },
+						"Virtual workspace on {0}\n\n[Some features]({1}) are not available for resources located on a virtual file system.",
+						workspaceLabel, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`
+					),
 					isTrusted: true
 				};
 				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, toolTip);
