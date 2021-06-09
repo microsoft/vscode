@@ -89,6 +89,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _canonicalWorkspace: IWorkspace;
 
+	private _isTrusted: boolean;
 	protected readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
@@ -116,15 +117,15 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
-		this._trustState.setTrustState(this.calculateWorkspaceTrust(), false);
+		this._isTrusted = this.calculateWorkspaceTrust();
 
+		this.initializeWorkspaceTrust();
 		this.registerListeners();
 	}
 
-	//#region private interface
+	//#region initialize
 
-	private registerListeners(): void {
-
+	private initializeWorkspaceTrust(): void {
 		// Folder/Workspace - resolve the workspace uris
 		if (this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			this.resolveCanonicalWorkspaceUris().then(async () => {
@@ -148,7 +149,41 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					this._workspaceTrustInitializedPromiseResolve();
 				});
 		}
+	}
 
+	async initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void> {
+		// Resolve the canonical workspace
+		await this.resolveCanonicalWorkspaceUris();
+
+		// Initialize the memento if not already set
+		if (this._trustState.isEmptyWorkspaceTrusted === undefined) {
+			if (openEditors.length) {
+				const openFilesTrustInfo = await Promise.all(openEditors.map(uri => this.getUriTrustInfo(uri)));
+				if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
+					// All open files are trusted
+					this._trustState.isEmptyWorkspaceTrusted = true;
+				}
+			} else {
+				// Default to the user setting
+				this._trustState.isEmptyWorkspaceTrusted = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
+			}
+		}
+
+		// Update workspace trust
+		await this.updateWorkspaceTrust();
+
+		// Resolve promises as needed
+		this._workspaceResolvedPromiseResolve();
+		if (!this.environmentService.remoteAuthority) {
+			this._workspaceTrustInitializedPromiseResolve();
+		}
+	}
+
+	//#endregion
+
+	//#region private interface
+
+	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
 		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(async changeEvent => {
@@ -248,7 +283,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Empty workspace - use memento which is set or has been initalized
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return this._trustState.isSaved ? this._trustState.isTrusted : false;
+			return this._trustState.isEmptyWorkspaceTrusted ?? false;
 		}
 
 		if (!this._initialized) {
@@ -270,13 +305,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
-		// Update workspace trust & set empty workspace memento
-		this._trustState.setTrustState(trusted, this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
-
-		// Reset acceptsOutOfWorkspaceFiles
-		if (!trusted) {
-			this._trustState.acceptsOutOfWorkspaceFiles = false;
-		}
+		// Update workspace trust
+		this.isTrusted = trusted;
 
 		// Run workspace trust transition participants
 		await this._trustTransitionManager.participate(trusted);
@@ -360,36 +390,23 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
 	}
 
+	private set isTrusted(value: boolean) {
+		this._isTrusted = value;
+
+		// Reset acceptsOutOfWorkspaceFiles
+		if (!value) {
+			this._trustState.acceptsOutOfWorkspaceFiles = false;
+		}
+
+		// Empty workspace - save memento
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._trustState.isEmptyWorkspaceTrusted = value;
+		}
+	}
+
 	//#endregion
 
 	//#region public interface
-
-	async initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void> {
-		// Resolve the canonical workspace
-		await this.resolveCanonicalWorkspaceUris();
-
-		// Initialize the memento if not already set
-		if (!this._trustState.isSaved) {
-			if (openEditors.length) {
-				const openFilesTrustInfo = await Promise.all(openEditors.map(uri => this.getUriTrustInfo(uri)));
-				if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-					this._trustState.setTrustState(true);
-				}
-			} else {
-				// Default to the user setting
-				this._trustState.setTrustState(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
-			}
-		}
-
-		// Update workspace trust
-		await this.updateWorkspaceTrust();
-
-		// Resolve promises as needed
-		this._workspaceResolvedPromiseResolve();
-		if (!this.environmentService.remoteAuthority) {
-			this._workspaceTrustInitializedPromiseResolve();
-		}
-	}
 
 	get workspaceResolved(): Promise<void> {
 		return this._workspaceResolvedPromise;
@@ -416,7 +433,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	isWorkpaceTrusted(): boolean {
-		return this._trustState.isTrusted;
+		return this._isTrusted;
 	}
 
 	isWorkspaceTrustForced(): boolean {
@@ -749,18 +766,16 @@ class WorkspaceTrustTransitionManager extends Disposable {
 }
 
 class WorkspaceTrustState {
-	private _isTrusted: boolean | undefined;
 
 	private readonly _memento: Memento;
 	private readonly _mementoObject: MementoObject;
 
 	private readonly _acceptsOutOfWorkspaceFilesKey = 'acceptsOutOfWorkspaceFiles';
-	private readonly _isTrustedKey = 'isTrusted';
+	private readonly _isEmptyWorkspaceTrustedKey = 'isEmptyWorkspaceTrusted';
 
 	constructor(storageService: IStorageService) {
 		this._memento = new Memento('workspaceTrust', storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
-		this._isTrusted = this._mementoObject[this._isTrustedKey];
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
@@ -772,21 +787,13 @@ class WorkspaceTrustState {
 		this._memento.saveMemento();
 	}
 
-	get isTrusted(): boolean {
-		return this._isTrusted ?? false;
+	get isEmptyWorkspaceTrusted(): boolean | undefined {
+		return this._mementoObject[this._isEmptyWorkspaceTrustedKey];
 	}
 
-	setTrustState(trusted: boolean | undefined, save: boolean = true) {
-		this._isTrusted = trusted;
-
-		if (save) {
-			this._mementoObject[this._isTrustedKey] = this._isTrusted;
-			this._memento.saveMemento();
-		}
-	}
-
-	get isSaved(): boolean {
-		return this._mementoObject[this._isTrustedKey] !== undefined;
+	set isEmptyWorkspaceTrusted(value: boolean | undefined) {
+		this._mementoObject[this._isEmptyWorkspaceTrustedKey] = value;
+		this._memento.saveMemento();
 	}
 }
 

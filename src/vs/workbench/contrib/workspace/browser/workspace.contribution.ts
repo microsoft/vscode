@@ -54,25 +54,18 @@ const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.di
 
 export class EmptyWorkspaceTrustInitializer extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IEditorService editorService: IEditorService,
+		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
 	) {
 		super();
 
-		this.initializeEmptyWorkspaceTrust();
-	}
-
-	private initializeEmptyWorkspaceTrust(): void {
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			return;
+		if (workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			const openEditors = editorService.editors
+				.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file }))
+				.filter(uri => !!uri);
+			workspaceTrustManagementService.initializeEmptyWorkspaceTrust(openEditors as URI[]);
 		}
-
-		// Open Editors
-		const openEditors = this.editorService.editors
-			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file }))
-			.filter(uri => !!uri);
-		this.workspaceTrustManagementService.initializeEmptyWorkspaceTrust(openEditors as URI[]);
 	}
 }
 
