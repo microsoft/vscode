@@ -555,7 +555,7 @@ var requirejs = (function() {
 						this.rendererMessaging?.postMessage(data.rendererId, data.message);
 						break;
 					}
-				case 'clickMarkdownPreview':
+				case 'clickMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -569,7 +569,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'contextMenuMarkdownPreview':
+				case 'contextMenuMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -594,7 +594,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'toggleMarkdownPreview':
+				case 'toggleMarkupPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -603,7 +603,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'mouseEnterMarkdownPreview':
+				case 'mouseEnterMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell instanceof MarkdownCellViewModel) {
@@ -611,7 +611,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'mouseLeaveMarkdownPreview':
+				case 'mouseLeaveMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell instanceof MarkdownCellViewModel) {
@@ -962,7 +962,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.message.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkup') {
 					resolve();
 				}
 			});

@@ -513,7 +513,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			case 'initializeMarkup':
 				await notebookDocument.ensureMarkupCells(event.data.cells);
 				dimensionUpdater.updateImmediately();
-				postNotebookMessage('initializedMarkdownPreview', {});
+				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
@@ -1129,11 +1129,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		private addEventListeners() {
 			this.element.addEventListener('dblclick', () => {
-				postNotebookMessage<webviewMessages.IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId: this.id });
+				postNotebookMessage<webviewMessages.IToggleMarkupPreviewMessage>('toggleMarkupPreview', { cellId: this.id });
 			});
 
 			this.element.addEventListener('click', e => {
-				postNotebookMessage<webviewMessages.IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
+				postNotebookMessage<webviewMessages.IClickMarkupCellMessage>('clickMarkupCell', {
 					cellId: this.id,
 					altKey: e.altKey,
 					ctrlKey: e.ctrlKey,
@@ -1143,7 +1143,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			});
 
 			this.element.addEventListener('contextmenu', e => {
-				postNotebookMessage<webviewMessages.IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
+				postNotebookMessage<webviewMessages.IContextMenuMarkupCellMessage>('contextMenuMarkupCell', {
 					cellId: this.id,
 					clientX: e.clientX,
 					clientY: e.clientY,
@@ -1151,11 +1151,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			});
 
 			this.element.addEventListener('mouseenter', () => {
-				postNotebookMessage<webviewMessages.IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId: this.id });
+				postNotebookMessage<webviewMessages.IMouseEnterMarkupCellMessage>('mouseEnterMarkupCell', { cellId: this.id });
 			});
 
 			this.element.addEventListener('mouseleave', () => {
-				postNotebookMessage<webviewMessages.IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId: this.id });
+				postNotebookMessage<webviewMessages.IMouseLeaveMarkupCellMessage>('mouseLeaveMarkupCell', { cellId: this.id });
 			});
 
 			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);

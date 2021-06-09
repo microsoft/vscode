@@ -69,8 +69,8 @@ export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
 	readonly downloadName?: string;
 }
 
-export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'clickMarkdownPreview';
+export interface IClickMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkupCell';
 	readonly cellId: string;
 	readonly ctrlKey: boolean;
 	readonly altKey: boolean;
@@ -78,25 +78,25 @@ export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly shiftKey: boolean;
 }
 
-export interface IContextMenuMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'contextMenuMarkdownPreview';
+export interface IContextMenuMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'contextMenuMarkupCell';
 	readonly cellId: string;
 	readonly clientX: number;
 	readonly clientY: number;
 }
 
-export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseEnterMarkdownPreview';
+export interface IMouseEnterMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'mouseEnterMarkupCell';
 	readonly cellId: string;
 }
 
-export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'mouseLeaveMarkdownPreview';
+export interface IMouseLeaveMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'mouseLeaveMarkupCell';
 	readonly cellId: string;
 }
 
-export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'toggleMarkdownPreview';
+export interface IToggleMarkupPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'toggleMarkupPreview';
 	readonly cellId: string;
 }
 
@@ -125,8 +125,8 @@ export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 }
 
-export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'initializedMarkdownPreview';
+export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
+	readonly type: 'initializedMarkup';
 }
 
 export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
@@ -327,16 +327,16 @@ export type FromWebviewMessage = WebviewIntialized |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
 	IClickedDataUrlMessage |
-	IClickMarkdownPreviewMessage |
-	IContextMenuMarkdownPreviewMessage |
-	IMouseEnterMarkdownPreviewMessage |
-	IMouseLeaveMarkdownPreviewMessage |
-	IToggleMarkdownPreviewMessage |
+	IClickMarkupCellMessage |
+	IContextMenuMarkupCellMessage |
+	IMouseEnterMarkupCellMessage |
+	IMouseLeaveMarkupCellMessage |
+	IToggleMarkupPreviewMessage |
 	ICellDragStartMessage |
 	ICellDragMessage |
 	ICellDropMessage |
 	ICellDragEndMessage |
-	IInitializedMarkdownPreviewMessage |
+	IInitializedMarkupMessage |
 	ITelemetryFoundRenderedMarkdownMath |
 	ITelemetryFoundUnrenderedMarkdownMath;
 
