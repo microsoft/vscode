@@ -139,7 +139,7 @@ suite('NotebookKernelService', () => {
 
 		{
 			// open as jupyter -> bind event
-			const p1 = Event.toPromise(kernelService.onDidChangeNotebookKernelBinding);
+			const p1 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
 			const d1 = instantiationService.createInstance(NotebookTextModel, jupyter.viewType, jupyter.uri, [], {}, {});
 			onDidAddNotebookDocument.fire(d1);
 			const event = await p1;
@@ -147,7 +147,7 @@ suite('NotebookKernelService', () => {
 		}
 		{
 			// RE-open as dotnet -> bind event
-			const p2 = Event.toPromise(kernelService.onDidChangeNotebookKernelBinding);
+			const p2 = Event.toPromise(kernelService.onDidChangeSelectedNotebooks);
 			const d2 = instantiationService.createInstance(NotebookTextModel, dotnet.viewType, dotnet.uri, [], {}, {});
 			onDidAddNotebookDocument.fire(d2);
 			const event2 = await p2;

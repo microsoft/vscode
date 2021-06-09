@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export interface INotebookKernelBindEvent {
+export interface ISelectedNotebooksChangeEvent {
 	notebook: URI;
 	oldKernel: string | undefined;
 	newKernel: string | undefined;
@@ -30,7 +30,7 @@ export interface INotebookKernelService {
 
 	readonly onDidAddKernel: Event<INotebookKernel>;
 	readonly onDidRemoveKernel: Event<INotebookKernel>;
-	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
+	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
 	readonly onDidChangeNotebookAffinity: Event<void>
 
 	registerKernel(kernel: INotebookKernel): IDisposable;

@@ -14,7 +14,7 @@ import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/no
 import { CellKind, INotebookKernel, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { Event } from 'vs/base/common/event';
-import { INotebookKernelBindEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { ISelectedNotebooksChangeEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
@@ -117,8 +117,8 @@ suite('NotebookEditorKernelManager', () => {
 			kernelService.registerKernel(kernel);
 			const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
-			let event: INotebookKernelBindEvent | undefined;
-			kernelService.onDidChangeNotebookKernelBinding(e => event = e);
+			let event: ISelectedNotebooksChangeEvent | undefined;
+			kernelService.onDidChangeSelectedNotebooks(e => event = e);
 
 			const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 			await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);

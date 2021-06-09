@@ -255,7 +255,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		};
 
 		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
-		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookKernelBinding(updateStatus));
+		this._editorDisposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
 		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
 		this._editorDisposables.add(activeEditor.notebookOptions.onDidChangeOptions(updateStatus));
