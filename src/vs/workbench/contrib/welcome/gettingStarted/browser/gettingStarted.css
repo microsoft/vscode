@@ -524,6 +524,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:focus {
 	outline-style: solid;
+	outline-width: 1px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
