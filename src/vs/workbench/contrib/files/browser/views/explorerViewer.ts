@@ -49,7 +49,6 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { isNumber } from 'vs/base/common/types';
-import { domEvent } from 'vs/base/browser/event';
 import { IEditableData } from 'vs/workbench/common/views';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
@@ -328,13 +327,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			// accessibility
 			disposables.add(this._onDidChangeActiveDescendant.add(compressedNavigationController.onDidChange));
 
-			domEvent(templateData.container, 'mousedown')(e => {
+			disposables.add(DOM.addDisposableListener(templateData.container, 'mousedown', e => {
 				const result = getIconLabelNameFromHTMLElement(e.target);
 
 				if (result) {
 					compressedNavigationController.setIndex(result.index);
 				}
-			}, undefined, disposables);
+			}));
 
 			disposables.add(toDisposable(() => this.compressedNavigationControllers.delete(stat)));
 

@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./menuEntryActionViewItem';
-import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -177,12 +176,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}));
 		}
 
-		this._register(domEvent(container, 'mouseleave')(_ => {
+		this._register(addDisposableListener(container, 'mouseleave', _ => {
 			mouseOver = false;
 			updateAltState();
 		}));
 
-		this._register(domEvent(container, 'mouseenter')(e => {
+		this._register(addDisposableListener(container, 'mouseenter', _ => {
 			mouseOver = true;
 			updateAltState();
 		}));
