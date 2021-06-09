@@ -22,6 +22,7 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -427,10 +428,3 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { border: 2px dashed ${border}; }`);
 	}
 });
-
-function createDisposableRef<T>(object: T, disposable: IDisposable): IReference<T> {
-	return {
-		object,
-		dispose: () => disposable.dispose(),
-	};
-}
