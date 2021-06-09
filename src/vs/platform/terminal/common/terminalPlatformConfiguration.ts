@@ -302,6 +302,12 @@ const terminalPlatformConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: true
 		},
+		[TerminalSettingId.ShowLinkHover]: {
+			scope: ConfigurationScope.APPLICATION,
+			description: localize('terminal.integrated.showLinkHover', "Whether to show hovers for links in the terminal output."),
+			type: 'boolean',
+			default: true
+		}
 	}
 };
 

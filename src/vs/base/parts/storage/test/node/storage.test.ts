@@ -8,7 +8,7 @@ import { Storage, IStorageDatabase, IStorageItemsChangeEvent } from 'vs/base/par
 import { join } from 'vs/base/common/path';
 import { tmpdir } from 'os';
 import { strictEqual, ok } from 'assert';
-import { rimraf, Promises } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isWindows } from 'vs/base/common/platform';
@@ -26,7 +26,7 @@ flakySuite('Storage Library', function () {
 	});
 
 	teardown(function () {
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
 	test('basics', async () => {
@@ -299,7 +299,7 @@ flakySuite('SQLite Storage Library', function () {
 	});
 
 	teardown(function () {
-		return rimraf(testdir);
+		return Promises.rm(testdir);
 	});
 
 	async function testDBBasics(path: string, logError?: (error: Error | string) => void) {

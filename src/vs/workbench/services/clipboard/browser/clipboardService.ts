@@ -34,13 +34,13 @@ export class BrowserClipboardService extends BaseBrowserClipboardService {
 		try {
 			return await navigator.clipboard.readText();
 		} catch (error) {
-			this.logService.error(error);
-
 			if (!!this.environmentService.extensionTestsLocationURI) {
 				return ''; // do not ask for input in tests (https://github.com/microsoft/vscode/issues/112264)
 			}
 
 			if (isSafari) {
+				this.logService.error(error);
+
 				return ''; // Safari does not seem to provide anyway to enable cipboard access (https://github.com/microsoft/vscode-internalbacklog/issues/2162#issuecomment-852042867)
 			}
 

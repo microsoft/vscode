@@ -206,9 +206,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			};
 
 			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
 			} else {
-				this.logService.trace(`window#ctor: vscode-file:// protocol is explicitly disabled`);
+				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
 			}
 
 			// Apply icon to window
@@ -557,13 +557,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
 				break;
 			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load workbench window (reason: ${details?.reason ?? '<unknown>'}, code: ${details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: failed to load workbench window (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 		}
 

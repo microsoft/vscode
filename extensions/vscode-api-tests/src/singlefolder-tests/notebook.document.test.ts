@@ -38,6 +38,7 @@ suite('Notebook Document', function () {
 	};
 
 	const disposables: vscode.Disposable[] = [];
+	const testDisposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
 		utils.assertNoRpc();
@@ -45,6 +46,11 @@ suite('Notebook Document', function () {
 		await utils.closeAllEditors();
 		utils.disposeAll(disposables);
 		disposables.length = 0;
+	});
+
+	teardown(async function () {
+		utils.disposeAll(testDisposables);
+		testDisposables.length = 0;
 	});
 
 	suiteSetup(function () {
@@ -277,6 +283,37 @@ suite('Notebook Document', function () {
 		assert.strictEqual(data.changes[0].items[1], document.cellAt(1));
 	});
 
+	test('workspace edit API (replaceMetadata)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellMetadata(document.uri, 0, { inputCollapsed: true });
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(success, true);
+		assert.strictEqual(document.cellAt(0).metadata.inputCollapsed, true);
+	});
+
+	test('workspace edit API (replaceMetadata, event)', async function () {
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const document = await vscode.workspace.openNotebookDocument(uri);
+
+		const edit = new vscode.WorkspaceEdit();
+		const event = utils.asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
+
+		edit.replaceNotebookCellMetadata(document.uri, 0, { inputCollapsed: true });
+		const success = await vscode.workspace.applyEdit(edit);
+		assert.strictEqual(success, true);
+		const data = await event;
+
+		// check document
+		assert.strictEqual(document.cellAt(0).metadata.inputCollapsed, true);
+
+		// check event data
+		assert.strictEqual(data.document === document, true);
+		assert.strictEqual(data.cell.index, 0);
+	});
+
 	test('document save API', async function () {
 		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
 		const notebook = await vscode.workspace.openNotebookDocument(uri);
@@ -371,5 +408,24 @@ suite('Notebook Document', function () {
 
 		await document.save();
 		assert.strictEqual(document.isDirty, false);
+	});
+
+	test('onDidOpenNotebookDocument - emit event only once when opened in two editors', async function () {
+		let counter = 0;
+		testDisposables.push(vscode.workspace.onDidOpenNotebookDocument(() => {
+			counter++;
+		}));
+
+		const uri = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const notebook = await vscode.workspace.openNotebookDocument(uri);
+		assert.strictEqual(counter, 1);
+
+		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Active });
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 1);
+
+		await vscode.window.showNotebookDocument(notebook, { viewColumn: vscode.ViewColumn.Beside });
+		assert.strictEqual(counter, 1);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
 	});
 });

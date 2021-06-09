@@ -14,24 +14,7 @@ export interface IDomEvent {
 	(element: EventHandler, type: string, useCapture?: boolean): BaseEvent<unknown>;
 }
 
-/**
- * @deprecated Use `DomEmitter` instead
- */
-export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
-	const fn = (e: Event) => emitter.fire(e);
-	const emitter = new Emitter<Event>({
-		onFirstListenerAdd: () => {
-			element.addEventListener(type, fn, useCapture);
-		},
-		onLastListenerRemove: () => {
-			element.removeEventListener(type, fn, useCapture);
-		}
-	});
-
-	return emitter.event;
-};
-
-export interface DOMEventMap extends HTMLElementEventMap {
+export interface DOMEventMap extends HTMLElementEventMap, DocumentEventMap {
 	'-monaco-gesturetap': GestureEvent;
 	'-monaco-gesturechange': GestureEvent;
 	'-monaco-gesturestart': GestureEvent;
@@ -47,6 +30,8 @@ export class DomEmitter<K extends keyof DOMEventMap> implements IDisposable {
 		return this.emitter.event;
 	}
 
+	constructor(element: Document, type: DocumentEventMap, useCapture?: boolean);
+	constructor(element: EventHandler, type: K, useCapture?: boolean);
 	constructor(element: EventHandler, type: K, useCapture?: boolean) {
 		const fn = (e: Event) => this.emitter.fire(e as DOMEventMap[K]);
 		this.emitter = new Emitter({

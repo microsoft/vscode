@@ -281,6 +281,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
+		// When a custom pty is used set the name immediately so it gets passed over to the exthost
+		// and is available when Pseudoterminal.open fires.
+		if (this.shellLaunchConfig.customPtyImplementation) {
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+		}
+
 		this._initDimensions();
 		this._createProcessManager();
 
@@ -377,7 +383,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(TerminalSettingPrefix.Profiles + platform).userValue || {};
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + platform).userValue } || {};
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
 									profileConfig.args = profile.args;

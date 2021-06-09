@@ -60,14 +60,7 @@ export enum NotebookRunState {
 	Idle = 2
 }
 
-export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	custom: {},
-};
-
-export interface NotebookDocumentMetadata {
-	custom?: { [key: string]: unknown; };
-	[key: string]: unknown;
-}
+export type NotebookDocumentMetadata = Record<string, unknown>;
 
 // Aligns with the vscode.d.ts version
 export enum NotebookCellExecutionState {
@@ -600,11 +593,6 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
 	['application/vnd.code.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
 	['application/vnd.code.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	// old, todo@jrieken remove these...
-	['application/x.notebook.error', { alwaysSecure: true, supportedByCore: true }],
-	['application/x.notebook.stdout', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/x.notebook.stderr', { alwaysSecure: true, supportedByCore: true, mergeable: true }],
-	['application/x.notebook.stream', { alwaysSecure: true, supportedByCore: true, mergeable: true }], // deprecated
 ]);
 
 export function mimeTypeIsAlwaysSecure(mimeType: string): boolean {

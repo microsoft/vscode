@@ -5,7 +5,6 @@
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
@@ -261,7 +260,7 @@ abstract class AbstractCellRenderer {
 	}
 
 	protected addExpandListener(templateData: BaseCellRenderTemplate): void {
-		templateData.disposables.add(domEvent(templateData.expandButton, DOM.EventType.CLICK)(() => {
+		templateData.disposables.add(DOM.addDisposableListener(templateData.expandButton, DOM.EventType.CLICK, () => {
 			if (!templateData.currentRenderedCell) {
 				return;
 			}
