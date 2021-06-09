@@ -89,7 +89,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _canonicalWorkspace: IWorkspace;
 
-	private _isTrusted: boolean;
 	protected readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
@@ -117,7 +116,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
-		this._isTrusted = this.calculateWorkspaceTrust();
+		this._trustState.setTrustState(this.calculateWorkspaceTrust(), false);
 
 		this.registerListeners();
 	}
@@ -249,7 +248,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Empty workspace - use memento which is set or has been initalized
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return this._trustState.isTrusted ?? false;
+			return this._trustState.isSaved ? this._trustState.isTrusted : false;
 		}
 
 		if (!this._initialized) {
@@ -271,13 +270,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
-		// Update workspace trust
-		this._isTrusted = trusted;
-
-		// Set empty workspace memento
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this._trustState.isTrusted = trusted;
-		}
+		// Update workspace trust & set empty workspace memento
+		this._trustState.setTrustState(trusted, this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY);
 
 		// Reset acceptsOutOfWorkspaceFiles
 		if (!trusted) {
@@ -375,15 +369,15 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		await this.resolveCanonicalWorkspaceUris();
 
 		// Initialize the memento if not already set
-		if (this._trustState.isTrusted === undefined) {
+		if (!this._trustState.isSaved) {
 			if (openEditors.length) {
 				const openFilesTrustInfo = await Promise.all(openEditors.map(uri => this.getUriTrustInfo(uri)));
 				if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-					this._trustState.isTrusted = true;
+					this._trustState.setTrustState(true);
 				}
 			} else {
 				// Default to the user setting
-				this._trustState.isTrusted = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
+				this._trustState.setTrustState(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
 			}
 		}
 
@@ -422,7 +416,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	isWorkpaceTrusted(): boolean {
-		return this._isTrusted;
+		return this._trustState.isTrusted;
 	}
 
 	isWorkspaceTrustForced(): boolean {
@@ -755,6 +749,8 @@ class WorkspaceTrustTransitionManager extends Disposable {
 }
 
 class WorkspaceTrustState {
+	private _isTrusted: boolean | undefined;
+
 	private readonly _memento: Memento;
 	private readonly _mementoObject: MementoObject;
 
@@ -764,6 +760,7 @@ class WorkspaceTrustState {
 	constructor(storageService: IStorageService) {
 		this._memento = new Memento('workspaceTrust', storageService);
 		this._mementoObject = this._memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this._isTrusted = this._mementoObject[this._isTrustedKey];
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
@@ -775,13 +772,21 @@ class WorkspaceTrustState {
 		this._memento.saveMemento();
 	}
 
-	get isTrusted(): boolean | undefined {
-		return this._mementoObject[this._isTrustedKey];
+	get isTrusted(): boolean {
+		return this._isTrusted ?? false;
 	}
 
-	set isTrusted(value: boolean | undefined) {
-		this._mementoObject[this._isTrustedKey] = value;
-		this._memento.saveMemento();
+	setTrustState(trusted: boolean | undefined, save: boolean = true) {
+		this._isTrusted = trusted;
+
+		if (save) {
+			this._mementoObject[this._isTrustedKey] = this._isTrusted;
+			this._memento.saveMemento();
+		}
+	}
+
+	get isSaved(): boolean {
+		return this._mementoObject[this._isTrustedKey] !== undefined;
 	}
 }
 
