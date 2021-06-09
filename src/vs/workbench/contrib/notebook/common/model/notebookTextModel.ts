@@ -441,7 +441,6 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		const flattenEdits = flatten(edits);
-		console.log('applyEdits', flattenEdits);
 
 		for (const { edit, cellIndex } of flattenEdits) {
 			switch (edit.editType) {
