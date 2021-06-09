@@ -233,9 +233,10 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 		const nestedProgress = new Progress<{ displayName?: string, extensionId?: ExtensionIdentifier }>(provider => {
 			progress.report({
 				message: localize(
-					'formatting',
-					"Running '{0}' Formatter ([configure](command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D)).",
-					provider.displayName || provider.extensionId && provider.extensionId.value || '???'
+					{ key: 'formatting2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+					"Running '{0}' Formatter ([configure]({1})).",
+					provider.displayName || provider.extensionId && provider.extensionId.value || '???',
+					'command:workbench.action.openSettings?%5B%22editor.formatOnSave%22%5D'
 				)
 			});
 		});
@@ -336,9 +337,10 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			private _report(): void {
 				progress.report({
 					message: localize(
-						'codeaction.get',
-						"Getting code actions from '{0}' ([configure](command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D)).",
-						[...this._names].map(name => `'${name}'`).join(', ')
+						{ key: 'codeaction.get2', comment: ['[configure]({1}) is a link. Only translate `configure`. Do not change brackets and parentheses or {1}'] },
+						"Getting code actions from '{0}' ([configure]({1})).",
+						[...this._names].map(name => `'${name}'`).join(', '),
+						'command:workbench.action.openSettings?%5B%22editor.codeActionsOnSave%22%5D'
 					)
 				});
 			}

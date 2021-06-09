@@ -314,7 +314,9 @@ class OnAutoForwardedAction extends Disposable {
 	}
 
 	private linkMessage() {
-		return nls.localize('remote.tunnelsView.notificationLink', "[See all forwarded ports](command:{0}.focus)", TunnelPanel.ID);
+		return nls.localize(
+			{ key: 'remote.tunnelsView.notificationLink2', comment: ['[See all forwarded ports]({0}) is a link. Only translate `See all forwarded ports`. Do not change brackets and parentheses or {0}'] },
+			"[See all forwarded ports]({0})", `command:${TunnelPanel.ID}.focus`);
 	}
 
 	private async showNotification(tunnel: RemoteTunnel) {
