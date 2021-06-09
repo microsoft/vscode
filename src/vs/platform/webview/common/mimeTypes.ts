@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 
 const webviewMimeTypes = new Map([
 	['.svg', 'image/svg+xml'],
-	['.txt', 'text/plain'],
+	['.txt', Mimes.text],
 	['.css', 'text/css'],
 	['.js', 'application/javascript'],
 	['.json', 'application/json'],

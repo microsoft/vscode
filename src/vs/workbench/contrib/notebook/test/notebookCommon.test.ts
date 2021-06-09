@@ -27,7 +27,7 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			], [], defaultDisplayOrder),
 			[
 				'application/json',
@@ -37,7 +37,7 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 
@@ -47,7 +47,7 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'application/javascript',
 				'text/html',
-				'text/plain',
+				Mimes.text,
 				'image/png',
 				'image/jpeg',
 				'image/svg+xml'
@@ -60,7 +60,7 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 
@@ -68,7 +68,7 @@ suite('NotebookCommon', () => {
 			[
 				Mimes.markdown,
 				'application/json',
-				'text/plain',
+				Mimes.text,
 				'image/jpeg',
 				'application/javascript',
 				'text/html',
@@ -83,7 +83,7 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 	});
@@ -101,18 +101,18 @@ suite('NotebookCommon', () => {
 				Mimes.markdown,
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			],
 			[
 				'image/png',
-				'text/plain',
+				Mimes.text,
 				Mimes.markdown,
 				'text/html',
 				'application/json'
 			], defaultDisplayOrder),
 			[
 				'image/png',
-				'text/plain',
+				Mimes.text,
 				Mimes.markdown,
 				'text/html',
 				'application/json',
@@ -126,7 +126,7 @@ suite('NotebookCommon', () => {
 			[
 				Mimes.markdown,
 				'application/json',
-				'text/plain',
+				Mimes.text,
 				'application/javascript',
 				'text/html',
 				'image/svg+xml',
@@ -148,7 +148,7 @@ suite('NotebookCommon', () => {
 				'image/svg+xml',
 				'image/png',
 				'image/jpeg',
-				'text/plain'
+				Mimes.text
 			]
 		);
 	});

@@ -216,7 +216,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	}
 
 	getMimetypes() {
-		return ['text/plain'];
+		return [Mimes.text];
 	}
 
 	constructor(

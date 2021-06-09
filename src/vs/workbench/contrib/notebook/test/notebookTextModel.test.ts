@@ -220,7 +220,7 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					outputs: [{
 						outputId: 'someId3',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('Last, replaced output') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('Last, replaced output') }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -585,7 +585,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];
@@ -615,7 +615,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 2, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];
@@ -642,7 +642,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 1, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				},
 				{
@@ -651,7 +651,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 1, append: true, outputs: [{
 						outputId: 'newOutput2',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];

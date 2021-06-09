@@ -38,13 +38,13 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	Mimes.markdown,
 	'image/png',
 	'image/jpeg',
-	'text/plain'
+	Mimes.text
 ];
 
 export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
 	Mimes.markdown,
 	'application/json',
-	'text/plain',
+	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
@@ -588,7 +588,7 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
 	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
-	['text/plain', { alwaysSecure: true, supportedByCore: true }],
+	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],
