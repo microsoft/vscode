@@ -1005,16 +1005,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	const notebookDocument = new class {
 
-		private readonly _markupCells = new Map<string, MarkdownCell>();
+		private readonly _markupCells = new Map<string, MarkupCell>();
 
-		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkdownCell> {
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
 				return existing;
 			}
 
-			const markdownCell = new MarkdownCell(init.cellId, init.content, top);
+			const markdownCell = new MarkupCell(init.cellId, init.mime, init.content, top);
 			this._markupCells.set(init.cellId, markdownCell);
 
 			await markdownCell.ready;
@@ -1061,7 +1061,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			cell?.unhide();
 		}
 
-		private getExpectedMarkupCell(id: string): MarkdownCell | undefined {
+		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
 			const cell = this._markupCells.get(id);
 			if (!cell) {
 				console.log(`Could not find markup cell '${id}'`);
@@ -1078,15 +1078,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}();
 
-	class MarkdownCell implements IOutputItem {
+	class MarkupCell implements IOutputItem {
 
 		public readonly ready: Promise<void>;
 
 		/// Internal field that holds markdown text
 		private _content: string;
 
-		constructor(id: string, content: string, top: number) {
+		constructor(id: string, mime: string, content: string, top: number) {
 			this.id = id;
+			this.mime = mime;
 			this._content = content;
 
 			let resolveReady: () => void;
@@ -1110,10 +1111,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		//#region IOutputItem
-		public readonly mime = 'text/markdown';
-
 		public readonly id: string;
-
+		public readonly mime;
 		public readonly element: HTMLElement;
 
 		// deprecated fields

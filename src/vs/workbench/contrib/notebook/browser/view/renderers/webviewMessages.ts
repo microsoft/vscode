@@ -290,6 +290,7 @@ export interface IUpdateSelectedMarkupCellsMessage {
 }
 
 export interface IMarkupCellInitialization {
+	mime: string;
 	cellId: string;
 	cellHandle: number;
 	content: string;
