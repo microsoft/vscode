@@ -186,10 +186,53 @@ export class CellOutputElement extends Disposable {
 		this.relayoutCell();
 	}
 
+	private _generateInnerOutputContainer(beforeElementAnchor: HTMLElement | undefined, pickedMimeTypeRenderer: IOrderedMimeType) {
+		if (this.output.supportAppend()) {
+			// current output support append
+			if (beforeElementAnchor) {
+				if (this.divSupportAppend(beforeElementAnchor.previousElementSibling as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+					this.useDedicatedDOM = true;
+					this.domNode = beforeElementAnchor.previousElementSibling as HTMLElement;
+				} else {
+					this.useDedicatedDOM = true;
+					this.domNode = DOM.$('.output-inner-container');
+					this.outputContainer.insertBefore(this.domNode, beforeElementAnchor);
+				}
+			} else {
+				// no beforeElemenet, append it to the very last
+				if (this.divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+					// last element allows append
+					this.useDedicatedDOM = false;
+					this.domNode = this.outputContainer.lastChild as HTMLElement;
+				} else {
+					this.useDedicatedDOM = true;
+					this.domNode = DOM.$('.output-inner-container');
+					this.outputContainer.appendChild(this.domNode);
+				}
+			}
+		} else {
+			this.useDedicatedDOM = true;
+			this.domNode = DOM.$('.output-inner-container');
+
+			if (beforeElementAnchor) {
+				this.outputContainer.insertBefore(this.domNode, beforeElementAnchor);
+			} else if (this.useDedicatedDOM) {
+				this.outputContainer.appendChild(this.domNode);
+			}
+		}
+
+		this.domNode.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
+	}
+
 	render(beforeElement?: HTMLElement): IRenderResult | undefined {
 		const index = this.viewCell.outputsViewModels.indexOf(this.output);
 
 		if (this.viewCell.metadata.outputCollapsed || !this.notebookEditor.hasModel()) {
+			return undefined;
+		}
+
+		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
+		if (!notebookUri) {
 			return undefined;
 		}
 
@@ -203,17 +246,10 @@ export class CellOutputElement extends Disposable {
 		}
 
 		const pickedMimeTypeRenderer = mimeTypes[pick];
-		// Reuse output item div
-		this.useDedicatedDOM = !(!beforeElement && this.output.supportAppend() && this.previousDivSupportAppend(pickedMimeTypeRenderer.mimeType));
-		this.domNode = this.useDedicatedDOM ? DOM.$('.output-inner-container') : this.outputContainer.lastChild as HTMLElement;
-		this.domNode.setAttribute('output-mime-type', pickedMimeTypeRenderer.mimeType);
 
+		// generate an innerOutputContainer only when needed, for text streaming, it will reuse the previous element's container
+		this._generateInnerOutputContainer(beforeElement, pickedMimeTypeRenderer);
 		this.attachToolbar(this.domNode, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
-
-		const notebookUri = CellUri.parse(this.viewCell.uri)?.notebook;
-		if (!notebookUri) {
-			return undefined;
-		}
 
 		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
@@ -229,12 +265,6 @@ export class CellOutputElement extends Disposable {
 		if (!this.renderResult) {
 			this.viewCell.updateOutputHeight(index, 0, 'CellOutputElement#renderResultUndefined');
 			return undefined;
-		}
-
-		if (beforeElement) {
-			this.outputContainer.insertBefore(this.domNode, beforeElement);
-		} else if (this.useDedicatedDOM) {
-			this.outputContainer.appendChild(this.domNode);
 		}
 
 		if (this.renderResult.type !== RenderOutputType.Mainframe) {
@@ -298,11 +328,9 @@ export class CellOutputElement extends Disposable {
 		this._renderDisposableStore.add(elementSizeObserver);
 	}
 
-	private previousDivSupportAppend(mimeType: string) {
-		const lastChild = this.outputContainer.lastChild as HTMLElement | null;
-
-		if (lastChild) {
-			return lastChild.getAttribute('output-mime-type') === mimeType;
+	private divSupportAppend(element: HTMLElement | null, mimeType: string) {
+		if (element) {
+			return element.getAttribute('output-mime-type') === mimeType;
 		}
 
 		return false;
