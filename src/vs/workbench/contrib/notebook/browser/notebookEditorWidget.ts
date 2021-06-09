@@ -72,6 +72,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+import { Mimes } from 'vs/base/common/mime';
 
 const $ = DOM.$;
 
@@ -1386,7 +1387,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			}
 
 			await this._webview!.initializeMarkup(requests.map(request => ({
-				mime: 'text/markdown',
+				mime: Mimes.markdown,
 				cellId: request[0].id,
 				cellHandle: request[0].handle,
 				content: request[0].getText(),
@@ -1395,7 +1396,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			})));
 		} else {
 			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({
-				cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false, mime: 'text/markdown',
+				cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false, mime: Mimes.markdown,
 			}));
 			await this._webview!.initializeMarkup(initRequests);
 
@@ -2264,7 +2265,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkdownPreview({
-			mime: 'text/markdown',
+			mime: Mimes.markdown,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),

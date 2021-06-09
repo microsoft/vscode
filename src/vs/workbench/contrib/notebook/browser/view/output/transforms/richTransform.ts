@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -270,7 +271,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	getMimetypes() {
-		return ['text/markdown'];
+		return [Mimes.markdown];
 	}
 
 	constructor(
