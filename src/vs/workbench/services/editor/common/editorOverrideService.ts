@@ -90,7 +90,7 @@ export type RegisteredEditorOptions = {
 
 export type ContributedEditorInfo = {
 	id: string;
-	describes: (override: string) => boolean;
+	describes: (editorId: string) => boolean;
 	label: string;
 	detail?: string;
 	priority: ContributedEditorPriority;
