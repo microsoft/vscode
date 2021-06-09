@@ -9490,6 +9490,24 @@ declare module 'vscode' {
 		onDidClose?: Event<void | number>;
 
 		/**
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
+		 */
+		onDidChangeName?: Event<string>;
+
+		/**
 		 * Implement to handle when the pty is open and ready to start firing events.
 		 *
 		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
