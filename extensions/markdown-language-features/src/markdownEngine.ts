@@ -67,6 +67,7 @@ interface RenderEnv {
 }
 
 export class MarkdownEngine {
+
 	private md?: Promise<MarkdownIt>;
 
 	private _slugCount = new Map<string, number>();
@@ -127,6 +128,10 @@ export class MarkdownEngine {
 		const md = await this.md!;
 		md.set(config);
 		return md;
+	}
+
+	public reloadPlugins() {
+		this.md = undefined;
 	}
 
 	private tokenizeDocument(

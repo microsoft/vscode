@@ -19,19 +19,24 @@ import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
-	protected readonly _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
+
+	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice[]>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
-	private readonly _onDidRemoveOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+
+	private readonly _onDidRemoveOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
-	private readonly _onDidHideInput = new Emitter<void>();
+
+	private readonly _onDidHideInput = this._register(new Emitter<void>());
 	readonly onDidHideInput = this._onDidHideInput.event;
-	private readonly _onDidHideOutputs = new Emitter<readonly ICellOutputViewModel[]>();
+
+	private readonly _onDidHideOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidHideOutputs = this._onDidHideOutputs.event;
+
 	private _outputCollection: number[] = [];
 
 	private _outputsTop: PrefixSumComputer | null = null;
 
-	protected readonly _onDidChangeLayout = new Emitter<CodeCellLayoutChangeEvent>();
+	protected readonly _onDidChangeLayout = this._register(new Emitter<CodeCellLayoutChangeEvent>());
 	readonly onDidChangeLayout = this._onDidChangeLayout.event;
 
 	private _editorHeight = 0;

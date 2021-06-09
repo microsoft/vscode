@@ -56,18 +56,13 @@ class Kernel {
 	}
 
 	protected async _runCell(cell: vscode.NotebookCell) {
+		// create a single output with exec order 1 and output is plain/text
+		// of either the cell itself or (iff empty) the cell's document's uri
 		const task = this.controller.createNotebookCellExecution(cell);
 		task.start();
 		task.executionOrder = 1;
-		if (cell.notebook.uri.path.endsWith('customRenderer.vsctestnb')) {
-			await task.replaceOutput([new vscode.NotebookCellOutput([
-				vscode.NotebookCellOutputItem.text('test', 'text/custom')
-			])]);
-			return;
-		}
-
 		await task.replaceOutput([new vscode.NotebookCellOutput([
-			vscode.NotebookCellOutputItem.text('my output', 'text/plain')
+			vscode.NotebookCellOutputItem.text(cell.document.getText() || cell.document.uri.toString(), 'text/plain')
 		])]);
 		task.end(true);
 	}
@@ -161,40 +156,12 @@ suite('Notebook API tests', function () {
 		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
 	});
 
-	let kernel1: Kernel;
-	let kernel2: Kernel;
+	let defaultKernel: Kernel;
 
 	setup(async function () {
-
-		kernel1 = new Kernel('mainKernel', 'Notebook Primary Test Kernel');
-
-		const listener = vscode.workspace.onDidOpenNotebookDocument(async notebook => {
-			if (notebook.notebookType === kernel1.controller.notebookType) {
-				await vscode.commands.executeCommand('notebook.selectKernel', {
-					extension: 'vscode.vscode-api-tests',
-					id: kernel1.controller.id
-				});
-			}
-		});
-
-
-		kernel2 = new class extends Kernel {
-			constructor() {
-				super('secondaryKernel', 'Notebook Secondary Test Kernel');
-				this.controller.supportsExecutionOrder = false;
-			}
-
-			override async _runCell(cell: vscode.NotebookCell) {
-				const task = this.controller.createNotebookCellExecution(cell);
-				task.start();
-				await task.replaceOutput([new vscode.NotebookCellOutput([
-					vscode.NotebookCellOutputItem.text('my second output', 'text/plain')
-				])]);
-				task.end(true);
-			}
-		};
-
-		testDisposables.push(kernel1.controller, listener, kernel2.controller);
+		// there should be ONE default kernel in this suite
+		defaultKernel = new Kernel('mainKernel', 'Notebook Default Kernel');
+		testDisposables.push(defaultKernel.controller);
 		await saveAllFilesAndCloseAll();
 	});
 
@@ -202,35 +169,6 @@ suite('Notebook API tests', function () {
 		disposeAll(testDisposables);
 		testDisposables.length = 0;
 		await saveAllFilesAndCloseAll();
-	});
-
-	test('editor onDidChangeVisibleNotebookEditors-event', async function () {
-		const resource = await createRandomNotebookFile();
-		const firstEditorOpen = asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		await vscode.window.showNotebookDocument(resource);
-		await firstEditorOpen;
-
-		const firstEditorClose = asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
-		await closeAllEditors();
-		await firstEditorClose;
-	});
-
-	test('editor onDidChangeVisibleNotebookEditors-event 2', async function () {
-		const resource = await createRandomNotebookFile();
-		let count = 0;
-		const disposables: vscode.Disposable[] = [];
-		disposables.push(vscode.window.onDidChangeVisibleNotebookEditors(() => {
-			count = vscode.window.visibleNotebookEditors.length;
-		}));
-
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(count, 1);
-
-		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(count, 2);
-
-		await closeAllEditors();
-		assert.strictEqual(count, 0);
 	});
 
 	test('correct cell selection on undo/redo of cell creation', async function () {
@@ -252,23 +190,21 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(selectionRedo[0].end, 2);
 	});
 
-	test('editor editing event 2', async function () {
-		// const notebook = await openRandomNotebookDocument();
-		// await vscode.window.showNotebookDocument(notebook);
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+	test('editor editing event', async function () {
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
 		const cellChangeEventRet = await cellsChangeEvent;
-		assert.strictEqual(cellChangeEventRet.document, vscode.window.activeNotebookEditor?.document);
+		assert.strictEqual(cellChangeEventRet.document, editor.document);
 		assert.strictEqual(cellChangeEventRet.changes.length, 1);
 		assert.deepStrictEqual(cellChangeEventRet.changes[0], {
 			start: 1,
 			deletedCount: 0,
 			deletedItems: [],
 			items: [
-				vscode.window.activeNotebookEditor!.document.cellAt(1)
+				editor.document.cellAt(1)
 			]
 		});
 
@@ -280,8 +216,8 @@ suite('Notebook API tests', function () {
 		await vscode.commands.executeCommand('notebook.cell.execute');
 		const cellOutputsAddedRet = await cellOutputChange;
 		assert.deepStrictEqual(cellOutputsAddedRet, {
-			document: vscode.window.activeNotebookEditor!.document,
-			cells: [vscode.window.activeNotebookEditor!.document.cellAt(0)]
+			document: editor.document,
+			cells: [editor.document.cellAt(0)]
 		});
 		assert.strictEqual(cellOutputsAddedRet.cells[0].outputs.length, 1);
 
@@ -289,8 +225,8 @@ suite('Notebook API tests', function () {
 		await vscode.commands.executeCommand('notebook.cell.clearOutputs');
 		const cellOutputsCleardRet = await cellOutputClear;
 		assert.deepStrictEqual(cellOutputsCleardRet, {
-			document: vscode.window.activeNotebookEditor!.document,
-			cells: [vscode.window.activeNotebookEditor!.document.cellAt(0)]
+			document: editor.document,
+			cells: [editor.document.cellAt(0)]
 		});
 		assert.strictEqual(cellOutputsAddedRet.cells[0].outputs.length, 0);
 
@@ -304,111 +240,45 @@ suite('Notebook API tests', function () {
 		// });
 	});
 
-	test('editor move cell event', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-		// const notebook = await openRandomNotebookDocument();
-		// await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		await vscode.commands.executeCommand('notebook.focusTop');
-
-		const activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 0);
-		const moveChange = asPromise(vscode.notebooks.onDidChangeNotebookCells);
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		await moveChange;
-		await saveAllEditors();
-		await closeAllEditors();
-
-		// await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-		const firstEditor = vscode.window.activeNotebookEditor;
-		assert.strictEqual(firstEditor?.document.cellCount, 2);
-	});
-
-	test('notebook editor active/visible', async function () {
-		const resource = await createRandomNotebookFile();
-		const firstEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
-		assert.strictEqual(firstEditor === vscode.window.activeNotebookEditor, true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
-
-		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
-		assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
-
-		assert.notStrictEqual(firstEditor, secondEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(secondEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
-
-		const untitledEditorChange = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile');
-		await untitledEditorChange;
-		assert.strictEqual(firstEditor && vscode.window.visibleNotebookEditors.indexOf(firstEditor) >= 0, true);
-		assert.notStrictEqual(firstEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) < 0, true);
-		assert.notStrictEqual(secondEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 1);
-
-		const activeEditorClose = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
-		await activeEditorClose;
-		assert.strictEqual(secondEditor, vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
-		assert.strictEqual(secondEditor && vscode.window.visibleNotebookEditors.indexOf(secondEditor) >= 0, true);
-	});
-
-	test('notebook active editor change', async function () {
-		const firstEditorOpen = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await firstEditorOpen;
-
-		const firstEditorDeactivate = asPromise(vscode.window.onDidChangeActiveNotebookEditor);
-		await vscode.commands.executeCommand('workbench.action.splitEditor');
-		await firstEditorDeactivate;
-	});
-
 	test('edit API batch edits', async function () {
-		const resource = await createRandomNotebookFile();
-		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		const notebook = await openRandomNotebookDocument();
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
 		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
-		const version = vscode.window.activeNotebookEditor!.document.version;
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
+		const version = editor.document.version;
+		await editor.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
 			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
 		});
 
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
-		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
+		assert.strictEqual(version + 1, editor.document.version);
 	});
 
 	test('edit API batch edits undo/redo', async function () {
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
 		const cellsChangeEvent = asPromise<vscode.NotebookCellsChangeEvent>(vscode.notebooks.onDidChangeNotebookCells);
 		const cellMetadataChangeEvent = asPromise<vscode.NotebookCellMetadataChangeEvent>(vscode.notebooks.onDidChangeCellMetadata);
-		const version = vscode.window.activeNotebookEditor!.document.version;
-		await vscode.window.activeNotebookEditor!.edit(editBuilder => {
+		const version = editor.document.version;
+		await editor.edit(editBuilder => {
 			editBuilder.replaceCells(1, 0, [{ kind: vscode.NotebookCellKind.Code, languageId: 'javascript', value: 'test 2', outputs: [], metadata: undefined }]);
 			editBuilder.replaceCellMetadata(0, { inputCollapsed: false });
 		});
 
 		await cellsChangeEvent;
 		await cellMetadataChangeEvent;
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 3);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata.inputCollapsed, false);
-		assert.strictEqual(version + 1, vscode.window.activeNotebookEditor!.document.version);
+		assert.strictEqual(editor.document.cellCount, 3);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, false);
+		assert.strictEqual(version + 1, editor.document.version);
 
 		await vscode.commands.executeCommand('undo');
-		assert.strictEqual(version + 2, vscode.window.activeNotebookEditor!.document.version);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0)?.metadata.inputCollapsed, undefined);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 2);
+		assert.strictEqual(version + 2, editor.document.version);
+		assert.strictEqual(editor.document.cellAt(0)?.metadata.inputCollapsed, undefined);
+		assert.strictEqual(editor.document.cellCount, 2);
 	});
 
 	test('#98841, initialzation should not emit cell change events.', async function () {
@@ -422,76 +292,61 @@ suite('Notebook API tests', function () {
 		await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(count, 0);
 	});
-	// });
-
-	// suite('notebook workflow', () => {
 
 	test('notebook open', async function () {
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.languageId, 'typescript');
+		const editor = await vscode.window.showNotebookDocument(notebook);
+		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
+		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
+		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
 
-		const secondCell = vscode.window.activeNotebookEditor!.document.cellAt(1);
-		assert.strictEqual(secondCell!.outputs.length, 1);
-		assert.deepStrictEqual(secondCell!.outputs[0].metadata, { testOutputMetadata: true, ['text/plain']: { testOutputItemMetadata: true } });
-		assert.strictEqual(secondCell!.outputs[0].items.length, 1);
-		assert.strictEqual(secondCell!.outputs[0].items[0].mime, 'text/plain');
-		assert.strictEqual(new TextDecoder().decode(secondCell!.outputs[0].items[0].data), 'Hello World');
-		assert.strictEqual(secondCell!.executionSummary?.executionOrder, 5);
-		assert.strictEqual(secondCell!.executionSummary?.success, true);
-
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
-
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		const activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.notStrictEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
-		assert.strictEqual(activeCell!.document.getText(), '');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 4);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
-
-		await vscode.commands.executeCommand('workbench.action.files.save');
-		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
+		const secondCell = editor.document.cellAt(1);
+		assert.strictEqual(secondCell.outputs.length, 1);
+		assert.deepStrictEqual(secondCell.outputs[0].metadata, { testOutputMetadata: true, ['text/plain']: { testOutputItemMetadata: true } });
+		assert.strictEqual(secondCell.outputs[0].items.length, 1);
+		assert.strictEqual(secondCell.outputs[0].items[0].mime, 'text/plain');
+		assert.strictEqual(new TextDecoder().decode(secondCell.outputs[0].items[0].data), 'Hello World');
+		assert.strictEqual(secondCell.executionSummary?.executionOrder, 5);
+		assert.strictEqual(secondCell.executionSummary?.success, true);
 	});
 
 	test('notebook cell actions', async function () {
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
+		const editor = await vscode.window.showNotebookDocument(notebook);
 		assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), 'test');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.languageId, 'typescript');
+		assert.strictEqual(vscode.window.activeNotebookEditor === editor, true, 'notebook first');
+		assert.strictEqual(getFocusedCell(editor)?.document.getText(), 'test');
+		assert.strictEqual(getFocusedCell(editor)?.document.languageId, 'typescript');
 
 		// ---- insert cell below and focus ---- //
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		assert.strictEqual(getFocusedCell(vscode.window.activeNotebookEditor)?.document.getText(), '');
+		assert.strictEqual(getFocusedCell(editor)?.document.getText(), '');
 
 		// ---- insert cell above and focus ---- //
 		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		let activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.notStrictEqual(getFocusedCell(vscode.window.activeNotebookEditor), undefined);
+		let activeCell = getFocusedCell(editor);
+		assert.notStrictEqual(getFocusedCell(editor), undefined);
 		assert.strictEqual(activeCell!.document.getText(), '');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 4);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
+		assert.strictEqual(editor.document.cellCount, 4);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
 
 		// ---- focus bottom ---- //
 		await vscode.commands.executeCommand('notebook.focusBottom');
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 3);
+		activeCell = getFocusedCell(editor);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 3);
 
 		// ---- focus top and then copy down ---- //
 		await vscode.commands.executeCommand('notebook.focusTop');
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 0);
+		activeCell = getFocusedCell(editor);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 0);
 
 		await vscode.commands.executeCommand('notebook.cell.copyDown');
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
+		activeCell = getFocusedCell(editor);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
 		assert.strictEqual(activeCell?.document.getText(), 'test');
 
 		{
-			const focusedCell = getFocusedCell(vscode.window.activeNotebookEditor);
+			const focusedCell = getFocusedCell(editor);
 			assert.strictEqual(focusedCell !== undefined, true);
 			// delete focused cell
 			const edit = new vscode.WorkspaceEdit();
@@ -499,45 +354,44 @@ suite('Notebook API tests', function () {
 			await vscode.workspace.applyEdit(edit);
 		}
 
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 1);
+		activeCell = getFocusedCell(editor);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 1);
 		assert.strictEqual(activeCell?.document.getText(), '');
 
 		// ---- focus top and then copy up ---- //
 		await vscode.commands.executeCommand('notebook.focusTop');
 		await vscode.commands.executeCommand('notebook.cell.copyUp');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellCount, 5);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(0).document.getText(), 'test');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(1).document.getText(), 'test');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(2).document.getText(), '');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.cellAt(3).document.getText(), '');
-		activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 0);
+		assert.strictEqual(editor.document.cellCount, 5);
+		assert.strictEqual(editor.document.cellAt(0).document.getText(), 'test');
+		assert.strictEqual(editor.document.cellAt(1).document.getText(), 'test');
+		assert.strictEqual(editor.document.cellAt(2).document.getText(), '');
+		assert.strictEqual(editor.document.cellAt(3).document.getText(), '');
+		activeCell = getFocusedCell(editor);
+		assert.strictEqual(editor.document.getCells().indexOf(activeCell!), 0);
 
 
 		// ---- move up and down ---- //
 
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(getFocusedCell(vscode.window.activeNotebookEditor)!), 1,
-			`first move down, active cell ${getFocusedCell(vscode.window.activeNotebookEditor)!.document.uri.toString()}, ${getFocusedCell(vscode.window.activeNotebookEditor)!.document.getText()}`);
+		assert.strictEqual(editor.document.getCells().indexOf(getFocusedCell(editor)!), 1,
+			`first move down, active cell ${getFocusedCell(editor)!.document.uri.toString()}, ${getFocusedCell(editor)!.document.getText()}`);
 
 		await vscode.commands.executeCommand('workbench.action.files.save');
 		await vscode.commands.executeCommand('workbench.action.closeActiveEditor');
 	});
 
-	test('move cells will not recreate cells in ExtHost', async function () {
+	test('editor move command - event and move cells will not recreate cells in ExtHost (#98126)', async function () {
 		const notebook = await openRandomNotebookDocument();
-		await vscode.window.showNotebookDocument(notebook);
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellBelow');
-		await vscode.commands.executeCommand('notebook.cell.insertCodeCellAbove');
-		await vscode.commands.executeCommand('notebook.focusTop');
+		const editor = await vscode.window.showNotebookDocument(notebook);
 
-		const activeCell = getFocusedCell(vscode.window.activeNotebookEditor);
-		assert.strictEqual(vscode.window.activeNotebookEditor!.document.getCells().indexOf(activeCell!), 0);
+		const activeCell = getFocusedCell(editor);
+		assert.strictEqual(activeCell?.index, 0);
+		const moveChange = asPromise(vscode.notebooks.onDidChangeNotebookCells);
 		await vscode.commands.executeCommand('notebook.cell.moveDown');
-		await vscode.commands.executeCommand('notebook.cell.moveDown');
+		assert.ok(await moveChange);
 
-		const newActiveCell = getFocusedCell(vscode.window.activeNotebookEditor);
+		const newActiveCell = getFocusedCell(editor);
+		assert.strictEqual(newActiveCell?.index, 1);
 		assert.deepStrictEqual(activeCell, newActiveCell);
 	});
 
@@ -674,18 +528,35 @@ suite('Notebook API tests', function () {
 
 		const cell = editor.document.cellAt(0);
 
+		const alternativeKernel = new class extends Kernel {
+			constructor() {
+				super('secondaryKernel', 'Notebook Secondary Test Kernel');
+				this.controller.supportsExecutionOrder = false;
+			}
+
+			override async _runCell(cell: vscode.NotebookCell) {
+				const task = this.controller.createNotebookCellExecution(cell);
+				task.start();
+				await task.replaceOutput([new vscode.NotebookCellOutput([
+					vscode.NotebookCellOutputItem.text('my second output', 'text/plain')
+				])]);
+				task.end(true);
+			}
+		};
+		testDisposables.push(alternativeKernel.controller);
+
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await assertKernel(kernel1, notebook);
+			await assertKernel(defaultKernel, notebook);
 			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
 			assert.strictEqual(cell.outputs[0].items.length, 1);
 			assert.strictEqual(cell.outputs[0].items[0].mime, 'text/plain');
-			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), 'my output');
+			assert.deepStrictEqual(new TextDecoder().decode(cell.outputs[0].items[0].data), cell.document.getText());
 		});
 
 		await withEvent<vscode.NotebookCellOutputsChangeEvent>(vscode.notebooks.onDidChangeCellOutputs, async (event) => {
-			await assertKernel(kernel2, notebook);
+			await assertKernel(alternativeKernel, notebook);
 			await vscode.commands.executeCommand('notebook.cell.execute');
 			await event;
 			assert.strictEqual(cell.outputs.length, 1, 'should execute'); // runnable, it worked
@@ -1134,74 +1005,44 @@ suite('Notebook API tests', function () {
 		assert.strictEqual(cell.executionSummary?.timing?.endTime, 20);
 
 	});
+});
 
+suite('statusbar', () => {
+	const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
+	const onDidCallProvide = emitter.event;
+	const suiteDisposables: vscode.Disposable[] = [];
+	suiteTeardown(async function () {
+		assertNoRpc();
 
-	suite('statusbar', () => {
-		const emitter = new vscode.EventEmitter<vscode.NotebookCell>();
-		const onDidCallProvide = emitter.event;
-		suiteSetup(() => {
-			vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
-				async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
-					emitter.fire(cell);
-					return [];
-				}
-			});
-		});
+		await revertAllDirty();
+		await closeAllEditors();
 
-		test('provideCellStatusBarItems called on metadata change', async function () {
-			const provideCalled = asPromise(onDidCallProvide);
-			const resource = await createRandomNotebookFile();
-			await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-			await provideCalled;
-
-			const edit = new vscode.WorkspaceEdit();
-			edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
-			vscode.workspace.applyEdit(edit);
-			await provideCalled;
-		});
+		disposeAll(suiteDisposables);
+		suiteDisposables.length = 0;
 	});
 
-	// });
+	suiteSetup(() => {
+		suiteDisposables.push(vscode.notebooks.registerNotebookCellStatusBarItemProvider('notebookCoreTest', {
+			async provideCellStatusBarItems(cell: vscode.NotebookCell, _token: vscode.CancellationToken): Promise<vscode.NotebookCellStatusBarItem[]> {
+				emitter.fire(cell);
+				return [];
+			}
+		}));
 
-	// suite('webview', () => {
-	// for web, `asWebUri` gets `https`?
-	// test('asWebviewUri', async function () {
-	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
-	// 		return;
-	// 	}
+		suiteDisposables.push(vscode.workspace.registerNotebookContentProvider('notebookCoreTest', apiTestContentProvider));
+	});
 
-	// 	const resource = await createRandomNotebookFile();
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-	// 	assert.strictEqual(vscode.window.activeNotebookEditor !== undefined, true, 'notebook first');
-	// 	const uri = vscode.window.activeNotebookEditor!.asWebviewUri(vscode.Uri.file('./hello.png'));
-	// 	assert.strictEqual(uri.scheme, 'vscode-webview-resource');
-	// 	await closeAllEditors();
-	// });
+	test('provideCellStatusBarItems called on metadata change', async function () {
+		const provideCalled = asPromise(onDidCallProvide);
+		const resource = await createRandomNotebookFile();
+		await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
+		await provideCalled;
 
-
-	// 404 on web
-	// test('custom renderer message', async function () {
-	// 	if (vscode.env.uiKind === vscode.UIKind.Web) {
-	// 		return;
-	// 	}
-
-	// 	const resource = vscode.Uri.file(join(vscode.workspace.rootPath || '', './customRenderer.vsctestnb'));
-	// 	await vscode.commands.executeCommand('vscode.openWith', resource, 'notebookCoreTest');
-
-	// 	const editor = vscode.window.activeNotebookEditor;
-	// 	const promise = new Promise(resolve => {
-	// 		const messageEmitter = editor?.onDidReceiveMessage(e => {
-	// 			if (e.type === 'custom_renderer_initialize') {
-	// 				resolve();
-	// 				messageEmitter?.dispose();
-	// 			}
-	// 		});
-	// 	});
-
-	// 	await vscode.commands.executeCommand('notebook.cell.execute');
-	// 	await promise;
-	// 	await closeAllEditors();
-	// });
+		const edit = new vscode.WorkspaceEdit();
+		edit.replaceNotebookCellMetadata(resource, 0, { inputCollapsed: true });
+		vscode.workspace.applyEdit(edit);
+		await provideCalled;
+	});
 });
 
 suite('Notebook API tests (metadata)', function () {
