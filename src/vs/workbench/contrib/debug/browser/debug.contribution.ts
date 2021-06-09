@@ -178,6 +178,17 @@ if (isMacintosh) {
 
 // Debug menu
 
+MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
+	submenu: MenuId.MenubarDebugMenu,
+	title: {
+		value: 'Run',
+		original: 'Run',
+		mnemonicTitle: nls.localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
+	},
+	when: ContextKeyExpr.or(CONTEXT_DEBUGGERS_AVAILABLE),
+	order: 6
+});
+
 MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 	group: '1_debug',
 	command: {
@@ -306,6 +317,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
 		id: 'debug.installAdditionalDebuggers',
 		title: nls.localize({ key: 'miInstallAdditionalDebuggers', comment: ['&& denotes a mnemonic'] }, "&&Install Additional Debuggers...")
 	},
+	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	order: 1
 });
 

@@ -109,13 +109,13 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		service = new WorkspacesManagementMainService(environmentMainService, new NullLogService(), new TestBackupMainService(), new TestDialogMainService(), productService);
 
-		return fs.promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
+		return pfs.Promises.mkdir(untitledWorkspacesHomePath, { recursive: true });
 	});
 
 	teardown(() => {
 		service.dispose();
 
-		return pfs.rimraf(testDir);
+		return pfs.Promises.rm(testDir);
 	});
 
 	function assertPathEquals(p1: string, p2: string): void {

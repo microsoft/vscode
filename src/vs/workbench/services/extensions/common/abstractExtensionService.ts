@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -51,7 +51,7 @@ export function parseScannedExtension(extension: ITranslatedScannedExtension): I
 class DeltaExtensionsQueueItem {
 	constructor(
 		public readonly toAdd: IExtension[],
-		public readonly toRemove: string[]
+		public readonly toRemove: string[] | IExtension[]
 	) { }
 }
 
@@ -66,6 +66,69 @@ export const enum ExtensionRunningPreference {
 	None,
 	Local,
 	Remote
+}
+
+class LockCustomer {
+	public readonly promise: Promise<IDisposable>;
+	private _resolve!: (value: IDisposable) => void;
+
+	constructor(
+		public readonly name: string
+	) {
+		this.promise = new Promise<IDisposable>((resolve, reject) => {
+			this._resolve = resolve;
+		});
+	}
+
+	resolve(value: IDisposable): void {
+		this._resolve(value);
+	}
+}
+
+class Lock {
+	private readonly _pendingCustomers: LockCustomer[] = [];
+	private _isLocked = false;
+
+	public async acquire(customerName: string): Promise<IDisposable> {
+		const customer = new LockCustomer(customerName);
+		this._pendingCustomers.push(customer);
+		this._advance();
+		return customer.promise;
+	}
+
+	private _advance(): void {
+		if (this._isLocked) {
+			// cannot advance yet
+			return;
+		}
+		if (this._pendingCustomers.length === 0) {
+			// no more waiting customers
+			return;
+		}
+
+		const customer = this._pendingCustomers.shift()!;
+
+		this._isLocked = true;
+		let customerHoldsLock = true;
+
+		let logLongRunningCustomerTimeout = setTimeout(() => {
+			if (customerHoldsLock) {
+				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
+			}
+		}, 30 * 1000 /* 30 seconds */);
+
+		const releaseLock = () => {
+			if (!customerHoldsLock) {
+				return;
+			}
+			clearTimeout(logLongRunningCustomerTimeout);
+			customerHoldsLock = false;
+			this._isLocked = false;
+			this._advance();
+		};
+
+		customer.resolve(toDisposable(releaseLock));
+	}
 }
 
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
@@ -88,6 +151,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
 	protected readonly _registry: ExtensionDescriptionRegistry;
+	private readonly _registryLock: Lock;
+
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
@@ -98,7 +163,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
-	private readonly _onDidFinishHandleDeltaExtensions = this._register(new Emitter<void>());
 
 	protected _runningLocation: Map<string, ExtensionRunningLocation>;
 
@@ -130,6 +194,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 
 		this._registry = new ExtensionDescriptionRegistry([]);
+		this._registryLock = new Lock();
+
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
@@ -151,14 +217,14 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		this._register(this._extensionEnablementService.onEnablementChanged((extensions) => {
 			let toAdd: IExtension[] = [];
-			let toRemove: string[] = [];
+			let toRemove: IExtension[] = [];
 			for (const extension of extensions) {
 				if (this._safeInvokeIsEnabled(extension)) {
 					// an extension has been enabled
 					toAdd.push(extension);
 				} else {
 					// an extension has been disabled
-					toRemove.push(extension.identifier.id);
+					toRemove.push(extension);
 				}
 			}
 			this._handleDeltaExtensions(new DeltaExtensionsQueueItem(toAdd, toRemove));
@@ -207,20 +273,23 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return;
 		}
 
-		while (this._deltaExtensionsQueue.length > 0) {
-			const item = this._deltaExtensionsQueue.shift()!;
-			try {
-				this._inHandleDeltaExtensions = true;
+		let lock: IDisposable | null = null;
+		try {
+			this._inHandleDeltaExtensions = true;
+			lock = await this._registryLock.acquire('handleDeltaExtensions');
+			while (this._deltaExtensionsQueue.length > 0) {
+				const item = this._deltaExtensionsQueue.shift()!;
 				await this._deltaExtensions(item.toAdd, item.toRemove);
-			} finally {
-				this._inHandleDeltaExtensions = false;
+			}
+		} finally {
+			this._inHandleDeltaExtensions = false;
+			if (lock) {
+				lock.dispose();
 			}
 		}
-
-		this._onDidFinishHandleDeltaExtensions.fire();
 	}
 
-	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[]): Promise<void> {
+	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
 		let toAdd: IExtensionDescription[] = [];
 		for (let i = 0, len = _toAdd.length; i < len; i++) {
 			const extension = _toAdd[i];
@@ -240,10 +309,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 		let toRemove: IExtensionDescription[] = [];
 		for (let i = 0, len = _toRemove.length; i < len; i++) {
-			const extensionId = _toRemove[i];
+			const extensionOrId = _toRemove[i];
+			const extensionId = (typeof extensionOrId === 'string' ? extensionOrId : extensionOrId.identifier.id);
+			const extension = (typeof extensionOrId === 'string' ? null : extensionOrId);
 			const extensionDescription = this._registry.getExtensionDescription(extensionId);
 			if (!extensionDescription) {
 				// ignore disabling/uninstalling an extension which is not running
+				continue;
+			}
+
+			if (extension && extensionDescription.extensionLocation.scheme !== extension.location.scheme) {
+				// this event is for a different extension than mine (maybe for the local extension, while I have the remote extension)
 				continue;
 			}
 
@@ -559,11 +635,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public async startExtensionHosts(): Promise<void> {
 		this.stopExtensionHosts();
 
-		if (this._inHandleDeltaExtensions) {
-			await Event.toPromise(this._onDidFinishHandleDeltaExtensions.event);
-		}
+		const lock = await this._registryLock.acquire('startExtensionHosts');
+		try {
+			this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
 
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+			const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
+			if (localProcessExtensionHost) {
+				await localProcessExtensionHost.ready();
+			}
+		} finally {
+			lock.dispose();
+		}
 	}
 
 	public async restartExtensionHost(): Promise<void> {
@@ -680,15 +762,23 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 	}
 
-	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[]): IExtensionDescription[] {
+	/**
+	 * @argument extensions The extensions to be checked.
+	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 */
+	protected _checkEnabledAndProposedAPI(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
 		// enable or disable proposed API per extension
 		this._checkEnableProposedApi(extensions);
 
 		// keep only enabled extensions
-		return extensions.filter(extension => this._isEnabled(extension));
+		return extensions.filter(extension => this._isEnabled(extension, ignoreWorkspaceTrust));
 	}
 
-	protected _isEnabled(extension: IExtensionDescription): boolean {
+	/**
+	 * @argument extension The extension to be checked.
+	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
+	 */
+	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
 		if (extension.isUnderDevelopment) {
 			// Never disable extensions under development
 			return true;
@@ -699,12 +789,33 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return false;
 		}
 
-		return this._safeInvokeIsEnabled(toExtension(extension));
+		const ext = toExtension(extension);
+
+		const isEnabled = this._safeInvokeIsEnabled(ext);
+		if (isEnabled) {
+			return true;
+		}
+
+		if (ignoreWorkspaceTrust && this._safeInvokeIsDisabledByWorkspaceTrust(ext)) {
+			// This extension is disabled, but the reason for it being disabled
+			// is workspace trust, so we will consider it enabled
+			return true;
+		}
+
+		return false;
 	}
 
 	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
 		try {
 			return this._extensionEnablementService.isEnabled(extension);
+		} catch (err) {
+			return false;
+		}
+	}
+
+	protected _safeInvokeIsDisabledByWorkspaceTrust(extension: IExtension): boolean {
+		try {
+			return this._extensionEnablementService.isDisabledByWorkspaceTrust(extension);
 		} catch (err) {
 			return false;
 		}

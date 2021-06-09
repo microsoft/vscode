@@ -63,6 +63,7 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystemProvider';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 class BrowserMain extends Disposable {
 
@@ -106,16 +107,22 @@ class BrowserMain extends Disposable {
 			const commandService = accessor.get(ICommandService);
 			const lifecycleService = accessor.get(ILifecycleService);
 			const timerService = accessor.get(ITimerService);
+			const openerService = accessor.get(IOpenerService);
+			const productService = accessor.get(IProductService);
 
 			return {
 				commands: {
 					executeCommand: (command, ...args) => commandService.executeCommand(command, ...args)
 				},
 				env: {
+					uriScheme: productService.urlProtocol,
 					async retrievePerformanceMarks() {
 						await timerService.whenReady();
 
 						return timerService.getPerformanceMarks();
+					},
+					async openUri(uri: URI): Promise<boolean> {
+						return openerService.open(uri, {});
 					}
 				},
 				shutdown: () => lifecycleService.shutdown()
@@ -176,7 +183,7 @@ class BrowserMain extends Disposable {
 		serviceCollection.set(IFileService, fileService);
 		await this.registerFileSystemProviders(environmentService, fileService, remoteAgentService, logService, logsPath);
 
-		// IURIIdentityService
+		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
@@ -203,7 +210,7 @@ class BrowserMain extends Disposable {
 		]);
 
 		// Workspace Trust Service
-		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, environmentService, storageService, uriIdentityService, configurationService);
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
 		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
 
 		// Update workspace trust so that configuration is updated accordingly
@@ -306,12 +313,16 @@ class BrowserMain extends Disposable {
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const dialogService = accessor.get(IDialogService);
 					const hostService = accessor.get(IHostService);
+					const storageService = accessor.get(IStorageService);
 					const result = await dialogService.confirm({
 						message: localize('reset user data message', "Would you like to reset your data (settings, keybindings, extensions, snippets and UI State) and reload?")
 					});
 
 					if (result.confirmed) {
 						await indexedDBUserDataProvider?.reset();
+						if (storageService instanceof BrowserStorageService) {
+							await storageService.clear();
+						}
 					}
 
 					hostService.reload();
@@ -324,7 +335,7 @@ class BrowserMain extends Disposable {
 	}
 
 	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService): Promise<BrowserStorageService> {
-		const storageService = new BrowserStorageService(payload, environmentService, fileService);
+		const storageService = new BrowserStorageService(payload, logService, environmentService, fileService);
 
 		try {
 			await storageService.initialize();

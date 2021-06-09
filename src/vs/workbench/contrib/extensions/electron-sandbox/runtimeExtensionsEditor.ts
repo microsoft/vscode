@@ -105,7 +105,15 @@ export class RuntimeExtensionsEditor extends AbstractRuntimeExtensionsEditor {
 	}
 
 	protected _createReportExtensionIssueAction(element: IRuntimeExtension): Action | null {
-		return this._instantiationService.createInstance(ReportExtensionIssueAction, element);
+		if (element.marketplaceInfo) {
+			return this._instantiationService.createInstance(ReportExtensionIssueAction, {
+				description: element.description,
+				marketplaceInfo: element.marketplaceInfo,
+				status: element.status,
+				unresponsiveProfile: element.unresponsiveProfile
+			});
+		}
+		return null;
 	}
 
 	protected _createSaveExtensionHostProfileAction(): Action | null {

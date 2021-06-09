@@ -264,4 +264,31 @@ suite('Monarch', () => {
 		]);
 	});
 
+	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
+		const modeService = new ModeServiceImpl();
+
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			ignoreCase: false,
+			tokenizer: {
+				root: [
+					{
+						regex: /@@@@/,
+						action: { token: 'ham' }
+					},
+				],
+			},
+		});
+
+		const lines = [
+			`@@`
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'ham.test', 'test'),
+			]
+		]);
+	});
+
 });

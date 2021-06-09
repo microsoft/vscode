@@ -42,7 +42,7 @@
     "colors": "^1.4.0",
     "commander": "^7.0.0",
     "electron-osx-sign": "^0.4.16",
-    "esbuild": "^0.8.30",
+    "esbuild": "^0.12.6",
     "fs-extra": "^9.1.0",
     "got": "11.8.1",
     "iconv-lite-umd": "0.6.8",
@@ -52,7 +52,7 @@
     "p-limit": "^3.1.0",
     "plist": "^3.0.1",
     "source-map": "0.6.1",
-    "typescript": "^4.3.0-dev.20210503",
+    "typescript": "^4.4.0-dev.20210607",
     "vsce": "1.48.0",
     "vscode-universal": "deepak1556/universal#61454d96223b774c53cda10f72c2098c0ce02d58"
   },

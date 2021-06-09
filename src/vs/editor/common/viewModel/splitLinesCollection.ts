@@ -8,7 +8,7 @@ import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionNormalizationAffinity } from 'vs/editor/common/model';
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
@@ -46,6 +46,7 @@ export interface ISplitLine {
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
 	getViewLineNumberOfModelPosition(deltaLineNumber: number, inputColumn: number): number;
+	normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionNormalizationAffinity): Position;
 }
 
 export interface IViewModelLinesCollection extends IDisposable {
@@ -75,6 +76,13 @@ export interface IViewModelLinesCollection extends IDisposable {
 
 	getAllOverviewRulerDecorations(ownerId: number, filterOutValidation: boolean, theme: EditorTheme): IOverviewRulerDecorations;
 	getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[];
+
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
 }
 
 export class CoordinatesConverter implements ICoordinatesConverter {
@@ -971,6 +979,31 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		return finalResult;
 	}
+
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
+		const viewLineNumber = this._toValidViewLineNumber(position.lineNumber);
+		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		const lineIndex = r.index;
+		const remainder = r.remainder;
+
+		return this.lines[lineIndex].normalizePosition(this.model, lineIndex + 1, remainder, position, affinity);
+	}
+
+	public getLineIndentColumn(lineNumber: number): number {
+		const viewLineNumber = this._toValidViewLineNumber(lineNumber);
+		const r = this.prefixSumComputer.getIndexOf(viewLineNumber - 1);
+		const lineIndex = r.index;
+		const remainder = r.remainder;
+
+		if (remainder === 0) {
+			return this.model.getLineIndentColumn(lineIndex + 1);
+		}
+
+		// wrapped lines have no indentation.
+		// We deliberately don't handle the case that indentation is wrapped
+		// to avoid two view lines reporting indentation for the very same model line.
+		return 0;
+	}
 }
 
 class VisibleIdentitySplitLine implements ISplitLine {
@@ -1046,6 +1079,10 @@ class VisibleIdentitySplitLine implements ISplitLine {
 	public getViewLineNumberOfModelPosition(deltaLineNumber: number, _inputColumn: number): number {
 		return deltaLineNumber;
 	}
+
+	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionNormalizationAffinity): Position {
+		return outputPosition;
+	}
 }
 
 class InvisibleIdentitySplitLine implements ISplitLine {
@@ -1106,6 +1143,10 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 	}
 
 	public getViewLineNumberOfModelPosition(_deltaLineNumber: number, _inputColumn: number): number {
+		throw new Error('Not supported');
+	}
+
+	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionNormalizationAffinity): Position {
 		throw new Error('Not supported');
 	}
 }
@@ -1190,6 +1231,10 @@ export class SplitLine implements ISplitLine {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
+		return this._getViewLineMinColumn(outputLineIndex);
+	}
+
+	private _getViewLineMinColumn(outputLineIndex: number): number {
 		if (outputLineIndex > 0) {
 			return this._lineBreakData.wrappedTextIndentLength + 1;
 		}
@@ -1200,7 +1245,7 @@ export class SplitLine implements ISplitLine {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
-		return this.getViewLineContent(model, modelLineNumber, outputLineIndex).length + 1;
+		return this.getViewLineLength(model, modelLineNumber, outputLineIndex) + 1;
 	}
 
 	public getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData {
@@ -1297,6 +1342,21 @@ export class SplitLine implements ISplitLine {
 		}
 		const r = LineBreakData.getOutputPositionOfInputOffset(this._lineBreakData.breakOffsets, inputColumn - 1);
 		return (deltaLineNumber + r.outputLineIndex);
+	}
+
+	public normalizePosition(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number, outputPosition: Position, affinity: PositionNormalizationAffinity): Position {
+		if (affinity === PositionNormalizationAffinity.Left) {
+			if (outputLineIndex > 0 && outputPosition.column === this._getViewLineMinColumn(outputLineIndex)) {
+				return new Position(outputPosition.lineNumber - 1, this.getViewLineMaxColumn(model, modelLineNumber, outputLineIndex - 1));
+			}
+		}
+		else if (affinity === PositionNormalizationAffinity.Right) {
+			const maxOutputLineIndex = this.getViewLineCount() - 1;
+			if (outputLineIndex < maxOutputLineIndex && outputPosition.column === this.getViewLineMaxColumn(model, modelLineNumber, outputLineIndex)) {
+				return new Position(outputPosition.lineNumber + 1, this._getViewLineMinColumn(outputLineIndex + 1));
+			}
+		}
+		return outputPosition;
 	}
 }
 
@@ -1531,6 +1591,14 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 
 	public getDecorationsInRange(range: Range, ownerId: number, filterOutValidation: boolean): IModelDecoration[] {
 		return this.model.getDecorationsInRange(range, ownerId, filterOutValidation);
+	}
+
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position {
+		return this.model.normalizePosition(position, affinity);
+	}
+
+	public getLineIndentColumn(lineNumber: number): number {
+		return this.model.getLineIndentColumn(lineNumber);
 	}
 }
 

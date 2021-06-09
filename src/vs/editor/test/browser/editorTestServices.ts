@@ -19,9 +19,9 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}
-	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }
-	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return {}; }
+	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return { description: 'test' }; }
 	public resolveDecorationCSSRules(decorationTypeKey: string): CSSRuleList | null { return null; }
 }
 

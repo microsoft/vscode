@@ -10,8 +10,23 @@ export class TestDialogService implements IDialogService {
 
 	declare readonly _serviceBrand: undefined;
 
-	confirm(_confirmation: IConfirmation): Promise<IConfirmationResult> { return Promise.resolve({ confirmed: false }); }
-	show(_severity: Severity, _message: string, _buttons: string[], _options?: IDialogOptions): Promise<IShowResult> { return Promise.resolve({ choice: 0 }); }
-	input(): Promise<IInputResult> { { return Promise.resolve({ choice: 0, values: [] }); } }
-	about(): Promise<void> { return Promise.resolve(); }
+	private confirmResult: IConfirmationResult | undefined = undefined;
+	setConfirmResult(result: IConfirmationResult) {
+		this.confirmResult = result;
+	}
+
+	async confirm(confirmation: IConfirmation): Promise<IConfirmationResult> {
+		if (this.confirmResult) {
+			const confirmResult = this.confirmResult;
+			this.confirmResult = undefined;
+
+			return confirmResult;
+		}
+
+		return { confirmed: false };
+	}
+
+	async show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult> { return { choice: 0 }; }
+	async input(): Promise<IInputResult> { { return { choice: 0, values: [] }; } }
+	async about(): Promise<void> { }
 }

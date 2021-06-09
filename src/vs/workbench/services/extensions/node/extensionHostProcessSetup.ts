@@ -18,7 +18,7 @@ import { MessageType, createMessageOfType, isMessageOfType, IExtHostSocketMessag
 import { ExtensionHostMain, IExitFn } from 'vs/workbench/services/extensions/common/extensionHostMain';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IURITransformer, URITransformer, IRawURITransformer } from 'vs/base/common/uriIpc';
-import { exists } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { realpath } from 'vs/base/node/extpath';
 import { IHostUtils } from 'vs/workbench/api/common/extHostExtensionService';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -173,6 +173,9 @@ function _createExtHostProtocol(): Promise<PersistentProtocol> {
 			});
 			socket.once('error', reject);
 
+			socket.on('close', () => {
+				onTerminate('renderer closed the socket');
+			});
 		});
 	}
 }
@@ -323,7 +326,7 @@ export async function startExtensionHostProcess(): Promise<void> {
 	const hostUtils = new class NodeHost implements IHostUtils {
 		declare readonly _serviceBrand: undefined;
 		exit(code: number) { nativeExit(code); }
-		exists(path: string) { return exists(path); }
+		exists(path: string) { return Promises.exists(path); }
 		realpath(path: string) { return realpath(path); }
 	};
 

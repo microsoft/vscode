@@ -30,6 +30,8 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { isWindows } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 
 suite('WorkingCopyBackupTracker (browser)', function () {
 	let accessor: TestServiceAccessor;
@@ -93,6 +95,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		disposables.add(registerTestResourceEditor());
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);
@@ -107,23 +110,23 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 	async function untitledBackupTest(untitled: IUntitledTextResourceEditorInput = {}): Promise<void> {
 		const { accessor, cleanup, workingCopyBackupService } = await createTracker();
 
-		const untitledEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
+		const untitledTextEditor = (await accessor.editorService.openEditor(untitled))?.input as UntitledTextEditorInput;
 
-		const untitledModel = await untitledEditor.resolve();
+		const untitledTextModel = await untitledTextEditor.resolve();
 
 		if (!untitled?.contents) {
-			untitledModel.textEditorModel?.setValue('Super Good');
+			untitledTextModel.textEditorModel?.setValue('Super Good');
 		}
 
 		await workingCopyBackupService.joinBackupResource();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledModel), true);
+		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), true);
 
-		untitledModel.dispose();
+		untitledTextModel.dispose();
 
 		await workingCopyBackupService.joinDiscardBackup();
 
-		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledModel), false);
+		assert.strictEqual(workingCopyBackupService.hasBackupSync(untitledTextModel), false);
 
 		cleanup();
 	}
@@ -199,6 +202,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 		const part = await createEditorPart(instantiationService, disposables);
 
 		instantiationService.stub(IEditorGroupsService, part);
+		instantiationService.stub(IWorkspaceTrustRequestService, new TestWorkspaceTrustRequestService(false));
 
 		const editorService: EditorService = instantiationService.createInstance(EditorService);
 		instantiationService.stub(IEditorService, editorService);

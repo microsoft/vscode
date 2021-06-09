@@ -26,7 +26,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const SEARCH_STRING_MAX_LENGTH = 524288;
 
@@ -502,12 +501,7 @@ export const StartFindAction = registerMultiEditorAction(new MultiEditorAction({
 	}
 }));
 
-StartFindAction.addImplementation(0, (accessor: ServicesAccessor, args: any): boolean | Promise<void> => {
-	const codeEditorService = accessor.get(ICodeEditorService);
-	const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
-	if (!editor) {
-		return false;
-	}
+StartFindAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor, args: any): boolean | Promise<void> => {
 	const controller = CommonFindController.get(editor);
 	if (!controller) {
 		return false;
@@ -726,10 +720,8 @@ export const StartFindReplaceAction = registerMultiEditorAction(new MultiEditorA
 	}
 }));
 
-StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, args: any): boolean | Promise<void> => {
-	const codeEditorService = accessor.get(ICodeEditorService);
-	const editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
-	if (!editor || !editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
+StartFindReplaceAction.addImplementation(0, (accessor: ServicesAccessor, editor: ICodeEditor, args: any): boolean | Promise<void> => {
+	if (!editor.hasModel() || editor.getOption(EditorOption.readOnly)) {
 		return false;
 	}
 	const controller = CommonFindController.get(editor);

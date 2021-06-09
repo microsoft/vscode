@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionKind, ExtensionIdentifier, ExtensionUntrustedWorkpaceSupportType, ExtensionVirtualWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
@@ -13,7 +13,9 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExtensionUntrustedWorkspaceSupport } from 'vs/base/common/product';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { isBoolean } from 'vs/base/common/types';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export const IExtensionManifestPropertiesService = createDecorator<IExtensionManifestPropertiesService>('extensionManifestPropertiesService');
 
@@ -30,7 +32,7 @@ export interface IExtensionManifestPropertiesService {
 
 	getExtensionKind(manifest: IExtensionManifest): ExtensionKind[];
 	getExtensionUntrustedWorkspaceSupportType(manifest: IExtensionManifest): ExtensionUntrustedWorkpaceSupportType;
-	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean;
+	getExtensionVirtualWorkspaceSupportType(manifest: IExtensionManifest): ExtensionVirtualWorkpaceSupportType;
 }
 
 export class ExtensionManifestPropertiesService extends Disposable implements IExtensionManifestPropertiesService {
@@ -50,6 +52,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
 
@@ -123,7 +126,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 	getExtensionUntrustedWorkspaceSupportType(manifest: IExtensionManifest): ExtensionUntrustedWorkpaceSupportType {
 		// Workspace trust feature is disabled, or extension has no entry point
-		if (!isWorkspaceTrustEnabled(this.configurationService) || !manifest.main) {
+		if (!this.workspaceTrustManagementService.workspaceTrustEnabled || !manifest.main) {
 			return true;
 		}
 
@@ -156,7 +159,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		return false;
 	}
 
-	canSupportVirtualWorkspace(manifest: IExtensionManifest): boolean {
+	getExtensionVirtualWorkspaceSupportType(manifest: IExtensionManifest): ExtensionVirtualWorkpaceSupportType {
 		// check user configured
 		const userConfiguredVirtualWorkspaceSupport = this.getConfiguredVirtualWorkspaceSupport(manifest);
 		if (userConfiguredVirtualWorkspaceSupport !== undefined) {
@@ -171,8 +174,14 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		// check the manifest
-		if (manifest.capabilities?.virtualWorkspaces !== undefined) {
-			return manifest.capabilities?.virtualWorkspaces;
+		const virtualWorkspaces = manifest.capabilities?.virtualWorkspaces;
+		if (isBoolean(virtualWorkspaces)) {
+			return virtualWorkspaces;
+		} else if (virtualWorkspaces) {
+			const supported = virtualWorkspaces.supported;
+			if (isBoolean(supported) || supported === 'limited') {
+				return supported;
+			}
 		}
 
 		// check default from product

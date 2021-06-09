@@ -322,11 +322,23 @@ interface IWorkbenchConstructionOptions {
 	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
+	 * Filter for built-in extensions.
+	 */
+	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
+
+	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
+
+	/**
+	 * Allows the workbench to skip checking whether an extension was built for the web
+	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
+	 * asset URI.
+	 */
+	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -457,10 +469,12 @@ interface IWorkbench {
 	}
 
 	env: {
+		readonly uriScheme: string;
 		/**
 		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		openUri(uri: URI): Promise<boolean>;
 	}
 
 	/**
@@ -559,6 +573,16 @@ namespace env {
 		const workbench = await workbenchPromise;
 
 		return workbench.env.retrievePerformanceMarks();
+	}
+
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+		return workbench.env.uriScheme;
+	}
+
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+		return workbench.env.openUri(target);
 	}
 }
 

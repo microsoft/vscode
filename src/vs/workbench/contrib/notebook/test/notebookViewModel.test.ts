@@ -18,8 +18,10 @@ import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { reduceCellRanges } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, diff, notebookDocumentMetadataDefaults } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, diff } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NotebookEditorTestModel, setupInstantiationService, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
@@ -35,10 +37,10 @@ suite('NotebookViewModel', () => {
 	instantiationService.stub(IThemeService, new TestThemeService());
 
 	test('ctor', function () {
-		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], notebookDocumentMetadataDefaults, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
+		const notebook = new NotebookTextModel('notebook', URI.parse('test'), [], {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, undoRedoService, modelService, modeService);
 		const model = new NotebookEditorTestModel(notebook);
-		const eventDispatcher = new NotebookEventDispatcher();
-		const viewModel = new NotebookViewModel('notebook', model.notebook, eventDispatcher, null, instantiationService, bulkEditService, undoRedoService, textModelService);
+		const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+		const viewModel = new NotebookViewModel('notebook', model.notebook, viewContext, null, instantiationService, bulkEditService, undoRedoService, textModelService);
 		assert.strictEqual(viewModel.viewType, 'notebook');
 	});
 
@@ -333,14 +335,14 @@ suite('NotebookViewModel API', () => {
 	test('#115432, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
 				['b = 2;', 'python', CellKind.Code, [], {}],
 				['var c = 3', 'javascript', CellKind.Code, [], {}],
-				['# header d', 'markdown', CellKind.Markdown, [], {}],
+				['# header d', 'markdown', CellKind.Markup, [], {}],
 				['var e = 4;', 'TypeScript', CellKind.Code, [], {}],
-				['# header f', 'markdown', CellKind.Markdown, [], {}]
+				['# header f', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -357,9 +359,9 @@ suite('NotebookViewModel API', () => {
 	test('#108464, get nearest code cell', async function () {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
@@ -371,9 +373,9 @@ suite('NotebookViewModel API', () => {
 	test('getCells', async () => {
 		await withTestNotebook(
 			[
-				['# header a', 'markdown', CellKind.Markdown, [], {}],
+				['# header a', 'markdown', CellKind.Markup, [], {}],
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
-				['# header b', 'markdown', CellKind.Markdown, [], {}]
+				['# header b', 'markdown', CellKind.Markup, [], {}]
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;

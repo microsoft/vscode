@@ -5,11 +5,10 @@
 
 import * as path from 'vs/base/common/path';
 import type * as pty from 'node-pty';
-import * as fs from 'fs';
 import * as os from 'os';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalLaunchError, FlowControlConstants, ITerminalChildProcess, ITerminalDimensionsOverride, TerminalShellType, IProcessReadyEvent } from 'vs/platform/terminal/common/terminal';
 import { exec } from 'child_process';
 import { ILogService } from 'vs/platform/log/common/log';
 import { findExecutable, getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
@@ -18,6 +17,7 @@ import { localize } from 'vs/nls';
 import { WindowsShellHelper } from 'vs/platform/terminal/node/windowsShellHelper';
 import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { timeout } from 'vs/base/common/async';
+import { Promises } from 'vs/base/node/pfs';
 
 // Writing large amounts of data can be corrupted for some reason, after looking into this is
 // appears to be a race condition around writing to the FD which may be based on how powerful the
@@ -99,8 +99,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	get onProcessData(): Event<string> { return this._onProcessData.event; }
 	private readonly _onProcessExit = this._register(new Emitter<number>());
 	get onProcessExit(): Event<number> { return this._onProcessExit.event; }
-	private readonly _onProcessReady = this._register(new Emitter<{ pid: number, cwd: string }>());
-	get onProcessReady(): Event<{ pid: number, cwd: string }> { return this._onProcessReady.event; }
+	private readonly _onProcessReady = this._register(new Emitter<IProcessReadyEvent>());
+	get onProcessReady(): Event<IProcessReadyEvent> { return this._onProcessReady.event; }
 	private readonly _onProcessTitleChanged = this._register(new Emitter<string>());
 	get onProcessTitleChanged(): Event<string> { return this._onProcessTitleChanged.event; }
 	private readonly _onProcessShellTypeChanged = this._register(new Emitter<TerminalShellType>());
@@ -182,7 +182,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private async _validateCwd(): Promise<undefined | ITerminalLaunchError> {
 		try {
-			const result = await fs.promises.stat(this._initialCwd);
+			const result = await Promises.stat(this._initialCwd);
 			if (!result.isDirectory()) {
 				return { message: localize('launchFail.cwdNotDirectory', "Starting directory (cwd) \"{0}\" is not a directory", this._initialCwd.toString()) };
 			}
@@ -200,7 +200,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			throw new Error('IShellLaunchConfig.executable not set');
 		}
 		try {
-			const result = await fs.promises.stat(slc.executable);
+			const result = await Promises.stat(slc.executable);
 			if (!result.isFile() && !result.isSymbolicLink()) {
 				return { message: localize('launchFail.executableIsNotFileOrSymlink', "Path to shell executable \"{0}\" is not a file of a symlink", slc.executable) };
 			}
@@ -239,7 +239,6 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 				ptyProcess.pause();
 			}
 
-
 			// Refire the data event
 			this._onProcessData.fire(data);
 			if (this._closeTimeout) {
@@ -251,8 +250,8 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 			this._exitCode = e.exitCode;
 			this._queueProcessExit();
 		});
-		this._setupTitlePolling(ptyProcess);
 		this._sendProcessId(ptyProcess.pid);
+		this._setupTitlePolling(ptyProcess);
 	}
 
 	override dispose(): void {
@@ -266,7 +265,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 
 	private _setupTitlePolling(ptyProcess: pty.IPty) {
 		// Send initial timeout async to give event listeners a chance to init
-		setTimeout(() => this._sendProcessTitle(ptyProcess), 0);
+		setTimeout(() => this._sendProcessTitle(ptyProcess));
 		// Setup polling for non-Windows, for Windows `process` doesn't change
 		if (!isWindows) {
 			this._titleInterval = setInterval(() => {
@@ -325,7 +324,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	private _sendProcessId(pid: number) {
-		this._onProcessReady.fire({ pid, cwd: this._initialCwd });
+		this._onProcessReady.fire({ pid, cwd: this._initialCwd, requiresWindowsMode: isWindows && getWindowsBuildNumber() < 21376 });
 	}
 
 	private _sendProcessTitle(ptyProcess: pty.IPty): void {
@@ -461,7 +460,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		return Promise.resolve(this._initialCwd);
 	}
 
-	getCwd(): Promise<string> {
+	async getCwd(): Promise<string> {
 		if (isMacintosh) {
 			// Disable cwd lookup on macOS Big Sur due to spawn blocking thread (darwin v20 is macOS
 			// Big Sur) https://github.com/Microsoft/vscode/issues/105446
@@ -486,24 +485,18 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 		}
 
 		if (isLinux) {
-			return new Promise<string>(resolve => {
-				if (!this._ptyProcess) {
-					resolve(this._initialCwd);
-					return;
-				}
-				this._logService.trace('IPty#pid');
-				fs.readlink('/proc/' + this._ptyProcess.pid + '/cwd', (err, linkedstr) => {
-					if (err) {
-						resolve(this._initialCwd);
-					}
-					resolve(linkedstr);
-				});
-			});
+			if (!this._ptyProcess) {
+				return this._initialCwd;
+			}
+			this._logService.trace('IPty#pid');
+			try {
+				return await Promises.readlink(`/proc/${this._ptyProcess.pid}/cwd`);
+			} catch (error) {
+				return this._initialCwd;
+			}
 		}
 
-		return new Promise<string>(resolve => {
-			resolve(this._initialCwd);
-		});
+		return this._initialCwd;
 	}
 
 	getLatency(): Promise<number> {

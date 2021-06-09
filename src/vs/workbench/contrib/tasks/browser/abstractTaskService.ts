@@ -93,7 +93,7 @@ export namespace ConfigureTaskAction {
 	export const TEXT = nls.localize('ConfigureTaskRunnerAction.label', "Configure Task");
 }
 
-type TaskQuickPickEntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; });
+type TaskQuickPickEntryType = (IQuickPickItem & { task: Task; }) | (IQuickPickItem & { folder: IWorkspaceFolder; }) | (IQuickPickItem & { settingType: string; });
 
 class ProblemReporter implements TaskConfig.IProblemReporter {
 
@@ -278,9 +278,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._providerTypes = new Map<number, string>();
 		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
-			if (!this._taskSystem && !this._workspaceTasksPromise) {
-				return;
-			}
 			let folderSetup = this.computeWorkspaceFolderSetup();
 			if (this.executionEngine !== folderSetup[2]) {
 				this.disposeTaskSystemListeners();
@@ -553,6 +550,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				this._providerTypes.delete(handle);
 			}
 		};
+	}
+
+	get hasTaskSystemInfo(): boolean {
+		return this._taskSystemInfos.size > 0;
 	}
 
 	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
@@ -1635,6 +1636,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this.contextService, this.environmentService,
 			AbstractTaskService.OutputChannelId, this.fileService, this.terminalProfileResolverService,
 			this.pathService, this.viewDescriptorService, this.logService, this.configurationService,
+			this,
 			(workspaceFolder: IWorkspaceFolder | undefined) => {
 				if (workspaceFolder) {
 					return this.getTaskSystemInfo(workspaceFolder.uri.scheme);
@@ -2329,7 +2331,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async showTwoLevelQuickPick(placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, placeHolder, defaultEntry);
+		return TaskQuickPick.show(this, this.configurationService, this.quickInputService, this.notificationService, this.dialogService, placeHolder, defaultEntry);
 	}
 
 	private async showQuickPick(tasks: Promise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false, selectedEntry?: TaskQuickPickEntry, additionalEntries?: TaskQuickPickEntry[]): Promise<TaskQuickPickEntry | undefined | null> {
@@ -2917,6 +2919,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		return candidate && !!candidate.task;
 	}
 
+	private isSettingEntry(value: IQuickPickItem): value is IQuickPickItem & { settingType: string } {
+		let candidate: IQuickPickItem & { settingType: string } = value as any;
+		return candidate && !!candidate.settingType;
+	}
+
 	private configureTask(task: Task) {
 		if (ContributedTask.is(task)) {
 			this.customize(task, undefined, true);
@@ -2933,6 +2940,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		if (this.isTaskEntry(selection)) {
 			this.configureTask(selection.task);
+		} else if (this.isSettingEntry(selection)) {
+			const taskQuickPick = new TaskQuickPick(this, this.configurationService, this.quickInputService, this.notificationService, this.dialogService);
+			taskQuickPick.handleSettingOption(selection.settingType);
 		} else if (selection.folder && (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY)) {
 			this.openTaskFile(selection.folder.toResource('.vscode/tasks.json'), TaskSourceKind.Workspace);
 		} else {
@@ -3027,7 +3037,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		}
 
-		this.quickInputService.pick(entries,
+		const entriesWithSettings = entries.then(resolvedEntries => {
+			resolvedEntries.push(...TaskQuickPick.allSettingEntries(this.configurationService));
+			return resolvedEntries;
+		});
+
+		this.quickInputService.pick(entriesWithSettings,
 			{ placeHolder: nls.localize('TaskService.pickTask', 'Select a task to configure') }, cancellationToken).
 			then(async (selection) => {
 				if (cancellationToken.isCancellationRequested) {
@@ -3306,8 +3321,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				run: async () => {
 					for (const upgrade of fileDiffs) {
 						await this.editorService.openEditor({
-							leftResource: upgrade[0],
-							rightResource: upgrade[1],
+							originalInput: { resource: upgrade[0] },
+							modifiedInput: { resource: upgrade[1] }
 						});
 					}
 				}

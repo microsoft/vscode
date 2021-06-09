@@ -639,6 +639,7 @@ export interface IContentDecorationRenderOptions {
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
+	opacity?: string;
 
 	margin?: string;
 	padding?: string;

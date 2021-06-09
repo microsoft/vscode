@@ -15,7 +15,7 @@ import { IWorkbenchExtensionEnablementService, EnablementState, IWebExtensionsSc
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRemoteExtensionHostDataProvider, RemoteExtensionHost, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, RemoteTrustOption, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -42,12 +42,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { Codicon } from 'vs/base/common/codicons';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
-
-const MACHINE_PROMPT = false;
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -75,7 +71,6 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
-		@IDialogService private readonly _dialogService: IDialogService,
 		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
@@ -144,7 +139,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async () => {
 				if (isInitialStart) {
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
+					// Here we load even extensions that would be disabled by workspace trust
+					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
 					const runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, []);
 					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
@@ -343,11 +339,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 
-		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
 		let remoteExtensions: IExtensionDescription[] = [];
 
 		if (remoteAuthority) {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
+				if (uri.scheme !== Schemas.vscodeRemote || uri.authority !== remoteAuthority) {
+					// The current remote authority resolver cannot give the canonical URI for this URI
+					return uri;
+				}
+				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+			});
+
+			// Now that the canonical URI provider has been registered, we need to wait for the trust state to be
+			// calculated. The trust state will be used while resolving the authority, however the resolver can
+			// override the trust state through the resolver result.
+			await this._workspaceTrustManagementService.workspaceResolved;
 			let resolverResult: ResolverResult;
 
 			try {
@@ -364,40 +373,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions);
+				await this._startLocalExtensionHost();
 				return;
-			}
-
-			let promptForMachineTrust = MACHINE_PROMPT;
-
-			if (resolverResult.options?.trust === RemoteTrustOption.DisableTrust) {
-				promptForMachineTrust = false;
-				this._workspaceTrustManagementService.setWorkspaceTrust(true);
-			} else if (resolverResult.options?.trust === RemoteTrustOption.MachineTrusted) {
-				promptForMachineTrust = false;
-			}
-
-			if (promptForMachineTrust) {
-				const dialogResult = await this._dialogService.show(
-					Severity.Info,
-					nls.localize('machineTrustQuestion', "Do you trust the machine you're connecting to?"),
-					[nls.localize('yes', "Yes, connect."), nls.localize('no', "No, do not connect.")],
-					{
-						cancelId: 1,
-						custom: {
-							icon: Codicon.remoteExplorer
-						},
-						// checkbox: { label: nls.localize('remember', "Remember my choice"), checked: true }
-					}
-				);
-
-				if (dialogResult.choice !== 0) {
-					// Did not confirm trust
-					this._notificationService.notify({ severity: Severity.Warning, message: nls.localize('trustFailure', "Refused to connect to untrusted machine.") });
-					// Proceed with the local extension host
-					await this._startLocalExtensionHost(localExtensions);
-					return;
-				}
 			}
 
 			// set the resolved authority
@@ -420,23 +397,31 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAgentService.getEnvironment(),
 				this._remoteAgentService.scanExtensions()
 			]);
-			remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions);
+				await this._startLocalExtensionHost();
 				return;
 			}
 
 			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+		} else {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
+
 		}
 
-		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
+		await this._startLocalExtensionHost(remoteAuthority, remoteEnv, remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+	private async _startLocalExtensionHost(remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+		// Ensure that the workspace trust state has been fully initialized so
+		// that the extension host can start with the correct set of extensions.
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
+		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), false);
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
 		// remove non-UI extensions from the local extensions
@@ -516,7 +501,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const allExtensions = await this._scanAllLocalExtensions();
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
-			if (!this._isEnabled(extension)) {
+			if (!this._isEnabled(extension, false)) {
 				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{

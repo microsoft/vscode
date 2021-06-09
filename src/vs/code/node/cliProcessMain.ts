@@ -6,6 +6,7 @@
 import { release, hostname } from 'os';
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
+import { Promises } from 'vs/base/node/pfs';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
@@ -102,7 +103,7 @@ class CliMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
+		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
@@ -155,7 +156,7 @@ class CliMain extends Disposable {
 				commonProperties: (async () => {
 					let machineId: string | undefined = undefined;
 					try {
-						const storageContents = await fs.promises.readFile(join(environmentService.userDataPath, 'storage.json'));
+						const storageContents = await Promises.readFile(join(environmentService.userDataPath, 'storage.json'));
 						machineId = JSON.parse(storageContents.toString())[machineIdKey];
 					} catch (error) {
 						if (error.code !== 'ENOENT') {
@@ -219,7 +220,7 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		else if (this.argv['telemetry']) {
-			console.log(buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+			console.log(await buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
 		}
 	}
 

@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { getMarks, mark } from 'vs/base/common/performance';
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, RenderProcessGoneDetails, WebFrameMain } from 'electron';
+import { screen, BrowserWindow, systemPreferences, app, TouchBar, nativeImage, Rectangle, Display, TouchBarSegmentedControl, NativeImage, BrowserWindowConstructorOptions, SegmentedControlSegment, Event, WebFrameMain } from 'electron';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -34,7 +34,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INativeHostMainService } from 'vs/platform/native/electron-main/nativeHostMainService';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 
 export interface IWindowCreationOptions {
@@ -153,7 +152,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService
 	) {
@@ -188,7 +186,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 						[`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: browserCodeLoadingCacheStrategy,
 					enableWebSQL: false,
-					enableRemoteModule: false,
 					spellcheck: false,
 					nativeWindowOpen: true,
 					webviewTag: true,
@@ -209,9 +206,9 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			};
 
 			if (browserCodeLoadingCacheStrategy) {
-				this.logService.info(`window#ctor: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
+				this.logService.info(`window: using vscode-file:// protocol and V8 cache options: ${browserCodeLoadingCacheStrategy}`);
 			} else {
-				this.logService.trace(`window#ctor: vscode-file:// protocol is explicitly disabled`);
+				this.logService.info(`window: vscode-file:// protocol is explicitly disabled`);
 			}
 
 			// Apply icon to window
@@ -422,7 +419,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Crashes & Unresponsive & Failed to load
 		this._win.on('unresponsive', () => this.onWindowError(WindowError.UNRESPONSIVE));
 		this._win.webContents.on('render-process-gone', (event, details) => this.onWindowError(WindowError.CRASHED, details));
-		this._win.webContents.on('did-fail-load', (event, errorCode, errorDescription) => this.onWindowError(WindowError.LOAD, errorDescription));
+		this._win.webContents.on('did-fail-load', (event, exitCode, reason) => this.onWindowError(WindowError.LOAD, { reason, exitCode }));
 
 		// Prevent windows/iframes from blocking the unload
 		// through DOM events. We have our own logic for
@@ -453,13 +450,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return false;
 		};
 
+		const isRequestFromSafeContext = (details: Electron.OnBeforeRequestListenerDetails | Electron.OnHeadersReceivedListenerDetails): boolean => {
+			return details.resourceType === 'xhr' || isSafeFrame(details.frame);
+		};
+
 		this._win.webContents.session.webRequest.onBeforeRequest((details, callback) => {
 			const uri = URI.parse(details.url);
 			if (uri.path.endsWith('.svg')) {
 				const isSafeResourceUrl = supportedSvgSchemes.has(uri.scheme) || uri.path.includes(Schemas.vscodeRemoteResource);
 				if (!isSafeResourceUrl) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 
@@ -485,8 +485,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				// remote extension schemes have the following format
 				// http://127.0.0.1:<port>/vscode-remote-resource?path=
 				if (!uri.path.includes(Schemas.vscodeRemoteResource) && contentTypes.some(contentType => contentType.toLowerCase().includes('image/svg'))) {
-					const isSafeContext = isSafeFrame(details.frame);
-					return callback({ cancel: !isSafeContext });
+					return callback({ cancel: !isRequestFromSafeContext(details) });
 				}
 			}
 
@@ -509,22 +508,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
 		});
-
-		if (isMacintosh) {
-			this._register(this.nativeHostMainService.onDidChangeDisplay(() => {
-				if (!this._win) {
-					return; // disposed
-				}
-
-				// Simple fullscreen doesn't resize automatically when the resolution changes so as a workaround
-				// we need to detect when display metrics change or displays are added/removed and toggle the
-				// fullscreen manually.
-				if (!this.useNativeFullScreen() && this.isFullScreen) {
-					this.setFullScreen(false);
-					this.setFullScreen(true);
-				}
-			}));
-		}
 
 		// Window (Un)Maximize
 		this._win.on('maximize', (e: Event) => {
@@ -568,19 +551,19 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	private async onWindowError(error: WindowError.UNRESPONSIVE): Promise<void>;
-	private async onWindowError(error: WindowError.CRASHED, details: RenderProcessGoneDetails): Promise<void>;
-	private async onWindowError(error: WindowError.LOAD, details: string): Promise<void>;
-	private async onWindowError(type: WindowError, details?: string | RenderProcessGoneDetails): Promise<void> {
+	private async onWindowError(error: WindowError.CRASHED, details: { reason: string, exitCode: number }): Promise<void>;
+	private async onWindowError(error: WindowError.LOAD, details: { reason: string, exitCode: number }): Promise<void>;
+	private async onWindowError(type: WindowError, details?: { reason: string, exitCode: number }): Promise<void> {
 
 		switch (type) {
 			case WindowError.CRASHED:
-				this.logService.error(`CodeWindow: renderer process crashed (detail: ${typeof details === 'string' ? details : details?.reason}, code: ${typeof details === 'string' ? '<unknown>' : details?.exitCode ?? '<unknown>'})`);
+				this.logService.error(`CodeWindow: renderer process crashed (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 			case WindowError.UNRESPONSIVE:
 				this.logService.error('CodeWindow: detected unresponsive');
 				break;
 			case WindowError.LOAD:
-				this.logService.error(`CodeWindow: failed to load workbench window: ${typeof details === 'string' ? details : details?.reason}`);
+				this.logService.error(`CodeWindow: failed to load workbench window (reason: ${details?.reason || '<unknown>'}, code: ${details?.exitCode || '<unknown>'})`);
 				break;
 		}
 
@@ -596,12 +579,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		type WindowErrorClassification = {
 			type: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 			reason: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
+			code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth', isMeasurement: true };
 		};
 		type WindowErrorEvent = {
 			type: WindowError;
 			reason: string | undefined;
+			code: number | undefined;
 		};
-		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: typeof details !== 'string' ? details?.reason : undefined });
+		this.telemetryService.publicLog2<WindowErrorEvent, WindowErrorClassification>('windowerror', { type, reason: details?.reason, code: details?.exitCode });
 
 		// Unresponsive
 		if (type === WindowError.UNRESPONSIVE) {
@@ -640,10 +625,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		// Crashed
 		else if (type === WindowError.CRASHED) {
 			let message: string;
-			if (typeof details === 'string' || !details) {
+			if (!details) {
 				message = localize('appCrashed', "The window has crashed");
 			} else {
-				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}')", details.reason);
+				message = localize('appCrashedDetails', "The window has crashed (reason: '{0}', code: '{1}')", details.reason, details.exitCode ?? '<unknown>');
 			}
 
 			const result = await this.dialogMainService.showMessageBox({

@@ -221,6 +221,19 @@
 				]
 			},
 			{
+				"target": "**/vs/platform/*/test/browser/**",
+				"restrictions": [
+					"assert",
+					"sinon",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**"
+				]
+			},
+			{
 				"target": "**/vs/platform/*/browser/**",
 				"restrictions": [
 					"vs/nls",
@@ -501,7 +514,7 @@
 					"**/vs/platform/**",
 					"**/vs/editor/**",
 					"**/vs/workbench/{common,browser,node,electron-sandbox,electron-browser}/**",
-					"vs/workbench/contrib/files/common/editors/fileEditorInput",
+					"vs/workbench/contrib/files/browser/editors/fileEditorInput",
 					"**/vs/workbench/services/**",
 					"**/vs/workbench/test/**",
 					"*" // node modules
@@ -976,6 +989,7 @@
 				"vscode-dts-cancellation": "warn",
 				"vscode-dts-use-thenable": "warn",
 				"vscode-dts-region-comments": "warn",
+				"vscode-dts-vscode-in-comments": "warn",
 				"vscode-dts-provider-naming": [
 					"warn",
 					{

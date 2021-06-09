@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as perf from 'vs/base/common/performance';
 import { IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID } from 'vs/workbench/contrib/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, ExplorerRootContext, ExplorerResourceReadonlyContext, ExplorerResourceCut, ExplorerResourceMoveableToTrash, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext, ExplorerCompressedLastFocusContext, ExplorerResourceAvailableEditorIdsContext, VIEW_ID, VIEWLET_ID, ExplorerResourceNotReadonlyContext } from 'vs/workbench/contrib/files/common/files';
 import { FileCopiedContext, NEW_FILE_COMMAND_ID, NEW_FOLDER_COMMAND_ID } from 'vs/workbench/contrib/files/browser/fileActions';
 import * as DOM from 'vs/base/browser/dom';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -55,6 +55,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 interface IExplorerViewColors extends IColorMapping {
 	listDropBackground?: ColorValue | undefined;
@@ -169,6 +170,7 @@ export class ExplorerView extends ViewPane {
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IProgressService private readonly progressService: IProgressService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -493,8 +495,8 @@ export class ExplorerView extends ViewPane {
 		this.rootContext.set(!stat || (stat && stat.isRoot));
 
 		if (resource) {
-			const overrides = resource ? this.editorService.getEditorOverrides(resource, undefined, undefined) : [];
-			this.availableEditorIdsContext.set(overrides.map(([, entry]) => entry.id).join(','));
+			const overrides = resource ? this.editorOverrideService.getEditorIds(resource) : [];
+			this.availableEditorIdsContext.set(overrides.join(','));
 		} else {
 			this.availableEditorIdsContext.reset();
 		}
@@ -863,6 +865,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFile', "New File"),
 			f1: false,
 			icon: Codicon.newFile,
+			precondition: ExplorerResourceNotReadonlyContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',
@@ -885,6 +888,7 @@ registerAction2(class extends Action2 {
 			title: nls.localize('createNewFolder', "New Folder"),
 			f1: false,
 			icon: Codicon.newFolder,
+			precondition: ExplorerResourceNotReadonlyContext,
 			menu: {
 				id: MenuId.ViewTitle,
 				group: 'navigation',

@@ -256,8 +256,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 					// Same Window: open via editor service in current window
 					if (this.shouldReuse(options, true /* file */)) {
 						editorService.openEditor({
-							leftResource: editors[0].resource,
-							rightResource: editors[1].resource,
+							originalInput: { resource: editors[0].resource },
+							modifiedInput: { resource: editors[1].resource },
 							options: { pinned: true }
 						});
 					}
@@ -292,7 +292,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 								openables = [openable];
 							}
 
-							editorService.openEditors(await pathsToEditors(openables, this.fileService));
+							editorService.openEditors(await pathsToEditors(openables, this.fileService), undefined, { validateTrust: true });
 						}
 
 						// New Window: open into empty window

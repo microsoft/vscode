@@ -42,13 +42,38 @@ import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { hash } from 'vs/base/common/hash';
+import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isMarkdownString, markdownStringEqual } from 'vs/base/common/htmlContent';
+import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
+
+interface IStatusbarEntryPriority {
+
+	/**
+	 * The main priority of the entry that
+	 * defines the order of appearance.
+	 *
+	 * May not be unique across all entries.
+	 */
+	primary: number;
+
+	/**
+	 * The secondary priority of the entry
+	 * is used in case the main priority
+	 * matches another one's priority.
+	 *
+	 * Should be unique across all entries.
+	 */
+	secondary: number;
+}
 
 interface IPendingStatusbarEntry {
 	id: string;
-	name: string;
 	entry: IStatusbarEntry;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	accessor?: IStatusbarEntryAccessor;
 }
 
@@ -56,7 +81,7 @@ interface IStatusbarViewModelEntry {
 	id: string;
 	name: string;
 	alignment: StatusbarAlignment;
-	priority: number;
+	priority: IStatusbarEntryPriority;
 	container: HTMLElement;
 	labelContainer: HTMLElement;
 }
@@ -294,14 +319,16 @@ class StatusbarViewModel extends Disposable {
 
 		this._entries.sort((entryA, entryB) => {
 			if (entryA.alignment === entryB.alignment) {
-				if (entryA.priority !== entryB.priority) {
-					return entryB.priority - entryA.priority; // higher priority towards the left
+				if (entryA.priority.primary !== entryB.priority.primary) {
+					return entryB.priority.primary - entryA.priority.primary; // higher priority towards the left (primary)
 				}
 
-				const indexA = mapEntryToIndex.get(entryA);
-				const indexB = mapEntryToIndex.get(entryB);
+				if (entryA.priority.secondary !== entryB.priority.secondary) {
+					return entryB.priority.secondary - entryA.priority.secondary; // higher priority towards the left (secondary)
+				}
 
-				return indexA! - indexB!; // otherwise maintain stable order (both values known to be in map)
+				// otherwise maintain stable order (both values known to be in map)
+				return mapEntryToIndex.get(entryA)! - mapEntryToIndex.get(entryB)!;
 			}
 
 			if (entryA.alignment === StatusbarAlignment.LEFT) {
@@ -404,6 +431,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private leftItemsContainer: HTMLElement | undefined;
 	private rightItemsContainer: HTMLElement | undefined;
 
+	private hoverDelegate: IHoverDelegate;
+
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -412,30 +441,42 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IHoverService hoverService: IHoverService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(Parts.STATUSBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
+
+		this.hoverDelegate = {
+			showHover: (options: IHoverDelegateOptions) => hoverService.showHover(options),
+			delay: <number>configurationService.getValue('workbench.hover.delay'),
+			placement: 'element'
+		};
 	}
 
 	private registerListeners(): void {
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateStyles()));
 	}
 
-	addEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number = 0): IStatusbarEntryAccessor {
+	addEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, primaryPriority = 0): IStatusbarEntryAccessor {
+		const priority: IStatusbarEntryPriority = {
+			primary: primaryPriority,
+			secondary: hash(id) // derive from identifier to accomplish uniqueness
+		};
 
 		// As long as we have not been created into a container yet, record all entries
 		// that are pending so that they can get created at a later point
 		if (!this.element) {
-			return this.doAddPendingEntry(entry, id, name, alignment, priority);
+			return this.doAddPendingEntry(entry, id, alignment, priority);
 		}
 
 		// Otherwise add to view
-		return this.doAddEntry(entry, id, name, alignment, priority);
+		return this.doAddEntry(entry, id, alignment, priority);
 	}
 
-	private doAddPendingEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
-		const pendingEntry: IPendingStatusbarEntry = { entry, id, name, alignment, priority };
+	private doAddPendingEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
+		const pendingEntry: IPendingStatusbarEntry = { entry, id, alignment, priority };
 		this.pendingEntries.push(pendingEntry);
 
 		const accessor: IStatusbarEntryAccessor = {
@@ -459,17 +500,25 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return accessor;
 	}
 
-	private doAddEntry(entry: IStatusbarEntry, id: string, name: string, alignment: StatusbarAlignment, priority: number): IStatusbarEntryAccessor {
+	private doAddEntry(entry: IStatusbarEntry, id: string, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): IStatusbarEntryAccessor {
 
 		// Create item
 		const itemContainer = this.doCreateStatusItem(id, alignment, ...coalesce([entry.showBeak ? 'has-beak' : undefined]));
-		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry);
+		const item = this.instantiationService.createInstance(StatusbarEntryItem, itemContainer, entry, this.hoverDelegate);
 
 		// Append to parent
 		this.appendOneStatusbarEntry(itemContainer, alignment, priority);
 
 		// Add to view model
-		const viewModelEntry: IStatusbarViewModelEntry = { id, name, alignment, priority, container: itemContainer, labelContainer: item.labelContainer };
+		const viewModelEntry: IStatusbarViewModelEntry = new class implements IStatusbarViewModelEntry {
+			readonly id = id;
+			readonly alignment = alignment;
+			readonly priority = priority;
+			readonly container = itemContainer;
+			readonly labelContainer = item.labelContainer;
+
+			get name() { return item.name; }
+		};
 		const viewModelEntryDispose = this.viewModel.add(viewModelEntry);
 
 		return {
@@ -553,7 +602,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		while (this.pendingEntries.length) {
 			const pending = this.pendingEntries.shift();
 			if (pending) {
-				pending.accessor = this.addEntry(pending.entry, pending.id, pending.name, pending.alignment, pending.priority);
+				pending.accessor = this.addEntry(pending.entry, pending.id, pending.alignment, pending.priority.primary);
 			}
 		}
 	}
@@ -571,7 +620,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		});
 	}
 
-	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: number): void {
+	private appendOneStatusbarEntry(itemContainer: HTMLElement, alignment: StatusbarAlignment, priority: IStatusbarEntryPriority): void {
 		const entries = this.viewModel.getEntries(alignment);
 
 		if (alignment === StatusbarAlignment.RIGHT) {
@@ -584,9 +633,20 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		// and then insert the item before that one
 		let appended = false;
 		for (const entry of entries) {
+
+			// pick a priority that ideally is not the same
+			// by falling back to secondary priority
+			let existingEntryPriority = entry.priority.primary;
+			let newEntryPriority = priority.primary;
+			if (existingEntryPriority === newEntryPriority) {
+				existingEntryPriority = entry.priority.secondary;
+				newEntryPriority = priority.secondary;
+			}
+
+			// insert according to priority
 			if (
-				alignment === StatusbarAlignment.LEFT && entry.priority < priority ||
-				alignment === StatusbarAlignment.RIGHT && entry.priority > priority // reversing due to flex: row-reverse
+				alignment === StatusbarAlignment.LEFT && existingEntryPriority < newEntryPriority ||
+				alignment === StatusbarAlignment.RIGHT && existingEntryPriority > newEntryPriority // reversing due to flex: row-reverse
 			) {
 				target.insertBefore(itemContainer, entry.container);
 				appended = true;
@@ -776,7 +836,10 @@ class StatusbarEntryItem extends Disposable {
 	readonly labelContainer: HTMLElement;
 	private readonly label: StatusBarCodiconLabel;
 
+	private customHover: IDisposable | undefined;
+
 	private entry: IStatusbarEntry | undefined = undefined;
+	get name(): string { return assertIsDefined(this.entry).name; }
 
 	private readonly foregroundListener = this._register(new MutableDisposable());
 	private readonly backgroundListener = this._register(new MutableDisposable());
@@ -787,6 +850,7 @@ class StatusbarEntryItem extends Disposable {
 	constructor(
 		private container: HTMLElement,
 		entry: IStatusbarEntry,
+		private readonly customHoverDelegate: IHoverDelegate,
 		@ICommandService private readonly commandService: ICommandService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
@@ -835,8 +899,15 @@ class StatusbarEntryItem extends Disposable {
 		}
 
 		// Update: Tooltip (on the container, because label can be disabled)
-		if (!this.entry || entry.tooltip !== this.entry.tooltip) {
-			if (entry.tooltip) {
+		if (!this.entry || !isEqualTooltip(this.entry, entry)) {
+			if (this.customHover) {
+				this.customHover.dispose();
+				this.customHover = undefined;
+			}
+			if (isMarkdownString(entry.tooltip)) {
+				this.container.removeAttribute('title');
+				this.customHover = setupCustomHover(this.customHoverDelegate, this.container, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
+			} else if (entry.tooltip) {
 				this.container.title = entry.tooltip;
 			} else {
 				this.container.title = '';
@@ -947,7 +1018,22 @@ class StatusbarEntryItem extends Disposable {
 		dispose(this.backgroundListener);
 		dispose(this.commandMouseListener);
 		dispose(this.commandKeyboardListener);
+		if (this.customHover) {
+			this.customHover.dispose();
+		}
 	}
+}
+
+function isEqualTooltip(e1: IStatusbarEntry, e2: IStatusbarEntry) {
+	const t1 = e1.tooltip;
+	const t2 = e2.tooltip;
+	if (t1 === undefined) {
+		return t2 === undefined;
+	}
+	if (isMarkdownString(t1)) {
+		return isMarkdownString(t2) && markdownStringEqual(t1, t2);
+	}
+	return t1 === t2;
 }
 
 registerThemingParticipant((theme, collector) => {

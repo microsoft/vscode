@@ -140,6 +140,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-updates',
 		'--disable-keytar',
 		'--disable-crash-reporter',
+		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
 		'--driver', handle
@@ -307,9 +308,9 @@ export class Code {
 		);
 	}
 
-	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
+	async waitAndClick(selector: string, xoffset?: number, yoffset?: number, retryCount: number = 200): Promise<void> {
 		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`);
+		await poll(() => this.driver.click(windowId, selector, xoffset, yoffset), () => true, `click '${selector}'`, retryCount);
 	}
 
 	async waitAndDoubleClick(selector: string): Promise<void> {

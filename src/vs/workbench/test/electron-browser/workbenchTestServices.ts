@@ -135,7 +135,8 @@ export class TestTextFileService extends NativeTextFileService {
 			etag: content.etag,
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
-			size: 10
+			size: 10,
+			readonly: false
 		};
 	}
 }
@@ -223,6 +224,8 @@ export class TestNativeHostService implements INativeHostService {
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async installShellCommand(): Promise<void> { }
+	async uninstallShellCommand(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }

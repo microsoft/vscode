@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpenerWithSuccess, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -89,8 +89,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(domEvent(document.body, EventType.KEY_DOWN, true)),
-			Event.once(domEvent(document.body, EventType.MOUSE_DOWN, true))
+			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted
@@ -144,13 +144,26 @@ export class BrowserWindow extends Disposable {
 		this.openerService.setDefaultExternalOpener({
 			openExternal: async (href: string) => {
 				if (matchesScheme(href, Schemas.http) || matchesScheme(href, Schemas.https)) {
-					const opened = windowOpenNoOpener(href);
+					const opened = windowOpenNoOpenerWithSuccess(href);
 					if (!opened) {
-						const showResult = await this.dialogService.show(Severity.Warning, localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-							[localize('open', "Open"), localize('learnMore', "Learn More"), localize('cancel', "Cancel")], { cancelId: 2, detail: href });
+						const showResult = await this.dialogService.show(
+							Severity.Warning,
+							localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+							[
+								localize('open', "Open"),
+								localize('learnMore', "Learn More"),
+								localize('cancel', "Cancel")
+							],
+							{
+								cancelId: 2,
+								detail: href
+							}
+						);
+
 						if (showResult.choice === 0) {
 							windowOpenNoOpener(href);
 						}
+
 						if (showResult.choice === 1) {
 							await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
 						}
@@ -165,13 +178,13 @@ export class BrowserWindow extends Disposable {
 	}
 
 	private registerLabelFormatters() {
-		this.labelService.registerFormatter({
+		this._register(this.labelService.registerFormatter({
 			scheme: Schemas.userData,
 			priority: true,
 			formatting: {
 				label: '(Settings) ${path}',
 				separator: '/',
 			}
-		});
+		}));
 	}
 }

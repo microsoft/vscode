@@ -75,7 +75,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorOverrideService.registerContributionPoint(
+		this.editorOverrideService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,
@@ -538,12 +538,8 @@ class SearchEditorWorkingCopyEditorHandler extends Disposable implements IWorkbe
 
 	private installHandler(): void {
 		this._register(this.workingCopyEditorService.registerHandler({
-			handles: workingCopy => {
-				return workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme;
-			},
-			isOpen: (workingCopy, editor) => {
-				return editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri);
-			},
+			handles: workingCopy => workingCopy.resource.scheme === SearchEditorConstants.SearchEditorScheme,
+			isOpen: (workingCopy, editor) => editor instanceof SearchEditorInput && isEqual(workingCopy.resource, editor.modelUri),
 			createEditor: workingCopy => {
 				const input = this.instantiationService.invokeFunction(getOrMakeSearchEditorInput, { from: 'model', modelUri: workingCopy.resource });
 				input.setDirty(true);

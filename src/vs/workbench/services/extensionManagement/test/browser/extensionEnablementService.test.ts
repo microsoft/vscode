@@ -55,6 +55,7 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 		const storageService = createStorageService(instantiationService);
 		const extensionManagementService = instantiationService.get(IExtensionManagementService) || instantiationService.stub(IExtensionManagementService, { onDidInstallExtension: new Emitter<DidInstallExtensionEvent>().event, onDidUninstallExtension: new Emitter<DidUninstallExtensionEvent>().event } as IExtensionManagementService);
 		const extensionManagementServerService = instantiationService.get(IExtensionManagementServerService) || instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{ localExtensionManagementServer: { extensionManagementService } });
+		const workspaceTrustManagementService = instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 		super(
 			storageService,
 			new GlobalExtensionEnablementService(storageService),
@@ -69,9 +70,9 @@ export class TestExtensionEnablementService extends ExtensionEnablementService {
 			instantiationService.get(INotificationService) || instantiationService.stub(INotificationService, new TestNotificationService()),
 			instantiationService.get(IHostService),
 			new class extends mock<IExtensionBisectService>() { override isDisabledByBisect() { return false; } },
-			instantiationService.get(IWorkspaceTrustManagementService) || instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService()),
+			workspaceTrustManagementService,
 			new class extends mock<IWorkspaceTrustRequestService>() { override requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> { return Promise.resolve(true); } },
-			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService()))
+			instantiationService.get(IExtensionManifestPropertiesService) || instantiationService.stub(IExtensionManifestPropertiesService, new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), workspaceTrustManagementService))
 		);
 	}
 

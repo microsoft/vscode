@@ -87,7 +87,7 @@ export class Dialog extends Disposable {
 	private readonly inputs: InputBox[];
 	private readonly buttons: string[];
 
-	constructor(private container: HTMLElement, private message: string, buttons: string[], private options: IDialogOptions) {
+	constructor(private container: HTMLElement, private message: string, buttons: string[] | undefined, private options: IDialogOptions) {
 		super();
 
 		this.modalElement = this.container.appendChild($(`.monaco-dialog-modal-block.dimmed`));
@@ -96,21 +96,22 @@ export class Dialog extends Disposable {
 		this.element.setAttribute('role', 'dialog');
 		hide(this.element);
 
-		this.buttons = buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
+		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
 		const buttonsRowElement = this.element.appendChild($('.dialog-buttons-row'));
 		this.buttonsContainer = buttonsRowElement.appendChild($('.dialog-buttons'));
 
 		const messageRowElement = this.element.appendChild($('.dialog-message-row'));
-		this.iconElement = messageRowElement.appendChild($('.dialog-icon'));
+		this.iconElement = messageRowElement.appendChild($('#monaco-dialog-icon.dialog-icon'));
+		this.iconElement.setAttribute('aria-label', this.getIconAriaLabel());
 		this.messageContainer = messageRowElement.appendChild($('.dialog-message-container'));
 
 		if (this.options.detail || this.options.renderBody) {
 			const messageElement = this.messageContainer.appendChild($('.dialog-message'));
-			const messageTextElement = messageElement.appendChild($('.dialog-message-text'));
+			const messageTextElement = messageElement.appendChild($('#monaco-dialog-message-text.dialog-message-text'));
 			messageTextElement.innerText = this.message;
 		}
 
-		this.messageDetailElement = this.messageContainer.appendChild($('.dialog-message-detail'));
+		this.messageDetailElement = this.messageContainer.appendChild($('#monaco-dialog-message-detail.dialog-message-detail'));
 		if (this.options.detail || !this.options.renderBody) {
 			this.messageDetailElement.innerText = this.options.detail ? this.options.detail : message;
 		} else {
@@ -118,7 +119,7 @@ export class Dialog extends Disposable {
 		}
 
 		if (this.options.renderBody) {
-			const customBody = this.messageContainer.appendChild($('.dialog-message-body'));
+			const customBody = this.messageContainer.appendChild($('#monaco-dialog-message-body.dialog-message-body'));
 			this.options.renderBody(customBody);
 
 			for (const el of this.messageContainer.querySelectorAll('a')) {
@@ -161,7 +162,7 @@ export class Dialog extends Disposable {
 		this.toolbarContainer = toolbarRowElement.appendChild($('.dialog-toolbar'));
 	}
 
-	private getAriaLabel(): string {
+	private getIconAriaLabel(): string {
 		let typeLabel = nls.localize('dialogInfoMessage', 'Info');
 		switch (this.options.type) {
 			case 'error':
@@ -180,7 +181,7 @@ export class Dialog extends Disposable {
 				break;
 		}
 
-		return `${typeLabel}: ${this.message} ${this.options.detail || ''}`;
+		return typeLabel;
 	}
 
 	updateMessage(message: string): void {
@@ -390,7 +391,7 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
-			this.element.setAttribute('aria-label', this.getAriaLabel());
+			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
 			show(this.element);
 
 			// Focus first element (input or button)

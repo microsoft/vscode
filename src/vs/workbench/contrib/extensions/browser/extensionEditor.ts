@@ -25,7 +25,7 @@ import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewPaneContainer, VIEWLET_ID, IExtension, ExtensionContainers } from 'vs/workbench/contrib/extensions/common/extensions';
 import { RatingsWidget, InstallCountWidget, RemoteBadgeWidget } from 'vs/workbench/contrib/extensions/browser/extensionsWidgets';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import {
 	UpdateAction, ReloadAction, MaliciousStatusLabelAction, EnableDropDownAction, DisableDropDownAction, StatusLabelAction, SetFileIconThemeAction, SetColorThemeAction,
@@ -69,6 +69,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 class NavBar extends Disposable {
 
@@ -181,7 +182,6 @@ export class ExtensionEditor extends EditorPane {
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private readonly keybindingLabelStylers = this.contentDisposables.add(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
@@ -325,7 +325,7 @@ export class ExtensionEditor extends EditorPane {
 		return disposables;
 	}
 
-	override async setInput(input: ExtensionsInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: ExtensionsInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
 		if (this.template) {
 			await this.updateTemplate(input, this.template, !!options?.preserveFocus);
@@ -1277,12 +1277,11 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
-		this.keybindingLabelStylers.clear();
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
 			const kbl = new KeybindingLabel(element, OS);
 			kbl.set(keybinding);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(kbl, this.themeService));
+			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 

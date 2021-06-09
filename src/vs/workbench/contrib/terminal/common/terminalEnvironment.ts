@@ -9,9 +9,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { sanitizeProcessEnvironment } from 'vs/base/common/processes';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IShellLaunchConfig, ITerminalEnvironment } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalEnvironment, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IProcessEnvironment, isWindows, locale, OperatingSystem, OS, platform, Platform } from 'vs/base/common/platform';
-import { TerminalSettingId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 /**
  * This module contains utility functions related to the environment, cwd and paths.

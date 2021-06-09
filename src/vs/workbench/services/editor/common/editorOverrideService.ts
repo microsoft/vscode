@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
@@ -23,7 +23,7 @@ export const IEditorOverrideService = createDecorator<IEditorOverrideService>('e
 
 //#region Editor Associations
 
-// Static values for editor contributions
+// Static values for registered editors
 
 export type EditorAssociation = {
 	readonly viewType: string;
@@ -72,7 +72,7 @@ export enum ContributedEditorPriority {
 	default = 'default'
 }
 
-export type ContributionPointOptions = {
+export type RegisteredEditorOptions = {
 	/**
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
@@ -97,9 +97,9 @@ export type ContributedEditorInfo = {
 	priority: ContributedEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -118,16 +118,16 @@ export interface IEditorOverrideService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
-	 * Registers a specific editor contribution.
-	 * @param globPattern The glob pattern for this contribution point
-	 * @param editorInfo Information about the contribution point
-	 * @param options Specific options which apply to this contribution
+	 * Registers a specific editor.
+	 * @param globPattern The glob pattern for this registration
+	 * @param editorInfo Information about the registration
+	 * @param options Specific options which apply to this registration
 	 * @param createEditorInput The factory method for creating inputs
 	 */
-	registerContributionPoint(
+	registerEditor(
 		globPattern: string | glob.IRelativePattern,
 		editorInfo: ContributedEditorInfo,
-		options: ContributionPointOptions,
+		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;
@@ -139,7 +139,14 @@ export interface IEditorOverrideService {
 	 * @param group The current group
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+
+	/**
+	 * Given a resource returns all the editor ids that match that resource
+	 * @param resource The resource
+	 * @returns A list of editor ids
+	 */
+	getEditorIds(resource: URI): string[];
 }
 
 //#endregion
@@ -171,6 +178,6 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
 	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
-	return glob.match(globPattern, target.toLowerCase());
+	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
 }
 //#endregion

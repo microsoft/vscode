@@ -382,8 +382,9 @@ export interface IEditorOptions {
 	 * Suggest options.
 	 */
 	suggest?: ISuggestOptions;
+	inlineSuggest?: IInlineSuggestOptions;
 	/**
-	 * Smart select opptions;
+	 * Smart select options.
 	 */
 	smartSelect?: ISmartSelectOptions;
 	/**
@@ -638,6 +639,10 @@ export interface IEditorOptions {
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
+	/**
+	 * Control if the editor should use shadow DOM.
+	 */
+	useShadowDOM?: boolean;
 }
 
 /**
@@ -3136,6 +3141,51 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, InternalE
 
 //#endregion
 
+//#region inlineSuggest
+
+export interface IInlineSuggestOptions {
+	/**
+	 * Enable or disable the rendering of automatic inline completions.
+	*/
+	enabled?: boolean;
+}
+
+export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
+
+/**
+ * Configuration options for inline suggestions
+ */
+class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, InternalInlineSuggestOptions> {
+	constructor() {
+		const defaults: InternalInlineSuggestOptions = {
+			enabled: false
+		};
+
+		super(
+			EditorOption.inlineSuggest, 'inlineSuggest', defaults,
+			{
+				'editor.inlineSuggest.enabled': {
+					type: 'boolean',
+					default: defaults.enabled,
+					description: nls.localize('inlineSuggest.enabled', "Controls whether to automatically show inline suggestions in the editor.")
+				},
+			}
+		);
+	}
+
+	public validate(_input: any): InternalInlineSuggestOptions {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		const input = _input as IInlineSuggestOptions;
+		return {
+			enabled: boolean(input.enabled, this.defaultValue.enabled),
+		};
+	}
+}
+
+//#endregion
+
 //#region suggest
 
 /**
@@ -3171,6 +3221,10 @@ export interface ISuggestOptions {
 	 */
 	showStatusBar?: boolean;
 	/**
+	 * Enable or disable the rendering of the suggestion preview.
+	 */
+	preview?: boolean;
+	/**
 	 * Show details inline with the label. Defaults to true.
 	 */
 	showInlineDetails?: boolean;
@@ -3186,6 +3240,10 @@ export interface ISuggestOptions {
 	 * Show constructor-suggestions.
 	 */
 	showConstructors?: boolean;
+	/**
+	 * Show deprecated-suggestions.
+	 */
+	showDeprecated?: boolean;
 	/**
 	 * Show field-suggestions.
 	 */
@@ -3297,10 +3355,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: false,
 			showIcons: true,
 			showStatusBar: false,
+			preview: false,
 			showInlineDetails: true,
 			showMethods: true,
 			showFunctions: true,
 			showConstructors: true,
+			showDeprecated: true,
 			showFields: true,
 			showVariables: true,
 			showClasses: true,
@@ -3369,7 +3429,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					default: defaults.showStatusBar,
 					description: nls.localize('suggest.showStatusBar', "Controls the visibility of the status bar at the bottom of the suggest widget.")
 				},
-
+				'editor.suggest.preview': {
+					type: 'boolean',
+					default: defaults.preview,
+					description: nls.localize('suggest.preview', "Controls whether to preview the suggestion outcome in the editor.")
+				},
 				'editor.suggest.showInlineDetails': {
 					type: 'boolean',
 					default: defaults.showInlineDetails,
@@ -3397,6 +3461,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 					type: 'boolean',
 					default: true,
 					markdownDescription: nls.localize('editor.suggest.showConstructors', "When enabled IntelliSense shows `constructor`-suggestions.")
+				},
+				'editor.suggest.showDeprecated': {
+					type: 'boolean',
+					default: true,
+					markdownDescription: nls.localize('editor.suggest.showDeprecated', "When enabled IntelliSense shows `deprecated`-suggestions.")
 				},
 				'editor.suggest.showFields': {
 					type: 'boolean',
@@ -3540,10 +3609,12 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, InternalSugge
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			showIcons: boolean(input.showIcons, this.defaultValue.showIcons),
 			showStatusBar: boolean(input.showStatusBar, this.defaultValue.showStatusBar),
+			preview: boolean(input.preview, this.defaultValue.preview),
 			showInlineDetails: boolean(input.showInlineDetails, this.defaultValue.showInlineDetails),
 			showMethods: boolean(input.showMethods, this.defaultValue.showMethods),
 			showFunctions: boolean(input.showFunctions, this.defaultValue.showFunctions),
 			showConstructors: boolean(input.showConstructors, this.defaultValue.showConstructors),
+			showDeprecated: boolean(input.showDeprecated, this.defaultValue.showDeprecated),
 			showFields: boolean(input.showFields, this.defaultValue.showFields),
 			showVariables: boolean(input.showVariables, this.defaultValue.showVariables),
 			showClasses: boolean(input.showClasses, this.defaultValue.showClasses),
@@ -3786,6 +3857,7 @@ export const enum EditorOption {
 	highlightActiveIndentGuide,
 	hover,
 	inDiffEditor,
+	inlineSuggest,
 	letterSpacing,
 	lightbulb,
 	lineDecorationsWidth,
@@ -3845,6 +3917,7 @@ export const enum EditorOption {
 	tabCompletion,
 	tabIndex,
 	unusualLineTerminators,
+	useShadowDOM,
 	useTabStops,
 	wordSeparators,
 	wordWrap,
@@ -4403,6 +4476,7 @@ export const EditorOptions = {
 		10000, -1, Constants.MAX_SAFE_SMALL_INTEGER,
 	)),
 	suggest: register(new EditorSuggest()),
+	inlineSuggest: register(new InlineEditorSuggest()),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,
@@ -4459,6 +4533,9 @@ export const EditorOptions = {
 			],
 			description: nls.localize('unusualLineTerminators', "Remove unusual line terminators that might cause problems.")
 		}
+	)),
+	useShadowDOM: register(new EditorBooleanOption(
+		EditorOption.useShadowDOM, 'useShadowDOM', true
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,

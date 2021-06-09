@@ -68,7 +68,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
+		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
 	}
@@ -115,7 +115,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		const newFocusMode = newCell.cellKind === CellKind.Markdown && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
+		const newFocusMode = newCell.cellKind === CellKind.Markup && newCell.getEditState() === CellEditState.Preview ? 'container' : 'editor';
 		editor.focusNotebookCell(newCell, newFocusMode);
 		editor.cursorNavigationMode = true;
 	}
