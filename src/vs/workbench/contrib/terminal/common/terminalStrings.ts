@@ -19,7 +19,8 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
 export const terminalStrings = {
 	kill: {
 		value: localize('killTerminal', "Kill Terminal"),
-		original: 'Kill Terminal'
+		original: 'Kill Terminal',
+		short: localize('killTerminal.short', "Kill"),
 	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
