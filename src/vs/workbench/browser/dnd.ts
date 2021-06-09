@@ -75,7 +75,11 @@ export function extractEditorsDropData(e: DragEvent, externalOnly?: boolean): Ar
 					const rawResourcesData = e.dataTransfer.getData(DataTransfers.RESOURCES);
 					if (rawResourcesData) {
 						const resourcesRaw: string[] = JSON.parse(rawResourcesData);
-						editors.push(...resourcesRaw.map(resourceRaw => ({ resource: URI.parse(resourceRaw) })));
+						for (const resourceRaw of resourcesRaw) {
+							if (resourceRaw.indexOf(':') > 0) { // mitigate https://github.com/microsoft/vscode/issues/124946
+								editors.push({ resource: URI.parse(resourceRaw) });
+							}
+						}
 					}
 				} catch (error) {
 					// Invalid transfer

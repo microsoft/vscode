@@ -115,7 +115,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	}
 
 	private registerDefaultOverride(): void {
-		this._register(this.editorOverrideService.registerContributionPoint(
+		this._register(this.editorOverrideService.registerEditor(
 			'*',
 			{
 				id: DEFAULT_EDITOR_ASSOCIATION.id,

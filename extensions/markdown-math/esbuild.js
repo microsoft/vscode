@@ -20,7 +20,6 @@ const outDir = path.join(outputRoot, 'notebook-out');
 esbuild.build({
 	entryPoints: [
 		path.join(__dirname, 'notebook', 'katex.ts'),
-		path.join(__dirname, 'notebook', 'emoji.ts')
 	],
 	bundle: true,
 	minify: true,

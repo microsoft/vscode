@@ -21,7 +21,7 @@ export interface IMergeResult {
 }
 
 export function getIgnoredSettings(defaultIgnoredSettings: string[], configurationService: IConfigurationService, settingsContent?: string): string[] {
-	let value: string[] = [];
+	let value: ReadonlyArray<string> = [];
 	if (settingsContent) {
 		value = getIgnoredSettingsFromContent(settingsContent);
 	} else {
@@ -40,7 +40,7 @@ export function getIgnoredSettings(defaultIgnoredSettings: string[], configurati
 	return distinct([...defaultIgnoredSettings, ...added,].filter(setting => removed.indexOf(setting) === -1));
 }
 
-function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): string[] {
+function getIgnoredSettingsFromConfig(configurationService: IConfigurationService): ReadonlyArray<string> {
 	let userValue = configurationService.inspect<string[]>('settingsSync.ignoredSettings').userValue;
 	if (userValue !== undefined) {
 		return userValue;

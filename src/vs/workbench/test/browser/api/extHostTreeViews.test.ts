@@ -15,7 +15,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { MainThreadCommands } from 'vs/workbench/api/browser/mainThreadCommands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mock } from 'vs/base/test/common/mock';
-import { TreeItemCollapsibleState, ITreeItem } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, IRevealOptions } from 'vs/workbench/common/views';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import type { IDisposable } from 'vs/base/common/lifecycle';
@@ -35,7 +35,7 @@ suite('ExtHostTreeView', function () {
 			});
 		}
 
-		override $reveal(): Promise<void> {
+		override $reveal(treeViewId: string, itemInfo: { item: ITreeItem, parentChain: ITreeItem[] } | undefined, options: IRevealOptions): Promise<void> {
 			return Promise.resolve();
 		}
 
@@ -515,8 +515,8 @@ suite('ExtHostTreeView', function () {
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1].item));
-				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1].parentChain)).map(arg => removeUnsetKeys(arg)));
+				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
+				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
 				assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
 			});
 	});
@@ -534,8 +534,8 @@ suite('ExtHostTreeView', function () {
 				.then(() => {
 					assert.ok(revealTarget.calledOnce);
 					assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-					assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1].item));
-					assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1].parentChain)).map(arg => removeUnsetKeys(arg)));
+					assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
+					assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
 					assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
 				}));
 	});
@@ -561,8 +561,8 @@ suite('ExtHostTreeView', function () {
 			.then(() => {
 				assert.ok(revealTarget.calledOnce);
 				assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1].item));
-				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1].parentChain)).map(arg => removeUnsetKeys(arg)));
+				assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
+				assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
 				assert.deepStrictEqual({ select: false, focus: false, expand: false }, revealTarget.args[0][2]);
 			});
 	});
@@ -592,8 +592,8 @@ suite('ExtHostTreeView', function () {
 					.then(() => {
 						assert.ok(revealTarget.calledOnce);
 						assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-						assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1].item));
-						assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1].parentChain)).map(arg => removeUnsetKeys(arg)));
+						assert.deepStrictEqual(expected.item, removeUnsetKeys(revealTarget.args[0][1]!.item));
+						assert.deepStrictEqual(expected.parentChain, (<Array<any>>(revealTarget.args[0][1]!.parentChain)).map(arg => removeUnsetKeys(arg)));
 						assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
 					});
 			});
@@ -633,8 +633,8 @@ suite('ExtHostTreeView', function () {
 						.then(() => {
 							assert.ok(revealTarget.calledOnce);
 							assert.deepStrictEqual('treeDataProvider', revealTarget.args[0][0]);
-							assert.deepStrictEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1].item));
-							assert.deepStrictEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][1].parentChain).map(arg => removeUnsetKeys(arg)));
+							assert.deepStrictEqual({ handle: '0/0:b/0:bc', label: { label: 'bc' }, collapsibleState: TreeItemCollapsibleState.None, parentHandle: '0/0:b' }, removeUnsetKeys(revealTarget.args[0][1]!.item));
+							assert.deepStrictEqual([{ handle: '0/0:b', label: { label: 'b' }, collapsibleState: TreeItemCollapsibleState.Collapsed }], (<Array<any>>revealTarget.args[0][1]!.parentChain).map(arg => removeUnsetKeys(arg)));
 							assert.deepStrictEqual({ select: true, focus: false, expand: false }, revealTarget.args[0][2]);
 						});
 				});

@@ -9,6 +9,7 @@ import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters
 import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
+import { illegalArgument } from 'vs/base/common/errors';
 
 interface INotebookEditData {
 	documentVersionId: number;
@@ -107,6 +108,13 @@ export class ExtHostNotebookEditor {
 				get selections() {
 					return that._selections;
 				},
+				set selections(value: vscode.NotebookRange[]) {
+					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
+						throw illegalArgument('selections');
+					}
+					that._selections = value;
+					that._trySetSelections(value);
+				},
 				get visibleRanges() {
 					return that._visibleRanges;
 				},
@@ -149,6 +157,10 @@ export class ExtHostNotebookEditor {
 
 	_acceptSelections(selections: vscode.NotebookRange[]): void {
 		this._selections = selections;
+	}
+
+	private _trySetSelections(value: vscode.NotebookRange[]): void {
+		this._proxy.$trySetSelections(this.id, value.map(extHostConverter.NotebookRange.from));
 	}
 
 	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
