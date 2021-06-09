@@ -181,6 +181,21 @@ suite('Async', () => {
 			});
 		});
 
+		suite('ThrottledDelayer', () => {
+			test('promise should resolve if disposed', async () => {
+				const throttledDelayer = new async.ThrottledDelayer<void>(100);
+				const promise = throttledDelayer.trigger(async () => { }, 0);
+				throttledDelayer.dispose();
+
+				try {
+					await promise;
+					assert.fail('SHOULD NOT BE HERE');
+				} catch (err) {
+					// OK
+				}
+			});
+		});
+
 		test('simple cancel', function () {
 			let count = 0;
 			let factory = () => {
