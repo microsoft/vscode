@@ -514,6 +514,12 @@ export class CellOutputContainer extends Disposable {
 
 		this.viewCell.spliceOutputHeights(splice.start, splice.deleteCount, splice.newOutputs.map(_ => 0));
 
+		if (splice.deleteCount === 0 && this.viewCell.outputsViewModels.length === splice.start + splice.newOutputs.length) {
+			// append at the end
+			this._renderNow2(splice.start, splice.newOutputs.length);
+			return;
+		}
+
 		// avoid output splices flushing the renderer process
 		if (Date.now() - this._lastRenderTime < 2) {
 			this._pendingRenderTask?.dispose();
@@ -586,6 +592,26 @@ export class CellOutputContainer extends Disposable {
 		this._lastRenderTime = Date.now();
 	}
 
+	private _renderNow2(start: number, len: number) {
+		let outputHasDynamicHeight = false;
+		for (let i = start; i < start + len; i++) {
+			const output = this.viewCell.outputsViewModels[i];
+			const renderResult = this._renderOutput(output, i, undefined);
+			if (renderResult) {
+				outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
+			}
+		}
+
+		const editorHeight = this.templateData.editor.getContentHeight();
+		this.viewCell.editorHeight = editorHeight;
+
+		this._relayoutCell();
+		// if it's clearing all outputs
+		// or outputs are all rendered synchronously
+		// shrink immediately as the final output height will be zero.
+		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
+		this._lastRenderTime = Date.now();
+	}
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
 		if (!this.outputEntries.has(currOutput)) {
 			this.outputEntries.set(currOutput, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput));
