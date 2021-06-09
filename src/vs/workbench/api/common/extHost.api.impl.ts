@@ -88,6 +88,8 @@ import { TextSearchCompleteMessageType } from 'vs/workbench/services/search/comm
 import { ExtHostNotebookRenderers } from 'vs/workbench/api/common/extHostNotebookRenderers';
 import { Schemas } from 'vs/base/common/network';
 import { matchesScheme } from 'vs/platform/opener/common/opener';
+import { ExtHostNotebookEditors } from 'vs/workbench/api/common/extHostNotebookEditors';
+import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 
 export interface IExtensionApiFactory {
 	(extension: IExtensionDescription, registry: ExtensionDescriptionRegistry, configProvider: ExtHostConfigProvider): typeof vscode;
@@ -145,7 +147,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostLogService, extensionStoragePaths));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extensionStoragePaths));
+	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostLogService, extHostNotebook));
+	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, rpcProtocol, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostLogService));
 	const extHostNotebookRenderers = rpcProtocol.set(ExtHostContext.ExtHostNotebookRenderers, new ExtHostNotebookRenderers(rpcProtocol, extHostNotebook));
 	const extHostEditors = rpcProtocol.set(ExtHostContext.ExtHostEditors, new ExtHostEditors(rpcProtocol, extHostDocumentsAndEditors));
@@ -321,14 +325,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					return extHostUrls.createAppUri(uri);
 				}
 
-				if (!matchesScheme(uri, Schemas.http) && !matchesScheme(uri, Schemas.https)) {
+				const isHttp = matchesScheme(uri, Schemas.http) || matchesScheme(uri, Schemas.https);
+
+				if (!isHttp) {
 					checkProposedApiEnabled(extension); // https://github.com/microsoft/vscode/issues/124263
 				}
 
 				try {
 					return await extHostWindow.asExternalUri(uri, { allowTunneling: !!initData.remote.authority });
-				} catch {
-					return uri;
+				} catch (err) {
+					if (isHttp) {
+						return uri;
+					}
+
+					throw err;
 				}
 			},
 			get remoteName() {
@@ -722,11 +732,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeNotebookEditorSelection(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
+				return extHostNotebookEditors.onDidChangeNotebookEditorSelection(listener, thisArgs, disposables);
 			},
 			onDidChangeNotebookEditorVisibleRanges(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
+				return extHostNotebookEditors.onDidChangeNotebookEditorVisibleRanges(listener, thisArgs, disposables);
 			},
 			showNotebookDocument(uriOrDocument, options?) {
 				checkProposedApiEnabled(extension);
@@ -857,6 +867,34 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onWillSaveTextDocument: (listener, thisArgs?, disposables?) => {
 				return extHostDocumentSaveParticipant.getOnWillSaveTextDocumentEvent(extension)(listener, thisArgs, disposables);
+			},
+			get notebookDocuments(): vscode.NotebookDocument[] {
+				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
+			},
+			async openNotebookDocument(uriOrType?: URI | string, content?: vscode.NotebookData) {
+				let uri: URI;
+				if (URI.isUri(uriOrType)) {
+					uri = uriOrType;
+					await extHostNotebook.openNotebookDocument(uriOrType);
+				} else if (typeof uriOrType === 'string') {
+					uri = URI.revive(await extHostNotebook.createNotebookDocument({ viewType: uriOrType, content }));
+				} else {
+					throw new Error('Invalid arguments');
+				}
+				return extHostNotebook.getNotebookDocument(uri).apiNotebook;
+			},
+			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
+				return extHostNotebook.onDidOpenNotebookDocument;
+			},
+			get onDidCloseNotebookDocument(): Event<vscode.NotebookDocument> {
+				return extHostNotebook.onDidCloseNotebookDocument;
+			},
+			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
+				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
+			},
+			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
+				checkProposedApiEnabled(extension);
+				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, extension.enableProposedApi ? registration : undefined);
 			},
 			onDidChangeConfiguration: (listener: (_: any) => any, thisArgs?: any, disposables?: extHostTypes.Disposable[]) => {
 				return configProvider.onDidChangeConfiguration(listener, thisArgs, disposables);
@@ -1054,51 +1092,20 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		};
 
 		// namespace: notebook
-		const notebook: typeof vscode.notebook = {
-			async openNotebookDocument(uriOrOptions?: URI | string, content?: vscode.NotebookData) {
-				checkProposedApiEnabled(extension);
-				let uri: URI;
-				if (URI.isUri(uriOrOptions)) {
-					uri = uriOrOptions;
-					await extHostNotebook.openNotebookDocument(uriOrOptions);
-				} else if (typeof uriOrOptions === 'string') {
-					uri = URI.revive(await extHostNotebook.createNotebookDocument({ viewType: uriOrOptions, content }));
-				} else {
-					throw new Error('Invalid arguments');
-				}
-				return extHostNotebook.getNotebookDocument(uri).apiNotebook;
+		const notebooks: typeof vscode.notebooks = {
+			createNotebookController(id: string, notebookType: string, label: string, handler?, rendererScripts?: vscode.NotebookRendererScript[]) {
+				return extHostNotebookKernels.createNotebookController(extension, id, notebookType, label, handler, extension.enableProposedApi ? rendererScripts : undefined);
 			},
-			get onDidOpenNotebookDocument(): Event<vscode.NotebookDocument> {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidOpenNotebookDocument;
-			},
-			get onDidCloseNotebookDocument(): Event<vscode.NotebookDocument> {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidCloseNotebookDocument;
+			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
+				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
 			},
 			get onDidSaveNotebookDocument(): Event<vscode.NotebookDocument> {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidSaveNotebookDocument;
-			},
-			get notebookDocuments(): vscode.NotebookDocument[] {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.notebookDocuments.map(d => d.apiNotebook);
-			},
-			registerNotebookSerializer(viewType: string, serializer: vscode.NotebookSerializer, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookSerializer(extension, viewType, serializer, options, extension.enableProposedApi ? registration : undefined);
-			},
-			registerNotebookContentProvider: (viewType: string, provider: vscode.NotebookContentProvider, options?: vscode.NotebookDocumentContentOptions, registration?: vscode.NotebookRegistrationData) => {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookContentProvider(extension, viewType, provider, options, extension.enableProposedApi ? registration : undefined);
-			},
-			registerNotebookCellStatusBarItemProvider: (notebookType: string, provider: vscode.NotebookCellStatusBarItemProvider) => {
-				checkProposedApiEnabled(extension);
-				return extHostNotebook.registerNotebookCellStatusBarItemProvider(extension, notebookType, provider);
+				return extHostNotebookDocuments.onDidSaveNotebookDocument;
 			},
 			createNotebookEditorDecorationType(options: vscode.NotebookDecorationRenderOptions): vscode.NotebookEditorDecorationType {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.createNotebookEditorDecorationType(options);
+				return extHostNotebookEditors.createNotebookEditorDecorationType(options);
 			},
 			createRendererMessaging(rendererId) {
 				checkProposedApiEnabled(extension);
@@ -1106,7 +1113,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			onDidChangeNotebookDocumentMetadata(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
-				return extHostNotebook.onDidChangeNotebookDocumentMetadata(listener, thisArgs, disposables);
+				return extHostNotebookDocuments.onDidChangeNotebookDocumentMetadata(listener, thisArgs, disposables);
 			},
 			onDidChangeNotebookCells(listener, thisArgs?, disposables?) {
 				checkProposedApiEnabled(extension);
@@ -1128,10 +1135,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension);
 				return new ExtHostNotebookConcatDocument(extHostNotebook, extHostDocuments, notebook, selector);
 			},
-			createNotebookController(id, viewType, label, executeHandler, preloads) {
-				checkProposedApiEnabled(extension);
-				return extHostNotebookKernels.createNotebookController(extension, id, viewType, label, executeHandler, preloads);
-			}
 		};
 
 		return <typeof vscode>{
@@ -1144,7 +1147,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			env,
 			extensions,
 			languages,
-			notebook,
+			notebooks,
 			scm,
 			tasks,
 			test,
@@ -1274,8 +1277,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookRange: extHostTypes.NotebookRange,
 			NotebookCellKind: extHostTypes.NotebookCellKind,
 			NotebookCellExecutionState: extHostTypes.NotebookCellExecutionState,
-			NotebookDocumentMetadata: extHostTypes.NotebookDocumentMetadata,
-			NotebookCellMetadata: extHostTypes.NotebookCellMetadata,
 			NotebookCellData: extHostTypes.NotebookCellData,
 			NotebookData: extHostTypes.NotebookData,
 			NotebookRendererScript: extHostTypes.NotebookRendererScript,

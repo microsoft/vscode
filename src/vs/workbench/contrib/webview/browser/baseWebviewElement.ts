@@ -83,6 +83,8 @@ namespace WebviewState {
 
 export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 
+	protected readonly _expectedServiceWorkerVersion = 2; // Keep this in sync with the version in service-worker.js
+
 	private _element: T | undefined;
 	protected get element(): T | undefined { return this._element; }
 
@@ -245,12 +247,12 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 					scheme: entry.scheme,
 					authority: entry.authority,
 					path: decodeURIComponent(entry.path), // This gets re-encoded
-					query: entry.query,
+					query: entry.query ? decodeURIComponent(entry.query) : entry.query,
 				});
 				this.loadResource(entry.id, uri, entry.ifNoneMatch);
 			} catch (e) {
 				this._send('did-load-resource', {
-					id,
+					id: entry.id,
 					status: 404,
 					path: entry.path,
 				});

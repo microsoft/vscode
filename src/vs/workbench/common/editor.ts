@@ -422,6 +422,11 @@ export interface IEditorInput extends IDisposable {
 	readonly onDidChangeLabel: Event<void>;
 
 	/**
+	 * Triggered when this input changes its capabilities.
+	 */
+	readonly onDidChangeCapabilities: Event<void>;
+
+	/**
 	 * Unique type identifier for this input. Every editor input of the
 	 * same class should share the same type identifier. The type identifier
 	 * is used for example for serialising/deserialising editor inputs

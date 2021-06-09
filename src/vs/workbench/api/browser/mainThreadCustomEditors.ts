@@ -16,7 +16,7 @@ import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resour
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileOperation, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -445,14 +445,12 @@ class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustom
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	readonly onDidChangeReadonly = Event.None;
+
 	//#endregion
 
-	public isEditable(): boolean {
-		return this._editable;
-	}
-
-	public isOnReadonlyFileSystem(): boolean {
-		return this.fileService.hasCapability(this.editorResource, FileSystemProviderCapabilities.Readonly);
+	public isReadonly(): boolean {
+		return !this._editable;
 	}
 
 	public get viewType() {

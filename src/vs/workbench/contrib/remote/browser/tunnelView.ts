@@ -65,13 +65,6 @@ class TunnelTreeVirtualDelegate implements ITableVirtualDelegate<ITunnelItem> {
 	}
 }
 
-function toTunnelProtocol(value: string | undefined): TunnelProtocol {
-	if (value === TunnelProtocol.Https) {
-		return TunnelProtocol.Https;
-	}
-	return TunnelProtocol.Http;
-}
-
 export interface ITunnelViewModel {
 	readonly onForwardedPortsChanged: Event<void>;
 	readonly all: TunnelItem[];
@@ -99,7 +92,8 @@ export class TunnelViewModel implements ITunnelViewModel {
 		processTooltip: '',
 		originTooltip: '',
 		privacyTooltip: '',
-		source: ''
+		source: '',
+		protocol: TunnelProtocol.Http
 	};
 
 	constructor(
@@ -430,7 +424,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 				[TunnelTypeContextKey.key, element.tunnel.tunnelType],
 				[TunnelCloseableContextKey.key, element.tunnel.closeable],
 				[TunnelPrivacyContextKey.key, element.tunnel.privacy],
-				[TunnelProtocolContextKey.key, toTunnelProtocol(element.tunnel.localUri?.scheme)]
+				[TunnelProtocolContextKey.key, element.tunnel.protocol]
 			];
 		const contextKeyService = this.contextKeyService.createOverlay(context);
 		const disposableStore = new DisposableStore();
@@ -551,6 +545,7 @@ class TunnelItem implements ITunnelItem {
 			tunnel.source ?? (tunnel.userForwarded ? nls.localize('tunnel.user', "User Forwarded") :
 				(type === TunnelType.Detected ? nls.localize('tunnel.staticallyForwarded', "Statically Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded"))),
 			!!tunnel.hasRunningProcess,
+			tunnel.protocol,
 			tunnel.localUri,
 			tunnel.localAddress,
 			tunnel.localPort,
@@ -568,6 +563,7 @@ class TunnelItem implements ITunnelItem {
 		public remotePort: number,
 		public source: string,
 		public hasRunningProcess: boolean,
+		public protocol: TunnelProtocol,
 		public localUri?: URI,
 		public localAddress?: string,
 		public localPort?: number,
@@ -817,28 +813,22 @@ export class TunnelPanel extends ViewPane {
 			rerender();
 		}));
 
+		this._register(this.table.onMouseClick(e => {
+			if (this.hasOpenLinkModifier(e.browserEvent)) {
+				const selection = this.table.getSelectedElements();
+				if ((selection.length === 0) ||
+					((selection.length === 1) && (selection[0] === e.element))) {
+					this.commandService.executeCommand(OpenPortInBrowserAction.ID, e.element);
+				}
+			}
+		}));
+
 		this._register(this.table.onDidOpen(e => {
 			if (!e.element || (e.element.tunnelType !== TunnelType.Forwarded)) {
 				return;
 			}
 			if (e.browserEvent?.type === 'dblclick') {
 				this.commandService.executeCommand(LabelTunnelAction.ID);
-			} else if (e.browserEvent instanceof MouseEvent) {
-				const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
-
-				let modifierKey = false;
-				if (editorConf.multiCursorModifier === 'ctrlCmd') {
-					modifierKey = e.browserEvent.altKey;
-				} else {
-					if (isMacintosh) {
-						modifierKey = e.browserEvent.metaKey;
-					} else {
-						modifierKey = e.browserEvent.ctrlKey;
-					}
-				}
-				if (modifierKey) {
-					this.commandService.executeCommand(OpenPortInBrowserAction.ID, e.element);
-				}
 			}
 		}));
 
@@ -887,7 +877,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelTypeContext.set(item.tunnelType);
 			this.tunnelCloseableContext.set(!!item.closeable);
 			this.tunnelPrivacyContext.set(item.privacy);
-			this.tunnelProtocolContext.set(toTunnelProtocol(item.localUri?.scheme));
+			this.tunnelProtocolContext.set(item.protocol);
 			this.portChangableContextKey.set(!!item.localPort);
 		} else {
 			this.tunnelTypeContext.reset();
@@ -897,6 +887,22 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelProtocolContext.reset();
 			this.portChangableContextKey.reset();
 		}
+	}
+
+	private hasOpenLinkModifier(e: MouseEvent): boolean {
+		const editorConf = this.configurationService.getValue<{ multiCursorModifier: 'ctrlCmd' | 'alt' }>('editor');
+
+		let modifierKey = false;
+		if (editorConf.multiCursorModifier === 'ctrlCmd') {
+			modifierKey = e.altKey;
+		} else {
+			if (isMacintosh) {
+				modifierKey = e.metaKey;
+			} else {
+				modifierKey = e.ctrlKey;
+			}
+		}
+		return modifierKey;
 	}
 
 	private onSelectionChanged(event: ITableEvent<ITunnelItem>) {
@@ -923,7 +929,7 @@ export class TunnelPanel extends ViewPane {
 			this.tunnelTypeContext.set(node.tunnelType);
 			this.tunnelCloseableContext.set(!!node.closeable);
 			this.tunnelPrivacyContext.set(node.privacy);
-			this.tunnelProtocolContext.set(toTunnelProtocol(node.localUri?.scheme));
+			this.tunnelProtocolContext.set(node.protocol);
 			this.portChangableContextKey.set(!!node.localPort);
 		} else {
 			this.tunnelTypeContext.set(TunnelType.Add);
@@ -1391,7 +1397,11 @@ namespace SetTunnelProtocolAction {
 			const attributes: Partial<Attributes> = {
 				protocol
 			};
-			return remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes);
+			// Remove tunnel close/forward when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
+			await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
+			await remoteExplorerService.tunnelModel.configPortsAttributes.addAttributes(arg.remotePort, attributes);
+			const isPublic = arg.privacy === TunnelPrivacy.Public;
+			return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, arg.source, isPublic, isPublic);
 		}
 	}
 

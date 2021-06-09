@@ -37,6 +37,7 @@ export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
 
 //#region Context Keys
+export const HAS_OPENED_NOTEBOOK = new RawContextKey<boolean>('userHasOpenedNotebook', false);
 export const KEYBINDING_CONTEXT_NOTEBOOK_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('notebookFindWidgetFocused', false);
 
 // Is Notebook
@@ -52,8 +53,8 @@ export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHas
 export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
 
 // Cell keys
-export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookViewType', undefined);
-export const NOTEBOOK_CELL_TYPE = new RawContextKey<string>('notebookCellType', undefined); // code, markdown
+export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
+export const NOTEBOOK_CELL_TYPE = new RawContextKey<'code' | 'markup'>('notebookCellType', undefined);
 export const NOTEBOOK_CELL_EDITABLE = new RawContextKey<boolean>('notebookCellEditable', false); // bool
 export const NOTEBOOK_CELL_FOCUSED = new RawContextKey<boolean>('notebookCellFocused', false); // bool
 export const NOTEBOOK_CELL_EDITOR_FOCUSED = new RawContextKey<boolean>('notebookCellEditorFocused', false); // bool
@@ -118,7 +119,7 @@ export interface ICellOutputViewModel {
 	 */
 	model: ICellOutput;
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
-	pickedMimeType: number;
+	pickedMimeType: IOrderedMimeType | undefined;
 	supportAppend(): boolean;
 	hasMultiMimeType(): boolean;
 	toRawJSON(): any;
@@ -126,7 +127,6 @@ export interface ICellOutputViewModel {
 
 export interface IDisplayOutputViewModel extends ICellOutputViewModel {
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number];
-	pickedMimeType: number;
 }
 
 
@@ -263,6 +263,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	handle: number;
 	uri: URI;
 	language: string;
+	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;
@@ -764,7 +765,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
 }
 
 export interface CellFindMatch {

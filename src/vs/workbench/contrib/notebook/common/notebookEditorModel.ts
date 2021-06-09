@@ -134,6 +134,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 		return false;
 	}
 
+	hasAssociatedFilePath(): boolean {
+		return false;
+	}
+
 	private _isUntitled(): boolean {
 		return this.resource.scheme === Schemas.untitled;
 	}
@@ -464,6 +468,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 
 	isOrphaned(): boolean {
 		return SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
+	}
+
+	hasAssociatedFilePath(): boolean {
+		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
 	}
 
 	isReadonly(): boolean {

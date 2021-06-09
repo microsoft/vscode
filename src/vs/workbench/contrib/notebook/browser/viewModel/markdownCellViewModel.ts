@@ -17,6 +17,8 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { CellKind, INotebookSearchOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { dirname } from 'vs/base/common/resources';
 
 export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Markup;
@@ -97,17 +99,22 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 	private readonly _onDidHideInput = new Emitter<void>();
 	readonly onDidHideInput = this._onDidHideInput.event;
 
+	private readonly _mdRenderer: MarkdownRenderer;
+
 	constructor(
 		viewType: string,
 		model: NotebookCellTextModel,
 		initialNotebookLayoutInfo: NotebookLayoutInfo | null,
 		readonly foldingDelegate: EditorFoldingStateDelegate,
 		readonly viewContext: ViewContext,
-		private readonly _mdRenderer: MarkdownRenderer,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITextModelService textModelService: ITextModelService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, textModelService);
+
+		this._mdRenderer = this._register(instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(model.uri) }));
+
 		const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 
 		this._layoutInfo = {
@@ -132,7 +139,7 @@ export class MarkdownCellViewModel extends BaseCellViewModel implements ICellVie
 		}));
 
 		this._register(this.viewContext.notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.cellStatusBarAfterExecuteVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
+			if (e.cellStatusBarVisibility || e.insertToolbarPosition || e.cellToolbarLocation) {
 				const layoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 				const { bottomToolbarGap } = this.viewContext.notebookOptions.computeBottomToolbarDimensions(this.viewType);
 

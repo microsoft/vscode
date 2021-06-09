@@ -22,6 +22,8 @@ import { ITimerService } from 'vs/workbench/services/timer/browser/timerService'
 import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class StartupTimings implements IWorkbenchContribution {
 
@@ -36,9 +38,10 @@ export class StartupTimings implements IWorkbenchContribution {
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IUpdateService private readonly _updateService: IUpdateService,
 		@INativeWorkbenchEnvironmentService private readonly _environmentService: INativeWorkbenchEnvironmentService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustService: IWorkspaceTrustManagementService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
-		//
 		this._report().catch(onUnexpectedError);
 	}
 
@@ -68,22 +71,26 @@ export class StartupTimings implements IWorkbenchContribution {
 			chunks.push(VSBuffer.fromString(`${this._timerService.startupMetrics.ellapsed}\t${this._productService.nameShort}\t${(this._productService.commit || '').slice(0, 10) || '0000000000'}\t${sessionId}\t${standardStartupError === undefined ? 'standard_start' : 'NO_standard_start : ' + standardStartupError}\n`));
 			await this._fileService.writeFile(uri, VSBuffer.concat(chunks));
 		}).then(() => {
-			this._nativeHostService.quit();
+			this._nativeHostService.exit(0);
 		}).catch(err => {
 			console.error(err);
-			this._nativeHostService.quit();
+			this._nativeHostService.exit(0);
 		});
 	}
 
 	private async _isStandardStartup(): Promise<string | undefined> {
 		// check for standard startup:
 		// * new window (no reload)
+		// * workspace is trusted
 		// * just one window
 		// * explorer viewlet visible
 		// * one text editor (not multiple, not webview, welcome etc...)
 		// * cached data present (not rejected, not created)
 		if (this._lifecycleService.startupKind !== StartupKind.NewWindow) {
 			return StartupKindToString(this._lifecycleService.startupKind);
+		}
+		if (!this._workspaceTrustService.isWorkpaceTrusted()) {
+			return 'Workspace not trusted';
 		}
 		const windowCount = await this._nativeHostService.getWindowCount();
 		if (windowCount !== 1) {
@@ -104,7 +111,7 @@ export class StartupTimings implements IWorkbenchContribution {
 		if (activePanel) {
 			return 'Current active panel : ' + this._panelService.getPanel(activePanel.getId())?.name;
 		}
-		if (!didUseCachedData()) {
+		if (!didUseCachedData(this._productService, this._storageService, this._environmentService)) {
 			return 'Either cache data is rejected or not created';
 		}
 		if (!await this._updateService.isLatestVersion()) {

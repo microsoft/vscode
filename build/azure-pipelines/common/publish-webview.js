@@ -39,7 +39,7 @@ async function publish(commit, files) {
         .withFilter(new azure.ExponentialRetryPolicyFilter(20));
     await assertContainer(blobService, commit);
     for (const file of files) {
-        const blobName = (0, path_1.basename)(file);
+        const blobName = path_1.basename(file);
         const blobExists = await doesBlobExist(blobService, commit, blobName);
         if (blobExists) {
             console.log(`Blob ${commit}, ${blobName} already exists, not publishing again.`);
@@ -58,7 +58,7 @@ function main() {
     }
     const opts = minimist(process.argv.slice(2));
     const [directory] = opts._;
-    const files = fileNames.map(fileName => (0, path_1.join)(directory, fileName));
+    const files = fileNames.map(fileName => path_1.join(directory, fileName));
     publish(commit, files).catch(err => {
         console.error(err);
         process.exit(1);

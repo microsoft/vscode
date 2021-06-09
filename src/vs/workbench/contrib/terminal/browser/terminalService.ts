@@ -63,7 +63,7 @@ export class TerminalService implements ITerminalService {
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
 	private readonly _localTerminalService?: ILocalTerminalService;
-	private readonly _offProcessTerminalService?: IOffProcessTerminalService;
+	private readonly _primaryOffProcessTerminalService?: IOffProcessTerminalService;
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
@@ -210,7 +210,7 @@ export class TerminalService implements ITerminalService {
 			: enableTerminalReconnection
 				? this._localTerminalsInitPromise = this._reconnectToLocalTerminals()
 				: Promise.resolve();
-		this._offProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
+		this._primaryOffProcessTerminalService = !!this._environmentService.remoteAuthority ? this._remoteTerminalService : this._localTerminalService;
 		initPromise.then(() => this._setConnected());
 
 		// Wait up to 5 seconds for profiles to be ready so it's assured that we know the actual
@@ -218,6 +218,16 @@ export class TerminalService implements ITerminalService {
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
+	}
+
+	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
+		if (this.configHelper.config.confirmOnExit) {
+			const notConfirmed = await this._showTerminalCloseConfirmation(true);
+			if (notConfirmed) {
+				return;
+			}
+		}
+		instance.dispose();
 	}
 
 	private _setConnected() {
@@ -366,11 +376,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
-		const offProcService = this._offProcessTerminalService;
-		if (!offProcService) {
+		if (!this._primaryOffProcessTerminalService) {
 			return this._availableProfiles || [];
 		}
-		return offProcService?.getProfiles(includeDetectedProfiles);
+		const platform = await this._getPlatformKey();
+		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
@@ -430,7 +440,7 @@ export class TerminalService implements ITerminalService {
 		const state: ITerminalsLayoutInfoById = {
 			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
 		};
-		this._offProcessTerminalService?.setTerminalLayoutInfo(state);
+		this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(state);
 	}
 
 	@debounce(500)
@@ -438,7 +448,7 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.title) {
 			return;
 		}
-		this._offProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
+		this._primaryOffProcessTerminalService?.updateTitle(instance.persistentProcessId, instance.title, instance.titleSource);
 	}
 
 	@debounce(500)
@@ -446,7 +456,7 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions || !instance || !instance.persistentProcessId || !instance.icon) {
 			return;
 		}
-		this._offProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
+		this._primaryOffProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
@@ -816,6 +826,14 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
+	instanceIsSplit(instance: ITerminalInstance): boolean {
+		const group = this.getGroupForInstance(instance);
+		if (!group) {
+			return false;
+		}
+		return group.terminalInstances.length > 1;
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this._terminalGroups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
@@ -862,9 +880,9 @@ export class TerminalService implements ITerminalService {
 		return terminalIndex;
 	}
 
-	protected async _showTerminalCloseConfirmation(): Promise<boolean> {
+	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		if (this.terminalInstances.length === 1) {
+		if (this.terminalInstances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
 			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
@@ -1028,6 +1046,8 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+		await this.getActiveInstance()?.focusWhenReady();
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {

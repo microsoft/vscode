@@ -21,6 +21,7 @@ import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
 
 const enum ForceOpenAs {
 	None,
@@ -45,8 +46,12 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				capabilities |= EditorInputCapabilities.Readonly;
 			}
 		} else {
-			if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
-				capabilities |= EditorInputCapabilities.Readonly;
+			if (this.fileService.canHandleResource(this.resource)) {
+				if (this.fileService.hasCapability(this.resource, FileSystemProviderCapabilities.Readonly)) {
+					capabilities |= EditorInputCapabilities.Readonly;
+				}
+			} else {
+				capabilities |= EditorInputCapabilities.Untitled;
 			}
 		}
 
@@ -80,7 +85,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService private readonly filesConfigurationService: IFilesConfigurationService,
-		@IEditorService editorService: IEditorService
+		@IEditorService editorService: IEditorService,
+		@IPathService private readonly pathService: IPathService
 	) {
 		super(resource, preferredResource, editorService, textFileService, labelService, fileService);
 
@@ -134,7 +140,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		// re-emit some events from the model
 		this.modelListeners.add(model.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this.modelListeners.add(model.onDidChangeOrphaned(() => this._onDidChangeLabel.fire()));
-		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeLabel.fire()));
+		this.modelListeners.add(model.onDidChangeReadonly(() => this._onDidChangeCapabilities.fire()));
 
 		// important: treat save errors as potential dirty change because
 		// a file that is in save conflict or error will report dirty even
@@ -154,7 +160,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setPreferredName(name: string): void {
 		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we own
+			return; // block for specific schemes we consider to be owning
 		}
 
 		if (this.preferredName !== name) {
@@ -165,7 +171,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	private allowLabelOverride(): boolean {
-		return this.resource.scheme !== Schemas.file && this.resource.scheme !== Schemas.vscodeRemote && this.resource.scheme !== Schemas.userData;
+		return this.resource.scheme !== this.pathService.defaultUriScheme &&
+			this.resource.scheme !== Schemas.userData &&
+			this.resource.scheme !== Schemas.file &&
+			this.resource.scheme !== Schemas.vscodeRemote;
 	}
 
 	getPreferredName(): string | undefined {
@@ -178,7 +187,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	setPreferredDescription(description: string): void {
 		if (!this.allowLabelOverride()) {
-			return; // block for specific schemes we own
+			return; // block for specific schemes we consider to be owning
 		}
 
 		if (this.preferredDescription !== description) {
@@ -308,21 +317,22 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	private async doResolveAsText(): Promise<ITextFileEditorModel | BinaryEditorModel> {
 		try {
 
+			// Unset preferred contents after having applied it once
+			// to prevent this property to stick. We still want future
+			// `resolve` calls to fetch the contents from disk.
+			const preferredContents = this.preferredContents;
+			this.preferredContents = undefined;
+
 			// Resolve resource via text file service and only allow
 			// to open binary files if we are instructed so
 			await this.textFileService.files.resolve(this.resource, {
 				mode: this.preferredMode,
 				encoding: this.preferredEncoding,
-				contents: typeof this.preferredContents === 'string' ? createTextBufferFactory(this.preferredContents) : undefined,
+				contents: typeof preferredContents === 'string' ? createTextBufferFactory(preferredContents) : undefined,
 				reload: { async: true }, // trigger a reload of the model if it exists already but do not wait to show the model
 				allowBinary: this.forceOpenAs === ForceOpenAs.Text,
 				reason: TextFileResolveReason.EDITOR
 			});
-
-			// Unset preferred contents after having applied it once
-			// to prevent this property to stick. We still want future
-			// `resolve` calls to fetch the contents from disk.
-			this.preferredContents = undefined;
 
 			// This is a bit ugly, because we first resolve the model and then resolve a model reference. the reason being that binary
 			// or very large files do not resolve to a text file model but should be opened as binary files without text. First calling into
@@ -402,7 +412,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 	}
 
 	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

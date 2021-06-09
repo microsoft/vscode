@@ -16,7 +16,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService, workspaceTrustToString } from 'vs/platform/workspace/common/workspaceTrust';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { Codicon, registerCodicon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { ThemeColor } from 'vs/workbench/api/common/extHostTypes';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -25,7 +25,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { isWorkspaceTrustEnabled, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -35,7 +35,7 @@ import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 import { dirname, resolve } from 'vs/base/common/path';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import product from 'vs/platform/product/common/product';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { STATUS_BAR_PROMINENT_ITEM_BACKGROUND, STATUS_BAR_PROMINENT_ITEM_FOREGROUND } from 'vs/workbench/common/theme';
@@ -45,31 +45,107 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
-const BANNER_VIRTUAL_WORKSPACE = 'workbench.banner.virtualWorkspace';
-const BANNER_VIRTUAL_AND_RESTRICTED = 'workbench.banner.virtualAndRestricted';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
-const BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY = 'workbench.banner.virtualWorkspace.dismissed';
-
-const infoIcon = registerCodicon('workspace-banner-warning-icon', Codicon.info);
 
 /*
- * Trust Request UX Handler
+ * Trust Request via Service UX handler
  */
+
 export class WorkspaceTrustRequestHandler extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IDialogService private readonly dialogService: IDialogService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService) {
+		super();
+
+		this.registerListeners();
+	}
+
+	private get useWorkspaceLanguage(): boolean {
+		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	}
+
+	private get modalTitle(): string {
+		return this.useWorkspaceLanguage ?
+			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+			localize('folderTrust', "Do you trust the authors of the files in this folder?");
+	}
+
+	private async registerListeners(): Promise<void> {
+		await this.workspaceTrustManagementService.workspaceResolved;
+		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
+			// Message
+			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
+			const message = requestOptions?.message ?? defaultMessage;
+
+			// Buttons
+			const buttons = requestOptions?.buttons ?? [
+				{ label: this.useWorkspaceLanguage ? localize('grantWorkspaceTrustButton', "Trust Workspace & Continue") : localize('grantFolderTrustButton', "Trust Folder & Continue"), type: 'ContinueWithTrust' },
+				{ label: localize('manageWorkspaceTrustButton', "Manage"), type: 'Manage' }
+			];
+			// Add Cancel button if not provided
+			if (!buttons.some(b => b.type === 'Cancel')) {
+				buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
+			}
+
+			// Dialog
+			const result = await this.dialogService.show(
+				Severity.Info,
+				this.modalTitle,
+				buttons.map(b => b.label),
+				{
+					cancelId: buttons.findIndex(b => b.type === 'Cancel'),
+					custom: {
+						icon: Codicon.shield,
+						markdownDetails: [
+							{ markdown: new MarkdownString(message) },
+							{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
+						]
+					}
+				}
+			);
+
+			// Dialog result
+			switch (buttons[result.choice].type) {
+				case 'ContinueWithTrust':
+					await this.workspaceTrustRequestService.completeRequest(true);
+					break;
+				case 'ContinueWithoutTrust':
+					await this.workspaceTrustRequestService.completeRequest(undefined);
+					break;
+				case 'Manage':
+					this.workspaceTrustRequestService.cancelRequest();
+					await this.commandService.executeCommand(MANAGE_TRUST_COMMAND_ID);
+					break;
+				case 'Cancel':
+					this.workspaceTrustRequestService.cancelRequest();
+					break;
+			}
+		}));
+	}
+}
+
+
+/*
+ * Trust UX and Startup Handler
+ */
+export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchContribution {
 
 	private readonly entryId = `status.workspaceTrust.${this.workspaceContextService.getWorkspace().id}`;
 
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
 	// try showing the banner only after some files have been opened
-	private showBannerInEmptyWindow = false;
+	private showIndicatorsInEmptyWindow = false;
 
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
-		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
@@ -84,25 +160,30 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 
 		this.statusbarEntryAccessor = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
 
-		if (isWorkspaceTrustEnabled(configurationService)) {
-			this.registerListeners();
-			this.createStatusbarEntry();
+		(async () => {
 
-			// Set empty workspace trust state
-			this.setEmptyWorkspaceTrustState();
+			await this.workspaceTrustManagementService.workspaceTrustInitialized;
 
-			// Show modal dialog
-			if (this.hostService.hasFocus) {
-				this.showModalOnStart();
-			} else {
-				const focusDisposable = this.hostService.onDidChangeFocus(focused => {
-					if (focused) {
-						focusDisposable.dispose();
-						this.showModalOnStart();
-					}
-				});
+			if (this.workspaceTrustManagementService.workspaceTrustEnabled) {
+				this.registerListeners();
+				this.createStatusbarEntry();
+
+				// Set empty workspace trust state
+				await this.setEmptyWorkspaceTrustState();
+
+				// Show modal dialog
+				if (this.hostService.hasFocus) {
+					this.showModalOnStart();
+				} else {
+					const focusDisposable = this.hostService.onDidChangeFocus(focused => {
+						if (focused) {
+							focusDisposable.dispose();
+							this.showModalOnStart();
+						}
+					});
+				}
 			}
-		}
+		})();
 	}
 
 	private get startupPromptSetting(): 'always' | 'once' | 'never' {
@@ -168,7 +249,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		}
 
 		// Don't show modal prompt if workspace trust cannot be changed
-		if (!(await this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
+		if (!(this.workspaceTrustManagementService.canSetWorkspaceTrust())) {
 			return;
 		}
 
@@ -224,80 +305,34 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
-	private getBannerItem(isInVirtualWorkspace: boolean, restrictedMode: boolean): IBannerItem | undefined {
+	private getBannerItem(restrictedMode: boolean): IBannerItem | undefined {
 
-		const dismissedVirtual = this.storageService.getBoolean(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
 		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
 
-		// all important info has been dismissed
-		if (dismissedVirtual && dismissedRestricted) {
+		// info has been dismissed
+		if (dismissedRestricted) {
 			return undefined;
 		}
 
-		// don't show restricted mode only banner
-		if (dismissedRestricted && !isInVirtualWorkspace) {
-			return undefined;
-		}
-
-		// don't show virtual workspace only banner
-		if (dismissedVirtual && !restrictedMode) {
-			return undefined;
-		}
-
-		const choose = (virtual: any, restricted: any, virtualAndRestricted: any) => {
-			return (isInVirtualWorkspace && !dismissedVirtual) && (restrictedMode && !dismissedRestricted) ? virtualAndRestricted : ((isInVirtualWorkspace && !dismissedVirtual) ? virtual : restricted);
-		};
-
-		const id = choose(BANNER_VIRTUAL_WORKSPACE, BANNER_RESTRICTED_MODE, BANNER_VIRTUAL_AND_RESTRICTED);
-		const icon = choose(infoIcon, shieldIcon, infoIcon);
-
-
-		const [virtualAriaLabel, restrictedModeAriaLabel, virtualAndRestrictedModeAriaLabel] = this.getBannerItemAriaLabels();
-		const ariaLabel = choose(virtualAriaLabel, restrictedModeAriaLabel, virtualAndRestrictedModeAriaLabel);
-
-		const [virtualMessage, restrictedModeMessage, virtualAndRestrictedModeMessage] = this.getBannerItemMessages();
-		const message = choose(virtualMessage, restrictedModeMessage, virtualAndRestrictedModeMessage);
-
-		const actions = choose(
-			[
-				{
-					label: localize('virtualBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-virtual-workspaces'
-				}
-			],
+		const actions =
 			[
 				{
 					label: localize('restrictedModeBannerManage', "Manage"),
-					href: 'command:workbench.trust.manage'
+					href: 'command:' + MANAGE_TRUST_COMMAND_ID
 				},
 				{
 					label: localize('restrictedModeBannerLearnMore', "Learn More"),
 					href: 'https://aka.ms/vscode-workspace-trust'
 				}
-			],
-			[
-				{
-					label: localize('virtualAndRestrictedModeBannerManage', "Manage Trust"),
-					href: 'command:workbench.trust.manage'
-				},
-				{
-					label: localize('virtualBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-virtual-workspaces'
-				}
-			]
-		);
+			];
 
 		return {
-			id,
-			icon,
-			ariaLabel,
-			message,
+			id: BANNER_RESTRICTED_MODE,
+			icon: shieldIcon,
+			ariaLabel: this.getBannerItemAriaLabels(),
+			message: this.getBannerItemMessages(),
 			actions,
 			onClose: () => {
-				if (isInVirtualWorkspace) {
-					this.storageService.store(BANNER_VIRTUAL_WORKSPACE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
-				}
-
 				if (restrictedMode) {
 					this.storageService.store(BANNER_RESTRICTED_MODE_DISMISSED_KEY, true, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 				}
@@ -305,49 +340,25 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		};
 	}
 
-	private getBannerItemAriaLabels(): [string, string, string] {
+	private getBannerItemAriaLabels(): string {
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY:
-				return [
-					localize('virtualBannerAriaLabelWindow', "Some features are not available because the current window is backed by a virtual file system. Use navigation keys to access banner actions."),
-					localize('restrictedModeBannerAriaLabelWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features. Use navigation keys to access banner actions."),
-					localize('virtualAndRestrictedModeBannerAriaLabelWindow', "Some features are not available because the current window is backed by a virtual file system and is not trusted. You can trust this window to enable some of these features. Use navigation keys to access banner actions.")
-				];
+				return localize('restrictedModeBannerAriaLabelWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features. Use navigation keys to access banner actions.");
 			case WorkbenchState.FOLDER:
-				return [
-					localize('virtualBannerAriaLabelFolder', "Some features are not available because the current folder is backed by a virtual file system. Use navigation keys to access banner actions."),
-					localize('restrictedModeBannerAriaLabelFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions."),
-					localize('virtualAndRestrictedModeBannerAriaLabelFolder', "Some features are not available because the current folder is backed by a virtual file system and is not trusted. You can trust this folder to enable some of these features. Use navigation keys to access banner actions.")
-				];
+				return localize('restrictedModeBannerAriaLabelFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features. Use navigation keys to access banner actions.");
 			case WorkbenchState.WORKSPACE:
-				return [
-					localize('virtualBannerAriaLabelWorkspace', "Some features are not available because the current workspace is backed by a virtual file system. Use navigation keys to access banner actions."),
-					localize('restrictedModeBannerAriaLabelWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features. Use navigation keys to access banner actions."),
-					localize('virtualAndRestrictedModeBannerAriaLabelWorkspace', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enable some of these features. Use navigation keys to access banner actions.")
-				];
+				return localize('restrictedModeBannerAriaLabelWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features. Use navigation keys to access banner actions.");
 		}
 	}
 
-	private getBannerItemMessages(): [string, string, string] {
+	private getBannerItemMessages(): string {
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY:
-				return [
-					localize('virtualBannerMessageWindow', "Some features are not available because the current workspace is backed by a virtual file system."),
-					localize('restrictedModeBannerMessageWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features."),
-					localize('virtualAndRestrictedModeBannerMessageWindow', "Some features are not available because the current window is backed by a virtual file system and is not trusted. You can trust this window to enable some of these features.")
-				];
+				return localize('restrictedModeBannerMessageWindow', "Restricted Mode is intended for safe code browsing. Trust this window to enable all features.");
 			case WorkbenchState.FOLDER:
-				return [
-					localize('virtualBannerMessageFolder', "Some features are not available because the current folder is backed by a virtual file system."),
-					localize('restrictedModeBannerMessageFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features."),
-					localize('virtualAndRestrictedModeBannerMessageFolder', "Some features are not available because the current folder is backed by a virtual file system and is not trusted. You can trust this folder to enable some of these features.")
-				];
+				return localize('restrictedModeBannerMessageFolder', "Restricted Mode is intended for safe code browsing. Trust this folder to enable all features.");
 			case WorkbenchState.WORKSPACE:
-				return [
-					localize('virtualBannerMessageWorkspace', "Some features are not available because the current workspace is backed by a virtual file system."),
-					localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features."),
-					localize('virtualAndRestrictedModeBannerMessageWorkspace', "Some features are not available because the current workspace is backed by a virtual file system and is not trusted. You can trust this workspace to enable some of these features.")
-				];
+				return localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.");
 		}
 	}
 
@@ -357,20 +368,51 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const color = new ThemeColor(STATUS_BAR_PROMINENT_ITEM_FOREGROUND);
 
 		let ariaLabel = '';
+		let toolTip: IMarkdownString | string | undefined;
 		switch (this.workspaceContextService.getWorkbenchState()) {
 			case WorkbenchState.EMPTY: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWindow', "This window is trusted.") :
 					localize('status.ariaUntrustedWindow', "Restricted Mode: Some features are disabled because this window is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize(
+						{ key: 'status.tooltipUntrustedWindow2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `window is not trusted`. Do not change brackets and parentheses or {n}'] },
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [window is not trusted]({1}).",
+						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TRUST_COMMAND_ID}`
+					),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 			case WorkbenchState.FOLDER: {
 				ariaLabel = trusted ? localize('status.ariaTrustedFolder', "This folder is trusted.") :
 					localize('status.ariaUntrustedFolder', "Restricted Mode: Some features are disabled because this folder is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize(
+						{ key: 'status.tooltipUntrustedFolder2', comment: ['[abc]({n}) are links.  Only translate `features are disabled` and `folder is not trusted`. Do not change brackets and parentheses or {n}'] },
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [folder is not trusted]({1}).",
+						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TRUST_COMMAND_ID}`
+					),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 			case WorkbenchState.WORKSPACE: {
 				ariaLabel = trusted ? localize('status.ariaTrustedWorkspace', "This workspace is trusted.") :
 					localize('status.ariaUntrustedWorkspace', "Restricted Mode: Some features are disabled because this workspace is not trusted.");
+				toolTip = trusted ? ariaLabel : {
+					value: localize(
+						{ key: 'status.tooltipUntrustedWorkspace2', comment: ['[abc]({n}) are links. Only translate `features are disabled` and `workspace is not trusted`. Do not change brackets and parentheses or {n}'] },
+						"Running in Restricted Mode\n\nSome [features are disabled]({0}) because this [workspace is not trusted]({1}).",
+						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`,
+						`command:${MANAGE_TRUST_COMMAND_ID}`
+					),
+					isTrusted: true,
+					supportThemeIcons: true
+				};
 				break;
 			}
 		}
@@ -379,8 +421,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			name: localize('status.WorkspaceTrust', "Workspace Trust"),
 			text: trusted ? `$(shield)` : `$(shield) ${text}`,
 			ariaLabel: ariaLabel,
-			tooltip: ariaLabel,
-			command: 'workbench.trust.manage',
+			tooltip: toolTip,
+			command: MANAGE_TRUST_COMMAND_ID,
 			backgroundColor,
 			color
 		};
@@ -395,7 +437,7 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
 
 		if (openFiles.length) {
-			this.showBannerInEmptyWindow = true;
+			this.showIndicatorsInEmptyWindow = true;
 
 			// If all open files are trusted, transition to a trusted workspace
 			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
@@ -408,12 +450,17 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
 				const editor = this.editorService.activeEditor;
 				if (editor && !!EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })) {
-					this.showBannerInEmptyWindow = true;
+					this.showIndicatorsInEmptyWindow = true;
 					this.updateWorkbenchIndicators(this.workspaceTrustManagementService.isWorkpaceTrusted());
 					disposable.dispose();
 				}
 			}));
-			this.workspaceTrustManagementService.setWorkspaceTrust(this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false);
+			// TODO: Consider moving the check into setWorkspaceTrust()
+			// TODO: Consider moving this into calculateWorkspaceTrust()
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust() &&
+				this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW)) {
+				this.workspaceTrustManagementService.setWorkspaceTrust(true);
+			}
 		}
 	}
 
@@ -427,85 +474,29 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
-		this.updateStatusbarEntry(trusted);
-
-		const isInVirtualWorkspace = isVirtualWorkspace(this.workspaceContextService.getWorkspace());
 		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
-		const bannerItem = this.getBannerItem(isInVirtualWorkspace, !trusted);
+		const bannerItem = this.getBannerItem(!trusted);
 
-		if (bannerItem && (!isEmptyWorkspace || this.showBannerInEmptyWindow)) {
-			if (!isInVirtualWorkspace) {
+		if (!isEmptyWorkspace || this.showIndicatorsInEmptyWindow) {
+			this.updateStatusbarEntry(trusted);
+
+			if (bannerItem) {
 				if (!trusted) {
 					this.bannerService.show(bannerItem);
 				} else {
 					this.bannerService.hide(BANNER_RESTRICTED_MODE);
 				}
-			} else {
-				this.bannerService.show(bannerItem);
 			}
 		}
 	}
 
 	private registerListeners(): void {
-		this._register(this.workspaceTrustManagementService.onDidInitiateWorkspaceTrustRequestOnStartup(() => {
-			this.showModalOnStart();
-		}));
-
-		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(async requestOptions => {
-			// Message
-			const defaultMessage = localize('immediateTrustRequestMessage', "A feature you are trying to use may be a security risk if you do not trust the source of the files or folders you currently have open.");
-			const message = requestOptions?.message ?? defaultMessage;
-
-			// Buttons
-			const buttons = requestOptions?.buttons ?? [
-				{ label: this.useWorkspaceLanguage ? localize('grantWorkspaceTrustButton', "Trust Workspace & Continue") : localize('grantFolderTrustButton', "Trust Folder & Continue"), type: 'ContinueWithTrust' },
-				{ label: localize('manageWorkspaceTrustButton', "Manage"), type: 'Manage' }
-			];
-			// Add Cancel button if not provided
-			if (!buttons.some(b => b.type === 'Cancel')) {
-				buttons.push({ label: localize('cancelWorkspaceTrustButton', "Cancel"), type: 'Cancel' });
-			}
-
-			// Dialog
-			const result = await this.dialogService.show(
-				Severity.Info,
-				this.modalTitle,
-				buttons.map(b => b.label),
-				{
-					cancelId: buttons.findIndex(b => b.type === 'Cancel'),
-					custom: {
-						icon: Codicon.shield,
-						markdownDetails: [
-							{ markdown: new MarkdownString(message) },
-							{ markdown: new MarkdownString(localize('immediateTrustRequestLearnMore', "If you don't trust the authors of these files, we do not recommend continuing as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")) }
-						]
-					}
-				}
-			);
-
-			// Dialog result
-			switch (buttons[result.choice].type) {
-				case 'ContinueWithTrust':
-					await this.workspaceTrustRequestService.completeRequest(true);
-					break;
-				case 'ContinueWithoutTrust':
-					await this.workspaceTrustRequestService.completeRequest(undefined);
-					break;
-				case 'Manage':
-					this.workspaceTrustRequestService.cancelRequest();
-					await this.commandService.executeCommand('workbench.trust.manage');
-					break;
-				case 'Cancel':
-					this.workspaceTrustRequestService.cancelRequest();
-					break;
-			}
-		}));
 
 		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
 			if (e.fromCache) {
 				return;
 			}
-			if (!isWorkspaceTrustEnabled(this.configurationService)) {
+			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 				return;
 			}
 			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
@@ -544,7 +535,8 @@ export class WorkspaceTrustRequestHandler extends Disposable implements IWorkben
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Restored);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
 
 /**
  * Trusted Workspace GUI Editor
@@ -582,11 +574,13 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
  * Actions
  */
 
+const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+
 // Manage Workspace Trust
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.trust.manage',
+			id: MANAGE_TRUST_COMMAND_ID,
 			title: {
 				original: 'Manage Workspace Trust',
 				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
@@ -596,7 +590,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.GlobalActivity,
 				group: '6_workspace_trust',
 				order: 40,
-				when: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
+				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
 			},
 		});
 	}
@@ -647,7 +641,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'string',
 				default: 'prompt',
 				included: !isWeb,
-				description: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace."),
+				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
@@ -658,9 +652,9 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			[WORKSPACE_TRUST_EMPTY_WINDOW]: {
 				type: 'boolean',
-				default: false,
+				default: true,
 				included: !isWeb,
-				description: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code."),
+				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
 				scope: ConfigurationScope.APPLICATION
 			}
 		}
@@ -671,7 +665,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -687,7 +680,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 			return;
 		}
 
@@ -700,12 +693,12 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		};
 
 		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedFolders().length,
+			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedUris().length,
 		});
 	}
 
 	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 			return;
 		}
 
@@ -765,7 +758,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private async logWorkspaceTrustRequest(): Promise<void> {
-		if (!isWorkspaceTrustEnabled(this.configurationService)) {
+		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 			return;
 		}
 

@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
-import { copy, Promises } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 
 interface IDatabaseConnection {
@@ -216,7 +216,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private backup(): Promise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
-		return copy(this.path, backupPath, { preserveSymlinks: false });
+		return Promises.copy(this.path, backupPath, { preserveSymlinks: false });
 	}
 
 	private toBackupPath(path: string): string {

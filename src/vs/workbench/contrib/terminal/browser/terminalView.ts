@@ -42,6 +42,7 @@ import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -257,7 +258,7 @@ export class TerminalViewPane extends ViewPane {
 			},
 			{
 				id: TerminalCommandId.Split,
-				title: nls.localize('terminal.split', "Split Terminal"),
+				title: terminalStrings.split.value,
 				icon: Codicon.splitHorizontal
 			},
 			undefined);
@@ -385,13 +386,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			},
 			{
 				id: TerminalCommandId.Split,
-				title: nls.localize('workbench.action.terminal.split', "Split Terminal"),
+				title: terminalStrings.split.value,
 				icon: Codicon.splitHorizontal
 			},
 			undefined,
 			contextKeyService,
 			commandService
 		), keybindingService, notificationService);
+
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
@@ -406,6 +408,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			}
 		}));
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
+		this._openContextMenu();
 	}
 
 	override updateLabel(): void {

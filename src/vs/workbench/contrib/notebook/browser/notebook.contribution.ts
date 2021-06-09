@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocKey, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBarKey, CompactView, FocusIndicator, InsertToolbarPosition, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, ShowCellStatusBarAfterExecuteKey, NotebookCellEditorOptionsCustomizations } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -66,10 +66,12 @@ import 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/findController';
 import 'vs/workbench/contrib/notebook/browser/contrib/fold/folding';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
+import 'vs/workbench/contrib/notebook/browser/contrib/gettingStarted/notebookGettingStarted';
 import 'vs/workbench/contrib/notebook/browser/contrib/layout/layoutActions';
 import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
+import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
 import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
@@ -128,7 +130,7 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	}
 
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number };
+		type Data = { resource: URI, originalResource: URI, name: string, originalName: string, viewType: string, textDiffName: string | undefined, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -162,7 +164,7 @@ class NotebookEditorSerializer implements IEditorInputSerializer {
 		});
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, viewType: string, group: number };
+		type Data = { resource: URI, viewType: string, group: number; };
 		const data = <Data>parse(raw);
 		if (!data) {
 			return undefined;
@@ -569,7 +571,7 @@ for (const editorOption of editorOptionsRegistry) {
 }
 
 const editorOptionsCustomizationSchema: IConfigurationPropertySchema = {
-	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Notebook Cell editor options customization.'),
+	description: nls.localize('notebook.editorOptions.experimentalCustomization', 'Settings for code editors used in notebooks. This can be used to customize most editor.* settings.'),
 	default: {},
 	allOf: [
 		{
@@ -602,7 +604,7 @@ configurationRegistry.registerConfiguration({
 			},
 			default: []
 		},
-		[CellToolbarLocKey]: {
+		[CellToolbarLocation]: {
 			description: nls.localize('notebook.cellToolbarLocation.description', "Where the cell toolbar should be shown, or whether it should be hidden."),
 			type: 'object',
 			additionalProperties: {
@@ -615,16 +617,15 @@ configurationRegistry.registerConfiguration({
 			},
 			tags: ['notebookLayout']
 		},
-		[ShowCellStatusBarKey]: {
+		[ShowCellStatusBar]: {
 			description: nls.localize('notebook.showCellStatusbar.description', "Whether the cell status bar should be shown."),
-			type: 'boolean',
-			default: true,
-			tags: ['notebookLayout']
-		},
-		[ShowCellStatusBarAfterExecuteKey]: {
-			description: nls.localize('notebook.showCellStatusbarAfterExecute.description', "Whether the cell status bar should be shown after the cell has been executed."),
-			type: 'boolean',
-			default: false,
+			type: 'string',
+			enum: ['hidden', 'visible', 'visibleAfterExecute'],
+			enumDescriptions: [
+				nls.localize('notebook.showCellStatusbar.hidden.description', "The cell status bar is always hidden."),
+				nls.localize('notebook.showCellStatusbar.visible.description', "The cell status bar is always visible."),
+				nls.localize('notebook.showCellStatusbar.visibleAfterExecute.description', "The cell status bar is hidden until the cell has executed. Then it becomes visible to show the execution status.")],
+			default: 'visible',
 			tags: ['notebookLayout']
 		},
 		[NotebookTextDiffEditorPreview]: {
@@ -659,10 +660,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
-			default: 'border',
+			default: 'gutter',
 			tags: ['notebookLayout']
 		},
-		[InsertToolbarPosition]: {
+		[InsertToolbarLocation]: {
 			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
 			type: 'string',
 			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
@@ -672,7 +673,7 @@ configurationRegistry.registerConfiguration({
 		[GlobalToolbar]: {
 			description: nls.localize('notebook.globalToolbar.description', "Control whether to render a global toolbar inside the notebook editor."),
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['notebookLayout']
 		},
 		[ConsolidatedOutputButton]: {
@@ -685,11 +686,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
-			default: 'always',
+			default: 'mouseover',
 			tags: ['notebookLayout']
 		},
 		[DragAndDropEnabled]: {
 			description: nls.localize('notebook.dragAndDrop.description', "Control whether the notebook editor should allow moving cells through drag and drop."),
+			type: 'boolean',
+			default: true,
+			tags: ['notebookLayout']
+		},
+		[ConsolidatedRunButton]: {
+			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
 			type: 'boolean',
 			default: true,
 			tags: ['notebookLayout']

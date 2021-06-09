@@ -104,6 +104,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/test/common/**"
@@ -139,6 +140,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**"
@@ -212,12 +214,27 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/base/parts/*/common/**",
 					"**/vs/base/test/common/**",
 					"**/vs/platform/*/common/**",
 					"**/vs/platform/*/test/common/**"
+				]
+			},
+			{
+				"target": "**/vs/platform/*/test/browser/**",
+				"restrictions": [
+					"assert",
+					"sinon",
+					"sinon-test",
+					"vs/nls",
+					"**/vs/base/{common,browser}/**",
+					"**/vs/base/parts/*/{common,browser}/**",
+					"**/vs/base/test/{common,browser}/**",
+					"**/vs/platform/*/{common,browser}/**",
+					"**/vs/platform/*/test/{common,browser}/**"
 				]
 			},
 			{
@@ -276,6 +293,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/parts/*/{common,browser}/**",
@@ -298,6 +316,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -321,6 +340,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -344,6 +364,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/common/**",
 					"**/vs/platform/*/common/**",
@@ -370,6 +391,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/platform/*/{common,browser}/**",
@@ -384,6 +406,7 @@
 				"restrictions": [
 					"assert",
 					"sinon",
+					"sinon-test",
 					"vs/nls",
 					"**/vs/base/{common,browser}/**",
 					"**/vs/base/test/{common,browser}/**",
@@ -908,6 +931,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"vscode"
 				]
@@ -939,6 +963,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
@@ -949,6 +974,7 @@
 					"**/vs/**",
 					"assert",
 					"sinon",
+					"sinon-test",
 					"crypto",
 					"xterm*"
 				]
@@ -976,6 +1002,7 @@
 				"vscode-dts-cancellation": "warn",
 				"vscode-dts-use-thenable": "warn",
 				"vscode-dts-region-comments": "warn",
+				"vscode-dts-vscode-in-comments": "warn",
 				"vscode-dts-provider-naming": [
 					"warn",
 					{

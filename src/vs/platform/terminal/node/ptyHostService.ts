@@ -5,7 +5,7 @@
 
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, SafeConfigProvider, TerminalSettingId, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
+import { IPtyService, IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, ITerminalsLayoutInfo, TerminalIpcChannels, IHeartbeatService, HeartbeatConstants, TerminalShellType, ITerminalProfile, IRequestResolveVariablesEvent, TitleEventSource, TerminalIcon, IReconnectConstants } from 'vs/platform/terminal/common/terminal';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { FileAccess } from 'vs/base/common/network';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -222,8 +222,8 @@ export class PtyHostService extends Disposable implements IPtyService {
 	getDefaultSystemShell(osOverride?: OperatingSystem): Promise<string> {
 		return this._proxy.getDefaultSystemShell(osOverride);
 	}
-	async getProfiles(includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
-		return detectAvailableProfiles(includeDetectedProfiles, this._buildSafeConfigProvider(), undefined, this._logService, this._resolveVariables.bind(this));
+	async getProfiles(profiles: unknown, defaultProfile: unknown, includeDetectedProfiles: boolean = false): Promise<ITerminalProfile[]> {
+		return detectAvailableProfiles(profiles, defaultProfile, includeDetectedProfiles, this._configurationService, undefined, this._logService, this._resolveVariables.bind(this));
 	}
 	getEnvironment(): Promise<IProcessEnvironment> {
 		return this._proxy.getEnvironment();
@@ -325,22 +325,5 @@ export class PtyHostService extends Disposable implements IPtyService {
 		} else {
 			this._logService.warn(`Resolved variables received without matching request ${id}`);
 		}
-	}
-
-	private _buildSafeConfigProvider(): SafeConfigProvider {
-		return (key: string) => {
-			const isWorkspaceConfigAllowed = this._configurationService.getValue(TerminalSettingId.AllowWorkspaceConfiguration);
-			if (isWorkspaceConfigAllowed) {
-				return this._configurationService.getValue(key) as any;
-			}
-			const inspected = this._configurationService.inspect(key);
-			if (!inspected) {
-				return undefined;
-			}
-			if (inspected.userValue && typeof inspected.userValue === 'object' && inspected.defaultValue && typeof inspected.defaultValue === 'object') {
-				return { ...inspected.defaultValue, ...inspected.userValue };
-			}
-			return inspected?.userValue || inspected?.defaultValue;
-		};
 	}
 }

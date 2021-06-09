@@ -16,6 +16,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookKernelService', () => {
 
@@ -102,7 +103,7 @@ suite('NotebookKernelService', () => {
 		assert.ok(info.all[1] === kernel);
 	});
 
-	test('onDidChangeNotebookAssociation not fired on initial notebook open #121904', function () {
+	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904', function () {
 
 		const uri = URI.parse('foo:///one');
 		const jupyter = { uri, viewType: 'jupyter' };
@@ -123,7 +124,7 @@ suite('NotebookKernelService', () => {
 		assert.strictEqual(info.selected === jupyterKernel, true);
 	});
 
-	test('onDidChangeNotebookAssociation not fired on initial notebook open #121904, p2', async function () {
+	test('onDidChangeSelectedNotebooks not fired on initial notebook open #121904, p2', async function () {
 
 		const uri = URI.parse('foo:///one');
 		const jupyter = { uri, viewType: 'jupyter' };
@@ -176,7 +177,7 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? ['text/plain'];
+		this.supportedLanguages = opts?.languages ?? [Mimes.text];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}

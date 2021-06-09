@@ -94,9 +94,20 @@ export class NotebookProviderInfoStore extends Disposable {
 
 		for (const extension of extensions) {
 			for (const notebookContribution of extension.value) {
+
+				if (!notebookContribution.type) {
+					extension.collector.error(`Notebook does not specify type-property`);
+					continue;
+				}
+
+				if (this.get(notebookContribution.type)) {
+					extension.collector.error(`Notebook type '${notebookContribution.type}' already used`);
+					continue;
+				}
+
 				this.add(new NotebookProviderInfo({
 					extension: extension.description.identifier,
-					id: notebookContribution.viewType,
+					id: notebookContribution.type,
 					displayName: notebookContribution.displayName,
 					selectors: notebookContribution.selector || [],
 					priority: this._convertPriority(notebookContribution.priority),
@@ -162,7 +173,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				globPattern,
 				notebookEditorInfo,
 				notebookEditorOptions,
@@ -170,7 +181,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
 				{ ...notebookEditorInfo, priority: ContributedEditorPriority.exclusive },
 				notebookEditorOptions,
@@ -353,7 +364,7 @@ export class NotebookService extends Disposable implements INotebookService {
 						continue;
 					}
 
-					const id = notebookContribution.id ?? notebookContribution.viewType;
+					const id = notebookContribution.id;
 					if (!id) {
 						extension.collector.error(`Notebook renderer does not specify id-property`);
 						continue;

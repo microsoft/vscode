@@ -46,7 +46,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ChoiceAction } from 'vs/workbench/common/notifications';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { IExtensionsWorkbenchService } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IExtensionsWorkbenchService, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { getInstalledExtensions, IExtensionStatus } from 'vs/workbench/contrib/extensions/common/extensionsUtils';
 import { settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
@@ -139,7 +139,8 @@ class WorkspaceTrustedUrisTable extends Disposable {
 		) as WorkbenchTable<ITrustedUriItem>;
 
 		this._register(this.table.onDidOpen(item => {
-			if (item && item.element) {
+			// default prevented when input box is double clicked #125052
+			if (item && item.element && !item.browserEvent?.defaultPrevented) {
 				this.edit(item.element);
 			}
 		}));
@@ -188,7 +189,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			currentWorkspaceUris.push(currentWorkspace.configuration);
 		}
 
-		const entries = this.workspaceTrustManagementService.getTrustedFolders().map(uri => {
+		const entries = this.workspaceTrustManagementService.getTrustedUris().map(uri => {
 
 			let relatedToCurrentWorkspace = false;
 			for (const workspaceUri of currentWorkspaceUris) {
@@ -215,7 +216,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 	}
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
-		const trustedFolders = this.workspaceTrustManagementService.getTrustedFolders();
+		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
 		const index = this.getIndexOfTrustedUriEntry(item);
 
 		if (index >= trustedFolders.length) {
@@ -224,7 +225,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 			trustedFolders[index] = uri;
 		}
 
-		this.workspaceTrustManagementService.setTrustedFolders(trustedFolders);
+		this.workspaceTrustManagementService.setTrustedUris(trustedFolders);
 		this._onDidAcceptEdit.fire(item);
 	}
 
@@ -380,6 +381,11 @@ class TrustedUriPathColumnRenderer implements ITableRenderer<ITrustedUriItem, IT
 				templateData.pathInput.select();
 				templateData.element.parentElement!.style.paddingLeft = '0px';
 			}
+		}));
+
+		// stop double click action from re-rendering the element on the table #125052
+		templateData.renderDisposables.add(addDisposableListener(templateData.pathInput.element, EventType.DBLCLICK, e => {
+			EventHelper.stop(e);
 		}));
 
 
@@ -556,6 +562,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	protected createEditor(parent: HTMLElement): void {
 		this.rootElement = append(parent, $('.workspace-trust-editor', { tabindex: '0' }));
+		this.rootElement.style.visibility = 'hidden';
 
 		this.createHeaderElement(this.rootElement);
 
@@ -587,6 +594,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		await super.setInput(input, options, context, token);
 		if (token.isCancellationRequested) { return; }
 
+		await this.workspaceTrustManagementService.workspaceTrustInitialized;
 		this.registerListeners();
 		this.render();
 	}
@@ -608,6 +616,10 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private getHeaderTitleText(trusted: boolean): string {
 		if (trusted) {
+			if (this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
+				return localize('trustedUnsettableWindow', "This window is trusted");
+			}
+
 			switch (this.workspaceService.getWorkbenchState()) {
 				case WorkbenchState.EMPTY:
 					return localize('trustedHeaderWindow', "You trust this window");
@@ -738,6 +750,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		this.bodyScrollBar.getDomNode().style.height = `calc(100% - ${this.headerContainer.clientHeight}px)`;
 		this.bodyScrollBar.scanDomNode();
+		this.rootElement.style.visibility = '';
 		this.rendering = false;
 	}
 
@@ -781,35 +794,53 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	private async renderAffectedFeatures(numSettings: number, numExtensions: number): Promise<void> {
 		clearNode(this.affectedFeaturesContainer);
+
+		// Trusted features
 		const trustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.trusted'));
 		const [trustedTitle, trustedSubTitle] = this.getFeaturesHeaderText(true);
-		this.renderLimitationsHeaderElement(trustedContainer, trustedTitle, trustedSubTitle);
-		this.renderLimitationsListElement(trustedContainer, [
-			localize('trustedTasks', "Tasks are allowed to run"),
-			localize('trustedDebugging', "Debugging is enabled"),
-			localize('trustedSettings', "All workspace settings are applied"),
-			localize('trustedExtensions', "All extensions are enabled")
-		], checkListIcon.classNamesArray);
 
+		this.renderLimitationsHeaderElement(trustedContainer, trustedTitle, trustedSubTitle);
+		const trustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
+			[
+				localize('trustedTasks', "Tasks are allowed to run"),
+				localize('trustedDebugging', "Debugging is enabled"),
+				localize('trustedExtensions', "All extensions are enabled")
+			] :
+			[
+				localize('trustedTasks', "Tasks are allowed to run"),
+				localize('trustedDebugging', "Debugging is enabled"),
+				localize('trustedSettings', "All workspace settings are applied"),
+				localize('trustedExtensions', "All extensions are enabled")
+			];
+		this.renderLimitationsListElement(trustedContainer, trustedContainerItems, checkListIcon.classNamesArray);
+
+		// Restricted Mode features
 		const untrustedContainer = append(this.affectedFeaturesContainer, $('.workspace-trust-limitations.untrusted'));
 		const [untrustedTitle, untrustedSubTitle] = this.getFeaturesHeaderText(false);
-		this.renderLimitationsHeaderElement(untrustedContainer, untrustedTitle, untrustedSubTitle);
 
-		this.renderLimitationsListElement(untrustedContainer, [
-			localize('untrustedTasks', "Tasks are disabled"),
-			localize('untrustedDebugging', "Debugging is disabled"),
-			numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-			localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, 'workbench.extensions.action.listWorkspaceUnsupportedExtensions')
-		], xListIcon.classNamesArray);
+		this.renderLimitationsHeaderElement(untrustedContainer, untrustedTitle, untrustedSubTitle);
+		const untrustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
+			[
+				localize('untrustedTasks', "Tasks are disabled"),
+				localize('untrustedDebugging', "Debugging is disabled"),
+				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+			] :
+			[
+				localize('untrustedTasks', "Tasks are disabled"),
+				localize('untrustedDebugging', "Debugging is disabled"),
+				numSettings ? localize('untrustedSettings', "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+			];
+		this.renderLimitationsListElement(untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
 
 		if (this.workspaceTrustManagementService.isWorkpaceTrusted()) {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addDontTrustButtonToElement(untrustedContainer);
 			} else {
 				this.addTrustedTextToElement(untrustedContainer);
 			}
 		} else {
-			if (await this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
+			if (this.workspaceTrustManagementService.canSetWorkspaceTrust()) {
 				this.addTrustButtonToElement(trustedContainer);
 			}
 		}
@@ -890,7 +921,11 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 
 		const textElement = append(parent, $('.workspace-trust-untrusted-description'));
-		textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+		if (!this.workspaceTrustManagementService.isWorkspaceTrustForced()) {
+			textElement.innerText = this.workspaceService.getWorkbenchState() === WorkbenchState.WORKSPACE ? localize('untrustedWorkspaceReason', "This workspace is trusted via the bolded entries in the trusted folders below.") : localize('untrustedFolderReason', "This folder is trusted via the bolded entries in the the trusted folders below.");
+		} else {
+			textElement.innerText = localize('trustedForcedReason', "This window is trusted by nature of the workspace that is opened.");
+		}
 	}
 
 	private renderLimitationsHeaderElement(parent: HTMLElement, headerText: string, subtitleText: string): void {

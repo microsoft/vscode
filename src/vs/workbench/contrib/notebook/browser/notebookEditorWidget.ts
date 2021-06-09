@@ -72,6 +72,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
 
@@ -635,6 +636,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				top: -${cellTopMargin}px; height: calc(100% + ${cellTopMargin + cellBottomMargin}px)
 			}`);
 		} else {
+			// gutter
 			styleSheets.push(`
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-left:before,
 			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row .cell-focus-indicator-right:before {
@@ -662,6 +664,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				border-radius: 2px;
 				margin-left: ${focusIndicatorLeftMargin}px;
 			}`);
+
+			// boder should always show
+			styleSheets.push(`
+			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
+				border-color: var(--notebook-focused-cell-border-color) !important;
+			}
+
+			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-inner-container .cell-focus-indicator-left:before {
+				border-color: var(--notebook-inactive-focused-cell-border-color) !important;
+			}
+			`);
 		}
 
 		// between cell insert toolbar
@@ -1373,16 +1386,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			await this._webview!.initializeMarkdown(requests.map(request => ({
-				cellId: request[0].id,
-				cellHandle: request[0].handle,
-				content: request[0].getText(),
-				offset: request[1],
-				visible: false,
-			})));
+			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
 		} else {
-			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
-			await this._webview!.initializeMarkdown(initRequests);
+			const initRequests = viewModel.viewCells
+				.filter(cell => cell.cellKind === CellKind.Markup)
+				.slice(0, 5)
+				.map(cell => this.createMarkupCellInitialization(cell, -10000));
+
+			await this._webview!.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
@@ -1403,6 +1414,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._webview?.updateScrollTops([], offsetUpdateRequests);
 		}
+	}
+
+	private createMarkupCellInitialization(model: ICellViewModel, offset: number): IMarkupCellInitialization {
+		return ({
+			mime: model.mime,
+			cellId: model.id,
+			cellHandle: model.handle,
+			content: model.getText(),
+			offset: offset,
+			visible: false,
+		});
 	}
 
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
@@ -2249,6 +2271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkdownPreview({
+			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),
@@ -2710,6 +2733,20 @@ export const cellEditorBackground = registerColor('notebook.cellEditorBackground
 }, nls.localize('notebook.cellEditorBackground', "Cell editor background color."));
 
 registerThemingParticipant((theme, collector) => {
+	// add css variable rules
+
+	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
+	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
+	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
+	collector.addRule(`
+	:root {
+		--notebook-focused-cell-border-color: ${focusedCellBorderColor};
+		--notebook-inactive-focused-cell-border-color: ${inactiveFocusedBorderColor};
+		--notebook-selected-cell-border-color: ${selectedCellBorderColor};
+	}
+	`);
+
+
 	const link = theme.getColor(textLinkForeground);
 	if (link) {
 		collector.addRule(`.notebookOverlay .cell.markdown a,
@@ -2806,30 +2843,6 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.notebookOverlay .code-cell-row:not(.focused):hover .cell-collapsed-part,
 			.notebookOverlay .code-cell-row:not(.focused).cell-output-hover .cell-collapsed-part { background-color: ${cellHoverBackgroundColor}; }`);
 	}
-
-	const focusedCellBorderColor = theme.getColor(focusedCellBorder);
-	collector.addRule(`
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-left:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container:not(.cell-editor-focus) .cell-focus-indicator-right:before {
-				border-color: ${focusedCellBorderColor} !important;
-			}`);
-
-	const inactiveFocusedBorderColor = theme.getColor(inactiveFocusedCellBorder);
-	collector.addRule(`
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.focused .cell-focus-indicator-bottom:before {
-				border-color: ${inactiveFocusedBorderColor} !important;
-			}`);
-
-	const selectedCellBorderColor = theme.getColor(selectedCellBorder);
-	collector.addRule(`
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-top:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-editor-focus .cell-focus-indicator-bottom:before,
-			.monaco-workbench .notebookOverlay .monaco-list:focus-within .monaco-list-row.focused .cell-inner-container.cell-editor-focus:before {
-				border-color: ${selectedCellBorderColor} !important;
-			}`);
 
 	const cellSymbolHighlightColor = theme.getColor(cellSymbolHighlight);
 	if (cellSymbolHighlightColor) {

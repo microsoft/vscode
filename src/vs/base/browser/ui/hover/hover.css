@@ -138,3 +138,8 @@
 	margin-bottom: 4px;
 	display: inline-block;
 }
+
+.monaco-hover-content .action-container a {
+	-webkit-user-select: none;
+	user-select: none;
+}

@@ -7,41 +7,23 @@ import { escape } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
 
 export default () => `
+<vertically-centered>
 <checklist>
 	<checkbox on-checked="setTheme:Default Light+" checked-on="config.workbench.colorTheme == 'Default Light+'">
-		<img width="200" src="./light.png"/>
+		<img width="150" src="./light.png"/>
 		${escape(localize('light', "Light"))}
 	</checkbox>
 	<checkbox on-checked="setTheme:Default Dark+" checked-on="config.workbench.colorTheme == 'Default Dark+'">
-		<img width="200" src="./dark.png"/>
+		<img width="150" src="./dark.png"/>
 		${escape(localize('dark', "Dark"))}
 	</checkbox>
-	<checkbox on-checked="setTheme:Quiet Light" checked-on="config.workbench.colorTheme == 'Quiet Light'">
-		<img width="200" src="./quiet-light.png"/>
-		Quiet Light
-	</checkbox>
-	<checkbox on-checked="setTheme:Monokai" checked-on="config.workbench.colorTheme == 'Monokai'">
-		<img width="200" src="./monokai.png"/>
-		Monokai
-	</checkbox>
-	<checkbox on-checked="command:workbench.action.selectTheme" checked-on="false">
-		<img width="200" src="./more.png"/>
-		See More...
+	<checkbox on-checked="setTheme:Default High Contrast" checked-on="config.workbench.colorTheme == 'Default High Contrast'">
+		<img width="150" src="./monokai.png"/>
+		${escape(localize('HighContrast', "High Contrast"))}
 	</checkbox>
 </checklist>
-
-\`\`\`js
-const btn = document.getElementById('btn')
-let count = 0
-function render() {
-	btn.innerText = \`Count: \${count}\`
-}
-btn.addEventListener('click', () => {
-	// Count from 1 to 10.
-	if (count < 10) {
-		count += 1
-		render()
-	}
-})
-\`\`\`
+<checkbox on-checked="command:workbench.action.selectTheme" checked-on="false">
+	${escape(localize('seeMore', "See More Themes..."))}
+</checkbox>
+</vertically-centered>
 `;

@@ -313,7 +313,7 @@ class DropOverlay extends Themable {
 
 						// Skip for very large files because this operation is unbuffered
 						if (file.size > DropOverlay.MAX_FILE_UPLOAD_SIZE) {
-							this.dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."), [localize('ok', 'OK')]);
+							this.dialogService.show(Severity.Warning, localize('fileTooLarge', "File is too large to open as untitled editor. Please upload it first into the file explorer and then try again."));
 							continue;
 						}
 

@@ -19,8 +19,9 @@ import { Position } from 'vs/editor/common/core/position';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorSuggestPreviewBorder, editorSuggestPreviewOpacity } from 'vs/editor/common/view/editorColorRegistry';
+import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
+import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -51,7 +52,9 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 
 	public get expanded() {
 		if (this._expanded === undefined) {
-			return this.editor.getOption(EditorOption.suggest).suggestionPreviewExpanded;
+			// TODO this should use a global hidden setting.
+			// See https://github.com/microsoft/vscode/issues/125037.
+			return true;
 		}
 		return this._expanded;
 	}
@@ -110,6 +113,10 @@ export class GhostTextWidget extends Disposable {
 		return this.modelRef.value?.object;
 	}
 
+	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
+		return (this.viewZoneId === viewZoneId);
+	}
+
 	public setModel(model: GhostTextWidgetModel | undefined): void {
 		if (model === this.model) { return; }
 		this.modelRef.value = model
@@ -147,27 +154,42 @@ export class GhostTextWidget extends Disposable {
 			this.codeEditorDecorationTypeKey = null;
 		}
 
-		if (renderData) {
-			const suggestPreviewForeground = this._themeService.getColorTheme().getColor(editorSuggestPreviewOpacity);
-			let opacity = '0.467';
-			let color = 'white';
-			if (suggestPreviewForeground) {
+		if (renderData && renderData.lines.length > 0) {
+			const foreground = this._themeService.getColorTheme().getColor(ghostTextForeground);
+			let opacity: string | undefined = undefined;
+			let color: string | undefined = undefined;
+			if (foreground) {
 				function opaque(color: Color): Color {
 					const { r, b, g } = color.rgba;
 					return new Color(new RGBA(r, g, b, 255));
 				}
 
-				opacity = String(suggestPreviewForeground.rgba.a);
-				color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
+				opacity = String(foreground.rgba.a);
+				color = Color.Format.CSS.format(opaque(foreground))!;
 			}
+
+			const borderColor = this._themeService.getColorTheme().getColor(ghostTextBorder);
+			let border: string | undefined = undefined;
+			if (borderColor) {
+				border = `2px dashed ${borderColor}`;
+			}
+
 			// We add 0 to bring it before any other decoration.
 			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
+
+			const line = this.editor.getModel()?.getLineContent(renderData.position.lineNumber) || '';
+			const linePrefix = line.substr(0, renderData.position.column - 1);
+
+			// To avoid visual confusion, we don't want to render visible whitespace
+			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, false);
+
 			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
 				after: {
 					// TODO: escape?
-					contentText: renderData.lines[0],
+					contentText,
 					opacity,
 					color,
+					border,
 				},
 			});
 		}
@@ -238,7 +260,7 @@ export class GhostTextWidget extends Disposable {
 		button.className = 'button suggest-preview-text';
 		button.append(`+${remainingLinesLength} lines…`);
 
-		disposableStore.add(dom.addStandardDisposableListener(button, 'click', (e) => {
+		disposableStore.add(dom.addStandardDisposableListener(button, 'mousedown', (e) => {
 			this.model?.setExpanded(true);
 			e.preventDefault();
 			this.editor.focus();
@@ -252,7 +274,8 @@ export class GhostTextWidget extends Disposable {
 		const opts = this.editor.getOptions();
 		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
 		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-		const renderWhitespace = opts.get(EditorOption.renderWhitespace);
+		// To avoid visual confusion, we don't want to render visible whitespace
+		const renderWhitespace = 'none';
 		const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
 		const fontLigatures = opts.get(EditorOption.fontLigatures);
 		const fontInfo = opts.get(EditorOption.fontInfo);
@@ -305,6 +328,41 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
+function renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
+	const newLine = lineStart + text;
+	const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+
+
+	let contentText = '';
+	let curCol = lineStart.length + 1;
+	for (const c of text) {
+		if (c === '\t') {
+			const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+			if (renderWhitespace) {
+				contentText += '→';
+				for (let i = 1; i < width; i++) {
+					contentText += '\xa0';
+				}
+			} else {
+				for (let i = 0; i < width; i++) {
+					contentText += '\xa0';
+				}
+			}
+		} else if (c === ' ') {
+			if (renderWhitespace) {
+				contentText += '·';
+			} else {
+				contentText += '\xa0';
+			}
+		} else {
+			contentText += c;
+		}
+		curCol += 1;
+	}
+
+	return contentText;
+}
+
 class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 	readonly allowEditorOverflow = false;
 	readonly suppressMouseDown = false;
@@ -340,25 +398,24 @@ class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
 }
 
 registerThemingParticipant((theme, collector) => {
+	const foreground = theme.getColor(ghostTextForeground);
 
-	const suggestPreviewForeground = theme.getColor(editorSuggestPreviewOpacity);
-
-	if (suggestPreviewForeground) {
+	if (foreground) {
 		function opaque(color: Color): Color {
 			const { r, b, g } = color.rgba;
 			return new Color(new RGBA(r, g, b, 255));
 		}
 
-		const opacity = String(suggestPreviewForeground.rgba.a);
-		const color = Color.Format.CSS.format(opaque(suggestPreviewForeground))!;
+		const opacity = String(foreground.rgba.a);
+		const color = Color.Format.CSS.format(opaque(foreground))!;
 
 		// We need to override the only used token type .mtk1
 		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { opacity: ${opacity}; color: ${color}; }`);
 	}
 
-	const suggestPreviewBorder = theme.getColor(editorSuggestPreviewBorder);
-	if (suggestPreviewBorder) {
-		collector.addRule(`.monaco-editor .suggest-preview-text { border-bottom: 2px dashed ${suggestPreviewBorder}; }`);
+	const border = theme.getColor(ghostTextBorder);
+	if (border) {
+		collector.addRule(`.monaco-editor .suggest-preview-text .mtk1 { border: 2px dashed ${border}; }`);
 	}
 });
 

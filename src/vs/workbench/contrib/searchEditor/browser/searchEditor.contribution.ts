@@ -75,7 +75,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorOverrideService.registerContributionPoint(
+		this.editorOverrideService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,

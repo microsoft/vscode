@@ -9,7 +9,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { Schemas } from 'vs/base/common/network';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { rimraf, copy, exists, Promises } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -55,7 +55,7 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 			testDir = getRandomTestPath(tmpdir(), 'vsctests', 'textfileservice');
 			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await copy(sourceDir, testDir, { preserveSymlinks: false });
+			await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 
 			return { service, testDir };
 		},
@@ -65,10 +65,10 @@ flakySuite('Files - NativeTextFileService i/o', function () {
 
 			disposables.clear();
 
-			return rimraf(testDir);
+			return Promises.rm(testDir);
 		},
 
-		exists,
+		exists: Promises.exists,
 		stat: Promises.stat,
 		readFile,
 		detectEncodingByBOM

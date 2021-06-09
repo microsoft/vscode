@@ -429,30 +429,30 @@
 
 	grid-template-columns: minmax(auto, 400px) 1fr;
 	grid-template-rows: minmax(40px, 20%) auto max-content 1fr;
-	grid-column-gap: 20px;
+	column-gap: 20px;
 	grid-template-areas:
-	"back img"
-	"title img"
-	"steps img"
-	". img"
+	"back media"
+	"title media"
+	"steps media"
+	". media"
 	;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	max-width: 500px;
 	grid-template-columns: auto;
-	grid-template-rows: 30px auto minmax(30%, 40%) 1fr;
-	grid-column-gap: 20px;
+	grid-template-rows: 30px max-content minmax(0, max-content) minmax(30%, 1fr);
+	row-gap: 4px;
 	grid-template-areas:
 	"back"
 	"title"
-	"img"
 	"steps"
+	"media"
 	;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained.height-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent {
-	grid-template-rows: 0 auto minmax(40%, 50%) 1fr;
+	grid-template-rows: 0 max-content minmax(0, max-content) minmax(30%, 1fr);
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .prev-button {
@@ -469,14 +469,21 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media {
-	grid-area: img;
+	grid-area: media;
 	align-self: center;
 }
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.markdown {
 	height: inherit;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.image {
+	grid-area: title-start / media-start / steps-end / media-end;
+	align-self: unset;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent > .getting-started-media.image {
+	grid-area: media;
 	height: inherit;
 	width: inherit;
 	display: flex;
@@ -508,6 +515,7 @@
 	color: inherit;
 	text-align: left;
 	padding: 16px;
+	font-size: 13px;
 	margin: 1px 0; /* makes room for focus border */
 	font-family: inherit;
 }
@@ -517,6 +525,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:focus {
 	outline-style: solid;
+	outline-width: 1px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {
@@ -651,7 +660,7 @@
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .getting-started-category .codicon {
-	top: 3px;
+	top: 0px;
 }
 
 .monaco-workbench .part.editor > .content .getting-started-category .codicon::before{

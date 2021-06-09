@@ -894,6 +894,7 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
 	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
+	$trySetSelections(id: string, range: ICellRange[]): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
 	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
 }
@@ -907,7 +908,7 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 
 export interface INotebookKernelDto2 {
 	id: string;
-	viewType: string;
+	notebookType: string;
 	extensionId: ExtensionIdentifier;
 	extensionLocation: UriComponents;
 	label: string;
@@ -915,7 +916,7 @@ export interface INotebookKernelDto2 {
 	description?: string;
 	supportedLanguages?: string[];
 	supportsInterrupt?: boolean;
-	hasExecutionOrder?: boolean;
+	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
@@ -1909,22 +1910,7 @@ export interface INotebookDocumentsAndEditorsDelta {
 	visibleEditors?: string[];
 }
 
-export interface INotebookKernelInfoDto2 {
-	id?: string;
-	friendlyId: string;
-	label: string;
-	extension: ExtensionIdentifier;
-	extensionLocation: UriComponents;
-	providerHandle?: number;
-	description?: string;
-	detail?: string;
-	isPreferred?: boolean;
-	preloads?: { uri: UriComponents; provides: string[] }[];
-	supportedLanguages?: string[]
-	implementsInterrupt?: boolean;
-}
-
-export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape, ExtHostNotebookDocumentsShape, ExtHostNotebookEditorsShape {
+export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
 
@@ -2141,6 +2127,8 @@ export const ExtHostContext = {
 	ExtHostOutputService: createMainId<ExtHostOutputServiceShape>('ExtHostOutputService'),
 	ExtHosLabelService: createMainId<ExtHostLabelServiceShape>('ExtHostLabelService'),
 	ExtHostNotebook: createMainId<ExtHostNotebookShape>('ExtHostNotebook'),
+	ExtHostNotebookDocuments: createMainId<ExtHostNotebookDocumentsShape>('ExtHostNotebookDocuments'),
+	ExtHostNotebookEditors: createMainId<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createMainId<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createMainId<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),

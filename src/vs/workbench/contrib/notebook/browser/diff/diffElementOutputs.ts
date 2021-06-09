@@ -14,7 +14,6 @@ import { getResizesObserver } from 'vs/workbench/contrib/notebook/browser/view/r
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { BUILTIN_RENDERER_ID, NotebookCellOutputsSplice } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { DiffNestedCellViewModel } from 'vs/workbench/contrib/notebook/browser/diff/diffNestedCellViewModel';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { mimetypeIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
@@ -90,7 +89,7 @@ export class OutputElement extends Disposable {
 				result = this._notebookEditor.getOutputRenderer().render(this.output, innerContainer, pickedMimeTypeRenderer.mimeType, this._notebookTextModel.uri);
 			}
 
-			this.output.pickedMimeType = pick;
+			this.output.pickedMimeType = pickedMimeTypeRenderer;
 		}
 
 		this.domNode = outputItemDiv;
@@ -202,7 +201,7 @@ export class OutputElement extends Disposable {
 				);
 			}
 
-			viewModel.pickedMimeType = pick;
+			viewModel.pickedMimeType = mimeTypes[pick];
 			this.render(index, nextElement as HTMLElement);
 		}
 	}
@@ -250,9 +249,7 @@ export class OutputContainer extends Disposable {
 		private _outputContainer: HTMLElement,
 		@INotebookService private _notebookService: INotebookService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IOpenerService readonly _openerService: IOpenerService,
-		@ITextFileService readonly _textFileService: ITextFileService,
-
+		@IOpenerService readonly _openerService: IOpenerService
 	) {
 		super();
 		this._register(this._diffElementViewModel.onDidLayoutChange(() => {

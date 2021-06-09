@@ -181,12 +181,15 @@ export class NotebookModelResolverServiceImpl implements INotebookEditorModelRes
 		}
 
 		const reference = this._data.acquire(resource.toString(), viewType);
-		const model = await reference.object;
-		return {
-			object: model,
-			dispose() {
-				reference.dispose();
-			}
-		};
+		try {
+			const model = await reference.object;
+			return {
+				object: model,
+				dispose() { reference.dispose(); }
+			};
+		} catch (err) {
+			reference.dispose();
+			throw err;
+		}
 	}
 }

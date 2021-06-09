@@ -13,7 +13,6 @@ import { Cache, CacheResult } from 'vs/base/common/cache';
 import { Action, IAction } from 'vs/base/common/actions';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { dispose, toDisposable, Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { domEvent } from 'vs/base/browser/event';
 import { append, $, finalHandler, join, hide, show, addDisposableListener, EventType, setParentFlowTo } from 'vs/base/browser/dom';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -182,7 +181,6 @@ export class ExtensionEditor extends EditorPane {
 	private layoutParticipants: ILayoutParticipant[] = [];
 	private readonly contentDisposables = this._register(new DisposableStore());
 	private readonly transientDisposables = this._register(new DisposableStore());
-	private readonly keybindingLabelStylers = this.contentDisposables.add(new DisposableStore());
 	private activeElement: IActiveElement | null = null;
 	private editorLoadComplete: boolean = false;
 
@@ -350,8 +348,7 @@ export class ExtensionEditor extends EditorPane {
 		this.extensionManifest = new Cache(() => createCancelablePromise(token => extension.getManifest(token)));
 
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, template.iconContainer, true);
-		const onError = Event.once(domEvent(template.icon, 'error'));
-		onError(() => template.icon.src = extension.iconUrlFallback, null, this.transientDisposables);
+		this.transientDisposables.add(addDisposableListener(template.icon, 'error', () => template.icon.src = extension.iconUrlFallback, { once: true }));
 		template.icon.src = extension.iconUrl;
 
 		template.name.textContent = extension.displayName;
@@ -1278,12 +1275,11 @@ export class ExtensionEditor extends EditorPane {
 			return false;
 		}
 
-		this.keybindingLabelStylers.clear();
 		const renderKeybinding = (keybinding: ResolvedKeybinding): HTMLElement => {
 			const element = $('');
 			const kbl = new KeybindingLabel(element, OS);
 			kbl.set(keybinding);
-			this.keybindingLabelStylers.add(attachKeybindingLabelStyler(kbl, this.themeService));
+			this.contentDisposables.add(attachKeybindingLabelStyler(kbl, this.themeService));
 			return element;
 		};
 

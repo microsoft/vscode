@@ -233,15 +233,26 @@ Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
+configurationRegistry.registerConfiguration({
+	...workbenchConfigurationNodeBase,
+	properties: {
+		'workbench.welcomePage.walkthroughs.openOnInstall': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: true,
+			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension. Walkthroughs are the items contributed the the 'Getting Started' section of the welcome page")
+		}
+	}
+});
 if (product.quality !== 'stable') {
 	configurationRegistry.registerConfiguration({
 		...workbenchConfigurationNodeBase,
 		properties: {
-			'workbench.welcomePage.experimental.extensionContributions': {
+			'workbench.welcomePage.experimental.startEntryContributions': {
 				scope: ConfigurationScope.APPLICATION,
 				type: 'boolean',
 				default: false,
-				description: localize('workbench.welcomePage.experimental.extensionContributions', "When enabled, allow extensions to contribute items to the \"Getting Started\" and \"Start\" sections of the welcome page. Experimental, subject to breakage as api changes.")
+				description: localize('workbench.welcomePage.experimental.startEntryContributions', "When enabled, allow extensions to contribute items to the \"Start\" section of the welcome page. Experimental, subject to breakage as api changes.")
 			}
 		}
 	});

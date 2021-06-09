@@ -11,7 +11,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { startsWithIgnoreCase } from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { isNumber, isUndefinedOrNull } from 'vs/base/common/types';
+import { isNumber } from 'vs/base/common/types';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { ReadableStreamEvents } from 'vs/base/common/stream';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -776,16 +776,6 @@ export class FileChangesEvent {
 	}
 
 	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	getUpdated(): IFileChange[] {
-		return this.getOfType(FileChangeType.UPDATED);
-	}
-
-	/**
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
@@ -803,16 +793,6 @@ export class FileChangesEvent {
 		}
 
 		return changes;
-	}
-
-	/**
-	 * @deprecated use the `contains()` method to efficiently find out if the event
-	 * relates to a given resource. this method ensures:
-	 * - that there is no expensive lookup needed by using a `TernarySearchTree`
-	 * - correctly handles `FileChangeType.DELETED` events
-	 */
-	filter(filterFn: (change: IFileChange) => boolean): FileChangesEvent {
-		return new FileChangesEvent(this.changes.filter(change => filterFn(change)), this.ignorePathCasing);
 	}
 }
 
@@ -1038,12 +1018,23 @@ export interface ICreateFileOptions {
 }
 
 export class FileOperationError extends Error {
-	constructor(message: string, public fileOperationResult: FileOperationResult, public options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions) {
+	constructor(
+		message: string,
+		readonly fileOperationResult: FileOperationResult,
+		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+	) {
 		super(message);
 	}
+}
 
-	static isFileOperationError(obj: unknown): obj is FileOperationError {
-		return obj instanceof Error && !isUndefinedOrNull((obj as FileOperationError).fileOperationResult);
+export class NotModifiedSinceFileOperationError extends FileOperationError {
+
+	constructor(
+		message: string,
+		readonly stat: IFileStatWithMetadata,
+		options?: IReadFileOptions
+	) {
+		super(message, FileOperationResult.FILE_NOT_MODIFIED_SINCE, options);
 	}
 }
 
