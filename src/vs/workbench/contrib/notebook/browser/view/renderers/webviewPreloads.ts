@@ -543,24 +543,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 
 			case 'updateSelectedMarkupCells':
-				{
-					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
-
-					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
-						const id = oldSelected.id;
-						if (!selectedCellIds.has(id)) {
-							oldSelected.classList.remove('selected');
-						}
-					}
-
-					for (const newSelected of selectedCellIds) {
-						const previewContainer = document.getElementById(newSelected);
-						if (previewContainer) {
-							previewContainer.classList.add('selected');
-						}
-					}
-				}
+				notebookDocument.updateSelectedCells(event.data.selectedCellIds);
 				break;
+
 			case 'html': {
 				const data = event.data;
 				outputs.enqueue(event.data.outputId, async (state) => {
@@ -1084,6 +1069,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 			return cell;
 		}
+
+		public updateSelectedCells(selectedCellIds: readonly string[]) {
+			const selectedCellSet = new Set<string>(selectedCellIds);
+			for (const cell of this._markupCells.values()) {
+				cell.setSelected(selectedCellSet.has(cell.id));
+			}
+		}
 	}();
 
 	class MarkdownCell implements IOutputItem {
@@ -1230,6 +1222,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			dimensionUpdater.update(this.id, this.element.clientHeight, {
 				isOutput: false
 			});
+		}
+
+		public setSelected(selected: boolean) {
+			this.element.classList.toggle('selected', selected);
 		}
 	}
 
