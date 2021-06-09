@@ -21,6 +21,7 @@ suite('Notebook Editor', function () {
 	};
 
 	const disposables: vscode.Disposable[] = [];
+	const testDisposables: vscode.Disposable[] = [];
 
 	suiteTeardown(async function () {
 		utils.assertNoRpc();
@@ -38,6 +39,10 @@ suite('Notebook Editor', function () {
 		disposables.push(vscode.workspace.registerNotebookSerializer('notebook.nbdtest', contentSerializer));
 	});
 
+	teardown(async function () {
+		utils.disposeAll(testDisposables);
+		testDisposables.length = 0;
+	});
 
 	test('showNotebookDocment', async function () {
 
@@ -73,5 +78,49 @@ suite('Notebook Editor', function () {
 		const editor = await vscode.window.showNotebookDocument(resource);
 		assert.ok(await openedEditor);
 		assert.strictEqual(editor.document.uri.toString(), resource.toString());
+	});
+
+	test('Active/Visible Editor', async function () {
+		const firstEditorOpen = utils.asPromise(vscode.window.onDidChangeActiveNotebookEditor);
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		const firstEditor = await vscode.window.showNotebookDocument(resource);
+		await firstEditorOpen;
+		assert.strictEqual(vscode.window.activeNotebookEditor, firstEditor);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
+
+		const secondEditor = await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
+		assert.strictEqual(secondEditor === vscode.window.activeNotebookEditor, true);
+		assert.notStrictEqual(firstEditor, secondEditor);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(secondEditor), true);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.includes(firstEditor), true);
+		assert.strictEqual(vscode.window.visibleNotebookEditors.length, 2);
+	});
+
+	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on open/close', async function () {
+		const openedEditor = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		await vscode.window.showNotebookDocument(resource);
+		assert.ok(await openedEditor);
+
+		const firstEditorClose = utils.asPromise(vscode.window.onDidChangeVisibleNotebookEditors);
+		await utils.closeAllEditors();
+		await firstEditorClose;
+	});
+
+	test('Notebook Editor Event - onDidChangeVisibleNotebookEditors on two editor groups', async function () {
+		const resource = await utils.createRandomFile(undefined, undefined, '.nbdtest');
+		let count = 0;
+		testDisposables.push(vscode.window.onDidChangeVisibleNotebookEditors(() => {
+			count = vscode.window.visibleNotebookEditors.length;
+		}));
+
+		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Active });
+		assert.strictEqual(count, 1);
+
+		await vscode.window.showNotebookDocument(resource, { viewColumn: vscode.ViewColumn.Beside });
+		assert.strictEqual(count, 2);
+
+		await utils.closeAllEditors();
+		assert.strictEqual(count, 0);
 	});
 });

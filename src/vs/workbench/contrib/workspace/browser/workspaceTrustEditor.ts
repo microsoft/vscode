@@ -823,13 +823,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 			[
 				localize('untrustedTasks', "Tasks are disabled"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID)
+				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
 			] :
 			[
 				localize('untrustedTasks', "Tasks are disabled"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				numSettings ? localize('untrustedSettings', "[{0} workspace settings](command:{1}) are not applied", numSettings, 'settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-				localize('untrustedExtensions', "[{0} extensions](command:{1}) are disabled or have limited functionality", numExtensions, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID)
+				numSettings ? localize('untrustedSettings', "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
 			];
 		this.renderLimitationsListElement(untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
 

@@ -35,6 +35,7 @@ import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 
 export class SidebarPart extends CompositePart<Viewlet> implements IViewletService {
 
@@ -169,6 +170,10 @@ export class SidebarPart extends CompositePart<Viewlet> implements IViewletServi
 		const titleArea = super.createTitleArea(parent);
 
 		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
+			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+		}));
+		this._register(Gesture.addTarget(titleArea));
+		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
 			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
 		}));
 
