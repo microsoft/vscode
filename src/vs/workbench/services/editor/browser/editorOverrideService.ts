@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, isResourceDiffEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { ContributedEditorInfo, ContributedEditorPriority, RegisteredEditorOptions, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -81,8 +81,9 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	async resolveEditorOverride(editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined> {
+		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		// If it was an override before we await for the extensions to activate and then proceed with overriding or else they won't be registered
-		if (this.cache && !this.isDiffEditorInput(editor) && editor.resource && this.resourceMatchesCache(editor.resource)) {
+		if (this.cache && resource && this.resourceMatchesCache(resource)) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
 
@@ -91,7 +92,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Always ensure inputs have populated resource fields
-		const resource = this.getEditorResource(editor);
 		// TODO make this the untitled case
 		if (!resource) {
 			return;
@@ -298,7 +298,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If it's a diff editor we trigger the create diff editor input
-		if (this.isDiffEditorInput(editor)) {
+		if (isResourceDiffEditorInput(editor)) {
 			if (!selectedEditor.createDiffEditorInput) {
 				return;
 			}
@@ -487,7 +487,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			readonly openInBackground: boolean;
 		};
 
-		const resource = this.getEditorResource(editor);
+		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		if (!resource) {
 			return;
@@ -629,15 +629,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			}
 		}
 		return false;
-	}
-
-	private isDiffEditorInput(editor: IResourceEditorInputType): editor is IResourceDiffEditorInput {
-		const testInput = editor as IResourceDiffEditorInput;
-		return testInput.originalInput !== undefined && testInput.modifiedInput !== undefined;
-	}
-
-	private getEditorResource(editor: IResourceEditorInputType): URI | undefined {
-		return this.isDiffEditorInput(editor) ? editor.modifiedInput.resource : editor.resource;
 	}
 }
 
