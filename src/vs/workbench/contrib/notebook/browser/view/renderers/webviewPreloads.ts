@@ -6,7 +6,7 @@
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import { RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import type { FromWebviewMessage, IBlurOutputMessage, ICellDropMessage, ICellDragMessage, ICellDragStartMessage, IClickedDataUrlMessage, IDimensionMessage, IClickMarkdownPreviewMessage, IMouseEnterMarkdownPreviewMessage, IMouseEnterMessage, IMouseLeaveMarkdownPreviewMessage, IMouseLeaveMessage, IToggleMarkdownPreviewMessage, IWheelMessage, ToWebviewMessage, ICellDragEndMessage, IOutputFocusMessage, IOutputBlurMessage, DimensionUpdate, IContextMenuMarkdownPreviewMessage, ITelemetryFoundRenderedMarkdownMath, ITelemetryFoundUnrenderedMarkdownMath, IMarkdownCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
+import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 // !! IMPORTANT !! everything must be in-line within the webviewPreloads
 // function. Imports are not allowed. This is stringified and injected into
@@ -71,7 +71,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	};
 
 	const handleDataUrl = async (data: string | ArrayBuffer | null, downloadName: string) => {
-		postNotebookMessage<IClickedDataUrlMessage>('clicked-data-url', {
+		postNotebookMessage<webviewMessages.IClickedDataUrlMessage>('clicked-data-url', {
 			data,
 			downloadName
 		});
@@ -201,7 +201,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	});
 
 	const dimensionUpdater = new class {
-		private readonly pending = new Map<string, DimensionUpdate>();
+		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
 		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
@@ -221,7 +221,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return;
 			}
 
-			postNotebookMessage<IDimensionMessage>('dimension', {
+			postNotebookMessage<webviewMessages.IDimensionMessage>('dimension', {
 				updates: Array.from(this.pending.values())
 			});
 			this.pending.clear();
@@ -300,7 +300,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		if (event.defaultPrevented || scrollWillGoToParent(event)) {
 			return;
 		}
-		postNotebookMessage<IWheelMessage>('did-scroll-wheel', {
+		postNotebookMessage<webviewMessages.IWheelMessage>('did-scroll-wheel', {
 			payload: {
 				deltaMode: event.deltaMode,
 				deltaX: event.deltaX,
@@ -324,7 +324,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
-			postNotebookMessage<IBlurOutputMessage>('focus-editor', {
+			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
 				id: outputId,
 				focusNext
 			});
@@ -335,12 +335,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 	function addMouseoverListeners(element: HTMLElement, outputId: string): void {
 		element.addEventListener('mouseenter', () => {
-			postNotebookMessage<IMouseEnterMessage>('mouseenter', {
+			postNotebookMessage<webviewMessages.IMouseEnterMessage>('mouseenter', {
 				id: outputId,
 			});
 		});
 		element.addEventListener('mouseleave', () => {
-			postNotebookMessage<IMouseLeaveMessage>('mouseleave', {
+			postNotebookMessage<webviewMessages.IMouseLeaveMessage>('mouseleave', {
 				id: outputId,
 			});
 		});
@@ -376,7 +376,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._loosingFocus = false;
 			if (!this._hasFocus) {
 				this._hasFocus = true;
-				postNotebookMessage<IOutputFocusMessage>('outputFocus', {
+				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
 					id: this._outputId,
 				});
 			}
@@ -389,7 +389,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (this._loosingFocus) {
 						this._loosingFocus = false;
 						this._hasFocus = false;
-						postNotebookMessage<IOutputBlurMessage>('outputBlur', {
+						postNotebookMessage<webviewMessages.IOutputBlurMessage>('outputBlur', {
 							id: this._outputId,
 						});
 					}
@@ -507,79 +507,45 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	window.addEventListener('wheel', handleWheel);
 
 	window.addEventListener('message', async rawEvent => {
-		const event = rawEvent as ({ data: ToWebviewMessage; });
+		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage; });
 
 		switch (event.data.type) {
-			case 'initializeMarkdownPreview':
-				{
-					await ensureMarkdownPreviewCells(event.data.cells);
-					dimensionUpdater.updateImmediately();
-					postNotebookMessage('initializedMarkdownPreview', {});
-				}
+			case 'initializeMarkup':
+				await notebookDocument.ensureMarkupCells(event.data.cells);
+				dimensionUpdater.updateImmediately();
+				postNotebookMessage('initializedMarkup', {});
 				break;
-			case 'createMarkdownPreview':
-				ensureMarkdownPreviewCells([event.data.cell]);
-				break;
-			case 'showMarkdownPreview':
-				{
-					const data = event.data;
 
-					const cellContainer = document.getElementById(data.id);
-					if (cellContainer) {
-						cellContainer.style.visibility = 'visible';
-						cellContainer.style.top = `${data.top}px`;
-						updateMarkdownPreview(cellContainer, data.id, data.content);
-					}
-				}
+			case 'createMarkupCell':
+				notebookDocument.ensureMarkupCells([event.data.cell]);
 				break;
-			case 'hideMarkdownPreviews':
-				{
-					for (const id of event.data.ids) {
-						const cellContainer = document.getElementById(id);
-						if (cellContainer) {
-							cellContainer.style.visibility = 'hidden';
-						}
-					}
-				}
-				break;
-			case 'unhideMarkdownPreviews':
-				{
-					for (const id of event.data.ids) {
-						const cellContainer = document.getElementById(id);
-						if (cellContainer) {
-							cellContainer.style.visibility = 'visible';
-							updateMarkdownPreview(cellContainer, id, undefined);
-						}
-					}
-				}
-				break;
-			case 'deleteMarkdownPreview':
-				{
-					for (const id of event.data.ids) {
-						const cellContainer = document.getElementById(id);
-						cellContainer?.remove();
-					}
-				}
-				break;
-			case 'updateSelectedMarkdownPreviews':
-				{
-					const selectedCellIds = new Set<string>(event.data.selectedCellIds);
 
-					for (const oldSelected of document.querySelectorAll('.preview.selected')) {
-						const id = oldSelected.id;
-						if (!selectedCellIds.has(id)) {
-							oldSelected.classList.remove('selected');
-						}
-					}
+			case 'showMarkupCell':
+				notebookDocument.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				break;
 
-					for (const newSelected of selectedCellIds) {
-						const previewContainer = document.getElementById(newSelected);
-						if (previewContainer) {
-							previewContainer.classList.add('selected');
-						}
-					}
+			case 'hideMarkupCells':
+				for (const id of event.data.ids) {
+					notebookDocument.hideMarkupCell(id);
 				}
 				break;
+
+			case 'unhideMarkupCells':
+				for (const id of event.data.ids) {
+					notebookDocument.unhideMarkupCell(id);
+				}
+				break;
+
+			case 'deleteMarkupCell':
+				for (const id of event.data.ids) {
+					notebookDocument.deleteMarkupCell(id);
+				}
+				break;
+
+			case 'updateSelectedMarkupCells':
+				notebookDocument.updateSelectedCells(event.data.selectedCellIds);
+				break;
+
 			case 'html': {
 				const data = event.data;
 				outputs.enqueue(event.data.outputId, async (state) => {
@@ -829,9 +795,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 				// Update markdown previews
 				for (const markdownContainer of document.querySelectorAll('.preview')) {
-					setMarkdownContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
+					setMarkupContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
 				}
-
 
 				break;
 		}
@@ -1021,47 +986,254 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
-		public async renderCustom(rendererId: string, info: IOutputItem, element: HTMLElement) {
-			const api = await this.load(rendererId);
-			if (!api) {
-				throw new Error(`renderer ${rendererId} did not return an API`);
-			}
+		public async render(info: IOutputItem, element: HTMLElement) {
+			const renderers = Array.from(this._renderers.values())
+				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
-			api.renderOutputItem(info, element);
-		}
-
-		public async renderMarkdown(id: string, element: HTMLElement, content: string): Promise<void> {
-			const markdownRenderers = Array.from(this._renderers.values())
-				.filter(renderer => renderer.data.mimeTypes.includes('text/markdown') && !renderer.data.extends);
-
-			if (!markdownRenderers.length) {
+			if (!renderers.length) {
 				throw new Error('Could not find renderer');
 			}
 
-			await Promise.all(markdownRenderers.map(x => x.load()));
+			await Promise.all(renderers.map(x => x.load()));
 
-			markdownRenderers[0].api?.renderOutputItem({
-				id,
-				element,
-				mime: 'text/markdown',
-				metadata: undefined,
-				metadata2: undefined,
-				outputId: undefined,
-				text() { return content; },
-				json() { return undefined; },
-				bytes() { return this.data(); },
-				data() { return new TextEncoder().encode(content); },
-				blob() { return new Blob([this.data()], { type: this.mime }); },
-			}, element);
+			renderers[0].api?.renderOutputItem(info, element);
 		}
 	}();
+
+	let hasPostedRenderedMathTelemetry = false;
+	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
+
+	const notebookDocument = new class {
+
+		private readonly _markupCells = new Map<string, MarkupCell>();
+
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
+			const existing = this._markupCells.get(init.cellId);
+			if (existing) {
+				console.error(`Trying to create markup that already exists: ${init.cellId}`);
+				return existing;
+			}
+
+			const markdownCell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			this._markupCells.set(init.cellId, markdownCell);
+
+			await markdownCell.ready;
+			return markdownCell;
+		}
+
+		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
+			await Promise.all(update.map(async info => {
+				let cell = this._markupCells.get(info.cellId);
+				if (cell) {
+					await cell.updateContentAndRender(info.content);
+				} else {
+					cell = await this.createMarkupCell(info, info.offset);
+				}
+				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
+			}));
+		}
+
+		public deleteMarkupCell(id: string) {
+			const cell = this.getExpectedMarkupCell(id);
+			if (cell) {
+				cell.element.remove();
+				this._markupCells.delete(id);
+			}
+		}
+
+		public async updateMarkupContent(id: string, newContent: string): Promise<void> {
+			const cell = this.getExpectedMarkupCell(id);
+			await cell?.updateContentAndRender(newContent);
+		}
+
+		public showMarkupCell(id: string, top: number, newContent: string | undefined): void {
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.show(id, top, newContent);
+		}
+
+		public hideMarkupCell(id: string): void {
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.hide();
+		}
+
+		public unhideMarkupCell(id: string): void {
+			const cell = this.getExpectedMarkupCell(id);
+			cell?.unhide();
+		}
+
+		private getExpectedMarkupCell(id: string): MarkupCell | undefined {
+			const cell = this._markupCells.get(id);
+			if (!cell) {
+				console.log(`Could not find markup cell '${id}'`);
+				return undefined;
+			}
+			return cell;
+		}
+
+		public updateSelectedCells(selectedCellIds: readonly string[]) {
+			const selectedCellSet = new Set<string>(selectedCellIds);
+			for (const cell of this._markupCells.values()) {
+				cell.setSelected(selectedCellSet.has(cell.id));
+			}
+		}
+	}();
+
+	class MarkupCell implements IOutputItem {
+
+		public readonly ready: Promise<void>;
+
+		/// Internal field that holds markdown text
+		private _content: string;
+
+		constructor(id: string, mime: string, content: string, top: number) {
+			this.id = id;
+			this.mime = mime;
+			this._content = content;
+
+			let resolveReady: () => void;
+			this.ready = new Promise<void>(r => resolveReady = r);
+
+			const root = document.getElementById('container')!;
+
+			this.element = document.createElement('div');
+			this.element.id = this.id;
+			this.element.classList.add('preview');
+			this.element.style.position = 'absolute';
+			this.element.style.top = top + 'px';
+			root.appendChild(this.element);
+
+			this.addEventListeners();
+
+			this.updateContentAndRender(this._content).then(() => {
+				resizeObserver.observe(this.element, this.id, false);
+				resolveReady();
+			});
+		}
+
+		//#region IOutputItem
+		public readonly id: string;
+		public readonly mime;
+		public readonly element: HTMLElement;
+
+		// deprecated fields
+		public readonly metadata = undefined;
+		public readonly metadata2 = undefined;
+		public readonly outputId?: string | undefined;
+
+		text() { return this._content; }
+		json() { return undefined; }
+		bytes() { return this.data(); }
+		data() { return new TextEncoder().encode(this._content); }
+		blob() { return new Blob([this.data()], { type: this.mime }); }
+		//#endregion
+
+		private addEventListeners() {
+			this.element.addEventListener('dblclick', () => {
+				postNotebookMessage<webviewMessages.IToggleMarkupPreviewMessage>('toggleMarkupPreview', { cellId: this.id });
+			});
+
+			this.element.addEventListener('click', e => {
+				postNotebookMessage<webviewMessages.IClickMarkupCellMessage>('clickMarkupCell', {
+					cellId: this.id,
+					altKey: e.altKey,
+					ctrlKey: e.ctrlKey,
+					metaKey: e.metaKey,
+					shiftKey: e.shiftKey,
+				});
+			});
+
+			this.element.addEventListener('contextmenu', e => {
+				postNotebookMessage<webviewMessages.IContextMenuMarkupCellMessage>('contextMenuMarkupCell', {
+					cellId: this.id,
+					clientX: e.clientX,
+					clientY: e.clientY,
+				});
+			});
+
+			this.element.addEventListener('mouseenter', () => {
+				postNotebookMessage<webviewMessages.IMouseEnterMarkupCellMessage>('mouseEnterMarkupCell', { cellId: this.id });
+			});
+
+			this.element.addEventListener('mouseleave', () => {
+				postNotebookMessage<webviewMessages.IMouseLeaveMarkupCellMessage>('mouseLeaveMarkupCell', { cellId: this.id });
+			});
+
+			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);
+
+			this.element.addEventListener('dragstart', e => {
+				markdownPreviewDragManager.startDrag(e, this.id);
+			});
+
+			this.element.addEventListener('drag', e => {
+				markdownPreviewDragManager.updateDrag(e, this.id);
+			});
+
+			this.element.addEventListener('dragend', e => {
+				markdownPreviewDragManager.endDrag(e, this.id);
+			});
+		}
+
+		public async updateContentAndRender(newContent: string): Promise<void> {
+			this._content = newContent;
+
+			await renderers.render(this, this.element);
+
+			if (!hasPostedRenderedMathTelemetry) {
+				const hasRenderedMath = this.element.querySelector('.katex');
+				if (hasRenderedMath) {
+					hasPostedRenderedMathTelemetry = true;
+					postNotebookMessage<webviewMessages.ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
+				}
+			}
+
+			const matches = this.element.innerText.match(unsupportedKatexTermsRegex);
+			if (matches) {
+				postNotebookMessage<webviewMessages.ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
+					latexDirective: matches[0],
+				});
+			}
+
+			dimensionUpdater.update(this.id, this.element.clientHeight, {
+				isOutput: false
+			});
+		}
+
+		public show(id: string, top: number, newContent: string | undefined): void {
+			this.element.style.visibility = 'visible';
+			this.element.style.top = `${top}px`;
+			if (typeof newContent === 'string') {
+				this.updateContentAndRender(newContent);
+			} else {
+				this.updateMarkupDimensions();
+			}
+		}
+
+		public hide() {
+			this.element.style.visibility = 'hidden';
+		}
+
+		public unhide() {
+			this.element.style.visibility = 'visible';
+			this.updateMarkupDimensions();
+		}
+
+		private async updateMarkupDimensions() {
+			dimensionUpdater.update(this.id, this.element.clientHeight, {
+				isOutput: false
+			});
+		}
+
+		public setSelected(selected: boolean) {
+			this.element.classList.toggle('selected', selected);
+		}
+	}
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
 
-	function setMarkdownContainerDraggable(element: Element, isDraggable: boolean) {
+	function setMarkupContainerDraggable(element: Element, isDraggable: boolean) {
 		if (isDraggable) {
 			element.classList.add('draggable');
 			element.setAttribute('draggable', 'true');
@@ -1071,102 +1243,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
-		const container = document.getElementById('container')!;
-		const cellContainer = document.createElement('div');
-
-		const existing = document.getElementById(cellId);
-		if (existing) {
-			console.error(`Trying to create markdown preview that already exists: ${cellId}`);
-			return existing;
-		}
-
-		cellContainer.id = cellId;
-		cellContainer.classList.add('preview');
-
-		cellContainer.style.position = 'absolute';
-		cellContainer.style.top = top + 'px';
-		container.appendChild(cellContainer);
-
-		cellContainer.addEventListener('dblclick', () => {
-			postNotebookMessage<IToggleMarkdownPreviewMessage>('toggleMarkdownPreview', { cellId });
-		});
-
-		cellContainer.addEventListener('click', e => {
-			postNotebookMessage<IClickMarkdownPreviewMessage>('clickMarkdownPreview', {
-				cellId,
-				altKey: e.altKey,
-				ctrlKey: e.ctrlKey,
-				metaKey: e.metaKey,
-				shiftKey: e.shiftKey,
-			});
-		});
-
-		cellContainer.addEventListener('contextmenu', e => {
-			postNotebookMessage<IContextMenuMarkdownPreviewMessage>('contextMenuMarkdownPreview', {
-				cellId,
-				clientX: e.clientX,
-				clientY: e.clientY,
-			});
-		});
-
-		cellContainer.addEventListener('mouseenter', () => {
-			postNotebookMessage<IMouseEnterMarkdownPreviewMessage>('mouseEnterMarkdownPreview', { cellId });
-		});
-
-		cellContainer.addEventListener('mouseleave', () => {
-			postNotebookMessage<IMouseLeaveMarkdownPreviewMessage>('mouseLeaveMarkdownPreview', { cellId });
-		});
-
-		setMarkdownContainerDraggable(cellContainer, currentOptions.dragAndDropEnabled);
-
-		cellContainer.addEventListener('dragstart', e => {
-			markdownPreviewDragManager.startDrag(e, cellId);
-		});
-
-		cellContainer.addEventListener('drag', e => {
-			markdownPreviewDragManager.updateDrag(e, cellId);
-		});
-
-		cellContainer.addEventListener('dragend', e => {
-			markdownPreviewDragManager.endDrag(e, cellId);
-		});
-
-		const previewRoot = cellContainer.attachShadow({ mode: 'open' });
-
-		// Add default webview style
-		const defaultStyles = document.getElementById('_defaultStyles') as HTMLStyleElement;
-		previewRoot.appendChild(defaultStyles.cloneNode(true));
-
-		// Add default preview style
-		const previewStyles = document.getElementById('preview-styles') as HTMLTemplateElement;
-		previewRoot.appendChild(previewStyles.content.cloneNode(true));
-
-		const previewNode = document.createElement('div');
-		previewNode.id = 'preview';
-		previewRoot.appendChild(previewNode);
-
-		await updateMarkdownPreview(cellContainer, cellId, content);
-
-		resizeObserver.observe(cellContainer, cellId, false);
-
-		return cellContainer;
-	}
-
-	async function ensureMarkdownPreviewCells(update: readonly IMarkdownCellInitialization[]): Promise<void> {
-		await Promise.all(update.map(async cell => {
-			let container = document.getElementById(cell.cellId);
-			if (container) {
-				await updateMarkdownPreview(container, cell.cellId, cell.content);
-			} else {
-				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
-			}
-
-			container.style.visibility = cell.visible ? 'visible' : 'hidden';
-		}));
-	}
-
-	function postNotebookMessage<T extends FromWebviewMessage>(
+	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
 		type: T['type'],
 		properties: Omit<T, '__vscode_notebook_message' | 'type'>
 	) {
@@ -1174,46 +1251,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			__vscode_notebook_message: true,
 			type,
 			...properties
-		});
-	}
-
-	let hasPostedRenderedMathTelemetry = false;
-	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
-
-	async function updateMarkdownPreview(previewContainerNode: HTMLElement, cellId: string, content: string | undefined) {
-		const previewRoot = previewContainerNode.shadowRoot;
-		const previewNode = previewRoot?.getElementById('preview');
-		if (!previewNode) {
-			return;
-		}
-
-		if (typeof content === 'string') {
-			if (content.trim().length === 0) {
-				previewContainerNode.classList.add('emptyMarkdownCell');
-				previewNode.innerText = '';
-			} else {
-				previewContainerNode.classList.remove('emptyMarkdownCell');
-				await renderers.renderMarkdown(cellId, previewNode, content);
-
-				if (!hasPostedRenderedMathTelemetry) {
-					const hasRenderedMath = previewNode.querySelector('.katex');
-					if (hasRenderedMath) {
-						hasPostedRenderedMathTelemetry = true;
-						postNotebookMessage<ITelemetryFoundRenderedMarkdownMath>('telemetryFoundRenderedMarkdownMath', {});
-					}
-				}
-
-				const matches = previewNode.innerText.match(unsupportedKatexTermsRegex);
-				if (matches) {
-					postNotebookMessage<ITelemetryFoundUnrenderedMarkdownMath>('telemetryFoundUnrenderedMarkdownMath', {
-						latexDirective: matches[0],
-					});
-				}
-			}
-		}
-
-		dimensionUpdater.update(cellId, previewContainerNode.clientHeight, {
-			isOutput: false
 		});
 	}
 
@@ -1236,7 +1273,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				}
 
 				this.currentDrag = undefined;
-				postNotebookMessage<ICellDropMessage>('cell-drop', {
+				postNotebookMessage<webviewMessages.ICellDropMessage>('cell-drop', {
 					cellId: drag.cellId,
 					ctrlKey: e.ctrlKey,
 					altKey: e.altKey,
@@ -1258,7 +1295,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			(e.target as HTMLElement).classList.add('dragging');
 
-			postNotebookMessage<ICellDragStartMessage>('cell-drag-start', {
+			postNotebookMessage<webviewMessages.ICellDragStartMessage>('cell-drag-start', {
 				cellId: cellId,
 				dragOffsetY: e.clientY,
 			});
@@ -1270,7 +1307,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					return;
 				}
 
-				postNotebookMessage<ICellDragMessage>('cell-drag', {
+				postNotebookMessage<webviewMessages.ICellDragMessage>('cell-drag', {
 					cellId: cellId,
 					dragOffsetY: this.currentDrag.clientY,
 				});
@@ -1289,7 +1326,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		endDrag(e: DragEvent, cellId: string) {
 			this.currentDrag = undefined;
 			(e.target as HTMLElement).classList.remove('dragging');
-			postNotebookMessage<ICellDragEndMessage>('cell-drag-end', {
+			postNotebookMessage<webviewMessages.ICellDragEndMessage>('cell-drag-end', {
 				cellId: cellId
 			});
 		}
