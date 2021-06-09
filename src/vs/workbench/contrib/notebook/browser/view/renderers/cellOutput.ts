@@ -522,7 +522,7 @@ export class CellOutputContainer extends Disposable {
 			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
 		});
 
-		if (Date.now() - this._lastRenderTime > 1) {
+		if (Date.now() - this._lastRenderTime < 2) {
 			this._pendingRenderTask?.dispose();
 			this._pendingRenderTask = DOM.scheduleAtNextAnimationFrame(() => {
 				this._renderNow(this.viewCell.outputsViewModels);
