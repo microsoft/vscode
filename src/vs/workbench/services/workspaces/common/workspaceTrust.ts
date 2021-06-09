@@ -89,6 +89,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _canonicalWorkspace: IWorkspace;
 
+	private _isTrusted: boolean;
 	protected readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
@@ -116,7 +117,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
-		this._trustState.isTrusted = this.calculateWorkspaceTrust();
+		this._isTrusted = this.calculateWorkspaceTrust();
 
 		this.registerListeners();
 	}
@@ -125,16 +126,18 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 
-		// Resolve the workspace uris and resolve the initialization promise
-		this.resolveCanonicalWorkspaceUris().then(async () => {
-			this._initialized = true;
-			await this.updateWorkspaceTrust();
+		// Folder/Workspace - resolve the workspace uris
+		if (this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			this.resolveCanonicalWorkspaceUris().then(async () => {
+				this._initialized = true;
+				await this.updateWorkspaceTrust();
 
-			this._workspaceResolvedPromiseResolve();
-			if (!this.environmentService.remoteAuthority) {
-				this._workspaceTrustInitializedPromiseResolve();
-			}
-		});
+				this._workspaceResolvedPromiseResolve();
+				if (!this.environmentService.remoteAuthority) {
+					this._workspaceTrustInitializedPromiseResolve();
+				}
+			});
+		}
 
 		// Remote - resolve remote authority
 		if (this.environmentService.remoteAuthority) {
@@ -239,14 +242,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true; // trust running tests with vscode-test
 		}
 
-		// Remote - remote authority explicitly sets workspace trust
-		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted !== undefined) {
+		// Remote - resolver explicitly sets workspace trust to TRUE
+		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted) {
 			return this._remoteAuthority.options.isTrusted;
 		}
 
+		// Empty workspace - use memento which is set or has been initalized
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			// Use memento if present, otherwise default to restricted mode
-			// Workspace may transition to trusted based on the opened editors
 			return this._trustState.isTrusted ?? false;
 		}
 
@@ -270,7 +272,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		if (this.isWorkpaceTrusted() === trusted) { return; }
 
 		// Update workspace trust
-		this._trustState.isTrusted = trusted;
+		this._isTrusted = trusted;
+
+		// Set empty workspace memento
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._trustState.isTrusted = trusted;
+		}
 
 		// Reset acceptsOutOfWorkspaceFiles
 		if (!trusted) {
@@ -363,6 +370,33 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	//#region public interface
 
+	async initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void> {
+		// Resolve the canonical workspace
+		await this.resolveCanonicalWorkspaceUris();
+
+		// Initialize the memento if not already set
+		if (this._trustState.isTrusted === undefined) {
+			if (openEditors.length) {
+				const openFilesTrustInfo = await Promise.all(openEditors.map(uri => this.getUriTrustInfo(uri)));
+				if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
+					this._trustState.isTrusted = true;
+				}
+			} else {
+				// Default to the user setting
+				this._trustState.isTrusted = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
+			}
+		}
+
+		// Update workspace trust
+		await this.updateWorkspaceTrust();
+
+		// Resolve promises as needed
+		this._workspaceResolvedPromiseResolve();
+		if (!this.environmentService.remoteAuthority) {
+			this._workspaceTrustInitializedPromiseResolve();
+		}
+	}
+
 	get workspaceResolved(): Promise<void> {
 		return this._workspaceResolvedPromise;
 	}
@@ -388,7 +422,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	isWorkpaceTrusted(): boolean {
-		return this._trustState.isTrusted ?? false;
+		return this._isTrusted;
 	}
 
 	isWorkspaceTrustForced(): boolean {

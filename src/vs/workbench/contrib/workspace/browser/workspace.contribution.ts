@@ -46,10 +46,37 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { URI } from 'vs/base/common/uri';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
+
+export class EmptyWorkspaceTrustInitializer extends Disposable implements IWorkbenchContribution {
+	constructor(
+		@IEditorService private readonly editorService: IEditorService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+	) {
+		super();
+
+		this.initializeEmptyWorkspaceTrust();
+	}
+
+	private initializeEmptyWorkspaceTrust(): void {
+		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
+			return;
+		}
+
+		// Open Editors
+		const openEditors = this.editorService.editors
+			.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file }))
+			.filter(uri => !!uri);
+		this.workspaceTrustManagementService.initializeEmptyWorkspaceTrust(openEditors as URI[]);
+	}
+}
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EmptyWorkspaceTrustInitializer, LifecyclePhase.Restored);
 
 /*
  * Trust Request via Service UX handler
@@ -168,8 +195,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 				this.registerListeners();
 				this.createStatusbarEntry();
 
-				// Set empty workspace trust state
-				await this.setEmptyWorkspaceTrustState();
+				// Set empty workspace indicators
+				this.setEmptyWorkspaceIndicators();
 
 				// Show modal dialog
 				if (this.hostService.hasFocus) {
@@ -413,7 +440,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		};
 	}
 
-	private async setEmptyWorkspaceTrustState(): Promise<void> {
+	private setEmptyWorkspaceIndicators(): void {
 		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
 			return;
 		}
@@ -423,13 +450,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		if (openFiles.length) {
 			this.showIndicatorsInEmptyWindow = true;
-
-			// If all open files are trusted, transition to a trusted workspace
-			const openFilesTrustInfo = await Promise.all(openFiles.map(uri => this.workspaceTrustManagementService.getUriTrustInfo(uri!)));
-
-			if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-				this.workspaceTrustManagementService.setWorkspaceTrust(true);
-			}
 		} else {
 			// No open files, use the setting to set workspace trust state
 			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
@@ -440,12 +460,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 					disposable.dispose();
 				}
 			}));
-			// TODO: Consider moving the check into setWorkspaceTrust()
-			// TODO: Consider moving this into calculateWorkspaceTrust()
-			if (this.workspaceTrustManagementService.canSetWorkspaceTrust() &&
-				this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW)) {
-				this.workspaceTrustManagementService.setWorkspaceTrust(true);
-			}
 		}
 	}
 
