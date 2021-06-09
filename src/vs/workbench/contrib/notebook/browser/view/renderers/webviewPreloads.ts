@@ -357,7 +357,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		return false;
 	}
 
-	class FocusTracker {
+	class OutputFocusTracker {
 		private _outputId: string;
 		private _hasFocus: boolean = false;
 		private _loosingFocus: boolean = false;
@@ -405,14 +405,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	const focusTrackers = new Map<string, FocusTracker>();
+	const outputFocusTrackers = new Map<string, OutputFocusTracker>();
 
-	function addFocusTracker(element: HTMLElement, outputId: string): void {
-		if (focusTrackers.has(outputId)) {
-			focusTrackers.get(outputId)?.dispose();
+	function addOutputFocusTracker(element: HTMLElement, outputId: string): void {
+		if (outputFocusTrackers.has(outputId)) {
+			outputFocusTrackers.get(outputId)?.dispose();
 		}
 
-		focusTrackers.set(outputId, new FocusTracker(element, outputId));
+		outputFocusTrackers.set(outputId, new OutputFocusTracker(element, outputId));
 	}
 
 	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
@@ -599,7 +599,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					outputNode.id = outputId;
 
 					addMouseoverListeners(outputNode, outputId);
-					addFocusTracker(outputNode, outputId);
+					addOutputFocusTracker(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -697,10 +697,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				notebookDocument.clearAll();
 				document.getElementById('container')!.innerText = '';
 
-				focusTrackers.forEach(ft => {
+				outputFocusTrackers.forEach(ft => {
 					ft.dispose();
 				});
-				focusTrackers.clear();
+				outputFocusTrackers.clear();
 				break;
 			case 'clearOutput': {
 				const output = document.getElementById(event.data.outputId);
