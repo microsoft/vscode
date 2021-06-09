@@ -35,9 +35,9 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 	}
 
 	private _updateEverything(): void {
-		this._visibleCells.forEach(cell => cell.dispose());
-		this._visibleCells.clear();
-		this._updateVisibleCells({ added: this._observer.visibleCells, removed: [] });
+		const newCells = this._observer.visibleCells.filter(cell => !this._visibleCells.has(cell.handle));
+		this._visibleCells.forEach(helper => helper.update());
+		this._updateVisibleCells({ added: newCells, removed: [] });
 	}
 
 	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
@@ -89,6 +89,9 @@ class CellStatusBarHelper extends Disposable {
 		this._register(this._cell.model.onDidChangeOutputs(() => this._updateSoon()));
 	}
 
+	public update(): void {
+		this._updateSoon();
+	}
 	private _updateSoon(): void {
 		// Wait a tick to make sure that the event is fired to the EH before triggering status bar providers
 		this._register(disposableTimeout(() => {
@@ -119,6 +122,8 @@ class CellStatusBarHelper extends Disposable {
 
 	override dispose() {
 		super.dispose();
+		this._activeToken?.cancel();
+		this._activeToken?.dispose();
 
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
 		this._currentItemLists.forEach(itemList => itemList.dispose && itemList.dispose());
