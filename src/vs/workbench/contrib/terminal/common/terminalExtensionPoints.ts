@@ -47,7 +47,7 @@ export class TerminalContributionService implements ITerminalContributionService
 					return e;
 				}) || [];
 			}));
-			this._terminalProfiles = flatten(contributions.filter(c => c.description.enableProposedApi).map(c => {
+			this._terminalProfiles = flatten(contributions.map(c => {
 				return c.value?.profiles?.map(e => {
 					// Only support $(id) for now, without that it should point to a path to be
 					// consistent with other icon APIs
