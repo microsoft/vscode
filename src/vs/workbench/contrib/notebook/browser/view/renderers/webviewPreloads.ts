@@ -1023,10 +1023,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly _markupCells = new Map<string, MarkdownCell>();
 
 		private async createMarkupCell(init: webviewMessages.IMarkdownCellInitialization, top: number): Promise<MarkdownCell> {
-			const existingEntry = this._markupCells.get(init.cellId);
-			if (existingEntry) {
+			const existing = this._markupCells.get(init.cellId);
+			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
-				return existingEntry;
+				return existing;
 			}
 
 			const markdownCell = new MarkdownCell(init.cellId, init.content, top);
@@ -1092,7 +1092,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		/// Internal field that holds markdown text
 		private _content: string;
-
 
 		constructor(id: string, content: string, top: number) {
 			this.id = id;
