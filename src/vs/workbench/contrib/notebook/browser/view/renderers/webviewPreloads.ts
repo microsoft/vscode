@@ -320,12 +320,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	function createFocusSink(cellId: string, outputId: string, focusNext?: boolean) {
+	function createFocusSink(cellId: string, focusNext?: boolean) {
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
 			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
-				id: outputId,
+				cellId: cellId,
 				focusNext
 			});
 		});
@@ -563,7 +563,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (!cellOutputContainer) {
 						const container = document.getElementById('container')!;
 
-						const upperWrapperElement = createFocusSink(data.cellId, outputId);
+						const upperWrapperElement = createFocusSink(data.cellId);
 						container.appendChild(upperWrapperElement);
 
 						const newElement = document.createElement('div');
@@ -574,7 +574,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						container.appendChild(newElement);
 						cellOutputContainer = newElement;
 
-						const lowerWrapperElement = createFocusSink(data.cellId, outputId, true);
+						const lowerWrapperElement = createFocusSink(data.cellId, true);
 						container.appendChild(lowerWrapperElement);
 					}
 
