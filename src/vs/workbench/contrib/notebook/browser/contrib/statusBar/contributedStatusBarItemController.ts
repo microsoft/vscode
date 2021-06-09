@@ -38,6 +38,11 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 		const newCells = this._observer.visibleCells.filter(cell => !this._visibleCells.has(cell.handle));
 		this._visibleCells.forEach(helper => helper.update());
 		this._updateVisibleCells({ added: newCells, removed: [] });
+		const visibleCellHandles = new Set(this._observer.visibleCells.map(item => item.handle));
+		Array.from(this._visibleCells.keys()).filter(handle => !visibleCellHandles.has(handle)).forEach(handle => {
+			this._visibleCells.get(handle)?.dispose();
+			this._visibleCells.delete(handle);
+		});
 	}
 
 	private _updateVisibleCells(e: ICellVisibilityChangeEvent): void {
