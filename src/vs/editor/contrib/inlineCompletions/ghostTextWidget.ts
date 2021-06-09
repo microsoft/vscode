@@ -5,13 +5,13 @@
 
 import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, IDisposable, IReference, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
-import { EditorFontLigatures, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { EditorFontLigatures, EditorOption, IComputedEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
@@ -22,7 +22,6 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
-import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
@@ -79,8 +78,8 @@ export abstract class BaseGhostTextWidgetModel extends Disposable implements Gho
 export class GhostTextWidget extends Disposable {
 	private static decorationTypeCount = 0;
 
+	private disposed = false;
 	private codeEditorDecorationTypeKey: string | null = null;
-	private readonly modelRef = this._register(new MutableDisposable<IReference<GhostTextWidgetModel>>());
 	private decorationIds: string[] = [];
 	private viewZoneId: string | null = null;
 	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
@@ -94,6 +93,7 @@ export class GhostTextWidget extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		private readonly model: GhostTextWidgetModel,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -112,29 +112,24 @@ export class GhostTextWidget extends Disposable {
 				this.render();
 			}
 		}));
-		this._register(toDisposable(() => {
-			this.setModel(undefined);
-		}));
-	}
 
-	public get model(): GhostTextWidgetModel | undefined {
-		return this.modelRef.value?.object;
+		this._register(toDisposable(() => {
+			this.disposed = true;
+			this.render();
+		}));
+
+		this._register(model.onDidChange(() => {
+			this.render();
+		}));
+		this.render();
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
 		return (this.viewZoneId === viewZoneId);
 	}
 
-	public setModel(model: GhostTextWidgetModel | undefined): void {
-		if (model === this.model) { return; }
-		this.modelRef.value = model
-			? createDisposableRef(model, model.onDidChange(() => this.render()))
-			: undefined;
-		this.render();
-	}
-
 	private getRenderData() {
-		if (!this.editor.hasModel() || !this.model?.ghostText) {
+		if (!this.editor.hasModel() || !this.model.ghostText || this.disposed) {
 			return undefined;
 		}
 
@@ -232,7 +227,7 @@ export class GhostTextWidget extends Disposable {
 				if (heightInLines > 0) {
 					if (renderData.expanded) {
 						const domNode = document.createElement('div');
-						this.renderLines(domNode, renderData.tabSize, remainingLines);
+						renderLines(domNode, renderData.tabSize, remainingLines, this.editor.getOptions());
 
 						this.viewZoneId = changeAccessor.addZone({
 							afterLineNumber: renderData.position.lineNumber,
@@ -279,63 +274,62 @@ export class GhostTextWidget extends Disposable {
 		domNode.append(button);
 		return new ViewMoreLinesContentWidget(this.editor, position, domNode, disposableStore);
 	}
+}
 
-	private renderLines(domNode: HTMLElement, tabSize: number, lines: string[]): void {
-		const opts = this.editor.getOptions();
-		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
-		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-		// To avoid visual confusion, we don't want to render visible whitespace
-		const renderWhitespace = 'none';
-		const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
-		const fontLigatures = opts.get(EditorOption.fontLigatures);
-		const fontInfo = opts.get(EditorOption.fontInfo);
-		const lineHeight = opts.get(EditorOption.lineHeight);
+function renderLines(domNode: HTMLElement, tabSize: number, lines: string[], opts: IComputedEditorOptions): void {
+	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
+	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
+	// To avoid visual confusion, we don't want to render visible whitespace
+	const renderWhitespace = 'none';
+	const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
+	const fontLigatures = opts.get(EditorOption.fontLigatures);
+	const fontInfo = opts.get(EditorOption.fontInfo);
+	const lineHeight = opts.get(EditorOption.lineHeight);
 
-		const sb = createStringBuilder(10000);
-		sb.appendASCIIString('<div class="suggest-preview-text">');
+	const sb = createStringBuilder(10000);
+	sb.appendASCIIString('<div class="suggest-preview-text">');
 
-		for (let i = 0, len = lines.length; i < len; i++) {
-			const line = lines[i];
-			sb.appendASCIIString('<div class="view-line');
-			sb.appendASCIIString('" style="top:');
-			sb.appendASCIIString(String(i * lineHeight));
-			sb.appendASCIIString('px;width:1000000px;">');
+	for (let i = 0, len = lines.length; i < len; i++) {
+		const line = lines[i];
+		sb.appendASCIIString('<div class="view-line');
+		sb.appendASCIIString('" style="top:');
+		sb.appendASCIIString(String(i * lineHeight));
+		sb.appendASCIIString('px;width:1000000px;">');
 
-			const isBasicASCII = strings.isBasicASCII(line);
-			const containsRTL = strings.containsRTL(line);
-			const lineTokens = LineTokens.createEmpty(line);
+		const isBasicASCII = strings.isBasicASCII(line);
+		const containsRTL = strings.containsRTL(line);
+		const lineTokens = LineTokens.createEmpty(line);
 
-			renderViewLine(new RenderLineInput(
-				(fontInfo.isMonospace && !disableMonospaceOptimizations),
-				fontInfo.canUseHalfwidthRightwardsArrow,
-				line,
-				false,
-				isBasicASCII,
-				containsRTL,
-				0,
-				lineTokens,
-				[],
-				tabSize,
-				0,
-				fontInfo.spaceWidth,
-				fontInfo.middotWidth,
-				fontInfo.wsmiddotWidth,
-				stopRenderingLineAfter,
-				renderWhitespace,
-				renderControlCharacters,
-				fontLigatures !== EditorFontLigatures.OFF,
-				null
-			), sb);
+		renderViewLine(new RenderLineInput(
+			(fontInfo.isMonospace && !disableMonospaceOptimizations),
+			fontInfo.canUseHalfwidthRightwardsArrow,
+			line,
+			false,
+			isBasicASCII,
+			containsRTL,
+			0,
+			lineTokens,
+			[],
+			tabSize,
+			0,
+			fontInfo.spaceWidth,
+			fontInfo.middotWidth,
+			fontInfo.wsmiddotWidth,
+			stopRenderingLineAfter,
+			renderWhitespace,
+			renderControlCharacters,
+			fontLigatures !== EditorFontLigatures.OFF,
+			null
+		), sb);
 
-			sb.appendASCIIString('</div>');
-		}
 		sb.appendASCIIString('</div>');
-
-		Configuration.applyFontInfoSlow(domNode, fontInfo);
-		const html = sb.build();
-		const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-		domNode.innerHTML = trustedhtml as string;
 	}
+	sb.appendASCIIString('</div>');
+
+	Configuration.applyFontInfoSlow(domNode, fontInfo);
+	const html = sb.build();
+	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+	domNode.innerHTML = trustedhtml as string;
 }
 
 function renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {

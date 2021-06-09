@@ -27,7 +27,6 @@ export class GhostTextController extends Disposable {
 	}
 
 	private triggeredExplicitly = false;
-	protected readonly widget: GhostTextWidget;
 	protected readonly activeController = this._register(new MutableDisposable<ActiveGhostTextController>());
 	private get activeModel(): GhostTextModel | undefined {
 		return this.activeController.value?.model;
@@ -38,8 +37,6 @@ export class GhostTextController extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
-
-		this.widget = this._register(instantiationService.createInstance(GhostTextWidget, this.editor));
 
 		this._register(this.editor.onDidChangeModel(() => {
 			this.updateModelController();
@@ -63,8 +60,7 @@ export class GhostTextController extends Disposable {
 			this.editor.hasModel() && (suggestOptions.preview || inlineSuggestOptions.enabled || this.triggeredExplicitly)
 				? this.instantiationService.createInstance(
 					ActiveGhostTextController,
-					this.editor,
-					this.widget,
+					this.editor
 				)
 				: undefined;
 	}
@@ -74,7 +70,7 @@ export class GhostTextController extends Disposable {
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return this.widget.shouldShowHoverAtViewZone(viewZoneId);
+		return this.activeController.value?.widget?.shouldShowHoverAtViewZone(viewZoneId) || false;
 	}
 
 	public trigger(): void {
@@ -117,20 +113,19 @@ class GhostTextContextKeys {
 
 /**
  * The controller for a text editor with an initialized text model.
+ * Must be disposed as soon as the model detaches from the editor.
 */
 export class ActiveGhostTextController extends Disposable {
 	private readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
 	public readonly model = this.instantiationService.createInstance(GhostTextModel, this.editor);
+	public readonly widget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, this.model));
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		widget: GhostTextWidget,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-
-		widget.setModel(this.model);
 
 		this._register(toDisposable(() => {
 			this.contextKeys.inlineCompletionVisible.set(false);

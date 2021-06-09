@@ -10,9 +10,7 @@ import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
-import { GhostTextController } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
-import { GhostTextWidget } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
-import { InlineCompletionsModel, InlineCompletionsSession, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
+import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
@@ -445,17 +443,5 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 	} finally {
 		clock?.restore();
 		disposableStore.dispose();
-	}
-}
-
-
-
-export class MockedGhostTextController extends GhostTextController {
-	public getInlineCompletionSession(): InlineCompletionsSession | undefined {
-		return this.activeController.value?.activeInlineCompletionsModel?.completionSession.value;
-	}
-
-	public get ghostTextWidget(): GhostTextWidget {
-		return this.widget;
 	}
 }
