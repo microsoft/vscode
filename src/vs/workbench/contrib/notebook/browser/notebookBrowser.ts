@@ -263,6 +263,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	handle: number;
 	uri: URI;
 	language: string;
+	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;

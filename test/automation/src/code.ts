@@ -135,6 +135,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	const args = [
 		options.workspacePath,
 		'--skip-release-notes',
+		'--skip-welcome',
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',

@@ -18,6 +18,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { Mimes } from 'vs/base/common/mime';
 
 export abstract class BaseCellViewModel extends Disposable {
 
@@ -44,6 +45,16 @@ export abstract class BaseCellViewModel extends Disposable {
 	}
 	get language() {
 		return this.model.language;
+	}
+
+	get mime(): string {
+		switch (this.language) {
+			case 'markdown':
+				return Mimes.markdown;
+
+			default:
+				return Mimes.text;
+		}
 	}
 
 	abstract cellKind: CellKind;

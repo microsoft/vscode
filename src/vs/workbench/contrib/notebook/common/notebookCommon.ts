@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDiffResult, ISequence } from 'vs/base/common/diff/diff';
 import { Event } from 'vs/base/common/event';
 import * as glob from 'vs/base/common/glob';
+import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
@@ -34,16 +35,16 @@ export const NOTEBOOK_DISPLAY_ORDER = [
 	'application/javascript',
 	'text/html',
 	'image/svg+xml',
-	'text/markdown',
+	Mimes.markdown,
 	'image/png',
 	'image/jpeg',
-	'text/plain'
+	Mimes.text
 ];
 
 export const ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER = [
-	'text/markdown',
+	Mimes.markdown,
 	'application/json',
-	'text/plain',
+	Mimes.text,
 	'text/html',
 	'image/svg+xml',
 	'image/png',
@@ -586,8 +587,8 @@ const _mimeTypeInfo = new Map<string, MimeTypeInfo>([
 	['image/git', { alwaysSecure: true, supportedByCore: true }],
 	['image/svg+xml', { supportedByCore: true }],
 	['application/json', { alwaysSecure: true, supportedByCore: true }],
-	['text/markdown', { alwaysSecure: true, supportedByCore: true }],
-	['text/plain', { alwaysSecure: true, supportedByCore: true }],
+	[Mimes.markdown, { alwaysSecure: true, supportedByCore: true }],
+	[Mimes.text, { alwaysSecure: true, supportedByCore: true }],
 	['text/html', { supportedByCore: true }],
 	['text/x-javascript', { alwaysSecure: true, supportedByCore: true }], // secure because rendered as text, not executed
 	['application/vnd.code.notebook.error', { alwaysSecure: true, supportedByCore: true }],

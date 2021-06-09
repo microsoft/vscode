@@ -17,6 +17,10 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
  * An object holding strings shared by multiple parts of the terminal
  */
 export const terminalStrings = {
+	focus: {
+		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
+		original: 'Focus Terminal'
+	},
 	kill: {
 		value: localize('killTerminal', "Kill Terminal"),
 		original: 'Kill Terminal',

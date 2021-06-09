@@ -683,7 +683,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						}
 					}
 
-					for (const cell of event.data.markdownPreviews) {
+					for (const cell of event.data.markupCells) {
 						const container = document.getElementById(cell.id);
 						if (container) {
 							container.style.top = `${cell.top}px`;
@@ -792,12 +792,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			case 'notebookOptions':
 				currentOptions = event.data.options;
-
-				// Update markdown previews
-				for (const markdownContainer of document.querySelectorAll('.preview')) {
-					setMarkupContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
-				}
-
+				notebookDocument.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 				break;
 		}
 	});
@@ -1014,11 +1009,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return existing;
 			}
 
-			const markdownCell = new MarkupCell(init.cellId, init.mime, init.content, top);
-			this._markupCells.set(init.cellId, markdownCell);
+			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			this._markupCells.set(init.cellId, cell);
 
-			await markdownCell.ready;
-			return markdownCell;
+			await cell.ready;
+			return cell;
 		}
 
 		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
@@ -1076,13 +1071,19 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				cell.setSelected(selectedCellSet.has(cell.id));
 			}
 		}
+
+		public toggleDragDropEnabled(dragAndDropEnabled: boolean) {
+			for (const cell of this._markupCells.values()) {
+				cell.toggleDragDropEnabled(dragAndDropEnabled);
+			}
+		}
 	}();
 
 	class MarkupCell implements IOutputItem {
 
 		public readonly ready: Promise<void>;
 
-		/// Internal field that holds markdown text
+		/// Internal field that holds text content
 		private _content: string;
 
 		constructor(id: string, mime: string, content: string, top: number) {
@@ -1100,6 +1101,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this.element.classList.add('preview');
 			this.element.style.position = 'absolute';
 			this.element.style.top = top + 'px';
+			this.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 			root.appendChild(this.element);
 
 			this.addEventListeners();
@@ -1158,18 +1160,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				postNotebookMessage<webviewMessages.IMouseLeaveMarkupCellMessage>('mouseLeaveMarkupCell', { cellId: this.id });
 			});
 
-			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);
-
 			this.element.addEventListener('dragstart', e => {
-				markdownPreviewDragManager.startDrag(e, this.id);
+				markupCellDragManager.startDrag(e, this.id);
 			});
 
 			this.element.addEventListener('drag', e => {
-				markdownPreviewDragManager.updateDrag(e, this.id);
+				markupCellDragManager.updateDrag(e, this.id);
 			});
 
 			this.element.addEventListener('dragend', e => {
-				markdownPreviewDragManager.endDrag(e, this.id);
+				markupCellDragManager.endDrag(e, this.id);
 			});
 		}
 
@@ -1226,22 +1226,22 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public setSelected(selected: boolean) {
 			this.element.classList.toggle('selected', selected);
 		}
+
+		public toggleDragDropEnabled(enabled: boolean) {
+			if (enabled) {
+				this.element.classList.add('draggable');
+				this.element.setAttribute('draggable', 'true');
+			} else {
+				this.element.classList.remove('draggable');
+				this.element.removeAttribute('draggable');
+			}
+		}
 	}
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
-
-	function setMarkupContainerDraggable(element: Element, isDraggable: boolean) {
-		if (isDraggable) {
-			element.classList.add('draggable');
-			element.setAttribute('draggable', 'true');
-		} else {
-			element.classList.remove('draggable');
-			element.removeAttribute('draggable');
-		}
-	}
 
 	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
 		type: T['type'],
@@ -1254,13 +1254,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		});
 	}
 
-	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
+	const markupCellDragManager = new class MarkupCellDragManager {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
 
 		constructor() {
 			document.addEventListener('dragover', e => {
-				// Allow dropping dragged markdown cells
+				// Allow dropping dragged markup cells
 				e.preventDefault();
 			});
 

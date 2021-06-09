@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
-import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { Mimes } from 'vs/base/common/mime';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
+import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { setupInstantiationService, TestCell, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookTextModel', () => {
 
@@ -189,7 +190,7 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					outputs: [{
 						outputId: 'someId',
-						outputs: [{ mime: 'text/markdown', valueBytes: valueBytesFromString('_Hello_') }]
+						outputs: [{ mime: Mimes.markdown, valueBytes: valueBytesFromString('_Hello_') }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -203,7 +204,7 @@ suite('NotebookTextModel', () => {
 					append: true,
 					outputs: [{
 						outputId: 'someId2',
-						outputs: [{ mime: 'text/markdown', valueBytes: valueBytesFromString('_Hello2_') }]
+						outputs: [{ mime: Mimes.markdown, valueBytes: valueBytesFromString('_Hello2_') }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -219,7 +220,7 @@ suite('NotebookTextModel', () => {
 					editType: CellEditType.Output,
 					outputs: [{
 						outputId: 'someId3',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('Last, replaced output') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('Last, replaced output') }]
 					}]
 				}], true, undefined, () => undefined, undefined);
 
@@ -247,7 +248,7 @@ suite('NotebookTextModel', () => {
 						append: true,
 						outputs: [{
 							outputId: 'append1',
-							outputs: [{ mime: 'text/markdown', valueBytes: valueBytesFromString('append 1') }]
+							outputs: [{ mime: Mimes.markdown, valueBytes: valueBytesFromString('append 1') }]
 						}]
 					},
 					{
@@ -256,7 +257,7 @@ suite('NotebookTextModel', () => {
 						append: true,
 						outputs: [{
 							outputId: 'append2',
-							outputs: [{ mime: 'text/markdown', valueBytes: valueBytesFromString('append 2') }]
+							outputs: [{ mime: Mimes.markdown, valueBytes: valueBytesFromString('append 2') }]
 						}]
 					}
 				], true, undefined, () => undefined, undefined);
@@ -584,7 +585,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, handle: 0, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];
@@ -614,7 +615,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 2, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];
@@ -641,7 +642,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 1, append: true, outputs: [{
 						outputId: 'newOutput',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				},
 				{
@@ -650,7 +651,7 @@ suite('NotebookTextModel', () => {
 				{
 					editType: CellEditType.Output, index: 1, append: true, outputs: [{
 						outputId: 'newOutput2',
-						outputs: [{ mime: 'text/plain', valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
+						outputs: [{ mime: Mimes.text, valueBytes: valueBytesFromString('cba') }, { mime: 'application/foo', valueBytes: valueBytesFromString('cba') }]
 					}]
 				}
 			];

@@ -94,6 +94,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
+	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
 	'disable-keytar': { type: 'boolean' },
