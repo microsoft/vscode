@@ -110,7 +110,7 @@ class UntitledTextEditorHintContentWidget implements IContentWidget {
 			this.domNode.style.width = 'max-content';
 			const language = $('a.language-mode');
 			language.style.cursor = 'pointer';
-			language.innerText = localize('selectAlanguage', "Select a language");
+			language.innerText = localize('selectAlanguage2', "Select a language");
 			this.domNode.appendChild(language);
 			const toGetStarted = $('span');
 			toGetStarted.innerText = localize('toGetStarted', " to get started. Start typing to dismiss, or ",);

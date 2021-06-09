@@ -77,7 +77,7 @@ export const terminalSendSequenceCommand = (accessor: ServicesAccessor, args: { 
 		const configurationResolverService = accessor.get(IConfigurationResolverService);
 		const workspaceContextService = accessor.get(IWorkspaceContextService);
 		const historyService = accessor.get(IHistoryService);
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(Schemas.file);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(t.isRemote ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? withNullAsUndefined(workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri)) : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, args.text);
 		t.sendText(resolvedText, false);

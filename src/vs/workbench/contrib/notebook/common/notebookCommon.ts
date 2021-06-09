@@ -60,14 +60,7 @@ export enum NotebookRunState {
 	Idle = 2
 }
 
-export const notebookDocumentMetadataDefaults: Required<NotebookDocumentMetadata> = {
-	custom: {},
-};
-
-export interface NotebookDocumentMetadata {
-	custom?: { [key: string]: unknown; };
-	[key: string]: unknown;
-}
+export type NotebookDocumentMetadata = Record<string, unknown>;
 
 // Aligns with the vscode.d.ts version
 export enum NotebookCellExecutionState {
