@@ -28,7 +28,7 @@ function modelHasDecorations(model: TextModel, decorations: ILightWeightDecorati
 		});
 	}
 	modelDecorations.sort((a, b) => Range.compareRangesUsingStarts(a.range, b.range));
-	assert.deepEqual(modelDecorations, decorations);
+	assert.deepStrictEqual(modelDecorations, decorations);
 }
 
 function modelHasDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string) {
@@ -39,12 +39,13 @@ function modelHasDecoration(model: TextModel, startLineNumber: number, startColu
 }
 
 function modelHasNoDecorations(model: TextModel) {
-	assert.equal(model.getAllDecorations().length, 0, 'Model has no decoration');
+	assert.strictEqual(model.getAllDecorations().length, 0, 'Model has no decoration');
 }
 
 function addDecoration(model: TextModel, startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, className: string): string {
 	return model.changeDecorations((changeAccessor) => {
 		return changeAccessor.addDecoration(new Range(startLineNumber, startColumn, endLineNumber, endColumn), {
+			description: 'test',
 			className: className
 		});
 	})!;
@@ -60,7 +61,7 @@ function lineHasDecorations(model: TextModel, lineNumber: number, decorations: {
 			className: decs[i].options.className
 		});
 	}
-	assert.deepEqual(lineDecorations, decorations, 'Line decorations');
+	assert.deepStrictEqual(lineDecorations, decorations, 'Line decorations');
 }
 
 function lineHasNoDecorations(model: TextModel, lineNumber: number) {
@@ -122,12 +123,12 @@ suite('Editor Model - Model Decorations', () => {
 		addDecoration(thisModel, 1, 1, 2, 1, 'myType');
 
 		let line1Decorations = thisModel.getLineDecorations(1);
-		assert.equal(line1Decorations.length, 1);
-		assert.equal(line1Decorations[0].options.className, 'myType');
+		assert.strictEqual(line1Decorations.length, 1);
+		assert.strictEqual(line1Decorations[0].options.className, 'myType');
 
 		let line2Decorations = thisModel.getLineDecorations(1);
-		assert.equal(line2Decorations.length, 1);
-		assert.equal(line2Decorations[0].options.className, 'myType');
+		assert.strictEqual(line2Decorations.length, 1);
+		assert.strictEqual(line2Decorations[0].options.className, 'myType');
 
 		lineHasNoDecorations(thisModel, 3);
 		lineHasNoDecorations(thisModel, 4);
@@ -138,16 +139,16 @@ suite('Editor Model - Model Decorations', () => {
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
 
 		let line1Decorations = thisModel.getLineDecorations(1);
-		assert.equal(line1Decorations.length, 1);
-		assert.equal(line1Decorations[0].options.className, 'myType');
+		assert.strictEqual(line1Decorations.length, 1);
+		assert.strictEqual(line1Decorations[0].options.className, 'myType');
 
 		let line2Decorations = thisModel.getLineDecorations(1);
-		assert.equal(line2Decorations.length, 1);
-		assert.equal(line2Decorations[0].options.className, 'myType');
+		assert.strictEqual(line2Decorations.length, 1);
+		assert.strictEqual(line2Decorations[0].options.className, 'myType');
 
 		let line3Decorations = thisModel.getLineDecorations(1);
-		assert.equal(line3Decorations.length, 1);
-		assert.equal(line3Decorations[0].options.className, 'myType');
+		assert.strictEqual(line3Decorations.length, 1);
+		assert.strictEqual(line3Decorations[0].options.className, 'myType');
 
 		lineHasNoDecorations(thisModel, 4);
 		lineHasNoDecorations(thisModel, 5);
@@ -209,7 +210,7 @@ suite('Editor Model - Model Decorations', () => {
 			listenerCalled++;
 		});
 		addDecoration(thisModel, 1, 2, 3, 2, 'myType');
-		assert.equal(listenerCalled, 1, 'listener called');
+		assert.strictEqual(listenerCalled, 1, 'listener called');
 	});
 
 	test('decorations emit event on change', () => {
@@ -221,7 +222,7 @@ suite('Editor Model - Model Decorations', () => {
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.changeDecoration(decId, new Range(1, 1, 1, 2));
 		});
-		assert.equal(listenerCalled, 1, 'listener called');
+		assert.strictEqual(listenerCalled, 1, 'listener called');
 	});
 
 	test('decorations emit event on remove', () => {
@@ -233,7 +234,7 @@ suite('Editor Model - Model Decorations', () => {
 		thisModel.changeDecorations((changeAccessor) => {
 			changeAccessor.removeDecoration(decId);
 		});
-		assert.equal(listenerCalled, 1, 'listener called');
+		assert.strictEqual(listenerCalled, 1, 'listener called');
 	});
 
 	test('decorations emit event when inserting one line text before it', () => {
@@ -245,7 +246,7 @@ suite('Editor Model - Model Decorations', () => {
 		});
 
 		thisModel.applyEdits([EditOperation.insert(new Position(1, 1), 'Hallo ')]);
-		assert.equal(listenerCalled, 1, 'listener called');
+		assert.strictEqual(listenerCalled, 1, 'listener called');
 	});
 
 	test('decorations do not emit event on no-op deltaDecorations', () => {
@@ -260,7 +261,7 @@ suite('Editor Model - Model Decorations', () => {
 			accessor.deltaDecorations([], []);
 		});
 
-		assert.equal(listenerCalled, 0, 'listener not called');
+		assert.strictEqual(listenerCalled, 0, 'listener not called');
 	});
 
 	// --------- editing text & effects on decorations
@@ -407,7 +408,7 @@ suite('Editor Model - Model Decorations', () => {
 	});
 
 	test('removeAllDecorationsWithOwnerId works', () => {
-		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { className: 'myType1' } }], 1);
+		thisModel.deltaDecorations([], [{ range: new Range(1, 2, 4, 1), options: { description: 'test', className: 'myType1' } }], 1);
 		thisModel.removeAllDecorationsWithOwnerId(1);
 		modelHasNoDecorations(thisModel);
 	});
@@ -422,14 +423,14 @@ suite('Decorations and editing', () => {
 			'Third Line'
 		].join('\n'));
 
-		const id = model.deltaDecorations([], [{ range: decRange, options: { stickiness: stickiness } }])[0];
+		const id = model.deltaDecorations([], [{ range: decRange, options: { description: 'test', stickiness: stickiness } }])[0];
 		model.applyEdits([{
 			range: editRange,
 			text: editText,
 			forceMoveMarkers: editForceMoveMarkers
 		}]);
 		const actual = model.getDecorationRange(id);
-		assert.deepEqual(actual, expectedDecRange, msg);
+		assert.deepStrictEqual(actual, expectedDecRange, msg);
 
 		model.dispose();
 	}
@@ -1123,6 +1124,7 @@ suite('deltaDecorations', () => {
 		return {
 			range: dec.range,
 			options: {
+				description: 'test',
 				className: dec.id
 			}
 		};
@@ -1155,20 +1157,20 @@ suite('deltaDecorations', () => {
 		let initialIds = model.deltaDecorations([], decorations.map(toModelDeltaDecoration));
 		let actualDecorations = readModelDecorations(model, initialIds);
 
-		assert.equal(initialIds.length, decorations.length, 'returns expected cnt of ids');
-		assert.equal(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
+		assert.strictEqual(initialIds.length, decorations.length, 'returns expected cnt of ids');
+		assert.strictEqual(initialIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		actualDecorations.sort((a, b) => strcmp(a.id, b.id));
 		decorations.sort((a, b) => strcmp(a.id, b.id));
-		assert.deepEqual(actualDecorations, decorations);
+		assert.deepStrictEqual(actualDecorations, decorations);
 
 		let newIds = model.deltaDecorations(initialIds, newDecorations.map(toModelDeltaDecoration));
 		let actualNewDecorations = readModelDecorations(model, newIds);
 
-		assert.equal(newIds.length, newDecorations.length, 'returns expected cnt of ids');
-		assert.equal(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
+		assert.strictEqual(newIds.length, newDecorations.length, 'returns expected cnt of ids');
+		assert.strictEqual(newIds.length, model.getAllDecorations().length, 'does not leak decorations');
 		actualNewDecorations.sort((a, b) => strcmp(a.id, b.id));
 		newDecorations.sort((a, b) => strcmp(a.id, b.id));
-		assert.deepEqual(actualDecorations, decorations);
+		assert.deepStrictEqual(actualDecorations, decorations);
 
 		model.dispose();
 	}
@@ -1188,8 +1190,8 @@ suite('deltaDecorations', () => {
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
+		assert.deepStrictEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepStrictEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		model.dispose();
 	});
@@ -1276,6 +1278,7 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
+				description: 'test',
 				hoverMessage: { value: 'hello1' }
 			}
 		}]);
@@ -1288,13 +1291,14 @@ suite('deltaDecorations', () => {
 				endColumn: 1
 			},
 			options: {
+				description: 'test',
 				hoverMessage: { value: 'hello2' }
 			}
 		}]);
 
 		let actualDecoration = model.getDecorationOptions(ids[0]);
 
-		assert.deepEqual(actualDecoration!.hoverMessage, { value: 'hello2' });
+		assert.deepStrictEqual(actualDecoration!.hoverMessage, { value: 'hello2' });
 
 		model.dispose();
 	});
@@ -1312,9 +1316,11 @@ suite('deltaDecorations', () => {
 					startColumn: 1,
 					endLineNumber: 1,
 					endColumn: 1
-				}, {
-				stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
-			}
+				},
+				{
+					description: 'test',
+					stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+				}
 			);
 		});
 		model.changeDecorations((changeAccessor) => {
@@ -1326,16 +1332,16 @@ suite('deltaDecorations', () => {
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
+		assert.deepStrictEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepStrictEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		ids = model.deltaDecorations(ids, [
 			toModelDeltaDecoration(decoration('a', 1, 1, 1, 12)),
 			toModelDeltaDecoration(decoration('b', 2, 1, 2, 13))
 		]);
 
-		assert.deepEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
-		assert.deepEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
+		assert.deepStrictEqual(model.getDecorationRange(ids[0]), range(1, 1, 1, 12));
+		assert.deepStrictEqual(model.getDecorationRange(ids[1]), range(2, 1, 2, 13));
 
 		model.dispose();
 	});
@@ -1349,23 +1355,23 @@ suite('deltaDecorations', () => {
 		].join('\n'));
 
 		model.deltaDecorations([], [
-			{ range: new Range(1, 1, 1, 1), options: { className: '1' } },
-			{ range: new Range(1, 13, 1, 13), options: { className: '2' } },
-			{ range: new Range(2, 1, 2, 1), options: { className: '3' } },
-			{ range: new Range(2, 1, 2, 4), options: { className: '4' } },
-			{ range: new Range(2, 8, 2, 13), options: { className: '5' } },
-			{ range: new Range(3, 1, 4, 6), options: { className: '6' } },
-			{ range: new Range(1, 1, 3, 6), options: { className: 'x1' } },
-			{ range: new Range(2, 5, 2, 8), options: { className: 'x2' } },
-			{ range: new Range(1, 1, 2, 8), options: { className: 'x3' } },
-			{ range: new Range(2, 5, 3, 1), options: { className: 'x4' } },
+			{ range: new Range(1, 1, 1, 1), options: { description: 'test', className: '1' } },
+			{ range: new Range(1, 13, 1, 13), options: { description: 'test', className: '2' } },
+			{ range: new Range(2, 1, 2, 1), options: { description: 'test', className: '3' } },
+			{ range: new Range(2, 1, 2, 4), options: { description: 'test', className: '4' } },
+			{ range: new Range(2, 8, 2, 13), options: { description: 'test', className: '5' } },
+			{ range: new Range(3, 1, 4, 6), options: { description: 'test', className: '6' } },
+			{ range: new Range(1, 1, 3, 6), options: { description: 'test', className: 'x1' } },
+			{ range: new Range(2, 5, 2, 8), options: { description: 'test', className: 'x2' } },
+			{ range: new Range(1, 1, 2, 8), options: { description: 'test', className: 'x3' } },
+			{ range: new Range(2, 5, 3, 1), options: { description: 'test', className: 'x4' } },
 		]);
 
 		let inRange = model.getDecorationsInRange(new Range(2, 6, 2, 6));
 
 		let inRangeClassNames = inRange.map(d => d.options.className);
 		inRangeClassNames.sort();
-		assert.deepEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
+		assert.deepStrictEqual(inRangeClassNames, ['x1', 'x2', 'x3', 'x4']);
 
 		model.dispose();
 	});
@@ -1376,14 +1382,14 @@ suite('deltaDecorations', () => {
 			'My First Line'
 		].join('\n'));
 
-		const id = model.deltaDecorations([], [{ range: new Range(1, 2, 1, 14), options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, collapseOnReplaceEdit: true } }])[0];
+		const id = model.deltaDecorations([], [{ range: new Range(1, 2, 1, 14), options: { description: 'test', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges, collapseOnReplaceEdit: true } }])[0];
 		model.applyEdits([{
 			range: new Range(1, 1, 1, 14),
 			text: 'Some new text that is longer than the previous one',
 			forceMoveMarkers: false
 		}]);
 		const actual = model.getDecorationRange(id);
-		assert.deepEqual(actual, new Range(1, 1, 1, 1));
+		assert.deepStrictEqual(actual, new Range(1, 1, 1, 1));
 
 		model.dispose();
 	});

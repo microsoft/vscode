@@ -10,7 +10,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getZoomFactor } from 'vs/base/browser/browser';
 import { unmnemonicLabel } from 'vs/base/common/labels';
-import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, IContextMenuEvent } from 'vs/base/browser/contextmenu';
 import { once } from 'vs/base/common/functional';
@@ -24,16 +23,18 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { stripCodicons } from 'vs/base/common/codicons';
+import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
-	get onDidContextMenu(): Event<void> { return this.impl.onDidContextMenu; }
-
 	private impl: IContextMenuService;
+
+	private readonly _onDidShowContextMenu = this._register(new Emitter<void>());
+	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -47,7 +48,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 		super();
 
 		// Custom context menu: Linux/Windows if custom title is enabled
-		if (!isMacintosh && getTitleBarStyle(configurationService, environmentService) === 'custom') {
+		if (!isMacintosh && getTitleBarStyle(configurationService) === 'custom') {
 			this.impl = new HTMLContextMenuService(telemetryService, notificationService, contextViewService, keybindingService, themeService);
 		}
 
@@ -59,6 +60,7 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
 		this.impl.showContextMenu(delegate);
+		this._onDidShowContextMenu.fire();
 	}
 }
 
@@ -66,8 +68,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 	declare readonly _serviceBrand: undefined;
 
-	private _onDidContextMenu = this._register(new Emitter<void>());
-	readonly onDidContextMenu: Event<void> = this._onDidContextMenu.event;
+	readonly onDidShowContextMenu = new Emitter<void>().event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -85,7 +86,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					delegate.onHide(false);
 				}
 
-				this._onDidContextMenu.fire();
+				dom.ModifierKeyEmitter.getInstance().resetKeyStatus();
 			});
 
 			const menu = this.createMenu(delegate, actions, onHide);
@@ -124,7 +125,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
 	}
@@ -143,7 +144,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			}
 
 			return {
-				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
+				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
 				submenu: this.createMenu(delegate, entry.actions, onHide, new Set([...submenuIds, entry.id]))
 			};
 		}
@@ -160,7 +161,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			}
 
 			const item: IContextMenuItem = {
-				label: unmnemonicLabel(stripCodicons(entry.label)).trim(),
+				label: unmnemonicLabel(stripIcons(entry.label)).trim(),
 				checked: !!entry.checked,
 				type,
 				enabled: !!entry.enabled,
@@ -168,7 +169,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 
 					// To preserve pre-electron-2.x behaviour, we first trigger
 					// the onHide callback and then the action.
-					// Fixes https://github.com/Microsoft/vscode/issues/45601
+					// Fixes https://github.com/microsoft/vscode/issues/45601
 					onHide();
 
 					// Run action which will close the menu
@@ -199,12 +200,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
 		const runnable = actionRunner.run(actionToRun, context);
-		if (runnable) {
-			try {
-				await runnable;
-			} catch (error) {
-				this.notificationService.error(error);
-			}
+		try {
+			await runnable;
+		} catch (error) {
+			this.notificationService.error(error);
 		}
 	}
 }

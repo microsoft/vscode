@@ -4,8 +4,12 @@
 		"moduleResolution": "node",
 		"experimentalDecorators": true,
 		"noImplicitReturns": true,
+		"noImplicitOverride": true,
 		"noUnusedLocals": true,
+		"allowUnreachableCode": false,
 		"strict": true,
+		"strictOptionalProperties": false,
+		"useUnknownInCatchVariables": false,
 		"forceConsistentCasingInFileNames": true,
 		"baseUrl": ".",
 		"paths": {
@@ -15,6 +19,7 @@
 		},
 		"lib": [
 			"ES2015",
+			"ES2016.Array.Include",
 			"ES2017.String",
 			"ES2018.Promise",
 			"DOM",

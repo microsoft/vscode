@@ -16,6 +16,7 @@ import { toMultilineTokens2, SemanticTokensProviderStyling } from 'vs/editor/com
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { isSemanticColoringEnabled, SEMANTIC_HIGHLIGHTING_SETTING_ID } from 'vs/editor/common/services/modelServiceImpl';
+import { getDocumentRangeSemanticTokensProvider } from 'vs/editor/common/services/getSemanticTokens';
 
 class ViewportSemanticTokensContribution extends Disposable implements IEditorContribution {
 
@@ -66,11 +67,6 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 		}));
 	}
 
-	private static _getSemanticColoringProvider(model: ITextModel): DocumentRangeSemanticTokensProvider | null {
-		const result = DocumentRangeSemanticTokensProviderRegistry.ordered(model);
-		return (result.length > 0 ? result[0] : null);
-	}
-
 	private _cancelAll(): void {
 		for (const request of this._outstandingRequests) {
 			request.cancel();
@@ -92,14 +88,20 @@ class ViewportSemanticTokensContribution extends Disposable implements IEditorCo
 			return;
 		}
 		const model = this._editor.getModel();
-		if (model.hasSemanticTokens()) {
+		if (model.hasCompleteSemanticTokens()) {
 			return;
 		}
 		if (!isSemanticColoringEnabled(model, this._themeService, this._configurationService)) {
+			if (model.hasSomeSemanticTokens()) {
+				model.setSemanticTokens(null, false);
+			}
 			return;
 		}
-		const provider = ViewportSemanticTokensContribution._getSemanticColoringProvider(model);
+		const provider = getDocumentRangeSemanticTokensProvider(model);
 		if (!provider) {
+			if (model.hasSomeSemanticTokens()) {
+				model.setSemanticTokens(null, false);
+			}
 			return;
 		}
 		const styling = this._modelService.getSemanticTokensProviderStyling(provider);

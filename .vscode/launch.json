@@ -19,7 +19,8 @@
 			"timeout": 30000,
 			"port": 5870,
 			"outFiles": [
-				"${workspaceFolder}/out/**/*.js"
+				"${workspaceFolder}/out/**/*.js",
+				"${workspaceFolder}/extensions/*/out/**/*.js"
 			]
 		},
 		{
@@ -40,10 +41,7 @@
 			"port": 5876,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
-			],
-			"presentation": {
-				"hidden": true,
-			}
+			]
 		},
 		{
 			"type": "node",
@@ -112,7 +110,8 @@
 				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
-				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
+				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests",
+				"--disable-extensions"
 			],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
@@ -195,15 +194,24 @@
 			}
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "attach",
 			"name": "Attach to VS Code",
-			"port": 9222
+			"browserAttachLocation": "workspace",
+			"port": 9222,
+			"trace": true,
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"resolveSourceMapLocations": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"perScriptSourcemaps": "yes"
 		},
 		{
 			"type": "pwa-chrome",
 			"request": "launch",
-			"name": "Launch VS Code",
+			"name": "Launch VS Code Internal",
 			"windows": {
 				"runtimeExecutable": "${workspaceFolder}/scripts/code.bat"
 			},
@@ -235,13 +243,15 @@
 				"${workspaceFolder}/out/**/*.js"
 			],
 			"browserLaunchLocation": "workspace",
-			"preLaunchTask": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"hidden": true,
+			}
 		},
 		{
 			"type": "node",
 			"request": "launch",
 			"name": "VS Code (Web)",
-			"program": "${workspaceFolder}/resources/serverless/code-web.js",
+			"program": "${workspaceFolder}/resources/web/code-web.js",
 			"presentation": {
 				"group": "0_vscode",
 				"order": 2
@@ -267,8 +277,10 @@
 			}
 		},
 		{
-			"type": "chrome",
+			"type": "pwa-chrome",
 			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
 			"name": "VS Code (Web, Chrome)",
 			"url": "http://localhost:8080",
 			"preLaunchTask": "Run web",
@@ -280,6 +292,8 @@
 		{
 			"type": "pwa-msedge",
 			"request": "launch",
+			"outFiles": [],
+			"perScriptSourcemaps": "yes",
 			"name": "VS Code (Web, Edge)",
 			"url": "http://localhost:8080",
 			"pauseForSourceMap": false,
@@ -371,7 +385,7 @@
 			}
 		},
 		{
-			"type": "node",
+			"type": "pwa-node",
 			"request": "launch",
 			"name": "Run Unit Tests",
 			"program": "${workspaceFolder}/test/unit/electron/index.js",
@@ -385,6 +399,41 @@
 			"outputCapture": "std",
 			"args": [
 				"--remote-debugging-port=9222"
+			],
+			"cwd": "${workspaceFolder}",
+			"outFiles": [
+				"${workspaceFolder}/out/**/*.js"
+			],
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"env": {
+				"MOCHA_COLORS": "true"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"type": "pwa-node",
+			"request": "launch",
+			"name": "Run Unit Tests For Current File",
+			"program": "${workspaceFolder}/test/unit/electron/index.js",
+			"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.app/Contents/MacOS/Electron",
+			"windows": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/Code - OSS.exe"
+			},
+			"linux": {
+				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
+			},
+			"cascadeTerminateToConfigurations": [
+				"Attach to VS Code"
+			],
+			"outputCapture": "std",
+			"args": [
+				"--remote-debugging-port=9222",
+				"--run",
+				"${relativeFile}"
 			],
 			"cwd": "${workspaceFolder}",
 			"outFiles": [
@@ -433,7 +482,7 @@
 			"name": "VS Code",
 			"stopAll": true,
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Main Process",
 				"Attach to Extension Host",
 				"Attach to Shared Process",
@@ -447,7 +496,7 @@
 		{
 			"name": "Search and Renderer processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Search Process"
 			],
 			"presentation": {
@@ -458,7 +507,7 @@
 		{
 			"name": "Renderer and Extension Host processes",
 			"configurations": [
-				"Launch VS Code",
+				"Launch VS Code Internal",
 				"Attach to Extension Host"
 			],
 			"presentation": {
@@ -476,6 +525,25 @@
 				"group": "1_vscode",
 				"order": 2
 			}
-		}
+		},
+		{
+			"name": "Debug Unit Tests (Current File)",
+			"configurations": [
+				"Attach to VS Code",
+				"Run Unit Tests For Current File"
+			],
+			"presentation": {
+				"group": "1_vscode",
+				"order": 2
+			}
+		},
+		{
+			"name": "Launch VS Code",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
 	]
 }

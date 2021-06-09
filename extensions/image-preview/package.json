@@ -26,6 +26,12 @@
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut"
   ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "contributes": {
     "customEditors": [
       {
@@ -34,7 +40,7 @@
         "priority": "builtin",
         "selector": [
           {
-            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp}"
+            "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
           }
         ]
       }
@@ -55,12 +61,12 @@
       "commandPalette": [
         {
           "command": "imagePreview.zoomIn",
-          "when": "imagePreviewFocus",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
         },
         {
           "command": "imagePreview.zoomOut",
-          "when": "imagePreviewFocus",
+          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
           "group": "1_imagePreview"
         }
       ]
@@ -75,7 +81,11 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "dependencies": {
-    "vscode-extension-telemetry": "0.1.1",
+    "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

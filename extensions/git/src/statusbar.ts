@@ -28,7 +28,7 @@ class CheckoutStatusBar {
 
 		return {
 			command: 'git.checkout',
-			tooltip: `${this.repository.headLabel}`,
+			tooltip: localize('checkout', "Checkout branch/tag..."),
 			title,
 			arguments: [this.repository.sourceControl]
 		};
@@ -150,7 +150,7 @@ class SyncStatusBar {
 				const rebaseWhenSync = config.get<string>('rebaseWhenSync');
 
 				command = rebaseWhenSync ? 'git.syncRebase' : 'git.sync';
-				tooltip = localize('sync changes', "Synchronize Changes");
+				tooltip = this.repository.syncTooltip;
 			} else {
 				icon = '$(cloud-upload)';
 				command = 'git.publish';

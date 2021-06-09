@@ -6,24 +6,25 @@ import * as assert from 'assert';
 import { INormalizedVersion, IParsedVersion, IReducedExtensionDescription, isValidExtensionVersion, isValidVersion, isValidVersionStr, normalizeVersion, parseVersion } from 'vs/platform/extensions/common/extensionValidator';
 
 suite('Extension Version Validator', () => {
+	const productVersion = '2021-05-11T21:54:30.577Z';
 
 	test('isValidVersionStr', () => {
-		assert.equal(isValidVersionStr('0.10.0-dev'), true);
-		assert.equal(isValidVersionStr('0.10.0'), true);
-		assert.equal(isValidVersionStr('0.10.1'), true);
-		assert.equal(isValidVersionStr('0.10.100'), true);
-		assert.equal(isValidVersionStr('0.11.0'), true);
+		assert.strictEqual(isValidVersionStr('0.10.0-dev'), true);
+		assert.strictEqual(isValidVersionStr('0.10.0'), true);
+		assert.strictEqual(isValidVersionStr('0.10.1'), true);
+		assert.strictEqual(isValidVersionStr('0.10.100'), true);
+		assert.strictEqual(isValidVersionStr('0.11.0'), true);
 
-		assert.equal(isValidVersionStr('x.x.x'), true);
-		assert.equal(isValidVersionStr('0.x.x'), true);
-		assert.equal(isValidVersionStr('0.10.0'), true);
-		assert.equal(isValidVersionStr('0.10.x'), true);
-		assert.equal(isValidVersionStr('^0.10.0'), true);
-		assert.equal(isValidVersionStr('*'), true);
+		assert.strictEqual(isValidVersionStr('x.x.x'), true);
+		assert.strictEqual(isValidVersionStr('0.x.x'), true);
+		assert.strictEqual(isValidVersionStr('0.10.0'), true);
+		assert.strictEqual(isValidVersionStr('0.10.x'), true);
+		assert.strictEqual(isValidVersionStr('^0.10.0'), true);
+		assert.strictEqual(isValidVersionStr('*'), true);
 
-		assert.equal(isValidVersionStr('0.x.x.x'), false);
-		assert.equal(isValidVersionStr('0.10'), false);
-		assert.equal(isValidVersionStr('0.10.'), false);
+		assert.strictEqual(isValidVersionStr('0.x.x.x'), false);
+		assert.strictEqual(isValidVersionStr('0.10'), false);
+		assert.strictEqual(isValidVersionStr('0.10.'), false);
 	});
 
 	test('parseVersion', () => {
@@ -31,7 +32,7 @@ suite('Extension Version Validator', () => {
 			const actual = parseVersion(version);
 			const expected: IParsedVersion = { hasCaret, hasGreaterEquals, majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, preRelease };
 
-			assert.deepEqual(actual, expected, 'parseVersion for ' + version);
+			assert.deepStrictEqual(actual, expected, 'parseVersion for ' + version);
 		}
 
 		assertParseVersion('0.10.0-dev', false, false, 0, true, 10, true, 0, true, '-dev');
@@ -53,13 +54,16 @@ suite('Extension Version Validator', () => {
 	});
 
 	test('normalizeVersion', () => {
-		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, isMinimum: boolean): void {
+		function assertNormalizeVersion(version: string, majorBase: number, majorMustEqual: boolean, minorBase: number, minorMustEqual: boolean, patchBase: number, patchMustEqual: boolean, isMinimum: boolean, notBefore = 0): void {
 			const actual = normalizeVersion(parseVersion(version));
-			const expected: INormalizedVersion = { majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, isMinimum };
-			assert.deepEqual(actual, expected, 'parseVersion for ' + version);
+			const expected: INormalizedVersion = { majorBase, majorMustEqual, minorBase, minorMustEqual, patchBase, patchMustEqual, isMinimum, notBefore };
+			assert.deepStrictEqual(actual, expected, 'parseVersion for ' + version);
 		}
 
-		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false);
+		assertNormalizeVersion('0.10.0-dev', 0, true, 10, true, 0, true, false, 0);
+		assertNormalizeVersion('0.10.0-222222222', 0, true, 10, true, 0, true, false, 0);
+		assertNormalizeVersion('0.10.0-20210511', 0, true, 10, true, 0, true, false, new Date('2021-05-11T00:00:00Z').getTime());
+
 		assertNormalizeVersion('0.10.0', 0, true, 10, true, 0, true, false);
 		assertNormalizeVersion('0.10.1', 0, true, 10, true, 1, true, false);
 		assertNormalizeVersion('0.10.100', 0, true, 10, true, 100, true, false);
@@ -75,12 +79,13 @@ suite('Extension Version Validator', () => {
 
 		assertNormalizeVersion('>=0.0.1', 0, true, 0, true, 1, true, true);
 		assertNormalizeVersion('>=2.4.3', 2, true, 4, true, 3, true, true);
+		assertNormalizeVersion('>=2.4.3', 2, true, 4, true, 3, true, true);
 	});
 
 	test('isValidVersion', () => {
 		function testIsValidVersion(version: string, desiredVersion: string, expectedResult: boolean): void {
-			let actual = isValidVersion(version, desiredVersion);
-			assert.equal(actual, expectedResult, 'extension - vscode: ' + version + ', desiredVersion: ' + desiredVersion + ' should be ' + expectedResult);
+			let actual = isValidVersion(version, productVersion, desiredVersion);
+			assert.strictEqual(actual, expectedResult, 'extension - vscode: ' + version + ', desiredVersion: ' + desiredVersion + ' should be ' + expectedResult);
 		}
 
 		testIsValidVersion('0.10.0-dev', 'x.x.x', true);
@@ -211,9 +216,9 @@ suite('Extension Version Validator', () => {
 				main: hasMain ? 'something' : undefined
 			};
 			let reasons: string[] = [];
-			let actual = isValidExtensionVersion(version, desc, reasons);
+			let actual = isValidExtensionVersion(version, productVersion, desc, reasons);
 
-			assert.equal(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
+			assert.strictEqual(actual, expectedResult, 'version: ' + version + ', desiredVersion: ' + desiredVersion + ', desc: ' + JSON.stringify(desc) + ', reasons: ' + JSON.stringify(reasons));
 		}
 
 		function testIsInvalidExtensionVersion(version: string, desiredVersion: string, isBuiltin: boolean, hasMain: boolean): void {
@@ -390,5 +395,12 @@ suite('Extension Version Validator', () => {
 		testIsValidVersion('2.0.0', '^1.100.0', false);
 		testIsValidVersion('2.0.0', '^2.0.0', true);
 		testIsValidVersion('2.0.0', '*', false); // fails due to lack of specificity
+
+		// date tags
+		testIsValidVersion('1.10.0', '^1.10.0-20210511', true); // current date
+		testIsValidVersion('1.10.0', '^1.10.0-20210510', true); // before date
+		testIsValidVersion('1.10.0', '^1.10.0-20210512', false); // future date
+		testIsValidVersion('1.10.1', '^1.10.0-20200101', true); // before date, but ahead version
+		testIsValidVersion('1.11.0', '^1.10.0-20200101', true);
 	});
 });

@@ -22,7 +22,11 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 			{ path: toUri(path.join(workspacePath, 'public')) },
 			{ path: toUri(path.join(workspacePath, 'routes')) },
 			{ path: toUri(path.join(workspacePath, 'views')) }
-		]
+		],
+		settings: {
+			'workbench.startupEditor': 'none',
+			'workbench.enableExperiments': false
+		}
 	};
 
 	fs.writeFileSync(workspaceFilePath, JSON.stringify(workspace, null, '\t'));
@@ -40,7 +44,7 @@ export function setup() {
 
 			// restart with preventing additional windows from restoring
 			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: workspaceFilePath, extraArgs: ['--disable-restore-windows'] });
+			await app.restart({ workspaceOrFolder: workspaceFilePath });
 		});
 
 		it('shows results from all folders', async function () {

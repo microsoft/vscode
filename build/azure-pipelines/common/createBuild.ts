@@ -6,6 +6,7 @@
 'use strict';
 
 import { CosmosClient } from '@azure/cosmos';
+import { retry } from './retry';
 
 if (process.argv.length !== 3) {
 	console.error('Usage: node createBuild.js VERSION');
@@ -48,7 +49,7 @@ async function main(): Promise<void> {
 
 	const client = new CosmosClient({ endpoint: process.env['AZURE_DOCUMENTDB_ENDPOINT']!, key: process.env['AZURE_DOCUMENTDB_MASTERKEY'] });
 	const scripts = client.database('builds').container(quality).scripts;
-	await scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]);
+	await retry(() => scripts.storedProcedure('createBuild').execute('', [{ ...build, _partitionKey: '' }]));
 }
 
 main().then(() => {

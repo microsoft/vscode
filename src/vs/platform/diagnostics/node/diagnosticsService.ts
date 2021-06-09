@@ -4,32 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 import * as osLib from 'os';
 import { virtualMachineHint } from 'vs/base/node/id';
-import { IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
-import { readdir, exists, readFile } from 'fs';
+import { IDiagnosticsService, IMachineInfo, WorkspaceStats, WorkspaceStatItem, PerformanceInfo, SystemInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError, isRemoteDiagnosticError, IWorkspaceInformation } from 'vs/platform/diagnostics/common/diagnostics';
 import { join, basename } from 'vs/base/common/path';
 import { parse, ParseError, getNodeType } from 'vs/base/common/json';
 import { listProcesses } from 'vs/base/node/ps';
-import product from 'vs/platform/product/common/product';
-import { repeat, pad } from 'vs/base/common/strings';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ProcessItem } from 'vs/base/common/processes';
 import { IMainProcessInfo } from 'vs/platform/launch/common/launch';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Iterable } from 'vs/base/common/iterator';
-
-export const ID = 'diagnosticsService';
-export const IDiagnosticsService = createDecorator<IDiagnosticsService>(ID);
-
-export interface IDiagnosticsService {
-	readonly _serviceBrand: undefined;
-
-	getPerformanceInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<PerformanceInfo>;
-	getSystemInfo(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<SystemInfo>;
-	getDiagnostics(mainProcessInfo: IMainProcessInfo, remoteInfo: (IRemoteDiagnosticInfo | IRemoteDiagnosticError)[]): Promise<string>;
-	reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void>;
-}
+import { Schemas } from 'vs/base/common/network';
+import { ByteSize } from 'vs/platform/files/common/files';
+import { IDirent, Promises } from 'vs/base/node/pfs';
 
 export interface VersionInfo {
 	vscodeVersion: string;
@@ -78,68 +66,69 @@ export async function collectWorkspaceStats(folder: string, filter: string[]): P
 	function collect(root: string, dir: string, filter: string[], token: { count: number, maxReached: boolean }): Promise<void> {
 		const relativePath = dir.substring(root.length + 1);
 
-		return new Promise(resolve => {
-			readdir(dir, { withFileTypes: true }, async (err, files) => {
+		return new Promise(async resolve => {
+			let files: IDirent[];
+			try {
+				files = await Promises.readdir(dir, { withFileTypes: true });
+			} catch (error) {
 				// Ignore folders that can't be read
-				if (err) {
-					resolve();
-					return;
-				}
+				resolve();
+				return;
+			}
 
-				if (token.count > MAX_FILES) {
-					token.count += files.length;
-					token.maxReached = true;
-					resolve();
-					return;
-				}
-
-				let pending = files.length;
-				if (pending === 0) {
-					resolve();
-					return;
-				}
-
-				let filesToRead = files;
-				if (token.count + files.length > MAX_FILES) {
-					token.maxReached = true;
-					pending = MAX_FILES - token.count;
-					filesToRead = files.slice(0, pending);
-				}
-
+			if (token.count >= MAX_FILES) {
 				token.count += files.length;
+				token.maxReached = true;
+				resolve();
+				return;
+			}
 
-				for (const file of filesToRead) {
-					if (file.isDirectory()) {
-						if (!filter.includes(file.name)) {
-							await collect(root, join(dir, file.name), filter, token);
-						}
+			let pending = files.length;
+			if (pending === 0) {
+				resolve();
+				return;
+			}
 
-						if (--pending === 0) {
-							resolve();
-							return;
-						}
-					} else {
-						const index = file.name.lastIndexOf('.');
-						if (index >= 0) {
-							const fileType = file.name.substring(index + 1);
-							if (fileType) {
-								fileTypes.set(fileType, (fileTypes.get(fileType) ?? 0) + 1);
-							}
-						}
+			let filesToRead = files;
+			if (token.count + files.length > MAX_FILES) {
+				token.maxReached = true;
+				pending = MAX_FILES - token.count;
+				filesToRead = files.slice(0, pending);
+			}
 
-						for (const configFile of configFilePatterns) {
-							if (configFile.relativePathPattern?.test(relativePath) !== false && configFile.filePattern.test(file.name)) {
-								configFiles.set(configFile.tag, (configFiles.get(configFile.tag) ?? 0) + 1);
-							}
-						}
+			token.count += files.length;
 
-						if (--pending === 0) {
-							resolve();
-							return;
+			for (const file of filesToRead) {
+				if (file.isDirectory()) {
+					if (!filter.includes(file.name)) {
+						await collect(root, join(dir, file.name), filter, token);
+					}
+
+					if (--pending === 0) {
+						resolve();
+						return;
+					}
+				} else {
+					const index = file.name.lastIndexOf('.');
+					if (index >= 0) {
+						const fileType = file.name.substring(index + 1);
+						if (fileType) {
+							fileTypes.set(fileType, (fileTypes.get(fileType) ?? 0) + 1);
 						}
 					}
+
+					for (const configFile of configFilePatterns) {
+						if (configFile.relativePathPattern?.test(relativePath) !== false && configFile.filePattern.test(file.name)) {
+							configFiles.set(configFile.tag, (configFiles.get(configFile.tag) ?? 0) + 1);
+						}
+					}
+
+					if (--pending === 0) {
+						resolve();
+						return;
+					}
 				}
-			});
+			}
 		});
 	}
 
@@ -163,12 +152,10 @@ function asSortedItems(items: Map<string, number>): WorkspaceStatItem[] {
 }
 
 export function getMachineInfo(): IMachineInfo {
-	const MB = 1024 * 1024;
-	const GB = 1024 * MB;
 
 	const machineInfo: IMachineInfo = {
 		os: `${osLib.type()} ${osLib.arch()} ${osLib.release()}`,
-		memory: `${(osLib.totalmem() / GB).toFixed(2)}GB (${(osLib.freemem() / GB).toFixed(2)}GB free)`,
+		memory: `${(osLib.totalmem() / ByteSize.GB).toFixed(2)}GB (${(osLib.freemem() / ByteSize.GB).toFixed(2)}GB free)`,
 		vmHint: `${Math.round((virtualMachineHint.value() * 100))}%`,
 	};
 
@@ -180,52 +167,47 @@ export function getMachineInfo(): IMachineInfo {
 	return machineInfo;
 }
 
-export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
-	let launchConfigs = new Map<string, number>();
+export async function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[]> {
+	try {
+		const launchConfigs = new Map<string, number>();
+		const launchConfig = join(folder, '.vscode', 'launch.json');
 
-	let launchConfig = join(folder, '.vscode', 'launch.json');
-	return new Promise((resolve, reject) => {
-		exists(launchConfig, (doesExist) => {
-			if (doesExist) {
-				readFile(launchConfig, (err, contents) => {
-					if (err) {
-						return resolve([]);
+		const contents = await Promises.readFile(launchConfig);
+
+		const errors: ParseError[] = [];
+		const json = parse(contents.toString(), errors);
+		if (errors.length) {
+			console.log(`Unable to parse ${launchConfig}`);
+			return [];
+		}
+
+		if (getNodeType(json) === 'object' && json['configurations']) {
+			for (const each of json['configurations']) {
+				const type = each['type'];
+				if (type) {
+					if (launchConfigs.has(type)) {
+						launchConfigs.set(type, launchConfigs.get(type)! + 1);
+					} else {
+						launchConfigs.set(type, 1);
 					}
-
-					const errors: ParseError[] = [];
-					const json = parse(contents.toString(), errors);
-					if (errors.length) {
-						console.log(`Unable to parse ${launchConfig}`);
-						return resolve([]);
-					}
-
-					if (getNodeType(json) === 'object' && json['configurations']) {
-						for (const each of json['configurations']) {
-							const type = each['type'];
-							if (type) {
-								if (launchConfigs.has(type)) {
-									launchConfigs.set(type, launchConfigs.get(type)! + 1);
-								} else {
-									launchConfigs.set(type, 1);
-								}
-							}
-						}
-					}
-
-					return resolve(asSortedItems(launchConfigs));
-				});
-			} else {
-				return resolve([]);
+				}
 			}
-		});
-	});
+		}
+
+		return asSortedItems(launchConfigs);
+	} catch (error) {
+		return [];
+	}
 }
 
 export class DiagnosticsService implements IDiagnosticsService {
 
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@ITelemetryService private readonly telemetryService: ITelemetryService) { }
+	constructor(
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IProductService private readonly productService: IProductService
+	) { }
 
 	private formatMachineInfo(info: IMachineInfo): string {
 		const output: string[] = [];
@@ -238,17 +220,14 @@ export class DiagnosticsService implements IDiagnosticsService {
 	}
 
 	private formatEnvironment(info: IMainProcessInfo): string {
-		const MB = 1024 * 1024;
-		const GB = 1024 * MB;
-
 		const output: string[] = [];
-		output.push(`Version:          ${product.nameShort} ${product.version} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})`);
+		output.push(`Version:          ${this.productService.nameShort} ${this.productService.version} (${this.productService.commit || 'Commit unknown'}, ${this.productService.date || 'Date unknown'})`);
 		output.push(`OS Version:       ${osLib.type()} ${osLib.arch()} ${osLib.release()}`);
 		const cpus = osLib.cpus();
 		if (cpus && cpus.length > 0) {
 			output.push(`CPUs:             ${cpus[0].model} (${cpus.length} x ${cpus[0].speed})`);
 		}
-		output.push(`Memory (System):  ${(osLib.totalmem() / GB).toFixed(2)}GB (${(osLib.freemem() / GB).toFixed(2)}GB free)`);
+		output.push(`Memory (System):  ${(osLib.totalmem() / ByteSize.GB).toFixed(2)}GB (${(osLib.freemem() / ByteSize.GB).toFixed(2)}GB free)`);
 		if (!isWindows) {
 			output.push(`Load (avg):       ${osLib.loadavg().map(l => Math.round(l)).join(', ')}`); // only provided on Linux/macOS
 		}
@@ -318,10 +297,10 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 		if (isLinux) {
 			systemInfo.linuxEnv = {
-				desktopSession: process.env.DESKTOP_SESSION,
-				xdgSessionDesktop: process.env.XDG_SESSION_DESKTOP,
-				xdgCurrentDesktop: process.env.XDG_CURRENT_DESKTOP,
-				xdgSessionType: process.env.XDG_SESSION_TYPE
+				desktopSession: process.env['DESKTOP_SESSION'],
+				xdgSessionDesktop: process.env['XDG_SESSION_DESKTOP'],
+				xdgCurrentDesktop: process.env['XDG_CURRENT_DESKTOP'],
+				xdgSessionType: process.env['XDG_SESSION_TYPE']
 			};
 		}
 
@@ -435,7 +414,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 	private expandGPUFeatures(gpuFeatures: any): string {
 		const longestFeatureName = Math.max(...Object.keys(gpuFeatures).map(feature => feature.length));
 		// Make columns aligned by adding spaces after feature name
-		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${repeat(' ', longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
+		return Object.keys(gpuFeatures).map(feature => `${feature}:  ${' '.repeat(longestFeatureName - feature.length)}  ${gpuFeatures[feature]}`).join('\n                  ');
 	}
 
 	private formatWorkspaceMetadata(info: IMainProcessInfo): Promise<string> {
@@ -451,7 +430,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 
 			window.folderURIs.forEach(uriComponents => {
 				const folderUri = URI.revive(uriComponents);
-				if (folderUri.scheme === 'file') {
+				if (folderUri.scheme === Schemas.file) {
 					const folder = folderUri.fsPath;
 					workspaceStatPromises.push(collectWorkspaceStats(folder, ['node_modules', '.git']).then(stats => {
 						let countMessage = `${stats.fileCount} files`;
@@ -493,21 +472,20 @@ export class DiagnosticsService implements IDiagnosticsService {
 	private formatProcessItem(mainPid: number, mapPidToWindowTitle: Map<number, string>, output: string[], item: ProcessItem, indent: number): void {
 		const isRoot = (indent === 0);
 
-		const MB = 1024 * 1024;
-
 		// Format name with indent
 		let name: string;
 		if (isRoot) {
-			name = item.pid === mainPid ? `${product.applicationName} main` : 'remote agent';
+			name = item.pid === mainPid ? `${this.productService.applicationName} main` : 'remote agent';
 		} else {
-			name = `${repeat('  ', indent)} ${item.name}`;
+			name = `${'  '.repeat(indent)} ${item.name}`;
 
 			if (item.name === 'window') {
 				name = `${name} (${mapPidToWindowTitle.get(item.pid)})`;
 			}
 		}
+
 		const memory = process.platform === 'win32' ? item.mem : (osLib.totalmem() * (item.mem / 100));
-		output.push(`${pad(Number(item.load.toFixed(0)), 5, ' ')}\t${pad(Number((memory / MB).toFixed(0)), 6, ' ')}\t${pad(Number((item.pid).toFixed(0)), 6, ' ')}\t${name}`);
+		output.push(`${item.load.toFixed(0).padStart(5, ' ')}\t${(memory / ByteSize.MB).toFixed(0).padStart(6, ' ')}\t${item.pid.toFixed(0).padStart(6, ' ')}\t${name}`);
 
 		// Recurse into children if any
 		if (Array.isArray(item.children)) {
@@ -518,7 +496,7 @@ export class DiagnosticsService implements IDiagnosticsService {
 	public async reportWorkspaceStats(workspace: IWorkspaceInformation): Promise<void> {
 		for (const { uri } of workspace.folders) {
 			const folderUri = URI.revive(uri);
-			if (folderUri.scheme !== 'file') {
+			if (folderUri.scheme !== Schemas.file) {
 				continue;
 			}
 

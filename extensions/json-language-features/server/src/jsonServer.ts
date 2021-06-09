@@ -6,7 +6,7 @@
 import {
 	Connection,
 	TextDocuments, InitializeParams, InitializeResult, NotificationType, RequestType,
-	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit
+	DocumentRangeFormattingRequest, Disposable, ServerCapabilities, TextDocumentSyncKind, TextEdit, DocumentFormattingRequest, TextDocumentIdentifier, FormattingOptions
 } from 'vscode-languageserver';
 
 import { formatError, runSafe, runSafeAsync } from './utils/runner';
@@ -14,33 +14,26 @@ import { TextDocument, JSONDocument, JSONSchema, getLanguageService, DocumentLan
 import { getLanguageModelCache } from './languageModelCache';
 import { RequestService, basename, resolvePath } from './requests';
 
-interface ISchemaAssociations {
-	[pattern: string]: string[];
-}
-
-interface ISchemaAssociation {
-	fileMatch: string[];
-	uri: string;
-}
+type ISchemaAssociations = Record<string, string[]>;
 
 namespace SchemaAssociationNotification {
-	export const type: NotificationType<ISchemaAssociations | ISchemaAssociation[], any> = new NotificationType('json/schemaAssociations');
+	export const type: NotificationType<ISchemaAssociations | SchemaConfiguration[]> = new NotificationType('json/schemaAssociations');
 }
 
 namespace VSCodeContentRequest {
-	export const type: RequestType<string, string, any, any> = new RequestType('vscode/content');
+	export const type: RequestType<string, string, any> = new RequestType('vscode/content');
 }
 
 namespace SchemaContentChangeNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/schemaContent');
+	export const type: NotificationType<string> = new NotificationType('json/schemaContent');
 }
 
 namespace ResultLimitReachedNotification {
-	export const type: NotificationType<string, any> = new NotificationType('json/resultLimitReached');
+	export const type: NotificationType<string> = new NotificationType('json/resultLimitReached');
 }
 
 namespace ForceValidateRequest {
-	export const type: RequestType<string, Diagnostic[], any, any> = new RequestType('json/validate');
+	export const type: RequestType<string, Diagnostic[], any> = new RequestType('json/validate');
 }
 
 
@@ -144,11 +137,12 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			} : undefined,
 			hoverProvider: true,
 			documentSymbolProvider: true,
-			documentRangeFormattingProvider: params.initializationOptions.provideFormatter === true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
 			colorProvider: {},
 			foldingRangeProvider: true,
 			selectionRangeProvider: true,
-			definitionProvider: true
+			documentLinkProvider: {}
 		};
 
 		return { capabilities };
@@ -212,8 +206,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	}();
 
 	let jsonConfigurationSettings: JSONSchemaSettings[] | undefined = undefined;
-	let schemaAssociations: ISchemaAssociations | ISchemaAssociation[] | undefined = undefined;
-	let formatterRegistration: Thenable<Disposable> | null = null;
+	let schemaAssociations: ISchemaAssociations | SchemaConfiguration[] | undefined = undefined;
+	let formatterRegistrations: Thenable<Disposable>[] | null = null;
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
@@ -231,12 +225,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		if (dynamicFormatterRegistration) {
 			const enableFormatter = settings && settings.json && settings.json.format && settings.json.format.enable;
 			if (enableFormatter) {
-				if (!formatterRegistration) {
-					formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector: [{ language: 'json' }, { language: 'jsonc' }] });
+				if (!formatterRegistrations) {
+					const documentSelector = [{ language: 'json' }, { language: 'jsonc' }];
+					formatterRegistrations = [
+						connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector }),
+						connection.client.register(DocumentFormattingRequest.type, { documentSelector })
+					];
 				}
-			} else if (formatterRegistration) {
-				formatterRegistration.then(r => r.dispose());
-				formatterRegistration = null;
+			} else if (formatterRegistrations) {
+				formatterRegistrations.forEach(p => p.then(r => r.dispose()));
+				formatterRegistrations = null;
 			}
 		}
 	});
@@ -427,19 +425,25 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing document symbols for ${documentSymbolParams.textDocument.uri}`, token);
 	});
 
-	connection.onDocumentRangeFormatting((formatParams, token) => {
-		return runSafe(() => {
-			const document = documents.get(formatParams.textDocument.uri);
-			if (document) {
-				const edits = languageService.format(document, formatParams.range, formatParams.options);
-				if (edits.length > formatterMaxNumberOfEdits) {
-					const newText = TextDocument.applyEdits(document, edits);
-					return [TextEdit.replace(Range.create(Position.create(0, 0), document.positionAt(document.getText().length)), newText)];
-				}
-				return edits;
+	function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): TextEdit[] {
+		const document = documents.get(textDocument.uri);
+		if (document) {
+			const edits = languageService.format(document, range ?? getFullRange(document), options);
+			if (edits.length > formatterMaxNumberOfEdits) {
+				const newText = TextDocument.applyEdits(document, edits);
+				return [TextEdit.replace(getFullRange(document), newText)];
 			}
-			return [];
-		}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+			return edits;
+		}
+		return [];
+	}
+
+	connection.onDocumentRangeFormatting((formatParams, token) => {
+		return runSafe(() => onFormat(formatParams.textDocument, formatParams.range, formatParams.options), [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+	});
+
+	connection.onDocumentFormatting((formatParams, token) => {
+		return runSafe(() => onFormat(formatParams.textDocument, undefined, formatParams.options), [], `Error while formatting ${formatParams.textDocument.uri}`, token);
 	});
 
 	connection.onDocumentColor((params, token) => {
@@ -488,17 +492,21 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, [], `Error while computing selection ranges for ${params.textDocument.uri}`, token);
 	});
 
-	connection.onDefinition((params, token) => {
+	connection.onDocumentLinks((params, token) => {
 		return runSafeAsync(async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
 				const jsonDocument = getJSONDocument(document);
-				return languageService.findDefinition(document, params.position, jsonDocument);
+				return languageService.findLinks(document, jsonDocument);
 			}
 			return [];
-		}, [], `Error while computing definitions for ${params.textDocument.uri}`, token);
+		}, [], `Error while computing links for ${params.textDocument.uri}`, token);
 	});
 
 	// Listen on the connection
 	connection.listen();
+}
+
+function getFullRange(document: TextDocument): Range {
+	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }

@@ -11,6 +11,7 @@ import { areSameExtensions } from 'vs/platform/extensionManagement/common/extens
 import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 
 export class WebExtensionManagementService extends Disposable implements IExtensionManagementService {
 
@@ -40,16 +41,23 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
 	}
 
+	async canInstall(gallery: IGalleryExtension): Promise<boolean> {
+		return this.webExtensionsScannerService.canAddExtension(gallery);
+	}
+
 	async installFromGallery(gallery: IGalleryExtension): Promise<ILocalExtension> {
+		if (!(await this.canInstall(gallery))) {
+			throw new Error(localize('cannot be installed', "Cannot install '{0}' because this extension is not a web extension.", gallery.displayName || gallery.name));
+		}
 		this.logService.info('Installing extension:', gallery.identifier.id);
 		this._onInstallExtension.fire({ identifier: gallery.identifier, gallery });
 		try {
 			const existingExtension = await this.getUserExtension(gallery.identifier);
+			const scannedExtension = await this.webExtensionsScannerService.addExtension(gallery);
+			const local = await this.toLocalExtension(scannedExtension);
 			if (existingExtension && existingExtension.manifest.version !== gallery.version) {
 				await this.webExtensionsScannerService.removeExtension(existingExtension.identifier, existingExtension.manifest.version);
 			}
-			const scannedExtension = await this.webExtensionsScannerService.addExtension(gallery);
-			const local = await this.toLocalExtension(scannedExtension);
 			this._onDidInstallExtension.fire({ local, identifier: gallery.identifier, operation: InstallOperation.Install, gallery });
 			return local;
 		} catch (error) {
@@ -80,22 +88,23 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	}
 
 	private async toLocalExtension(scannedExtension: ITranslatedScannedExtension): Promise<ILocalExtension> {
-		return <ILocalExtension>{
+		return {
 			type: scannedExtension.type,
 			identifier: scannedExtension.identifier,
 			manifest: scannedExtension.packageJSON,
 			location: scannedExtension.location,
 			isMachineScoped: false,
 			publisherId: null,
-			publisherDisplayName: null
+			publisherDisplayName: null,
+			isBuiltin: scannedExtension.type === ExtensionType.System
 		};
 	}
 
 	zip(extension: ILocalExtension): Promise<URI> { throw new Error('unsupported'); }
 	unzip(zipLocation: URI): Promise<IExtensionIdentifier> { throw new Error('unsupported'); }
 	getManifest(vsix: URI): Promise<IExtensionManifest> { throw new Error('unsupported'); }
-	install(vsix: URI, isMachineScoped?: boolean): Promise<ILocalExtension> { throw new Error('unsupported'); }
+	install(vsix: URI): Promise<ILocalExtension> { throw new Error('unsupported'); }
 	reinstallFromGallery(extension: ILocalExtension): Promise<void> { throw new Error('unsupported'); }
 	getExtensionsReport(): Promise<IReportedExtension[]> { throw new Error('unsupported'); }
-
+	updateExtensionScope(): Promise<ILocalExtension> { throw new Error('unsupported'); }
 }

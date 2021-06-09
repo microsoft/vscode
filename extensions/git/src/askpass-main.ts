@@ -30,7 +30,7 @@ function main(argv: string[]): void {
 
 	const output = process.env['VSCODE_GIT_ASKPASS_PIPE'] as string;
 	const request = argv[2];
-	const host = argv[4].substring(1, argv[4].length - 2);
+	const host = argv[4].replace(/^["']+|["':]+$/g, '');
 	const ipcClient = new IPCClient('askpass');
 
 	ipcClient.call({ request, host }).then(res => {

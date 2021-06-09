@@ -87,58 +87,44 @@ export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boole
 
 type Compare<T> = (a: T, b: T) => number;
 
-/**
- * Like `Array#sort` but always stable. Usually runs a little slower `than Array#sort`
- * so only use this when actually needing stable sort.
- */
-export function mergeSort<T>(data: T[], compare: Compare<T>): T[] {
-	_sort(data, compare, 0, data.length - 1, []);
-	return data;
-}
 
-function _merge<T>(a: T[], compare: Compare<T>, lo: number, mid: number, hi: number, aux: T[]): void {
-	let leftIdx = lo, rightIdx = mid + 1;
-	for (let i = lo; i <= hi; i++) {
-		aux[i] = a[i];
+export function quickSelect<T>(nth: number, data: T[], compare: Compare<T>): T {
+
+	nth = nth | 0;
+
+	if (nth >= data.length) {
+		throw new TypeError('invalid index');
 	}
-	for (let i = lo; i <= hi; i++) {
-		if (leftIdx > mid) {
-			// left side consumed
-			a[i] = aux[rightIdx++];
-		} else if (rightIdx > hi) {
-			// right side consumed
-			a[i] = aux[leftIdx++];
-		} else if (compare(aux[rightIdx], aux[leftIdx]) < 0) {
-			// right element is less -> comes first
-			a[i] = aux[rightIdx++];
+
+	let pivotValue = data[Math.floor(data.length * Math.random())];
+	let lower: T[] = [];
+	let higher: T[] = [];
+	let pivots: T[] = [];
+
+	for (let value of data) {
+		const val = compare(value, pivotValue);
+		if (val < 0) {
+			lower.push(value);
+		} else if (val > 0) {
+			higher.push(value);
 		} else {
-			// left element comes first (less or equal)
-			a[i] = aux[leftIdx++];
+			pivots.push(value);
 		}
 	}
-}
 
-function _sort<T>(a: T[], compare: Compare<T>, lo: number, hi: number, aux: T[]) {
-	if (hi <= lo) {
-		return;
+	if (nth < lower.length) {
+		return quickSelect(nth, lower, compare);
+	} else if (nth < lower.length + pivots.length) {
+		return pivots[0];
+	} else {
+		return quickSelect(nth - (lower.length + pivots.length), higher, compare);
 	}
-	const mid = lo + ((hi - lo) / 2) | 0;
-	_sort(a, compare, lo, mid, aux);
-	_sort(a, compare, mid + 1, hi, aux);
-	if (compare(a[mid], a[mid + 1]) <= 0) {
-		// left and right are sorted and if the last-left element is less
-		// or equals than the first-right element there is nothing else
-		// to do
-		return;
-	}
-	_merge(a, compare, lo, mid, hi, aux);
 }
-
 
 export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => number): T[][] {
 	const result: T[][] = [];
 	let currentGroup: T[] | undefined = undefined;
-	for (const element of mergeSort(data.slice(0), compare)) {
+	for (const element of data.slice(0).sort(compare)) {
 		if (!currentGroup || compare(currentGroup[0], element) !== 0) {
 			currentGroup = [element];
 			result.push(currentGroup);
@@ -399,32 +385,6 @@ export function lastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean):
 	return -1;
 }
 
-/**
- * @deprecated ES6: use `Array.findIndex`
- */
-export function firstIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = 0; i < array.length; i++) {
-		const element = array[i];
-
-		if (fn(element)) {
-			return i;
-		}
-	}
-
-	return -1;
-}
-
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T): T;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): T | undefined;
-export function first<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T | undefined = undefined): T | undefined {
-	const index = firstIndex(array, fn);
-	return index < 0 ? notFoundValue : array[index];
-}
-
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
 export function firstOrDefault<T>(array: ReadonlyArray<T>): T | undefined;
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue?: NotFound): T | NotFound | undefined {
@@ -565,39 +525,66 @@ export function pushToEnd<T>(arr: T[], value: T): void {
 	}
 }
 
-
-/**
- * @deprecated ES6: use `Array.find`
- */
-export function find<T>(arr: ArrayLike<T>, predicate: (value: T, index: number, arr: ArrayLike<T>) => any): T | undefined {
-	for (let i = 0; i < arr.length; i++) {
-		const element = arr[i];
-		if (predicate(element, i, arr)) {
-			return element;
-		}
-	}
-
-	return undefined;
-}
-
 export function mapArrayOrNot<T, U>(items: T | T[], fn: (_: T) => U): U | U[] {
 	return Array.isArray(items) ?
 		items.map(fn) :
 		fn(items);
 }
 
+export function asArray<T>(x: T | T[]): T[];
+export function asArray<T>(x: T | readonly T[]): readonly T[];
 export function asArray<T>(x: T | T[]): T[] {
 	return Array.isArray(x) ? x : [x];
 }
 
-export function toArray<T>(iterable: IterableIterator<T>): T[] {
-	const result: T[] = [];
-	for (let element of iterable) {
-		result.push(element);
-	}
-	return result;
-}
-
 export function getRandomElement<T>(arr: T[]): T | undefined {
 	return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/**
+ * Returns the first mapped value of the array which is not undefined.
+ */
+export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undefined): R | undefined {
+	for (const value of array) {
+		const mapped = mapFn(value);
+		if (mapped !== undefined) {
+			return mapped;
+		}
+	}
+
+	return undefined;
+}
+
+/**
+ * Like Math.min with a delegate, and returns the winning index
+ */
+export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MAX_SAFE_INTEGER;
+	let minIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue < minValue) {
+			minValue = thisValue;
+			minIdx = i;
+		}
+	});
+
+	return minIdx;
+}
+
+/**
+ * Like Math.max with a delegate, and returns the winning index
+ */
+export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MIN_SAFE_INTEGER;
+	let maxIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue > minValue) {
+			minValue = thisValue;
+			maxIdx = i;
+		}
+	});
+
+	return maxIdx;
 }

@@ -34,10 +34,9 @@ export function setup() {
 
 			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 
-			const problems = new Problems(app.code);
-			await problems.showProblemsView();
+			await app.workbench.problems.showProblemsView();
 			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
-			await problems.hideProblemsView();
+			await app.workbench.problems.hideProblemsView();
 		});
 	});
 }

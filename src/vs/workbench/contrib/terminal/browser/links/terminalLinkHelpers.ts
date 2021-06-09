@@ -3,10 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
+import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 
-export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
+/**
+ * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
+ *
+ * @param lines A single line (not the entire buffer)
+ * @param bufferWidth The number of columns in the terminal
+ * @param range The link range - string indices
+ * @param startLine The absolute y position (on the buffer) of the line
+ */
+export function convertLinkRangeToBuffer(
+	lines: IBufferLine[],
+	bufferWidth: number,
+	range: IRange,
+	startLine: number
+): IBufferRange {
 	const bufferRange: IBufferRange = {
 		start: {
 			x: range.startColumn,
@@ -54,6 +67,12 @@ export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: numb
 		const startLineOffset = (y === startWrappedLineCount - 1 ? startOffset : 0);
 		let lineOffset = 0;
 		const line = lines[y];
+		// Sanity check for line, apparently this can happen but it's not clear under what
+		// circumstances this happens. Continue on, skipping the remainder of start offset if this
+		// happens to minimize impact.
+		if (!line) {
+			break;
+		}
 		for (let x = start; x < Math.min(bufferWidth, lineLength + lineOffset + startLineOffset); x++) {
 			const cell = line.getCell(x)!;
 			const width = cell.getWidth();

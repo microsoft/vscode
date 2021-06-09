@@ -37,7 +37,7 @@ export interface IMouseDispatchData {
 export interface ICommandDelegate {
 	paste(text: string, pasteOnNewLine: boolean, multicursorText: string[] | null, mode: string | null): void;
 	type(text: string): void;
-	replacePreviousChar(text: string, replaceCharCnt: number): void;
+	compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void;
 	startComposition(): void;
 	endComposition(): void;
 	cut(): void;
@@ -70,8 +70,8 @@ export class ViewController {
 		this.commandDelegate.type(text);
 	}
 
-	public replacePreviousChar(text: string, replaceCharCnt: number): void {
-		this.commandDelegate.replacePreviousChar(text, replaceCharCnt);
+	public compositionType(text: string, replacePrevCharCnt: number, replaceNextCharCnt: number, positionDelta: number): void {
+		this.commandDelegate.compositionType(text, replacePrevCharCnt, replaceNextCharCnt, positionDelta);
 	}
 
 	public compositionStart(): void {
@@ -109,8 +109,9 @@ export class ViewController {
 				return data.ctrlKey;
 			case 'metaKey':
 				return data.metaKey;
+			default:
+				return false;
 		}
-		return false;
 	}
 
 	private _hasNonMulticursorModifier(data: IMouseDispatchData): boolean {
@@ -121,8 +122,9 @@ export class ViewController {
 				return data.altKey || data.metaKey;
 			case 'metaKey':
 				return data.ctrlKey || data.altKey;
+			default:
+				return false;
 		}
-		return false;
 	}
 
 	public dispatchMouse(data: IMouseDispatchData): void {
@@ -318,6 +320,10 @@ export class ViewController {
 
 	public emitMouseDrop(e: IPartialEditorMouseEvent): void {
 		this.userInputEvents.emitMouseDrop(e);
+	}
+
+	public emitMouseDropCanceled(): void {
+		this.userInputEvents.emitMouseDropCanceled();
 	}
 
 	public emitMouseWheel(e: IMouseWheelEvent): void {

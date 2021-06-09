@@ -27,7 +27,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITextModel } from 'vs/editor/common/model';
 import { provideSuggestionItems, CompletionOptions } from 'vs/editor/contrib/suggest/suggest';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -57,7 +57,7 @@ function isCurlyBracketOpen(input: IActiveCodeEditor): boolean {
 }
 
 function createDecorations(theme: IColorTheme, placeHolder: string): IDecorationOptions[] {
-	const transparentForeground = transparent(editorForeground, 0.4)(theme);
+	const transparentForeground = theme.getColor(editorForeground)?.transparent(0.4);
 	return [{
 		range: {
 			startLineNumber: 0,
@@ -98,7 +98,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
-		super(editor, { showFrame: true, showArrow: false, frameWidth: 1 });
+		super(editor, { showFrame: true, showArrow: false, frameWidth: 1, isAccessible: true });
 
 		this.toDispose = [];
 		const model = this.editor.getModel();
@@ -125,7 +125,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 				this.dispose();
 			}
 		}));
-		this.codeEditorService.registerDecorationType(DECORATION_KEY, {});
+		this.codeEditorService.registerDecorationType('breakpoint-widget', DECORATION_KEY, {});
 
 		this.create();
 	}
@@ -166,7 +166,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
-	show(rangeOrPos: IRange | IPosition): void {
+	override show(rangeOrPos: IRange | IPosition): void {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
 	}
@@ -203,7 +203,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		setTimeout(() => this.input.focus(), 150);
 	}
 
-	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
+	protected override _doLayout(heightInPixel: number, widthInPixel: number): void {
 		this.heightInPx = heightInPixel;
 		this.input.layout({ height: heightInPixel, width: widthInPixel - 113 });
 		this.centerInputVertically();
@@ -221,12 +221,15 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.input = <IActiveCodeEditor>scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:${this.editor.getId()}:breakpointinput`), true);
+		if (this.editor.hasModel()) {
+			model.setMode(this.editor.getModel().getLanguageIdentifier());
+		}
 		this.input.setModel(model);
 		this.toDispose.push(model);
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();
 			const decorations = !!value ? [] : createDecorations(this.themeService.getColorTheme(), this.placeholder);
-			this.input.setDecorations(DECORATION_KEY, decorations);
+			this.input.setDecorations('breakpoint-widget', DECORATION_KEY, decorations);
 		};
 		this.input.getModel().onDidChangeContent(() => setDecorations());
 		this.themeService.onDidColorThemeChange(() => setDecorations());
@@ -325,7 +328,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 						condition,
 						hitCondition,
 						logMessage
-					}], `breakpointWidget`);
+					}]);
 				}
 			}
 		}
@@ -333,7 +336,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		this.dispose();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.input.dispose();
 		lifecycle.dispose(this.toDispose);

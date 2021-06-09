@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./codelensWidget';
-import { renderCodicons } from 'vs/base/common/codicons';
-import { escape } from 'vs/base/common/strings';
+import * as dom from 'vs/base/browser/dom';
 import { IViewZone, IContentWidget, IActiveCodeEditor, IContentWidgetPosition, ContentWidgetPositionPreference, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecorationsChangeAccessor, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -15,23 +14,24 @@ import { editorCodeLensForeground } from 'vs/editor/common/view/editorColorRegis
 import { CodeLensItem } from 'vs/editor/contrib/codelens/codelens';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 
 class CodeLensViewZone implements IViewZone {
 
-	readonly heightInLines: number;
 	readonly suppressMouseDown: boolean;
 	readonly domNode: HTMLElement;
 
 	afterLineNumber: number;
+	heightInPx: number;
 
 	private _lastHeight?: number;
-	private readonly _onHeight: Function;
+	private readonly _onHeight: () => void;
 
-	constructor(afterLineNumber: number, onHeight: Function) {
+	constructor(afterLineNumber: number, heightInPx: number, onHeight: () => void) {
 		this.afterLineNumber = afterLineNumber;
-		this._onHeight = onHeight;
+		this.heightInPx = heightInPx;
 
-		this.heightInLines = 1;
+		this._onHeight = onHeight;
 		this.suppressMouseDown = true;
 		this.domNode = document.createElement('div');
 	}
@@ -79,7 +79,7 @@ class CodeLensContentWidget implements IContentWidget {
 	withCommands(lenses: Array<CodeLens | undefined | null>, animate: boolean): void {
 		this._commands.clear();
 
-		let innerHtml = '';
+		let children: HTMLElement[] = [];
 		let hasSymbol = false;
 		for (let i = 0; i < lenses.length; i++) {
 			const lens = lenses[i];
@@ -88,29 +88,26 @@ class CodeLensContentWidget implements IContentWidget {
 			}
 			hasSymbol = true;
 			if (lens.command) {
-				const title = renderCodicons(escape(lens.command.title));
+				const title = renderLabelWithIcons(lens.command.title.trim());
 				if (lens.command.id) {
-					innerHtml += `<a id=${i}>${title}</a>`;
+					children.push(dom.$('a', { id: String(i), title: lens.command.tooltip }, ...title));
 					this._commands.set(String(i), lens.command);
 				} else {
-					innerHtml += `<span>${title}</span>`;
+					children.push(dom.$('span', { title: lens.command.tooltip }, ...title));
 				}
 				if (i + 1 < lenses.length) {
-					innerHtml += '<span>&#160;|&#160;</span>';
+					children.push(dom.$('span', undefined, '\u00a0|\u00a0'));
 				}
 			}
 		}
 
 		if (!hasSymbol) {
 			// symbols but no commands
-			this._domNode.innerHTML = '<span>no commands</span>';
+			dom.reset(this._domNode, dom.$('span', undefined, 'no commands'));
 
 		} else {
 			// symbols and commands
-			if (!innerHtml) {
-				innerHtml = '\u00a0';
-			}
-			this._domNode.innerHTML = innerHtml;
+			dom.reset(this._domNode, ...children);
 			if (this._isEmpty && animate) {
 				this._domNode.classList.add('fadein');
 			}
@@ -182,8 +179,8 @@ export class CodeLensWidget {
 
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _className: string;
-	private readonly _viewZone!: CodeLensViewZone;
-	private readonly _viewZoneId!: string;
+	private readonly _viewZone: CodeLensViewZone;
+	private readonly _viewZoneId: string;
 
 	private _contentWidget?: CodeLensContentWidget;
 	private _decorationIds: string[];
@@ -196,7 +193,8 @@ export class CodeLensWidget {
 		className: string,
 		helper: CodeLensHelper,
 		viewZoneChangeAccessor: IViewZoneChangeAccessor,
-		updateCallback: Function
+		heightInPx: number,
+		updateCallback: () => void
 	) {
 		this._editor = editor;
 		this._className = className;
@@ -227,7 +225,7 @@ export class CodeLensWidget {
 			}
 		});
 
-		this._viewZone = new CodeLensViewZone(range!.startLineNumber - 1, updateCallback);
+		this._viewZone = new CodeLensViewZone(range!.startLineNumber - 1, heightInPx, updateCallback);
 		this._viewZoneId = viewZoneChangeAccessor.addZone(this._viewZone);
 
 		if (lenses.length > 0) {
@@ -239,7 +237,9 @@ export class CodeLensWidget {
 	private _createContentWidgetIfNecessary(): void {
 		if (!this._contentWidget) {
 			this._contentWidget = new CodeLensContentWidget(this._editor, this._className, this._viewZone.afterLineNumber + 1);
-			this._editor.addContentWidget(this._contentWidget!);
+			this._editor.addContentWidget(this._contentWidget);
+		} else {
+			this._editor.layoutContentWidget(this._contentWidget);
 		}
 	}
 
@@ -278,6 +278,14 @@ export class CodeLensWidget {
 				options: ModelDecorationOptions.EMPTY
 			}, id => this._decorationIds[i] = id);
 		});
+	}
+
+	updateHeight(height: number, viewZoneChangeAccessor: IViewZoneChangeAccessor): void {
+		this._viewZone.heightInPx = height;
+		viewZoneChangeAccessor.layoutZone(this._viewZoneId);
+		if (this._contentWidget) {
+			this._editor.layoutContentWidget(this._contentWidget);
+		}
 	}
 
 	computeIfNecessary(model: ITextModel): CodeLensItem[] | null {

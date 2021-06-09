@@ -30,10 +30,10 @@ import { State, SuggestModel } from './suggestModel';
 import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { WordContextKey } from 'vs/editor/contrib/suggest/wordContextKey';
 import { Event } from 'vs/base/common/event';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { IdleValue } from 'vs/base/common/async';
 import { isObject, assertType } from 'vs/base/common/types';
 import { CommitCharacterController } from './suggestCommitCharacters';
+import { OvertypingCapturer } from './suggestOvertypingCapturer';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { TrackedRangeStickiness, ITextModel } from 'vs/editor/common/model';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -42,7 +42,6 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 let _sticky = false;
@@ -62,7 +61,7 @@ class LineSuffix {
 			const end = _model.getPositionAt(offset + 1);
 			this._marker = _model.deltaDecorations([], [{
 				range: Range.fromPositions(_position, end),
-				options: { stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
+				options: { description: 'suggest-line-suffix', stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }
 			}]);
 		}
 	}
@@ -112,19 +111,23 @@ export class SuggestController implements IEditorContribution {
 	private readonly _alternatives: IdleValue<SuggestAlternatives>;
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
+	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
 
 	constructor(
 		editor: ICodeEditor,
-		@IEditorWorkerService editorWorker: IEditorWorkerService,
 		@ISuggestMemoryService private readonly _memoryService: ISuggestMemoryService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
-		@IClipboardService clipboardService: IClipboardService,
 	) {
 		this.editor = editor;
-		this.model = new SuggestModel(this.editor, editorWorker, clipboardService);
+		this.model = _instantiationService.createInstance(SuggestModel, this.editor,);
+
+		// context key: update insert/replace mode
+		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
+		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
+		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
 
 		this.widget = this._toDispose.add(new IdleValue(() => {
 
@@ -201,6 +204,11 @@ export class SuggestController implements IEditorContribution {
 			}));
 
 			return widget;
+		}));
+
+		// Wire up text overtyping capture
+		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
+			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
 		this._alternatives = this._toDispose.add(new IdleValue(() => {
@@ -361,7 +369,8 @@ export class SuggestController implements IEditorContribution {
 			undoStopBefore: false,
 			undoStopAfter: false,
 			adjustWhitespace: !(item.completion.insertTextRules! & CompletionItemInsertTextRule.KeepWhitespace),
-			clipboardText: event.model.clipboardText
+			clipboardText: event.model.clipboardText,
+			overtypingCapturer: this._overtypingCapturer.value
 		});
 
 		if (!(flags & InsertFlags.NoAfterUndoStop)) {
@@ -431,10 +440,9 @@ export class SuggestController implements IEditorContribution {
 		};
 	}
 
-	private _alertCompletionItem({ completion: suggestion }: CompletionItem): void {
-		const textLabel = typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name;
-		if (isNonEmptyArray(suggestion.additionalTextEdits)) {
-			let msg = nls.localize('arai.alert.snippet', "Accepting '{0}' made {1} additional edits", textLabel, suggestion.additionalTextEdits.length);
+	private _alertCompletionItem(item: CompletionItem): void {
+		if (isNonEmptyArray(item.completion.additionalTextEdits)) {
+			let msg = nls.localize('aria.alert.snippet', "Accepting '{0}' made {1} additional edits", item.textLabel, item.completion.additionalTextEdits.length);
 			alert(msg);
 		}
 	}
@@ -575,6 +583,18 @@ export class SuggestController implements IEditorContribution {
 	toggleSuggestionFocus(): void {
 		this.widget.value.toggleDetailsFocus();
 	}
+
+	resetWidgetSize(): void {
+		this.widget.value.resetPersistedSize();
+	}
+
+	forceRenderingAbove() {
+		this.widget.value.forceRenderingAbove();
+	}
+
+	stopForceRenderingAbove() {
+		this.widget.value.stopForceRenderingAbove();
+	}
 }
 
 export class TriggerSuggestAction extends EditorAction {
@@ -590,7 +610,8 @@ export class TriggerSuggestAction extends EditorAction {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Space,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape] },
+				secondary: [KeyMod.CtrlCmd | KeyCode.KEY_I],
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Space, secondary: [KeyMod.Alt | KeyCode.Escape, KeyMod.CtrlCmd | KeyCode.KEY_I] },
 				weight: KeybindingWeight.EditorContrib
 			}
 		});
@@ -640,22 +661,22 @@ KeybindingsRegistry.registerKeybindingRule({
 });
 
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.accept', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
 	when: SuggestContext.HasInsertAndReplaceRange.toNegated()
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.insert', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.insert', "Insert") },
 	group: 'left',
 	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert'))
+	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert'))
 });
 MenuRegistry.appendMenuItem(suggestWidgetStatusbarMenu, {
-	command: { id: 'acceptSelectedSuggestion', title: nls.localize({ key: 'accept.replace', comment: ['{0} will be a keybinding, e.g "Enter to replace"'] }, "{0} to replace") },
+	command: { id: 'acceptSelectedSuggestion', title: nls.localize('accept.replace', "Replace") },
 	group: 'left',
 	order: 1,
-	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace'))
+	when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace'))
 });
 
 registerEditorCommand(new SuggestCommand({
@@ -674,14 +695,14 @@ registerEditorCommand(new SuggestCommand({
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'insert')),
-		title: nls.localize({ key: 'accept.replace', comment: ['{0} will be a keybinding, e.g "Enter to replace"'] }, "{0} to replace")
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('insert')),
+		title: nls.localize('accept.replace', "Replace")
 	}, {
 		menuId: suggestWidgetStatusbarMenu,
 		group: 'left',
 		order: 2,
-		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, ContextKeyExpr.equals('config.editor.suggest.insertMode', 'replace')),
-		title: nls.localize({ key: 'accept.insert', comment: ['{0} will be a keybinding, e.g "Enter to insert"'] }, "{0} to insert")
+		when: ContextKeyExpr.and(SuggestContext.HasInsertAndReplaceRange, SuggestContext.InsertMode.isEqualTo('replace')),
+		title: nls.localize('accept.insert', "Insert")
 	}]
 }));
 
@@ -865,3 +886,20 @@ registerEditorCommand(new SuggestCommand({
 		primary: KeyMod.Shift | KeyCode.Tab
 	}
 }));
+
+
+registerEditorAction(class extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.resetSuggestSize',
+			label: nls.localize('suggest.reset.label', "Reset Suggest Widget Size"),
+			alias: 'Reset Suggest Widget Size',
+			precondition: undefined
+		});
+	}
+
+	run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
+		SuggestController.get(editor).resetWidgetSize();
+	}
+});

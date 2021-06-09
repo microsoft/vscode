@@ -28,7 +28,7 @@ const previewStrings = {
 
 	cspAlertMessageTitle: localize(
 		'preview.securityMessage.title',
-		'Potentially unsafe or insecure content has been disabled in the markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
+		'Potentially unsafe or insecure content has been disabled in the Markdown preview. Change the Markdown preview security setting to allow insecure content or enable scripts'),
 
 	cspAlertMessageLabel: localize(
 		'preview.securityMessage.label',
@@ -38,6 +38,12 @@ const previewStrings = {
 function escapeAttribute(value: string | vscode.Uri): string {
 	return value.toString().replace(/"/g, '&quot;');
 }
+
+export interface MarkdownContentProviderOutput {
+	html: string;
+	containingImages: { src: string }[];
+}
+
 
 export class MarkdownContentProvider {
 	constructor(
@@ -54,11 +60,12 @@ export class MarkdownContentProvider {
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		initialLine: number | undefined = undefined,
 		state?: any
-	): Promise<string> {
+	): Promise<MarkdownContentProviderOutput> {
 		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
 		const initialData = {
 			source: sourceUri.toString(),
+			fragment: state?.fragment || markdownDocument.uri.fragment || undefined,
 			line: initialLine,
 			lineCount: markdownDocument.lineCount,
 			scrollPreviewWithEditor: config.scrollPreviewWithEditor,
@@ -74,8 +81,8 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument);
-		return `<!DOCTYPE html>
+		const body = await this.engine.render(markdownDocument, resourceProvider);
+		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
@@ -89,11 +96,15 @@ export class MarkdownContentProvider {
 				<base href="${resourceProvider.asWebviewUri(markdownDocument.uri)}">
 			</head>
 			<body class="vscode-body ${config.scrollBeyondLastLine ? 'scrollBeyondLastLine' : ''} ${config.wordWrap ? 'wordWrap' : ''} ${config.markEditorSelection ? 'showEditorSelection' : ''}">
-				${body}
+				${body.html}
 				<div class="code-line" data-line="${markdownDocument.lineCount}"></div>
 				${this.getScripts(resourceProvider, nonce)}
 			</body>
 			</html>`;
+		return {
+			html,
+			containingImages: body.containingImages,
+		};
 	}
 
 	public provideFileNotFoundContent(

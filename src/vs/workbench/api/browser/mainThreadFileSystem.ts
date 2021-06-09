@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -16,25 +16,35 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new Map<number, RemoteFileSystemProvider>();
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
+
+		const infoProxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemInfo);
+
+		for (let entry of _fileService.listCapabilities()) {
+			infoProxy.$acceptProviderInfos(entry.scheme, entry.capabilities);
+		}
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderRegistrations(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider?.capabilities ?? null)));
+		this._disposables.add(_fileService.onDidChangeFileSystemProviderCapabilities(e => infoProxy.$acceptProviderInfos(e.scheme, e.provider.capabilities)));
 	}
 
 	dispose(): void {
+		this._disposables.dispose();
 		dispose(this._fileProvider.values());
 		this._fileProvider.clear();
 	}
 
-	$registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): void {
+	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
 		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
 	}
 
 	$unregisterProvider(handle: number): void {
-		dispose(this._fileProvider.get(handle));
+		this._fileProvider.get(handle)?.dispose();
 		this._fileProvider.delete(handle);
 	}
 
@@ -55,6 +65,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
+				permissions: MainThreadFileSystem._asFilePermission(stat),
 				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
@@ -83,6 +94,13 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			res += FileType.SymbolicLink;
 		}
 		return res;
+	}
+
+	private static _asFilePermission(stat: IFileStat): FilePermission | undefined {
+		if (stat.readonly) {
+			return FilePermission.Readonly;
+		}
+		return undefined;
 	}
 
 	$readFile(uri: UriComponents): Promise<VSBuffer> {

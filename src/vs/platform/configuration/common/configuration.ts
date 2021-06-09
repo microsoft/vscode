@@ -112,9 +112,9 @@ export interface IConfigurationService {
 	updateValue(key: string, value: any, target: ConfigurationTarget): Promise<void>;
 	updateValue(key: string, value: any, overrides: IConfigurationOverrides, target: ConfigurationTarget, donotNotifyError?: boolean): Promise<void>;
 
-	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<T>;
+	inspect<T>(key: string, overrides?: IConfigurationOverrides): IConfigurationValue<Readonly<T>>;
 
-	reloadConfiguration(folder?: IWorkspaceFolder): Promise<void>;
+	reloadConfiguration(target?: ConfigurationTarget | IWorkspaceFolder): Promise<void>;
 
 	keys(): {
 		default: string[];
@@ -267,7 +267,7 @@ export function addToValueTree(settingsTreeRoot: any, key: string, value: any, c
 
 	if (typeof curr === 'object' && curr !== null) {
 		try {
-			curr[last] = value; // workaround https://github.com/Microsoft/vscode/issues/13606
+			curr[last] = value; // workaround https://github.com/microsoft/vscode/issues/13606
 		} catch (e) {
 			conflictReporter(`Ignoring ${key} as ${segments.join('.')} is ${JSON.stringify(curr)}`);
 		}

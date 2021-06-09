@@ -108,7 +108,7 @@ export class URI implements UriComponents {
 			&& typeof (<URI>thing).path === 'string'
 			&& typeof (<URI>thing).query === 'string'
 			&& typeof (<URI>thing).scheme === 'string'
-			&& typeof (<URI>thing).fsPath === 'function'
+			&& typeof (<URI>thing).fsPath === 'string'
 			&& typeof (<URI>thing).with === 'function'
 			&& typeof (<URI>thing).toString === 'function';
 	}
@@ -327,13 +327,15 @@ export class URI implements UriComponents {
 	}
 
 	static from(components: { scheme: string; authority?: string; path?: string; query?: string; fragment?: string }): URI {
-		return new Uri(
+		const result = new Uri(
 			components.scheme,
 			components.authority,
 			components.path,
 			components.query,
 			components.fragment,
 		);
+		_validateUri(result, true);
+		return result;
 	}
 
 	/**
@@ -345,7 +347,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPaths on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {
@@ -418,14 +420,14 @@ class Uri extends URI {
 	_formatted: string | null = null;
 	_fsPath: string | null = null;
 
-	get fsPath(): string {
+	override get fsPath(): string {
 		if (!this._fsPath) {
 			this._fsPath = uriToFsPath(this, false);
 		}
 		return this._fsPath;
 	}
 
-	toString(skipEncoding: boolean = false): string {
+	override toString(skipEncoding: boolean = false): string {
 		if (!skipEncoding) {
 			if (!this._formatted) {
 				this._formatted = _asFormatted(this, false);
@@ -437,7 +439,7 @@ class Uri extends URI {
 		}
 	}
 
-	toJSON(): UriComponents {
+	override toJSON(): UriComponents {
 		const res = <UriState>{
 			$mid: 1
 		};

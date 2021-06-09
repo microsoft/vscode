@@ -74,6 +74,11 @@ export interface IModelDecorationMinimapOptions extends IDecorationOptions {
  */
 export interface IModelDecorationOptions {
 	/**
+	 * A debug description that can be used for inspecting model decorations.
+	 * @internal
+	 */
+	description: string;
+	/**
 	 * Customize the growing behavior of the decoration when typing at the edges of the decoration.
 	 * Defaults to TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
 	 */
@@ -601,12 +606,6 @@ export interface ITextModel {
 	setValue(newValue: string): void;
 
 	/**
-	 * Replace the entire text buffer value contained in this model.
-	 * @internal
-	 */
-	setValueFromTextBuffer(newValue: ITextBuffer): void;
-
-	/**
 	 * Get the text stored in this model.
 	 * @param eol The end of line character preference. Defaults to `EndOfLinePreference.TextDefined`.
 	 * @param preserverBOM Preserve a BOM character if it was detected when the model was constructed.
@@ -694,6 +693,11 @@ export interface ITextModel {
 	 * @return EOL char sequence (e.g.: '\n' or '\r\n').
 	 */
 	getEOL(): string;
+
+	/**
+	 * Get the end of line sequence predominantly used in the text buffer.
+	 */
+	getEndOfLineSequence(): EndOfLineSequence;
 
 	/**
 	 * Get the minimum legal column for line at `lineNumber`
@@ -850,7 +854,12 @@ export interface ITextModel {
 	/**
 	 * @internal
 	 */
-	hasSemanticTokens(): boolean;
+	hasCompleteSemanticTokens(): boolean;
+
+	/**
+	 * @internal
+	 */
+	hasSomeSemanticTokens(): boolean;
 
 	/**
 	 * Flush all tokenization state.
@@ -1089,11 +1098,16 @@ export interface ITextModel {
 	detectIndentation(defaultInsertSpaces: boolean, defaultTabSize: number): void;
 
 	/**
-	 * Push a stack element onto the undo stack. This acts as an undo/redo point.
-	 * The idea is to use `pushEditOperations` to edit the model and then to
-	 * `pushStackElement` to create an undo/redo stop point.
+	 * Close the current undo-redo element.
+	 * This offers a way to create an undo/redo stop point.
 	 */
 	pushStackElement(): void;
+
+	/**
+	 * Open the current undo-redo element.
+	 * This offers a way to remove the current undo/redo stop point.
+	 */
+	popStackElement(): void;
 
 	/**
 	 * Push edit operations, basically editing the model. This is the preferred way
@@ -1138,11 +1152,11 @@ export interface ITextModel {
 	_applyRedo(changes: TextChange[], eol: EndOfLineSequence, resultingAlternativeVersionId: number, resultingSelection: Selection[] | null): void;
 
 	/**
-	 * Undo edit operations until the first previous stop point created by `pushStackElement`.
+	 * Undo edit operations until the previous undo/redo point.
 	 * The inverse edit operations will be pushed on the redo stack.
 	 * @internal
 	 */
-	undo(): void;
+	undo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the undo stack?
@@ -1151,11 +1165,11 @@ export interface ITextModel {
 	canUndo(): boolean;
 
 	/**
-	 * Redo edit operations until the next stop point created by `pushStackElement`.
+	 * Redo edit operations until the next undo/redo point.
 	 * The inverse edit operations will be pushed on the undo stack.
 	 * @internal
 	 */
-	redo(): void;
+	redo(): void | Promise<void>;
 
 	/**
 	 * Is there anything in the redo stack?
@@ -1211,7 +1225,6 @@ export interface ITextModel {
 	/**
 	 * An event emitted when the model has been attached to the first editor or detached from the last editor.
 	 * @event
-	 * @internal
 	 */
 	onDidChangeAttached(listener: () => void): IDisposable;
 	/**
@@ -1238,7 +1251,6 @@ export interface ITextModel {
 
 	/**
 	 * Returns if this model is attached to an editor or not.
-	 * @internal
 	 */
 	isAttachedToEditor(): boolean;
 
@@ -1247,6 +1259,33 @@ export interface ITextModel {
 	 * @internal
 	 */
 	getAttachedEditorCount(): number;
+
+	/**
+	 * Among all positions that are projected to the same position in the underlying text model as
+	 * the given position, select a unique position as indicated by the affinity.
+	 * @internal
+	 */
+	normalizePosition(position: Position, affinity: PositionNormalizationAffinity): Position;
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	getLineIndentColumn(lineNumber: number): number;
+}
+
+/**
+ * @internal
+ */
+export const enum PositionNormalizationAffinity {
+	/**
+	 * Prefers the left most position.
+	*/
+	Left = 0,
+	/**
+	 * Prefers the right most position.
+	*/
+	Right = 1,
 }
 
 /**
@@ -1261,7 +1300,7 @@ export interface ITextBufferBuilder {
  * @internal
  */
 export interface ITextBufferFactory {
-	create(defaultEOL: DefaultEndOfLine): ITextBuffer;
+	create(defaultEOL: DefaultEndOfLine): { textBuffer: ITextBuffer; disposable: IDisposable; };
 	getFirstLineText(lengthLimit: number): string;
 }
 
@@ -1312,6 +1351,7 @@ export interface IReadonlyTextBuffer {
 	getLinesContent(): string[];
 	getLineContent(lineNumber: number): string;
 	getLineCharCode(lineNumber: number, index: number): number;
+	getCharCode(offset: number): number;
 	getLineLength(lineNumber: number): number;
 	getLineFirstNonWhitespaceColumn(lineNumber: number): number;
 	getLineLastNonWhitespaceColumn(lineNumber: number): number;

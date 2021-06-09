@@ -53,7 +53,8 @@
 			paths: {
 				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
 				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon-1.17.7.js', baseUrl).href,
+				sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
+				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
 				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
 				'iconv-lite-umd': new URL('../../../node_modules/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
 				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
@@ -69,9 +70,9 @@
 				tests: suite.tests.map(serializeRunnable),
 				title: suite.title,
 				fullTitle: suite.fullTitle(),
+				titlePath: suite.titlePath(),
 				timeout: suite.timeout(),
 				retries: suite.retries(),
-				enableTimeouts: suite.enableTimeouts(),
 				slow: suite.slow(),
 				bail: suite.bail()
 			};
@@ -79,6 +80,7 @@
 		function serializeRunnable(runnable) {
 			return {
 				title: runnable.title,
+				titlePath: runnable.titlePath(),
 				fullTitle: runnable.fullTitle(),
 				async: runnable.async,
 				slow: runnable.slow(),

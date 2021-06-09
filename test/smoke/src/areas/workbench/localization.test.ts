@@ -10,12 +10,13 @@ export function setup() {
 		before(async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			// Don't run the localization tests in dev or remote.
+			if (app.quality === Quality.Dev || app.remote) {
 				return;
 			}
 
 			await app.workbench.extensions.openExtensionsViewlet();
-			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de');
+			await app.workbench.extensions.installExtension('ms-ceintl.vscode-language-pack-de', false);
 
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
@@ -23,12 +24,12 @@ export function setup() {
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			if (app.quality === Quality.Dev || app.remote) {
 				this.skip();
 				return;
 			}
 
-			await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
+			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
 
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));

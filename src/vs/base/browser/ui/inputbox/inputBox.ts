@@ -21,12 +21,13 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 
 const $ = dom.$;
 
 export interface IInputOptions extends IInputBoxStyles {
 	readonly placeholder?: string;
+	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly type?: string;
 	readonly validationOptions?: IInputValidationOptions;
@@ -95,6 +96,7 @@ export class InputBox extends Widget {
 	private options: IInputOptions;
 	private message: IMessage | null;
 	private placeholder: string;
+	private tooltip: string;
 	private ariaLabel: string;
 	private validation?: IInputValidator;
 	private state: 'idle' | 'open' | 'closed' = 'idle';
@@ -133,6 +135,7 @@ export class InputBox extends Widget {
 		mixin(this.options, defaultOpts, false);
 		this.message = null;
 		this.placeholder = this.options.placeholder || '';
+		this.tooltip = this.options.tooltip ?? (this.placeholder || '');
 		this.ariaLabel = this.options.ariaLabel || '';
 
 		this.inputBackground = this.options.inputBackground;
@@ -157,7 +160,7 @@ export class InputBox extends Widget {
 
 		let tagName = this.options.flexibleHeight ? 'textarea' : 'input';
 
-		let wrapper = dom.append(this.element, $('.wrapper'));
+		let wrapper = dom.append(this.element, $('.ibwrapper'));
 		this.input = dom.append(wrapper, $(tagName + '.input.empty'));
 		this.input.setAttribute('autocorrect', 'off');
 		this.input.setAttribute('autocapitalize', 'off');
@@ -186,13 +189,14 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
+			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
 				const selection = document.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement
-			this._register(onSelectionChange(this.updateScrollDimensions, this));
+			this._register(onAnchoredSelectionChange(this.updateScrollDimensions, this));
 			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';
@@ -205,6 +209,10 @@ export class InputBox extends Widget {
 
 		if (this.placeholder) {
 			this.setPlaceHolder(this.placeholder);
+		}
+
+		if (this.tooltip) {
+			this.setTooltip(this.tooltip);
 		}
 
 		this.oninput(this.input, () => this.onValueChange());
@@ -235,7 +243,11 @@ export class InputBox extends Widget {
 	public setPlaceHolder(placeHolder: string): void {
 		this.placeholder = placeHolder;
 		this.input.setAttribute('placeholder', placeHolder);
-		this.input.title = placeHolder;
+	}
+
+	public setTooltip(tooltip: string): void {
+		this.tooltip = tooltip;
+		this.input.title = tooltip;
 	}
 
 	public setAriaLabel(label: string): void {
@@ -292,6 +304,9 @@ export class InputBox extends Widget {
 
 		if (range) {
 			this.input.setSelectionRange(range.start, range.end);
+			if (range.end === this.input.value.length) {
+				this.input.scrollLeft = this.input.scrollWidth;
+			}
 		}
 	}
 
@@ -398,7 +413,7 @@ export class InputBox extends Widget {
 		return !!this.validation && !this.validation(this.value);
 	}
 
-	public validate(): boolean {
+	public validate(): MessageType | undefined {
 		let errorMsg: IMessage | null = null;
 
 		if (this.validation) {
@@ -414,7 +429,7 @@ export class InputBox extends Widget {
 			}
 		}
 
-		return !errorMsg;
+		return errorMsg?.type;
 	}
 
 	public stylesForType(type: MessageType | undefined): { border: Color | undefined; background: Color | undefined; foreground: Color | undefined } {
@@ -596,7 +611,7 @@ export class InputBox extends Widget {
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._hideMessage();
 
 		this.message = null;

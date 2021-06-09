@@ -10,7 +10,6 @@ import type * as vscode from 'vscode';
 import { MainContext, MainThreadDiagnosticsShape, ExtHostDiagnosticsShape, IMainContext } from './extHost.protocol';
 import { DiagnosticSeverity } from './extHostTypes';
 import * as converter from './extHostTypeConverters';
-import { mergeSort } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ResourceMap } from 'vs/base/common/map';
@@ -78,7 +77,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 			let lastUri: vscode.Uri | undefined;
 
 			// ensure stable-sort
-			mergeSort(first, DiagnosticCollection._compareIndexedTuplesByUri);
+			first = [...first].sort(DiagnosticCollection._compareIndexedTuplesByUri);
 
 			for (const tuple of first) {
 				const [uri, diagnostics] = tuple;
@@ -88,17 +87,17 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					}
 					lastUri = uri;
 					toSync.push(uri);
-					this._data.set(uri.toString(), []);
+					this._data.set(uri, []);
 				}
 
 				if (!diagnostics) {
 					// [Uri, undefined] means clear this
-					const currentDiagnostics = this._data.get(uri.toString());
+					const currentDiagnostics = this._data.get(uri);
 					if (currentDiagnostics) {
 						currentDiagnostics.length = 0;
 					}
 				} else {
-					const currentDiagnostics = this._data.get(uri.toString());
+					const currentDiagnostics = this._data.get(uri);
 					if (currentDiagnostics) {
 						currentDiagnostics.push(...diagnostics);
 					}
@@ -198,7 +197,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 		}
 	}
 
-	private static _compareIndexedTuplesByUri(a: [vscode.Uri, vscode.Diagnostic[]], b: [vscode.Uri, vscode.Diagnostic[]]): number {
+	private static _compareIndexedTuplesByUri(a: [vscode.Uri, readonly vscode.Diagnostic[]], b: [vscode.Uri, readonly vscode.Diagnostic[]]): number {
 		if (a[0].toString() < b[0].toString()) {
 			return -1;
 		} else if (a[0].toString() > b[0].toString()) {
@@ -218,7 +217,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private readonly _collections = new Map<string, DiagnosticCollection>();
 	private readonly _onDidChangeDiagnostics = new Emitter<vscode.Uri[]>();
 
-	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+	static _debouncer(last: vscode.Uri[] | undefined, current: vscode.Uri[]): vscode.Uri[] {
 		if (!last) {
 			return current;
 		} else {
@@ -226,24 +225,12 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 	}
 
-	static _mapper(last: (vscode.Uri | string)[]): { uris: vscode.Uri[] } {
-		const uris: vscode.Uri[] = [];
-		const map = new Set<string>();
+	static _mapper(last: vscode.Uri[]): { uris: readonly vscode.Uri[] } {
+		const map = new ResourceMap<vscode.Uri>();
 		for (const uri of last) {
-			if (typeof uri === 'string') {
-				if (!map.has(uri)) {
-					map.add(uri);
-					uris.push(URI.parse(uri));
-				}
-			} else {
-				if (!map.has(uri.toString())) {
-					map.add(uri.toString());
-					uris.push(uri);
-				}
-			}
+			map.set(uri, uri);
 		}
-		Object.freeze(uris);
-		return { uris };
+		return { uris: Object.freeze(Array.from(map.values())) };
 	}
 
 	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);
@@ -289,7 +276,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 				super(name!, owner, ExtHostDiagnostics._maxDiagnosticsPerFile, loggingProxy, _onDidChangeDiagnostics);
 				_collections.set(owner, this);
 			}
-			dispose() {
+			override dispose() {
 				super.dispose();
 				_collections.delete(owner);
 			}

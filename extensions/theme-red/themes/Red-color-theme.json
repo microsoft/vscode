@@ -5,10 +5,12 @@
 		"activityBar.background": "#580000",
 		"tab.inactiveBackground": "#300a0a",
 		"tab.activeBackground": "#490000",
+		"tab.lastPinnedBorder": "#ff000044",
 		"sideBar.background": "#330000",
 		"statusBar.background": "#700000",
 		"statusBar.noFolderBackground": "#700000",
 		"statusBarItem.remoteBackground": "#c33",
+		"ports.iconRunningProcessForeground": "#DB7E58",
 		"editorGroupHeader.tabsBackground": "#330000",
 		"titleBar.activeBackground": "#770000",
 		"titleBar.inactiveBackground": "#772222",
@@ -48,7 +50,7 @@
 		"list.activeSelectionBackground": "#880000",
 		"list.inactiveSelectionBackground": "#770000",
 		"list.dropBackground": "#662222",
-		"list.focusBackground": "#660000",
+		"quickInputList.focusBackground": "#660000",
 		"list.highlightForeground": "#ff4444",
 		"pickerGroup.foreground": "#cc9999",
 		"pickerGroup.border": "#ff000033",
@@ -351,6 +353,20 @@
 			}
 		},
 		{
+			"name": "Markup: Strong",
+			"scope": "markup.bold",
+			"settings": {
+				"fontStyle": "bold"
+			}
+		},
+		{
+			"name": "Markup: Emphasis",
+			"scope": "markup.italic",
+			"settings": {
+				"fontStyle": "italic"
+			}
+		},
+		{
 			"name": "Markup Inline",
 			"scope": "markup.inline.raw",
 			"settings": {
@@ -359,17 +375,15 @@
 			}
 		},
 		{
-			"name": "Markup Headings",
-			"scope": "markup.heading",
+			"name": "Headings",
+			"scope": [
+				"markup.heading",
+				"markup.heading.setext",
+				"punctuation.definition.heading",
+				"entity.name.section"
+			],
 			"settings": {
-				"foreground": "#fec758ff"
-			}
-		},
-		{
-			"name": "Markup Setext Header",
-			"scope": "markup.heading.setext",
-			"settings": {
-				"fontStyle": "",
+				"fontStyle": "bold",
 				"foreground": "#fec758ff"
 			}
 		},

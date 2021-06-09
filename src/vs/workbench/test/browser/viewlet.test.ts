@@ -4,21 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as Platform from 'vs/platform/registry/common/platform';
+import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletDescriptor, Extensions, Viewlet, ViewletRegistry } from 'vs/workbench/browser/viewlet';
-import * as Types from 'vs/base/common/types';
+import { isFunction } from 'vs/base/common/types';
 
 suite('Viewlets', () => {
 
 	class TestViewlet extends Viewlet {
 
 		constructor() {
-			super('id', null!, null!, null!, null!, null!, null!, null!, null!, null!, null!);
+			super('id', null!, null!, null!, null!, null!, null!, null!, null!, null!);
 		}
 
-		layout(dimension: any): void {
+		override layout(dimension: any): void {
 			throw new Error('Method not implemented.');
 		}
+
+		createViewPaneContainer() { return null!; }
 	}
 
 	test('ViewletDescriptor API', function () {
@@ -40,15 +42,15 @@ suite('Viewlets', () => {
 	});
 
 	test('Viewlet extension point and registration', function () {
-		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet));
-		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet));
-		assert(Types.isFunction(Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets));
+		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet));
+		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet));
+		assert(isFunction(Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets));
 
-		let oldCount = Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length;
+		let oldCount = Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length;
 		let d = ViewletDescriptor.create(TestViewlet, 'reg-test-id', 'name');
-		Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
+		Registry.as<ViewletRegistry>(Extensions.Viewlets).registerViewlet(d);
 
-		assert(d === Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
-		assert.equal(oldCount + 1, Platform.Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
+		assert(d === Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlet('reg-test-id'));
+		assert.strictEqual(oldCount + 1, Registry.as<ViewletRegistry>(Extensions.Viewlets).getViewlets().length);
 	});
 });

@@ -10,7 +10,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { assign } from 'vs/base/common/objects';
 import { ICommentThreadChangedEvent } from 'vs/workbench/contrib/comments/common/commentModel';
 import { MainThreadCommentController } from 'vs/workbench/api/browser/mainThreadComments';
 import { CommentMenus } from 'vs/workbench/contrib/comments/browser/commentMenus';
@@ -166,7 +165,7 @@ export class CommentService extends Disposable implements ICommentService {
 	}
 
 	updateComments(ownerId: string, event: CommentThreadChangedEvent): void {
-		const evt: ICommentThreadChangedEvent = assign({}, event, { owner: ownerId });
+		const evt: ICommentThreadChangedEvent = Object.assign({}, event, { owner: ownerId });
 		this._onDidUpdateCommentThreads.fire(evt);
 	}
 

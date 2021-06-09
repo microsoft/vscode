@@ -18,7 +18,7 @@ suite('ViewModel', () => {
 			lineNumbersMinChars: 1
 		};
 		testViewModel(text, opts, (viewModel, model) => {
-			assert.equal(viewModel.getLineCount(), 1);
+			assert.strictEqual(viewModel.getLineCount(), 1);
 
 			viewModel.setViewport(1, 1, 1);
 
@@ -38,14 +38,14 @@ suite('ViewModel', () => {
 				].join('\n')
 			}]);
 
-			assert.equal(viewModel.getLineCount(), 10);
+			assert.strictEqual(viewModel.getLineCount(), 10);
 		});
 	});
 
 	test('issue #44805: SplitLinesCollection: attempt to access a \'newer\' model', () => {
 		const text = [''];
 		testViewModel(text, {}, (viewModel, model) => {
-			assert.equal(viewModel.getLineCount(), 1);
+			assert.strictEqual(viewModel.getLineCount(), 1);
 
 			model.pushEditOperations([], [{
 				range: new Range(1, 1, 1, 1),
@@ -66,7 +66,7 @@ suite('ViewModel', () => {
 
 			viewLineCount.push(viewModel.getLineCount());
 			viewModel.addViewEventHandler(new class extends ViewEventHandler {
-				handleEvents(events: ViewEvent[]): void {
+				override handleEvents(events: ViewEvent[]): void {
 					// Access the view model
 					viewLineCount.push(viewModel.getLineCount());
 				}
@@ -74,7 +74,7 @@ suite('ViewModel', () => {
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
-			assert.deepEqual(viewLineCount, [4, 1, 1, 1, 1]);
+			assert.deepStrictEqual(viewLineCount, [4, 1, 1, 1, 1]);
 		});
 	});
 
@@ -85,7 +85,7 @@ suite('ViewModel', () => {
 			'line3'
 		];
 		testViewModel(text, {}, (viewModel, model) => {
-			assert.equal(viewModel.getLineCount(), 3);
+			assert.strictEqual(viewModel.getLineCount(), 3);
 			viewModel.setHiddenAreas([new Range(1, 1, 3, 1)]);
 			assert.ok(viewModel.getVisibleRanges() !== null);
 		});
@@ -96,7 +96,7 @@ suite('ViewModel', () => {
 			''
 		];
 		testViewModel(text, {}, (viewModel, model) => {
-			assert.equal(viewModel.getLineCount(), 1);
+			assert.strictEqual(viewModel.getLineCount(), 1);
 
 			model.pushEditOperations([], [{
 				range: new Range(1, 1, 1, 1),
@@ -104,7 +104,7 @@ suite('ViewModel', () => {
 			}], () => ([]));
 
 			viewModel.setHiddenAreas([new Range(1, 1, 1, 1)]);
-			assert.equal(viewModel.getLineCount(), 2);
+			assert.strictEqual(viewModel.getLineCount(), 2);
 
 			model.undo();
 			assert.ok(viewModel.getVisibleRanges() !== null);
@@ -114,7 +114,7 @@ suite('ViewModel', () => {
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
 			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
-			assert.deepEqual(actual, expected);
+			assert.deepStrictEqual(actual, expected);
 		});
 	}
 
@@ -259,7 +259,39 @@ suite('ViewModel', () => {
 		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
 			model.setEOL(EndOfLineSequence.LF);
 			let actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
-			assert.deepEqual(actual, 'line2\r\nline3\r\nline4\r\n');
+			assert.deepStrictEqual(actual, 'line2\r\nline3\r\nline4\r\n');
 		});
+	});
+
+	test('issue #40926: Incorrect spacing when inserting new line after multiple folded blocks of code', () => {
+		testViewModel(
+			[
+				'foo = {',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'    foobar: function() {',
+				'        this.foobar();',
+				'    },',
+				'}',
+			], {}, (viewModel, model) => {
+				viewModel.setHiddenAreas([
+					new Range(3, 1, 3, 1),
+					new Range(6, 1, 6, 1),
+					new Range(9, 1, 9, 1),
+				]);
+
+				model.applyEdits([
+					{ range: new Range(4, 7, 4, 7), text: '\n    ' },
+					{ range: new Range(7, 7, 7, 7), text: '\n    ' },
+					{ range: new Range(10, 7, 10, 7), text: '\n    ' }
+				]);
+
+				assert.strictEqual(viewModel.getLineCount(), 11);
+			}
+		);
 	});
 });

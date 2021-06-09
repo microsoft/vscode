@@ -8,6 +8,10 @@
 **/LICENSE
 **/CONTRIBUTORS
 
+**/docs/**
+**/example/**
+**/examples/**
+
 jschardet/index.js
 jschardet/src/**
 jschardet/dist/jschardet.js

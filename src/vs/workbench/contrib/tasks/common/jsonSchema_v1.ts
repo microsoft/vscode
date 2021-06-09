@@ -26,7 +26,7 @@ const schema: IJSONSchema = {
 							description: nls.localize('JsonSchema.version', 'The config\'s version number')
 						},
 						_runner: {
-							deprecationMessage: nls.localize('JsonSchema._runner', 'The runner has graduated. Use the offical runner property')
+							deprecationMessage: nls.localize('JsonSchema._runner', 'The runner has graduated. Use the official runner property')
 						},
 						runner: {
 							type: 'string',

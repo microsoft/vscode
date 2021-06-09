@@ -9,9 +9,10 @@ import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, LayoutPriority, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { equals as arrayEquals, tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 import { clamp } from 'vs/base/common/numbers';
+import { isUndefined } from 'vs/base/common/types';
 
 export { Sizing, LayoutPriority } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -170,6 +171,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private absoluteOffset: number = 0;
 	private absoluteOrthogonalOffset: number = 0;
+	private absoluteOrthogonalSize: number = 0;
 
 	private _styles: IGridViewStyles;
 	get styles(): IGridViewStyles { return this._styles; }
@@ -241,6 +243,10 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	private readonly _onDidChange = new Emitter<number | undefined>();
 	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
 
+	private _onDidScroll = new Emitter<void>();
+	private onDidScrollDisposable: IDisposable = Disposable.None;
+	readonly onDidScroll: Event<void> = this._onDidScroll.event;
+
 	private childrenChangeDisposable: IDisposable = Disposable.None;
 
 	private readonly _onDidSashReset = new Emitter<number[]>();
@@ -270,6 +276,24 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		}
 	}
 
+	private _edgeSnapping = false;
+	get edgeSnapping(): boolean { return this._edgeSnapping; }
+	set edgeSnapping(edgeSnapping: boolean) {
+		if (this._edgeSnapping === edgeSnapping) {
+			return;
+		}
+
+		this._edgeSnapping = edgeSnapping;
+
+		for (const child of this.children) {
+			if (child instanceof BranchNode) {
+				child.edgeSnapping = edgeSnapping;
+			}
+		}
+
+		this.updateSplitviewEdgeSnappingEnablement();
+	}
+
 	constructor(
 		readonly orientation: Orientation,
 		readonly layoutController: ILayoutController,
@@ -277,6 +301,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		readonly proportionalLayout: boolean,
 		size: number = 0,
 		orthogonalSize: number = 0,
+		edgeSnapping: boolean = false,
 		childDescriptors?: INodeDescriptor[]
 	) {
 		this._styles = styles;
@@ -323,11 +348,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		const onDidSashReset = Event.map(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
-		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
-		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
-
-		const onDidChildrenSashReset = Event.any(...this.children.map((c, i) => Event.map(c.onDidSashReset, location => [i, ...location])));
-		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+		this.updateChildrenEvents();
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -355,6 +376,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = size;
 		this.absoluteOffset = ctx.absoluteOffset + offset;
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
+		this.absoluteOrthogonalSize = ctx.absoluteOrthogonalSize;
 
 		this.splitview.layout(ctx.orthogonalSize, {
 			orthogonalSize: size,
@@ -364,9 +386,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			absoluteOrthogonalSize: ctx.absoluteSize
 		});
 
-		// Disable snapping on views which sit on the edges of the grid
-		this.splitview.startSnappingEnabled = this.absoluteOrthogonalOffset > 0;
-		this.splitview.endSnappingEnabled = this.absoluteOrthogonalOffset + ctx.orthogonalSize < ctx.absoluteOrthogonalSize;
+		this.updateSplitviewEdgeSnappingEnablement();
 	}
 
 	setVisible(visible: boolean): void {
@@ -547,6 +567,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 
 	private onDidChildrenChange(): void {
+		this.updateChildrenEvents();
+		this._onDidChange.fire(undefined);
+	}
+
+	private updateChildrenEvents(): void {
 		const onDidChildrenChange = Event.map(Event.any(...this.children.map(c => c.onDidChange)), () => undefined);
 		this.childrenChangeDisposable.dispose();
 		this.childrenChangeDisposable = onDidChildrenChange(this._onDidChange.fire, this._onDidChange);
@@ -555,7 +580,9 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.childrenSashResetDisposable.dispose();
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
-		this._onDidChange.fire(undefined);
+		const onDidScroll = Event.any(Event.signal(this.splitview.onDidScroll), ...this.children.map(c => c.onDidScroll));
+		this.onDidScrollDisposable.dispose();
+		this.onDidScrollDisposable = onDidScroll(this._onDidScroll.fire, this._onDidScroll);
 	}
 
 	trySet2x2(other: BranchNode): IDisposable {
@@ -607,6 +634,11 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		});
 	}
 
+	private updateSplitviewEdgeSnappingEnablement(): void {
+		this.splitview.startSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset > 0;
+		this.splitview.endSnappingEnabled = this._edgeSnapping || this.absoluteOrthogonalOffset + this._size < this.absoluteOrthogonalSize;
+	}
+
 	dispose(): void {
 		for (const child of this.children) {
 			child.dispose();
@@ -622,6 +654,25 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 	}
 }
 
+/**
+ * Creates a latched event that avoids being fired when the view
+ * constraints do not change at all.
+ */
+function createLatchedOnDidChangeViewEvent(view: IView): Event<IViewSize | undefined> {
+	const [onDidChangeViewConstraints, onDidSetViewSize] = Event.split<undefined, IViewSize>(view.onDidChange, isUndefined);
+
+	return Event.any(
+		onDidSetViewSize,
+		Event.map(
+			Event.latch(
+				Event.map(onDidChangeViewConstraints, _ => ([view.minimumWidth, view.maximumWidth, view.minimumHeight, view.maximumHeight])),
+				arrayEquals
+			),
+			_ => undefined
+		)
+	);
+}
+
 class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	private _size: number = 0;
@@ -633,6 +684,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private absoluteOffset: number = 0;
 	private absoluteOrthogonalOffset: number = 0;
 
+	readonly onDidScroll: Event<void> = Event.None;
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
 	private _onDidLinkedWidthNodeChange = new Relay<number | undefined>();
@@ -667,7 +719,8 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = orthogonalSize;
 		this._size = size;
 
-		this._onDidViewChange = Event.map(this.view.onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
+		const onDidChange = createLatchedOnDidChangeViewEvent(view);
+		this._onDidViewChange = Event.map(onDidChange, e => e && (this.orientation === Orientation.VERTICAL ? e.width : e.height));
 		this.onDidChange = Event.any(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
@@ -754,7 +807,25 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 		this._orthogonalSize = ctx.orthogonalSize;
 		this.absoluteOffset = ctx.absoluteOffset + offset;
 		this.absoluteOrthogonalOffset = ctx.absoluteOrthogonalOffset;
-		this.view.layout(this.width, this.height, this.top, this.left);
+
+		this._layout(this.width, this.height, this.top, this.left);
+	}
+
+	private cachedWidth: number = 0;
+	private cachedHeight: number = 0;
+	private cachedTop: number = 0;
+	private cachedLeft: number = 0;
+
+	private _layout(width: number, height: number, top: number, left: number): void {
+		if (this.cachedWidth === width && this.cachedHeight === height && this.cachedTop === top && this.cachedLeft === left) {
+			return;
+		}
+
+		this.cachedWidth = width;
+		this.cachedHeight = height;
+		this.cachedTop = top;
+		this.cachedLeft = left;
+		this.view.layout(width, height, top, left);
 	}
 
 	setVisible(visible: boolean): void {
@@ -775,7 +846,7 @@ export interface INodeDescriptor {
 
 function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize);
+		const result = new BranchNode(orthogonal(node.orientation), node.layoutController, node.styles, node.proportionalLayout, size, orthogonalSize, node.edgeSnapping);
 
 		let totalSize = 0;
 
@@ -828,6 +899,7 @@ export class GridView implements IDisposable {
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
 		this._onDidChange.input = Event.map(root.onDidChange, () => undefined); // TODO
+		this._onDidScroll.input = root.onDidScroll;
 	}
 
 	get orientation(): Orientation {
@@ -853,6 +925,9 @@ export class GridView implements IDisposable {
 	get maximumWidth(): number { return this.root.maximumHeight; }
 	get maximumHeight(): number { return this.root.maximumHeight; }
 
+	private _onDidScroll = new Relay<void>();
+	readonly onDidScroll = this._onDidScroll.event;
+
 	private _onDidChange = new Relay<IViewSize | undefined>();
 	readonly onDidChange = this._onDidChange.event;
 
@@ -861,6 +936,10 @@ export class GridView implements IDisposable {
 	set boundarySashes(boundarySashes: IBoundarySashes) {
 		this._boundarySashes = boundarySashes;
 		this.root.boundarySashes = fromAbsoluteBoundarySashes(boundarySashes, this.orientation);
+	}
+
+	set edgeSnapping(edgeSnapping: boolean) {
+		this.root.edgeSnapping = edgeSnapping;
 	}
 
 	/**
@@ -932,7 +1011,7 @@ export class GridView implements IDisposable {
 
 			grandParent.removeChild(parentIndex);
 
-			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize);
+			const newParent = new BranchNode(parent.orientation, parent.layoutController, this.styles, this.proportionalLayout, parent.size, parent.orthogonalSize, grandParent.edgeSnapping);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 
 			const newSibling = new LeafNode(parent.view, grandParent.orientation, this.layoutController, parent.size);
@@ -1205,7 +1284,7 @@ export class GridView implements IDisposable {
 				} as INodeDescriptor;
 			});
 
-			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, children);
+			result = new BranchNode(orientation, this.layoutController, this.styles, this.proportionalLayout, node.size, orthogonalSize, undefined, children);
 		} else {
 			result = new LeafNode(deserializer.fromJSON(node.data), orientation, this.layoutController, orthogonalSize, node.size);
 		}

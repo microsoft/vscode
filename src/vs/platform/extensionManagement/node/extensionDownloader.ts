@@ -3,17 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { URI } from 'vs/base/common/uri';
-import { INativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { joinPath } from 'vs/base/common/resources';
 import { ExtensionIdentifierWithVersion, groupByExtension } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { generateUuid } from 'vs/base/common/uuid';
-import * as semver from 'semver-umd';
+import * as semver from 'vs/base/common/semver/semver';
+import { isWindows } from 'vs/base/common/platform';
+import { Promises } from 'vs/base/common/async';
+import { getErrorMessage } from 'vs/base/common/errors';
 
 const ExtensionIdVersionRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)$/;
 
@@ -24,7 +27,7 @@ export class ExtensionsDownloader extends Disposable {
 	private readonly cleanUpPromise: Promise<void>;
 
 	constructor(
-		@IEnvironmentService environmentService: INativeEnvironmentService,
+		@INativeEnvironmentService environmentService: INativeEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly logService: ILogService,
@@ -37,8 +40,34 @@ export class ExtensionsDownloader extends Disposable {
 
 	async downloadExtension(extension: IGalleryExtension, operation: InstallOperation): Promise<URI> {
 		await this.cleanUpPromise;
-		const location = joinPath(this.extensionsDownloadDir, this.getName(extension));
-		await this.download(extension, location, operation);
+		const vsixName = this.getName(extension);
+		const location = joinPath(this.extensionsDownloadDir, vsixName);
+
+		// Download only if vsix does not exist
+		if (!await this.fileService.exists(location)) {
+			// Download to temporary location first only if vsix does not exist
+			const tempLocation = joinPath(this.extensionsDownloadDir, `.${generateUuid()}`);
+			if (!await this.fileService.exists(tempLocation)) {
+				await this.extensionGalleryService.download(extension, tempLocation, operation);
+			}
+
+			try {
+				// Rename temp location to original
+				await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			} catch (error) {
+				try {
+					await this.fileService.del(tempLocation);
+				} catch (e) { /* ignore */ }
+				if (error.code === 'ENOTEMPTY') {
+					this.logService.info(`Rename failed because vsix was downloaded by another source. So ignoring renaming.`, extension.identifier.id);
+				} else {
+					this.logService.info(`Rename failed because of ${getErrorMessage(error)}. Deleted the vsix from downloaded location`, tempLocation.path);
+					throw error;
+				}
+			}
+
+		}
+
 		return location;
 	}
 
@@ -46,9 +75,15 @@ export class ExtensionsDownloader extends Disposable {
 		// noop as caching is enabled always
 	}
 
-	private async download(extension: IGalleryExtension, location: URI, operation: InstallOperation): Promise<void> {
-		if (!await this.fileService.exists(location)) {
-			await this.extensionGalleryService.download(extension, location, operation);
+	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
+		try {
+			await FSPromises.rename(from.fsPath, to.fsPath);
+		} catch (error) {
+			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);
+				return this.rename(from, to, retryUntil);
+			}
+			throw error;
 		}
 	}
 
@@ -68,7 +103,7 @@ export class ExtensionsDownloader extends Disposable {
 						all.push([extension, stat]);
 					}
 				}
-				const byExtension = groupByExtension(all, ([extension]) => extension.identifier);
+				const byExtension = groupByExtension(all, ([extension]) => extension);
 				const distinct: IFileStatWithMetadata[] = [];
 				for (const p of byExtension) {
 					p.sort((a, b) => semver.rcompare(a[0].version, b[0].version));
@@ -77,7 +112,7 @@ export class ExtensionsDownloader extends Disposable {
 				}
 				distinct.sort((a, b) => a.mtime - b.mtime); // sort by modified time
 				toDelete.push(...distinct.slice(0, Math.max(0, distinct.length - this.cache)).map(s => s.resource)); // Retain minimum cacheSize and delete the rest
-				await Promise.all(toDelete.map(resource => {
+				await Promises.settled(toDelete.map(resource => {
 					this.logService.trace('Deleting vsix from cache', resource.path);
 					return this.fileService.del(resource);
 				}));

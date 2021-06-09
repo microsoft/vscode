@@ -27,9 +27,8 @@ import { RemoveAction, ReplaceAction, ReplaceAllAction, ReplaceAllInFolderAction
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { FileMatch, Match, RenderableMatch, SearchModel, FolderMatch } from 'vs/workbench/contrib/search/common/searchModel';
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
+import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { URI } from 'vs/base/common/uri';
 
 interface IFolderMatchTemplate {
 	label: IResourceLabel;
@@ -225,7 +224,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 	}
 
 	renderTemplate(container: HTMLElement): IMatchTemplate {
-		DOM.addClass(container, 'linematch');
+		container.classList.add('linematch');
 
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
@@ -254,7 +253,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		templateData.before.textContent = preview.before;
 		templateData.match.textContent = preview.inside;
-		DOM.toggleClass(templateData.match, 'replace', replace);
+		templateData.match.classList.toggle('replace', replace);
 		templateData.replace.textContent = replace ? match.replaceString : '';
 		templateData.after.textContent = preview.after;
 		templateData.parent.title = (preview.before + (replace ? match.replaceString : preview.inside) + preview.after).trim().substr(0, 999);
@@ -264,7 +263,7 @@ export class MatchRenderer extends Disposable implements ITreeRenderer<Match, vo
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
 		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
-		DOM.toggleClass(templateData.lineNumber, 'show', (numLines > 0) || showLineNumbers);
+		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
 		templateData.lineNumber.setAttribute('title', this.getMatchTitle(match, showLineNumbers));
@@ -372,13 +371,13 @@ export class SearchDND implements ITreeDragAndDrop<RenderableMatch> {
 
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		const elements = (data as ElementsDragAndDropData<RenderableMatch>).elements;
-		const resources: URI[] = elements
+		const resources = elements
 			.filter<FileMatch>((e): e is FileMatch => e instanceof FileMatch)
 			.map((fm: FileMatch) => fm.resource);
 
 		if (resources.length) {
 			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.instantiationService.invokeFunction(fillResourceDataTransfers, resources, undefined, originalEvent);
+			this.instantiationService.invokeFunction(accessor => fillEditorsDragData(accessor, resources, originalEvent));
 		}
 	}
 

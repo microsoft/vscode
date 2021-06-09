@@ -33,7 +33,7 @@
 
 .monaco-list-row {
 	position: absolute;
-	box-sizing:	border-box;
+	box-sizing: border-box;
 	overflow: hidden;
 	width: 100%;
 }
@@ -49,7 +49,9 @@
 }
 
 /* Focus */
-.monaco-list.element-focused, .monaco-list.selection-single, .monaco-list.selection-multiple {
+.monaco-list.element-focused,
+.monaco-list.selection-single,
+.monaco-list.selection-multiple {
 	outline: 0 !important;
 }
 
@@ -64,6 +66,7 @@
 	border-radius: 10px;
 	font-size: 12px;
 	position: absolute;
+	z-index: 1000;
 }
 
 /* Type filter */

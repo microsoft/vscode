@@ -9,10 +9,9 @@ import { FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files
 import { URI as uri } from 'vs/base/common/uri';
 import { IDiskFileChange, normalizeFileChanges, toFileChanges } from 'vs/platform/files/node/watcher/watcher';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtUri } from 'vs/base/common/resources';
 
 function toFileChangesEvent(changes: IDiskFileChange[]): FileChangesEvent {
-	return new FileChangesEvent(toFileChanges(changes), new ExtUri(() => !platform.isLinux));
+	return new FileChangesEvent(toFileChanges(changes), !platform.isLinux);
 }
 
 class TestFileWatcher {
@@ -65,7 +64,7 @@ suite('Normalizer', () => {
 
 		watch.onDidFilesChange(e => {
 			assert.ok(e);
-			assert.equal(e.changes.length, 3);
+			assert.strictEqual(e.changes.length, 3);
 			assert.ok(e.contains(added, FileChangeType.ADDED));
 			assert.ok(e.contains(updated, FileChangeType.UPDATED));
 			assert.ok(e.contains(deleted, FileChangeType.DELETED));
@@ -104,7 +103,7 @@ suite('Normalizer', () => {
 
 			watch.onDidFilesChange(e => {
 				assert.ok(e);
-				assert.equal(e.changes.length, 5);
+				assert.strictEqual(e.changes.length, 5);
 
 				assert.ok(e.contains(deletedFolderA, FileChangeType.DELETED));
 				assert.ok(e.contains(deletedFolderB, FileChangeType.DELETED));
@@ -134,7 +133,7 @@ suite('Normalizer', () => {
 
 		watch.onDidFilesChange(e => {
 			assert.ok(e);
-			assert.equal(e.changes.length, 1);
+			assert.strictEqual(e.changes.length, 1);
 
 			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
 
@@ -159,7 +158,7 @@ suite('Normalizer', () => {
 
 		watch.onDidFilesChange(e => {
 			assert.ok(e);
-			assert.equal(e.changes.length, 2);
+			assert.strictEqual(e.changes.length, 2);
 
 			assert.ok(e.contains(deleted, FileChangeType.UPDATED));
 			assert.ok(e.contains(unrelated, FileChangeType.UPDATED));
@@ -185,7 +184,7 @@ suite('Normalizer', () => {
 
 		watch.onDidFilesChange(e => {
 			assert.ok(e);
-			assert.equal(e.changes.length, 2);
+			assert.strictEqual(e.changes.length, 2);
 
 			assert.ok(e.contains(created, FileChangeType.ADDED));
 			assert.ok(!e.contains(created, FileChangeType.UPDATED));
@@ -214,7 +213,7 @@ suite('Normalizer', () => {
 
 		watch.onDidFilesChange(e => {
 			assert.ok(e);
-			assert.equal(e.changes.length, 2);
+			assert.strictEqual(e.changes.length, 2);
 
 			assert.ok(e.contains(deleted, FileChangeType.DELETED));
 			assert.ok(!e.contains(updated, FileChangeType.UPDATED));

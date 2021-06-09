@@ -137,7 +137,7 @@ class DiagnosticSettings {
 		const currentSettings = this.get(language);
 		const newSettings = f(currentSettings);
 		this._languageSettings.set(language, newSettings);
-		return areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
+		return !areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
 	}
 }
 
@@ -160,7 +160,7 @@ export class DiagnosticsManager extends Disposable {
 		this._currentDiagnostics = this._register(vscode.languages.createDiagnosticCollection(owner));
 	}
 
-	public dispose() {
+	public override dispose() {
 		super.dispose();
 
 		for (const value of this._pendingUpdates.values) {
