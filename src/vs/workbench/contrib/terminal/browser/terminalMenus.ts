@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from 'vs/base/common/codicons';
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -239,6 +240,86 @@ export function setupTerminalMenus(): void {
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
 						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
 					]),
+				}
+			},
+			{
+				// This is used to show instead of tabs when there is only a single terminal
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.Focus,
+						title: terminalStrings.focus
+					},
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.has(`config.${TerminalSettingId.TabsEnabled}`),
+						ContextKeyExpr.or(
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActiveTerminal}`, 'always')
+						)
+					]),
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.Split,
+						title: terminalStrings.split,
+						icon: Codicon.splitHorizontal
+					},
+					group: 'navigation',
+					order: 2,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					])
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.Kill,
+						title: terminalStrings.kill,
+						icon: Codicon.trash
+					},
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
+						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+					])
+				}
+			},
+			{
+				id: MenuId.ViewTitle,
+				item: {
+					command: {
+						id: TerminalCommandId.CreateWithProfileButton,
+						title: TerminalCommandId.CreateWithProfileButton
+					},
+					group: 'navigation',
+					order: 0,
+					when: ContextKeyAndExpr.create([
+						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID)
+					])
 				}
 			}
 		]
