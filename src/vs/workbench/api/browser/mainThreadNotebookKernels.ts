@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { flatten, isNonEmptyArray } from 'vs/base/common/arrays';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
@@ -12,8 +13,9 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IImmediateCellEditOperation, INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
@@ -101,6 +103,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		extHostContext: IExtHostContext,
 		@IModeService private readonly _modeService: IModeService,
 		@INotebookKernelService private readonly _notebookKernelService: INotebookKernelService,
+		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorService notebookEditorService: INotebookEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostNotebookKernels);
@@ -217,6 +220,23 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 		const tuple = this._kernels.get(handle);
 		if (tuple) {
 			this._notebookKernelService.updateKernelNotebookAffinity(tuple[0], URI.revive(notebook), value);
+		}
+	}
+
+	// --- execution editss
+
+	async $applyExecutionEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[]): Promise<void> {
+		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
+		if (!textModel) {
+			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
+		}
+
+		try {
+			textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, false);
+		} catch (e) {
+			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
+			// And any other failure should not throw back to the extension.
+			onUnexpectedError(e);
 		}
 	}
 }

@@ -903,7 +903,6 @@ export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
-	$applyEdits(resource: UriComponents, edits: IImmediateCellEditOperation[], computeUndoRedo?: boolean): Promise<void>;
 }
 
 export interface INotebookKernelDto2 {
@@ -926,6 +925,8 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
+
+	$applyExecutionEdits(resource: UriComponents, edits: IImmediateCellEditOperation[]): Promise<void>;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {

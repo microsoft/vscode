@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as vscode from 'vscode';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -40,12 +40,12 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 	private _handlePool: number = 0;
 
 	constructor(
-		private readonly _mainContext: IMainContext,
+		mainContext: IMainContext,
 		private readonly _initData: IExtHostInitDataService,
 		private readonly _extHostNotebook: ExtHostNotebookController,
 		@ILogService private readonly _logService: ILogService,
 	) {
-		this._proxy = _mainContext.getProxy(MainContext.MainThreadNotebookKernels);
+		this._proxy = mainContext.getProxy(MainContext.MainThreadNotebookKernels);
 	}
 
 	createNotebookController(extension: IExtensionDescription, id: string, viewType: string, label: string, handler?: (cells: vscode.NotebookCell[], notebook: vscode.NotebookDocument, controller: vscode.NotebookController) => void | Thenable<void>, preloads?: vscode.NotebookRendererScript[]): vscode.NotebookController {
@@ -303,7 +303,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		if (this._activeExecutions.has(cellObj.uri)) {
 			throw new Error(`duplicate execution for ${cellObj.uri}`);
 		}
-		const execution = new NotebookCellExecutionTask(cellObj.notebook, cellObj, this._mainContext.getProxy(MainContext.MainThreadNotebookDocuments));
+		const execution = new NotebookCellExecutionTask(cellObj.notebook, cellObj, this._proxy);
 		this._activeExecutions.set(cellObj.uri, execution);
 		const listener = execution.onDidChangeState(() => {
 			if (execution.state === NotebookCellExecutionTaskState.Resolved) {
@@ -339,7 +339,7 @@ class NotebookCellExecutionTask extends Disposable {
 	constructor(
 		private readonly _document: ExtHostNotebookDocument,
 		private readonly _cell: ExtHostCell,
-		private readonly _proxy: MainThreadNotebookDocumentsShape
+		private readonly _proxy: MainThreadNotebookKernelsShape
 	) {
 		super();
 
@@ -361,7 +361,7 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private async applyEdits(edits: IImmediateCellEditOperation[]): Promise<void> {
-		return this._proxy.$applyEdits(this._document.uri, edits, false);
+		return this._proxy.$applyExecutionEdits(this._document.uri, edits);
 	}
 
 	private verifyStateForOutput() {

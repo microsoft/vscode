@@ -9,13 +9,12 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IImmediateCellEditOperation, IMainCellDto, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { IMainCellDto, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 
@@ -174,20 +173,5 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		const saveResult = await ref.object.save();
 		ref.dispose();
 		return saveResult;
-	}
-
-	async $applyEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[], computeUndoRedo = true): Promise<void> {
-		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
-		if (!textModel) {
-			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
-		}
-
-		try {
-			textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, computeUndoRedo);
-		} catch (e) {
-			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
-			// And any other failure should not throw back to the extension.
-			onUnexpectedError(e);
-		}
 	}
 }
