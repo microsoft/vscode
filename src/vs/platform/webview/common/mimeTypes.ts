@@ -18,6 +18,7 @@ const webviewMimeTypes = new Map([
 	['.xhtml', 'application/xhtml+xml'],
 	['.oft', 'font/otf'],
 	['.xml', 'application/xml'],
+	['.wasm', 'application/wasm'],
 ]);
 
 export function getWebviewContentMimeType(resource: URI): string {
