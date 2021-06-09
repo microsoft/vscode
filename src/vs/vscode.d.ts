@@ -1989,7 +1989,7 @@ declare module 'vscode' {
 	 * { language: 'typescript', scheme: 'file' }
 	 *
 	 * @example <caption>A language filter that applies to all package.json paths</caption>
-	 * { language: 'json', scheme: 'file', pattern: '**​/package.json' }
+	 * { language: 'json', pattern: '**​/package.json' }
 	 */
 	export interface DocumentFilter {
 
