@@ -54,23 +54,20 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	page.on('console', async (msg: playwright.ConsoleMessage) => {
-		const msgText = msg.text();
-		if (msgText.indexOf('vscode:exit') >= 0) {
-			try {
-				await browser.close();
-			} catch (error) {
-				console.error(`Error when closing browser: ${error}`);
-			}
-
-			try {
-				await pkill(server.pid);
-			} catch (error) {
-				console.error(`Error when killing server process tree: ${error}`);
-			}
-
-			process.exit(msgText === 'vscode:exit 0' ? 0 : 1);
+	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+		try {
+			await browser.close();
+		} catch (error) {
+			console.error(`Error when closing browser: ${error}`);
 		}
+
+		try {
+			await pkill(server.pid);
+		} catch (error) {
+			console.error(`Error when killing server process tree: ${error}`);
+		}
+
+		process.exit(code);
 	});
 }
 
