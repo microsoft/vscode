@@ -8,7 +8,7 @@ import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { Action, IAction } from 'vs/base/common/actions';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import * as nls from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -522,10 +522,23 @@ export class CellOutputContainer extends Disposable {
 			this.viewCell.spliceOutputHeights(splice[0], splice[1], splice[2].map(_ => 0));
 		});
 
+		if (Date.now() - this._lastRenderTime > 1) {
+			this._pendingRenderTask?.dispose();
+			this._pendingRenderTask = DOM.scheduleAtNextAnimationFrame(() => {
+				this._renderNow(this.viewCell.outputsViewModels);
+			});
+		} else {
+			this._renderNow(this.viewCell.outputsViewModels);
+		}
+	}
+
+	private _pendingRenderTask: IDisposable | null = null;
+	private _lastRenderTime: number = Date.now();
+	private _renderNow(outputViewModels: ICellOutputViewModel[]) {
 		const removedOutputs: ICellOutputViewModel[] = [];
 
 		this.outputEntries.forEach((value, key) => {
-			if (this.viewCell.outputsViewModels.indexOf(key) < 0) {
+			if (outputViewModels.indexOf(key) < 0) {
 				removedOutputs.push(key);
 				// remove element from DOM
 				value.detach();
@@ -550,7 +563,7 @@ export class CellOutputContainer extends Disposable {
 			}
 
 			// newly added element
-			const currIndex = this.viewCell.outputsViewModels.indexOf(output);
+			const currIndex = outputViewModels.indexOf(output);
 			const renderResult = this._renderOutput(output, currIndex, prevElement);
 			if (renderResult) {
 				outputHasDynamicHeight = outputHasDynamicHeight || !renderResult.initRenderIsSynchronous;
@@ -577,6 +590,7 @@ export class CellOutputContainer extends Disposable {
 		// or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
+		this._lastRenderTime = Date.now();
 	}
 
 	private _renderOutput(currOutput: ICellOutputViewModel, index: number, beforeElement?: HTMLElement) {
