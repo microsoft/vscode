@@ -10,6 +10,7 @@ import { Runtime } from './htmlClient';
 export namespace FsContentRequest {
 	export const type: RequestType<{ uri: string; encoding?: string; }, string, any> = new RequestType('fs/content');
 }
+
 export namespace FsStatRequest {
 	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');
 }
@@ -62,6 +63,7 @@ export enum FileType {
 	 */
 	SymbolicLink = 64
 }
+
 export interface FileStat {
 	/**
 	 * The type of the file, e.g. is a regular file, a directory, or symbolic link
