@@ -694,6 +694,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				}
 			case 'clear':
 				renderers.clearAll();
+				notebookDocument.clearAll();
 				document.getElementById('container')!.innerText = '';
 
 				focusTrackers.forEach(ft => {
@@ -1076,6 +1077,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			for (const cell of this._markupCells.values()) {
 				cell.toggleDragDropEnabled(dragAndDropEnabled);
 			}
+		}
+
+		public clearAll() {
+			this._markupCells.clear();
 		}
 	}();
 
