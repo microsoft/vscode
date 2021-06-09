@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getMediaMime, MIME_UNKNOWN } from 'vs/base/common/mime';
+import { getMediaMime, Mimes } from 'vs/base/common/mime';
 import { extname } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 
@@ -23,5 +23,5 @@ const webviewMimeTypes = new Map([
 
 export function getWebviewContentMimeType(resource: URI): string {
 	const ext = extname(resource.fsPath).toLowerCase();
-	return webviewMimeTypes.get(ext) || getMediaMime(resource.fsPath) || MIME_UNKNOWN;
+	return webviewMimeTypes.get(ext) || getMediaMime(resource.fsPath) || Mimes.unknown;
 }

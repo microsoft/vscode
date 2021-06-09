@@ -826,7 +826,7 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'view-scroll',
 			widgets: widgets,
-			markdownPreviews,
+			markupCells: markdownPreviews,
 		});
 	}
 
