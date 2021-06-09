@@ -183,14 +183,14 @@ export class CellOutputElement extends Disposable {
 
 		// this.output.pickedMimeType = pick;
 		this.render(nextElement as HTMLElement);
-		this.relayoutCell();
+		this._relayoutCell();
 	}
 
 	private _generateInnerOutputContainer(beforeElementAnchor: HTMLElement | undefined, pickedMimeTypeRenderer: IOrderedMimeType) {
 		if (this.output.supportAppend()) {
 			// current output support append
 			if (beforeElementAnchor) {
-				if (this.divSupportAppend(beforeElementAnchor.previousElementSibling as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+				if (this._divSupportAppend(beforeElementAnchor.previousElementSibling as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
 					this.useDedicatedDOM = true;
 					this.domNode = beforeElementAnchor.previousElementSibling as HTMLElement;
 				} else {
@@ -200,7 +200,7 @@ export class CellOutputElement extends Disposable {
 				}
 			} else {
 				// no beforeElemenet, append it to the very last
-				if (this.divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
+				if (this._divSupportAppend(this.outputContainer.lastChild as HTMLElement | null, pickedMimeTypeRenderer.mimeType)) {
 					// last element allows append
 					this.useDedicatedDOM = false;
 					this.domNode = this.outputContainer.lastChild as HTMLElement;
@@ -249,7 +249,7 @@ export class CellOutputElement extends Disposable {
 
 		// generate an innerOutputContainer only when needed, for text streaming, it will reuse the previous element's container
 		this._generateInnerOutputContainer(beforeElement, pickedMimeTypeRenderer);
-		this.attachToolbar(this.domNode, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
+		this._attachToolbar(this.domNode, notebookTextModel, this.notebookEditor.activeKernel, index, mimeTypes);
 
 		if (pickedMimeTypeRenderer.rendererId !== BUILTIN_RENDERER_ID) {
 			const renderer = this.notebookService.getRendererInfo(pickedMimeTypeRenderer.rendererId);
@@ -292,14 +292,14 @@ export class CellOutputElement extends Disposable {
 			width: this.viewCell.layoutInfo.editorWidth,
 			height: offsetHeight
 		};
-		this.bindResizeListener(dimension);
+		this._bindResizeListener(dimension);
 		this.viewCell.updateOutputHeight(index, offsetHeight, 'CellOutputElement#renderResultInitHeight');
 		const top = this.viewCell.getOutputOffsetInContainer(index);
 		this.domNode.style.top = `${top}px`;
 		return { initRenderIsSynchronous: true };
 	}
 
-	private bindResizeListener(dimension: DOM.IDimension) {
+	private _bindResizeListener(dimension: DOM.IDimension) {
 		const elementSizeObserver = getResizesObserver(this.domNode, dimension, () => {
 			if (this.outputContainer && document.body.contains(this.outputContainer)) {
 				const height = this.domNode.offsetHeight;
@@ -320,7 +320,7 @@ export class CellOutputElement extends Disposable {
 
 				this._validateFinalOutputHeight(true);
 				this.viewCell.updateOutputHeight(currIndex, height, 'CellOutputElement#outputResize');
-				this.relayoutCell();
+				this._relayoutCell();
 			}
 		});
 
@@ -328,7 +328,7 @@ export class CellOutputElement extends Disposable {
 		this._renderDisposableStore.add(elementSizeObserver);
 	}
 
-	private divSupportAppend(element: HTMLElement | null, mimeType: string) {
+	private _divSupportAppend(element: HTMLElement | null, mimeType: string) {
 		if (element) {
 			return element.getAttribute('output-mime-type') === mimeType;
 		}
@@ -336,7 +336,7 @@ export class CellOutputElement extends Disposable {
 		return false;
 	}
 
-	private async attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
+	private async _attachToolbar(outputItemDiv: HTMLElement, notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, index: number, mimeTypes: readonly IOrderedMimeType[]) {
 		const hasMultipleMimeTypes = mimeTypes.filter(mimeType => mimeType.isTrusted).length <= 1;
 		if (index > 0 && hasMultipleMimeTypes) {
 			return;
@@ -366,7 +366,7 @@ export class CellOutputElement extends Disposable {
 
 		// TODO: This could probably be a real registered action, but it has to talk to this output element
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
-			async _context => this.pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
+			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
 			const menu = this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService);
 			const updateMenuToolbar = () => {
@@ -384,7 +384,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	private async pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
+	private async _pickActiveMimeTypeRenderer(notebookTextModel: NotebookTextModel, kernel: INotebookKernel | undefined, viewModel: ICellOutputViewModel) {
 		const [mimeTypes, currIndex] = viewModel.resolveMimeTypes(notebookTextModel, kernel?.preloadProvides);
 
 		let items: IMimeTypeRenderer[] = [];
@@ -395,7 +395,7 @@ export class CellOutputElement extends Disposable {
 					id: mimeType.mimeType,
 					index: index,
 					picked: index === currIndex,
-					detail: this.generateRendererInfo(mimeType.rendererId),
+					detail: this._generateRendererInfo(mimeType.rendererId),
 					description: index === currIndex ? nls.localize('curruentActiveMimeType', "Currently Active") : undefined
 				});
 			}
@@ -436,10 +436,10 @@ export class CellOutputElement extends Disposable {
 		this.notebookService.updateMimePreferredRenderer(mimeType, rendererId);
 		this.render(nextElement as HTMLElement);
 		this._validateFinalOutputHeight(false);
-		this.relayoutCell();
+		this._relayoutCell();
 	}
 
-	private generateRendererInfo(renderId: string | undefined): string {
+	private _generateRendererInfo(renderId: string | undefined): string {
 		if (renderId === undefined || renderId === BUILTIN_RENDERER_ID) {
 			return nls.localize('builtinRenderInfo', "built-in");
 		}
@@ -472,7 +472,7 @@ export class CellOutputElement extends Disposable {
 		}
 	}
 
-	private relayoutCell() {
+	private _relayoutCell() {
 		this.notebookEditor.layoutNotebookCell(this.viewCell, this.viewCell.layoutInfo.totalHeight);
 	}
 
@@ -697,6 +697,7 @@ export class CellOutputContainer extends Disposable {
 		// shrink immediately as the final output height will be zero.
 		this._validateFinalOutputHeight(!outputHasDynamicHeight || this.viewCell.outputsViewModels.length === 0);
 	}
+
 	private _renderOutput(currOutput: ICellOutputViewModel) {
 		if (!this.outputEntries.has(currOutput)) {
 			this.outputEntries.set(currOutput, this.instantiationService.createInstance(CellOutputElement, this.notebookEditor, this.viewCell, this.templateData.outputContainer, currOutput));
