@@ -183,7 +183,7 @@ export interface IContentWidgetTopRequest {
 export interface IViewScrollTopRequestMessage {
 	readonly type: 'view-scroll';
 	readonly widgets: IContentWidgetTopRequest[];
-	readonly markdownPreviews: { id: string; top: number; }[];
+	readonly markupCells: { id: string; top: number; }[];
 }
 
 export interface IScrollRequestMessage {

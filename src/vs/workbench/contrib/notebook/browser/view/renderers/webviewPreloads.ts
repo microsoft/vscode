@@ -683,7 +683,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						}
 					}
 
-					for (const cell of event.data.markdownPreviews) {
+					for (const cell of event.data.markupCells) {
 						const container = document.getElementById(cell.id);
 						if (container) {
 							container.style.top = `${cell.top}px`;
@@ -793,7 +793,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			case 'notebookOptions':
 				currentOptions = event.data.options;
 
-				// Update markdown previews
+				// Update markup cells
 				for (const markdownContainer of document.querySelectorAll('.preview')) {
 					setMarkupContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
 				}
@@ -1014,11 +1014,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return existing;
 			}
 
-			const markdownCell = new MarkupCell(init.cellId, init.mime, init.content, top);
-			this._markupCells.set(init.cellId, markdownCell);
+			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			this._markupCells.set(init.cellId, cell);
 
-			await markdownCell.ready;
-			return markdownCell;
+			await cell.ready;
+			return cell;
 		}
 
 		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
@@ -1082,7 +1082,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		public readonly ready: Promise<void>;
 
-		/// Internal field that holds markdown text
+		/// Internal field that holds text content
 		private _content: string;
 
 		constructor(id: string, mime: string, content: string, top: number) {
@@ -1161,15 +1161,15 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);
 
 			this.element.addEventListener('dragstart', e => {
-				markdownPreviewDragManager.startDrag(e, this.id);
+				markupCellDragManager.startDrag(e, this.id);
 			});
 
 			this.element.addEventListener('drag', e => {
-				markdownPreviewDragManager.updateDrag(e, this.id);
+				markupCellDragManager.updateDrag(e, this.id);
 			});
 
 			this.element.addEventListener('dragend', e => {
-				markdownPreviewDragManager.endDrag(e, this.id);
+				markupCellDragManager.endDrag(e, this.id);
 			});
 		}
 
@@ -1254,13 +1254,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		});
 	}
 
-	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
+	const markupCellDragManager = new class MarkdownPreviewDragManager {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
 
 		constructor() {
 			document.addEventListener('dragover', e => {
-				// Allow dropping dragged markdown cells
+				// Allow dropping dragged markup cells
 				e.preventDefault();
 			});
 
