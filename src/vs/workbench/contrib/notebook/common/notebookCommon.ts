@@ -776,36 +776,6 @@ export function notebookDocumentFilterMatch(filter: INotebookDocumentFilter, vie
 	return false;
 }
 
-export interface INotebookKernelChangeEvent {
-	label?: true;
-	description?: true;
-	detail?: true;
-	supportedLanguages?: true;
-	hasExecutionOrder?: true;
-}
-
-export interface INotebookKernel {
-
-	readonly id: string;
-	readonly viewType: string;
-	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
-	readonly extension: ExtensionIdentifier;
-
-	readonly localResourceRoot: URI;
-	readonly preloadUris: URI[];
-	readonly preloadProvides: string[];
-
-	label: string;
-	description?: string;
-	detail?: string;
-	supportedLanguages: string[];
-	implementsInterrupt?: boolean;
-	implementsExecutionOrder?: boolean;
-
-	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
-	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
-}
-
 export interface INotebookCellStatusBarItemProvider {
 	viewType: string;
 	onDidChangeStatusBarItems?: Event<void>;
