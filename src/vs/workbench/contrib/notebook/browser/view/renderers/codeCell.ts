@@ -210,7 +210,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Render Outputs
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		this.updateForCollapseState();

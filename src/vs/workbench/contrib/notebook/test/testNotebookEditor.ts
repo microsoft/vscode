@@ -225,6 +225,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
 		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
 		override async layoutNotebookCell() { }
+		override async removeInset() { }
 	};
 
 	return notebookEditor;
@@ -319,4 +320,8 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	);
 
 	return cellList;
+}
+
+export function valueBytesFromString(value: string) {
+	return Array.from(new TextEncoder().encode(value));
 }

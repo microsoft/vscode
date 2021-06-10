@@ -338,7 +338,7 @@ OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 
 // --- utils ---
-function getStringValue(item: IOutputItemDto): string {
+export function getStringValue(item: IOutputItemDto): string {
 	// todo@jrieken NOT proper, should be VSBuffer
 	return new TextDecoder().decode(new Uint8Array(item.valueBytes));
 }

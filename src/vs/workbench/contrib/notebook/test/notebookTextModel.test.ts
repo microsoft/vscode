@@ -5,16 +5,11 @@
 
 import * as assert from 'assert';
 import { CellKind, CellEditType, NotebookTextModelChangedEvent, SelectionStateType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { withTestNotebook, TestCell, setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { withTestNotebook, TestCell, setupInstantiationService, valueBytesFromString } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 suite('NotebookTextModel', () => {
-
-	function valueBytesFromString(value: string) {
-		return Array.from(new TextEncoder().encode(value));
-	}
-
 	const instantiationService = setupInstantiationService();
 	const modeService = instantiationService.get(IModeService);
 	instantiationService.spy(IUndoRedoService, 'pushElement');
