@@ -118,7 +118,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 						id: contributedEditor.id,
 						label: contributedEditor.displayName,
 						detail: contributedEditor.providerDisplayName,
-						describes: (editorId) => editorId === contributedEditor.id,
+						describes: editorId => editorId === contributedEditor.id,
 						priority: contributedEditor.priority,
 					},
 					{

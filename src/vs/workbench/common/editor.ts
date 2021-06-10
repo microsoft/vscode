@@ -300,8 +300,9 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 }
 
 export function isResourceDiffEditorInput(editor: IResourceEditorInputType): editor is IResourceDiffEditorInput {
-	const testInput = editor as IResourceDiffEditorInput;
-	return testInput.originalInput !== undefined && testInput.modifiedInput !== undefined;
+	const candidate = editor as IResourceDiffEditorInput;
+
+	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
 }
 
 export const enum Verbosity {
@@ -849,8 +850,8 @@ class EditorResourceAccessorImpl {
 		}
 
 		// Optionally support side-by-side editors
-		let primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
-		let secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
+		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
+		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
 		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
