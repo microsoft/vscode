@@ -2635,8 +2635,8 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 }, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
-	dark: notebookCellBorder,
-	light: notebookCellBorder,
+	dark: null,
+	light: null,
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 
