@@ -93,10 +93,6 @@ export class TestWorkspaceTrustManagementService implements IWorkspaceTrustManag
 			this._onDidChangeTrust.fire(this.trusted);
 		}
 	}
-
-	async initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
-	}
 }
 
 export class TestWorkspaceTrustRequestService implements IWorkspaceTrustRequestService {

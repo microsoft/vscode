@@ -46,30 +46,10 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
-import { URI } from 'vs/base/common/uri';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
 const BANNER_RESTRICTED_MODE_DISMISSED_KEY = 'workbench.banner.restrictedMode.dismissed';
-
-export class EmptyWorkspaceTrustInitializer extends Disposable implements IWorkbenchContribution {
-	constructor(
-		@IEditorService editorService: IEditorService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
-	) {
-		super();
-
-		if (workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			const openEditors = editorService.editors
-				.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file }))
-				.filter(uri => !!uri);
-			workspaceTrustManagementService.initializeEmptyWorkspaceTrust(openEditors as URI[]);
-		}
-	}
-}
-
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(EmptyWorkspaceTrustInitializer, LifecyclePhase.Restored);
 
 /*
  * Trust Request via Service UX handler

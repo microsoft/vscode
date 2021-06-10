@@ -73,7 +73,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private readonly storageKey = WORKSPACE_TRUST_STORAGE_KEY;
 
-	private _initialized: boolean;
 	private _workspaceResolvedPromise: Promise<void>;
 	private _workspaceResolvedPromiseResolve!: () => void;
 	private _workspaceTrustInitializedPromise: Promise<void>;
@@ -88,6 +87,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _canonicalWorkspace: IWorkspace;
+	private _canonicalOpenFiles: URI[] = [];
+	private _canonicalUrisResolved: boolean;
 
 	private _isTrusted: boolean;
 	protected readonly _trustState: WorkspaceTrustState;
@@ -104,8 +105,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	) {
 		super();
 
+		this._canonicalUrisResolved = false;
 		this._canonicalWorkspace = this.workspaceService.getWorkspace();
-		this._initialized = false;
+
 		this._workspaceResolvedPromise = new Promise((resolve) => {
 			this._workspaceResolvedPromiseResolve = resolve;
 		});
@@ -126,18 +128,16 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	//#region initialize
 
 	private initializeWorkspaceTrust(): void {
-		// Folder/Workspace - resolve the workspace uris
-		if (this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			this.resolveCanonicalWorkspaceUris().then(async () => {
-				this._initialized = true;
-				await this.updateWorkspaceTrust();
+		// Resolve canonical Uris
+		this.resolveCanonicalUris().then(async () => {
+			this._canonicalUrisResolved = true;
+			await this.updateWorkspaceTrust();
 
-				this._workspaceResolvedPromiseResolve();
-				if (!this.environmentService.remoteAuthority) {
-					this._workspaceTrustInitializedPromiseResolve();
-				}
-			});
-		}
+			this._workspaceResolvedPromiseResolve();
+			if (!this.environmentService.remoteAuthority) {
+				this._workspaceTrustInitializedPromiseResolve();
+			}
+		});
 
 		// Remote - resolve remote authority
 		if (this.environmentService.remoteAuthority) {
@@ -148,34 +148,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 					this._workspaceTrustInitializedPromiseResolve();
 				});
-		}
-	}
-
-	async initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void> {
-		// Resolve the canonical workspace
-		await this.resolveCanonicalWorkspaceUris();
-
-		// Initialize the memento if not already set
-		if (this._trustState.isEmptyWorkspaceTrusted === undefined) {
-			if (openEditors.length) {
-				const openFilesTrustInfo = await Promise.all(openEditors.map(uri => this.getUriTrustInfo(uri)));
-				if (openFilesTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-					// All open files are trusted
-					this._trustState.isEmptyWorkspaceTrusted = true;
-				}
-			} else {
-				// Default to the user setting
-				this._trustState.isEmptyWorkspaceTrusted = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
-			}
-		}
-
-		// Update workspace trust
-		await this.updateWorkspaceTrust();
-
-		// Resolve promises as needed
-		this._workspaceResolvedPromiseResolve();
-		if (!this.environmentService.remoteAuthority) {
-			this._workspaceTrustInitializedPromiseResolve();
 		}
 	}
 
@@ -212,7 +184,17 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		return uri;
 	}
 
-	private async resolveCanonicalWorkspaceUris(): Promise<void> {
+	private async resolveCanonicalUris(): Promise<void> {
+		// Open editors
+		if (this.environmentService.configuration.filesToOpenOrCreate) {
+			const filesToOpenOrCreate = this.environmentService.configuration.filesToOpenOrCreate;
+			const filesToOpen = filesToOpenOrCreate.filter(f => f.fileUri && f.exists && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
+			const canonicalFilesToOpen = await Promise.all(filesToOpen.map(uri => this.getCanonicalUri(uri)));
+
+			this._canonicalOpenFiles.push(...canonicalFilesToOpen);
+		}
+
+		// Workspace
 		const workspaceUris = this.workspaceService.getWorkspace().folders.map(f => f.uri);
 		const canonicalWorkspaceFolders = await Promise.all(workspaceUris.map(uri => this.getCanonicalUri(uri)));
 
@@ -281,13 +263,25 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		// Empty workspace - use memento which is set or has been initalized
-		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			return this._trustState.isEmptyWorkspaceTrusted ?? false;
+		// Canonical Uris not yet resolved
+		if (!this._canonicalUrisResolved) {
+			return false;
 		}
 
-		if (!this._initialized) {
-			return false;
+		// Empty workspace - use memento, open ediors, or user setting
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			// Use memento if present
+			if (this._trustState.isEmptyWorkspaceTrusted !== undefined) {
+				return this._trustState.isEmptyWorkspaceTrusted;
+			}
+
+			// Open editors are trusted
+			if (this._canonicalOpenFiles.length && this.getUrisTrust(this._canonicalOpenFiles)) {
+				return true;
+			}
+
+			// User setting
+			return this.configurationService.getValue<boolean>(WORKSPACE_TRUST_EMPTY_WINDOW) ?? false;
 		}
 
 		return this.getUrisTrust(this.getWorkspaceUris());
@@ -299,7 +293,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		}
 
 		if (trusted === undefined) {
-			await this.resolveCanonicalWorkspaceUris();
+			await this.resolveCanonicalUris();
 			trusted = this.calculateWorkspaceTrust();
 		}
 

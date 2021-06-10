@@ -60,7 +60,6 @@ export interface IWorkspaceTrustManagementService {
 	getTrustedUris(): URI[];
 	setTrustedUris(uris: URI[]): Promise<void>;
 
-	initializeEmptyWorkspaceTrust(openEditors: URI[]): Promise<void>;
 	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 }
 
