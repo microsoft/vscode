@@ -143,7 +143,6 @@ export class NotebookProviderInfoStore extends Disposable {
 				id: notebookProviderInfo.id,
 				label: notebookProviderInfo.displayName,
 				detail: notebookProviderInfo.providerDisplayName,
-				describes: editorId => editorId === notebookProviderInfo.id,
 				priority: notebookProviderInfo.exclusive ? ContributedEditorPriority.exclusive : notebookProviderInfo.priority,
 			};
 			const notebookEditorOptions = {

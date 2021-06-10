@@ -1131,7 +1131,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},
@@ -1167,7 +1166,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},
@@ -1199,7 +1197,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},

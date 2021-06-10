@@ -121,7 +121,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				id: DEFAULT_EDITOR_ASSOCIATION.id,
 				label: DEFAULT_EDITOR_ASSOCIATION.displayName,
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: editorId => editorId === DEFAULT_EDITOR_ASSOCIATION.id,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},

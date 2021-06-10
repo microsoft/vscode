@@ -129,7 +129,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		if (currentEditor) {
 			currentViewType = (currentEditor as IContributedEditorInput).viewType;
 		}
-		if (currentViewType && selectedEditor.editorInfo.describes(currentViewType)) {
+		if (currentViewType && selectedEditor.editorInfo.id === currentViewType) {
 			return OverrideStatus.ABORT;
 		}
 		const input = await this.doOverrideEditorInput(resource, editor, options, group, selectedEditor);
@@ -457,7 +457,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Map the editors to quickpick entries
 		registeredEditors.forEach(editor => {
 			const currentViewType = (currentEditor as IContributedEditorInput).viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
-			const isActive = currentEditor ? editor.editorInfo.describes(currentViewType) : false;
+			const isActive = currentEditor ? editor.editorInfo.id === currentViewType : false;
 			const isDefault = editor.editorInfo.id === defaultViewType;
 			const quickPickEntry: IQuickPickItem = {
 				id: editor.editorInfo.id,

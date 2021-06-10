@@ -81,7 +81,6 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				id: SearchEditorInput.ID,
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: editorId => editorId === SearchEditorInput.ID,
 				priority: ContributedEditorPriority.default,
 			},
 			{
