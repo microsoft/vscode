@@ -5,7 +5,7 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CellExecuteEditDto, ExtHostNotebookKernelsShape, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import * as vscode from 'vscode';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -16,7 +16,7 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { ResourceMap } from 'vs/base/common/map';
 import { timeout } from 'vs/base/common/async';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
-import { CellEditType, IImmediateCellEditOperation, IOutputDto, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, NotebookCellExecutionState, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { asArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -332,7 +332,7 @@ class NotebookCellExecutionTask extends Disposable {
 
 	private readonly _tokenSource = this._register(new CancellationTokenSource());
 
-	private readonly _collector: TimeoutBasedCollector<IImmediateCellEditOperation>;
+	private readonly _collector: TimeoutBasedCollector<CellExecuteEditDto>;
 
 	private _executionOrder: number | undefined;
 
@@ -356,11 +356,11 @@ class NotebookCellExecutionTask extends Disposable {
 		this._tokenSource.cancel();
 	}
 
-	private async applyEditSoon(edit: IImmediateCellEditOperation): Promise<void> {
+	private async applyEditSoon(edit: CellExecuteEditDto): Promise<void> {
 		await this._collector.addItem(edit);
 	}
 
-	private async applyEdits(edits: IImmediateCellEditOperation[]): Promise<void> {
+	private async applyEdits(edits: CellExecuteEditDto[]): Promise<void> {
 		return this._proxy.$applyExecutionEdits(this._document.uri, edits);
 	}
 
@@ -375,8 +375,11 @@ class NotebookCellExecutionTask extends Disposable {
 	}
 
 	private mixinMetadata(mixinMetadata: NullablePartialNotebookCellInternalMetadata) {
-		const edit: IImmediateCellEditOperation = { editType: CellEditType.PartialInternalMetadata, handle: this._cell.handle, internalMetadata: mixinMetadata };
-		this.applyEdits([edit]);
+		this.applyEdits([{
+			editType: CellEditType.PartialInternalMetadata,
+			handle: this._cell.handle,
+			internalMetadata: mixinMetadata
+		}]);
 	}
 
 	private cellIndexToHandle(cellOrCellIndex: vscode.NotebookCell | undefined): number {
@@ -390,7 +393,7 @@ class NotebookCellExecutionTask extends Disposable {
 		return cell.handle;
 	}
 
-	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): IOutputDto[] {
+	private validateAndConvertOutputs(items: vscode.NotebookCellOutput[]): NotebookOutputDto[] {
 		return items.map(output => {
 			const newOutput = NotebookCellOutput.ensureUniqueMimeTypes(output.items, true);
 			if (newOutput === output.items) {

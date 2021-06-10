@@ -10,13 +10,14 @@ import { combinedDisposable, DisposableStore, IDisposable } from 'vs/base/common
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { IImmediateCellEditOperation, INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookKernelChangeEvent } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
+import { CellExecuteEditDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHostContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape } from '../common/extHost.protocol';
 
 abstract class MainThreadKernel implements INotebookKernel {
 
@@ -225,14 +226,16 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 
 	// --- execution editss
 
-	async $applyExecutionEdits(resource: UriComponents, cellEdits: IImmediateCellEditOperation[]): Promise<void> {
+	async $applyExecutionEdits(resource: UriComponents, cellEdits: CellExecuteEditDto[]): Promise<void> {
 		const textModel = this._notebookService.getNotebookTextModel(URI.from(resource));
 		if (!textModel) {
 			throw new Error(`Can't apply edits to unknown notebook model: ${URI.revive(resource).toString()}`);
 		}
 
+		const edits = cellEdits.map(NotebookDto.fromCellExecuteEditDto);
+
 		try {
-			textModel.applyEdits(cellEdits, true, undefined, () => undefined, undefined, false);
+			textModel.applyEdits(edits, true, undefined, () => undefined, undefined, false);
 		} catch (e) {
 			// Clearing outputs at the same time as the EH calling append/replaceOutputItems is an expected race, and it should be a no-op.
 			// And any other failure should not throw back to the extension.

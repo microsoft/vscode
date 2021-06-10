@@ -9,14 +9,15 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { BoundModelReferenceCollection } from 'vs/workbench/api/browser/mainThreadDocuments';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IMainCellDto, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape } from '../common/extHost.protocol';
+import { ExtHostContext, ExtHostNotebookDocumentsShape, IExtHostContext, MainThreadNotebookDocumentsShape, NotebookCellDto, NotebookCellsChangedEventDto, NotebookDataDto } from '../common/extHost.protocol';
 import { MainThreadNotebooksAndEditors } from 'vs/workbench/api/browser/mainThreadNotebookDocumentsAndEditors';
 import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 
 export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsShape {
 
@@ -55,36 +56,59 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		for (const textModel of notebooks) {
 			const disposableStore = new DisposableStore();
 			disposableStore.add(textModel.onDidChangeContent(event => {
-				const dto = event.rawEvents.map(e => {
-					const data =
-						e.kind === NotebookCellsChangeType.ModelChange || e.kind === NotebookCellsChangeType.Initialize
-							? {
-								kind: e.kind,
-								versionId: event.versionId,
-								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => MainThreadNotebookDocuments._cellToDto(cell as NotebookCellTextModel))] as [number, number, IMainCellDto[]])
-							}
-							: (
-								e.kind === NotebookCellsChangeType.Move
-									? {
-										kind: e.kind,
-										index: e.index,
-										length: e.length,
-										newIdx: e.newIdx,
-										versionId: event.versionId,
-										cells: e.cells.map(cell => MainThreadNotebookDocuments._cellToDto(cell as NotebookCellTextModel))
-									}
-									: e
-							);
 
-					return data;
-				});
+				const eventDto: NotebookCellsChangedEventDto = {
+					versionId: event.versionId,
+					rawEvents: []
+				};
+
+				for (const e of event.rawEvents) {
+
+					switch (e.kind) {
+						case NotebookCellsChangeType.ModelChange:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								changes: e.changes.map(diff => [diff[0], diff[1], diff[2].map(cell => NotebookDto.toNotebookCellDto(cell as NotebookCellTextModel))] as [number, number, NotebookCellDto[]])
+							});
+							break;
+						case NotebookCellsChangeType.Move:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								length: e.length,
+								newIdx: e.newIdx,
+							});
+							break;
+						case NotebookCellsChangeType.Output:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								outputs: e.outputs.map(NotebookDto.toNotebookOutputDto)
+							});
+							break;
+						case NotebookCellsChangeType.OutputItem:
+							eventDto.rawEvents.push({
+								kind: e.kind,
+								index: e.index,
+								outputId: e.outputId,
+								outputItems: e.outputItems.map(NotebookDto.toNotebookOutputItemDto),
+								append: e.append
+							});
+							break;
+						case NotebookCellsChangeType.ChangeLanguage:
+						case NotebookCellsChangeType.ChangeCellMetadata:
+						case NotebookCellsChangeType.ChangeCellInternalMetadata:
+							eventDto.rawEvents.push(e);
+							break;
+					}
+				}
 
 				// using the model resolver service to know if the model is dirty or not.
 				// assuming this is the first listener it can mean that at first the model
 				// is marked as dirty and that another event is fired
 				this._proxy.$acceptModelChanged(
 					textModel.uri,
-					{ rawEvents: dto, versionId: event.versionId },
+					eventDto,
 					this._notebookEditorModelResolverService.isDirty(textModel.uri)
 				);
 
@@ -105,19 +129,6 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 		}
 	}
 
-	private static _cellToDto(cell: NotebookCellTextModel): IMainCellDto {
-		return {
-			handle: cell.handle,
-			uri: cell.uri,
-			source: cell.textBuffer.getLinesContent(),
-			eol: cell.textBuffer.getEOL(),
-			language: cell.language,
-			cellKind: cell.cellKind,
-			outputs: cell.outputs,
-			metadata: cell.metadata,
-			internalMetadata: cell.internalMetadata,
-		};
-	}
 
 	async $tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents> {
 
@@ -150,11 +161,8 @@ export class MainThreadNotebookDocuments implements MainThreadNotebookDocumentsS
 
 		// apply content changes... slightly HACKY -> this triggers a change event
 		if (options.content) {
-			ref.object.notebook.reset(
-				options.content.cells,
-				options.content.metadata,
-				ref.object.notebook.transientOptions
-			);
+			const data = NotebookDto.fromNotebookDataDto(options.content);
+			ref.object.notebook.reset(data.cells, data.metadata, ref.object.notebook.transientOptions);
 		}
 		return uri;
 	}

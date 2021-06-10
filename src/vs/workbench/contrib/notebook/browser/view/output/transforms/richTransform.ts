@@ -310,8 +310,7 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const disposable = new DisposableStore();
 
-		const bytes = new Uint8Array(item.valueBytes);
-		const blob = new Blob([bytes], { type: item.mime });
+		const blob = new Blob([item.data], { type: item.mime });
 		const src = URL.createObjectURL(blob);
 		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
 
@@ -340,7 +339,7 @@ OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 // --- utils ---
 function getStringValue(item: IOutputItemDto): string {
 	// todo@jrieken NOT proper, should be VSBuffer
-	return new TextDecoder().decode(new Uint8Array(item.valueBytes));
+	return new TextDecoder().decode(item.data);
 }
 
 function getOutputSimpleEditorOptions(): IEditorConstructionOptions {

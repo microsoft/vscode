@@ -833,16 +833,6 @@ export enum CellOutputKind {
 	Rich = 3
 }
 
-export interface ICellDto {
-	handle: number;
-	uri: UriComponents,
-	source: string[];
-	language: string;
-	cellKind: notebookCommon.CellKind;
-	outputs: notebookCommon.IOutputDto[];
-	metadata?: notebookCommon.NotebookCellMetadata;
-}
-
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
@@ -884,11 +874,11 @@ export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetSelections(id: string, range: ICellRange[]): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
-	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: notebookCommon.ICellEditOperation[]): Promise<boolean>
+	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
-	$tryCreateNotebook(options: { viewType: string, content?: notebookCommon.NotebookDataDto }): Promise<UriComponents>;
+	$tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
 }
@@ -907,6 +897,22 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
+export interface CellExecuteOutputEditDto {
+	editType: notebookCommon.CellEditType.Output;
+	append?: boolean;
+	handle: number;
+	outputs: NotebookOutputDto[]
+}
+
+export interface CellExecuteOutputItemEditDto {
+	editType: notebookCommon.CellEditType.OutputItems;
+	append?: boolean;
+	outputId: string;
+	items: NotebookOutputItemDto[]
+}
+
+export type CellExecuteEditDto = CellExecuteOutputEditDto | CellExecuteOutputItemEditDto | notebookCommon.ICellPartialInternalMetadataEditByHandle;
+
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
@@ -914,7 +920,7 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
 
-	$applyExecutionEdits(resource: UriComponents, edits: notebookCommon.IImmediateCellEditOperation[]): Promise<void>;
+	$applyExecutionEdits(resource: UriComponents, edits: CellExecuteEditDto[]): Promise<void>;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -1503,12 +1509,22 @@ export interface IWorkspaceTextEditDto {
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }
 
+export type ICellEditOperationDto =
+	notebookCommon.ICellPartialMetadataEdit
+	| notebookCommon.IDocumentMetadataEdit
+	| {
+		editType: notebookCommon.CellEditType.Replace,
+		index: number,
+		count: number,
+		cells: NotebookCellDataDto[]
+	};
+
 export interface IWorkspaceCellEditDto {
 	_type: WorkspaceEditType.Cell;
 	resource: UriComponents;
-	edit: notebookCommon.ICellEditOperation;
 	notebookVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
+	edit: ICellEditOperationDto;
 }
 
 export interface IWorkspaceEditDto {
@@ -1877,7 +1893,7 @@ export interface INotebookDocumentPropertiesChangeData {
 export interface INotebookModelAddedData {
 	uri: UriComponents;
 	versionId: number;
-	cells: notebookCommon.IMainCellDto[],
+	cells: NotebookCellDto[],
 	viewType: string;
 	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
@@ -1899,17 +1915,54 @@ export interface INotebookDocumentsAndEditorsDelta {
 	visibleEditors?: string[];
 }
 
+export interface NotebookOutputItemDto {
+	readonly mime: string;
+	readonly valueBytes: number[]; // todo@jrieken ugly, should be VSBuffer
+}
+
+export interface NotebookOutputDto {
+	items: NotebookOutputItemDto[];
+	outputId: string;
+	metadata?: Record<string, any>;
+}
+
+export interface NotebookCellDataDto {
+	source: string;
+	language: string;
+	cellKind: notebookCommon.CellKind;
+	outputs: NotebookOutputDto[];
+	metadata?: notebookCommon.NotebookCellMetadata;
+	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
+}
+
+export interface NotebookDataDto {
+	readonly cells: NotebookCellDataDto[];
+	readonly metadata: notebookCommon.NotebookDocumentMetadata;
+}
+
+export interface NotebookCellDto {
+	handle: number;
+	uri: UriComponents;
+	eol: string;
+	source: string[];
+	language: string;
+	cellKind: notebookCommon.CellKind;
+	outputs: NotebookOutputDto[];
+	metadata?: notebookCommon.NotebookCellMetadata;
+	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
+}
+
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
 	$provideNotebookCellStatusBarItems(handle: number, uri: UriComponents, index: number, token: CancellationToken): Promise<INotebookCellStatusBarListDto | undefined>;
 	$releaseNotebookCellStatusBarItems(id: number): void;
 
-	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<notebookCommon.NotebookDataDto>;
+	$openNotebook(viewType: string, uri: UriComponents, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<NotebookDataDto>;
 	$saveNotebook(viewType: string, uri: UriComponents, token: CancellationToken): Promise<boolean>;
 	$saveNotebookAs(viewType: string, uri: UriComponents, target: UriComponents, token: CancellationToken): Promise<boolean>;
 	$backupNotebook(viewType: string, uri: UriComponents, cancellation: CancellationToken): Promise<string>;
 
-	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<notebookCommon.NotebookDataDto>;
-	$notebookToData(handle: number, data: notebookCommon.NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
+	$dataToNotebook(handle: number, data: VSBuffer, token: CancellationToken): Promise<NotebookDataDto>;
+	$notebookToData(handle: number, data: NotebookDataDto, token: CancellationToken): Promise<VSBuffer>;
 }
 
 export interface ExtHostNotebookRenderersShape {
@@ -1920,8 +1973,46 @@ export interface ExtHostNotebookDocumentsAndEditorsShape {
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
 }
 
+export type NotebookRawContentEventDto =
+	// notebookCommon.NotebookCellsInitializeEvent<NotebookCellDto>
+	| {
+
+		readonly kind: notebookCommon.NotebookCellsChangeType.ModelChange;
+		readonly changes: notebookCommon.NotebookCellTextModelSplice<NotebookCellDto>[];
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.Move;
+		readonly index: number;
+		readonly length: number;
+		readonly newIdx: number;
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.Output;
+		readonly index: number;
+		readonly outputs: NotebookOutputDto[];
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.OutputItem;
+		readonly index: number;
+		readonly outputId: string;
+		readonly outputItems: NotebookOutputItemDto[];
+		readonly append: boolean;
+	}
+	| notebookCommon.NotebookCellsChangeLanguageEvent
+	| notebookCommon.NotebookCellsChangeMetadataEvent
+	| notebookCommon.NotebookCellsChangeInternalMetadataEvent
+	// | notebookCommon.NotebookDocumentChangeMetadataEvent
+	// | notebookCommon.NotebookCellContentChangeEvent
+	// | notebookCommon.NotebookDocumentUnknownChangeEvent
+	;
+
+export type NotebookCellsChangedEventDto = {
+	readonly rawEvents: NotebookRawContentEventDto[];
+	readonly versionId: number;
+};
+
 export interface ExtHostNotebookDocumentsShape {
-	$acceptModelChanged(uriComponents: UriComponents, event: notebookCommon.NotebookCellsChangedEventDto, isDirty: boolean): void;
+	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;
 	$acceptDirtyStateChanged(uriComponents: UriComponents, isDirty: boolean): void;
 	$acceptModelSaved(uriComponents: UriComponents): void;
 	$acceptDocumentPropertiesChanged(uriComponents: UriComponents, data: INotebookDocumentPropertiesChangeData): void;
