@@ -4,9 +4,12 @@ setlocal
 pushd %~dp0\..
 
 set VSCODEUSERDATADIR=%TEMP%\vscodeuserfolder-%RANDOM%-%TIME:~6,2%
-set VSCODECRASHDIR=%~dp0\..\.build\crashes
-set VSCODETRACEFILE=%~dp0\..\.build\traces\chrometrace.log
-mkdir %~dp0\..\.build\traces
+set VSCODECRASHDIR=%CD%\.build\crashes
+set VSCODETRACEDIR=%CD%\.build\traces
+
+if not exist %VSCODETRACEDIR% (
+	mkdir %VSCODETRACEDIR%
+)
 
 :: Figure out which Electron to use for running tests
 if "%INTEGRATION_TEST_ELECTRON_PATH%"=="" (
@@ -48,7 +51,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests in the extension host
 
-set ALL_PLATFORMS_API_TESTS_EXTRA_ARGS=--disable-telemetry --skip-welcome --crash-reporter-directory=%VSCODECRASHDIR% --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
+set ALL_PLATFORMS_API_TESTS_EXTRA_ARGS=--disable-telemetry --enable-tracing="navigation,loading,rail,net" --trace-startup-file=%VSCODETRACEDIR%\chrometrace-%TIME:~6,2%.log --crash-reporter-directory=%VSCODECRASHDIR% --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=%VSCODEUSERDATADIR%
 
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\vscode-api-tests\testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=%~dp0\..\extensions\vscode-api-tests --extensionTestsPath=%~dp0\..\extensions\vscode-api-tests\out\singlefolder-tests %ALL_PLATFORMS_API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
