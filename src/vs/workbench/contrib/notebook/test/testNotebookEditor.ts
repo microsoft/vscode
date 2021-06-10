@@ -45,6 +45,7 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -179,7 +180,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
+	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
 	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null);
 
 	const cellList = createNotebookCellList(instantiationService, viewContext);
@@ -190,6 +192,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override dispose() {
 			viewModel.dispose();
 		}
+		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override get viewModel() { return viewModel; }
 		override get textModel() { return viewModel.notebookDocument; }
@@ -220,6 +223,8 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override focusElement() { }
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
+		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
+		override async layoutNotebookCell() { }
 	};
 
 	return notebookEditor;
@@ -267,8 +272,8 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+	const instantiationService = accessor ?? setupInstantiationService();
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
 	const res = await callback(notebookEditor, instantiationService);

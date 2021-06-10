@@ -441,6 +441,10 @@ class OutputEntryViewHandler {
 export class CellOutputContainer extends Disposable {
 	private _outputEntries: OutputEntryViewHandler[] = [];
 
+	get renderedOutputEntries() {
+		return this._outputEntries;
+	}
+
 	constructor(
 		private notebookEditor: INotebookEditor,
 		private viewCell: CodeCellViewModel,
