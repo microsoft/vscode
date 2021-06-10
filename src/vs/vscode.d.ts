@@ -7605,8 +7605,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * A webview based view.
- */
+	 * A webview based view.
+	 */
 	export interface WebviewView {
 		/**
 		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
