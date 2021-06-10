@@ -663,6 +663,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				});
 				outputFocusTrackers.clear();
 				break;
+
 			case 'clearOutput': {
 				const { cellId, rendererId, outputId } = event.data;
 				outputRunner.cancelOutput(outputId);
@@ -670,40 +671,24 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			}
 			case 'hideOutput': {
-				const { outputId } = event.data;
-				outputRunner.enqueue(event.data.outputId, () => {
-					const container = document.getElementById(outputId)?.parentElement?.parentElement;
-					if (container) {
-						container.style.visibility = 'hidden';
-					}
+				const { cellId, outputId } = event.data;
+				outputRunner.enqueue(outputId, () => {
+					notebookDocument.hideOutput(cellId);
 				});
 				break;
 			}
 			case 'showOutput': {
-				const { outputId, cellTop: top } = event.data;
-				outputRunner.enqueue(event.data.outputId, () => {
-					const output = document.getElementById(outputId);
-					if (output) {
-						output.parentElement!.parentElement!.style.visibility = 'visible';
-						output.parentElement!.parentElement!.style.top = top + 'px';
-
-						dimensionUpdater.update(outputId, output.clientHeight, {
-							isOutput: true,
-						});
-					}
+				const { outputId, cellTop, cellId } = event.data;
+				outputRunner.enqueue(outputId, () => {
+					notebookDocument.showOutput(cellId, outputId, cellTop);
 				});
 				break;
 			}
-			case 'ack-dimension':
-				{
-					const { outputId, height } = event.data;
-					const output = document.getElementById(outputId);
-					if (output) {
-						output.parentElement!.style.maxHeight = `${height}px`;
-						output.parentElement!.style.height = `${height}px`;
-					}
-					break;
-				}
+			case 'ack-dimension': {
+				const { cellId, outputId, height } = event.data;
+				notebookDocument.updateOutputHeight(cellId, outputId, height);
+				break;
+			}
 			case 'preload':
 				const resources = event.data.resources;
 				for (const { uri, originalUri } of resources) {
@@ -1054,6 +1039,21 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			const cell = this._outputCells.get(cellId);
 			cell?.clearOutput(outputId, rendererId);
 		}
+
+		public showOutput(cellId: string, outputId: string, top: number) {
+			const cell = this._outputCells.get(cellId);
+			cell?.show(outputId, top);
+		}
+
+		public hideOutput(cellId: string) {
+			const cell = this._outputCells.get(cellId);
+			cell?.hide();
+		}
+
+		public updateOutputHeight(cellId: string, outputId: string, height: number) {
+			const cell = this._outputCells.get(cellId);
+			cell?.updateOutputHeight(outputId, height);
+		}
 	}();
 
 	class MarkupCell implements IOutputItem {
@@ -1280,6 +1280,34 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 			outputContainer.remove();
 			this.outputElements.delete(outputId);
+		}
+
+		public show(outputId: string, top: number) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			this.element.style.visibility = 'visible';
+			this.element.style.top = `${top}px`;
+
+			dimensionUpdater.update(outputId, outputContainer.clientHeight, {
+				isOutput: true,
+			});
+		}
+
+		public hide() {
+			this.element.style.visibility = 'hidden';
+		}
+
+		public updateOutputHeight(outputId: string, height: number) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			outputContainer.style.maxHeight = `${height}px`;
+			outputContainer.style.height = `${height}px`;
 		}
 	}
 
