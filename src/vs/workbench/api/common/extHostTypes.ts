@@ -15,7 +15,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getPrivateApiFor, ExtHostTestItemEventType, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -588,9 +588,7 @@ export const enum FileEditType {
 	File = 1,
 	Text = 2,
 	Cell = 3,
-	CellOutput = 4,
 	CellReplace = 5,
-	CellOutputItem = 6
 }
 
 export interface IFileOperation {
@@ -611,7 +609,7 @@ export interface IFileTextEdit {
 export interface IFileCellEdit {
 	_type: FileEditType.Cell;
 	uri: URI;
-	edit?: ICellEditOperation;
+	edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
 	notebookMetadata?: Record<string, any>;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
@@ -625,28 +623,8 @@ export interface ICellEdit {
 	cells: vscode.NotebookCellData[];
 }
 
-export interface ICellOutputEdit {
-	_type: FileEditType.CellOutput;
-	uri: URI;
-	index: number;
-	append: boolean;
-	newOutputs?: NotebookCellOutput[];
-	newMetadata?: Record<string, any>;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-}
 
-export interface ICellOutputItemsEdit {
-	_type: FileEditType.CellOutputItem;
-	uri: URI;
-	index: number;
-	outputId: string;
-	append: boolean;
-	newOutputItems?: NotebookCellOutputItem[];
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-}
-
-
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit | ICellOutputEdit | ICellOutputItemsEdit;
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {

@@ -51,7 +51,7 @@ import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { CellKind, ICellEditOperation, IImmediateCellEditOperation, IMainCellDto, INotebookCellStatusBarItem, INotebookContributionData, INotebookDecorationRenderOptions, IOutputDto, NotebookCellMetadata, NotebookCellsChangedEventDto, NotebookDataDto, NotebookDocumentMetadata, TransientCellMetadata, TransientDocumentMetadata, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
@@ -833,28 +833,6 @@ export enum CellOutputKind {
 	Rich = 3
 }
 
-export interface ICellDto {
-	handle: number;
-	uri: UriComponents,
-	source: string[];
-	language: string;
-	cellKind: CellKind;
-	outputs: IOutputDto[];
-	metadata?: NotebookCellMetadata;
-}
-
-export type NotebookCellsSplice = [
-	number /* start */,
-	number /* delete count */,
-	ICellDto[]
-];
-
-export type NotebookCellOutputsSplice = [
-	number /* start */,
-	number /* delete count */,
-	IOutputDto[]
-];
-
 export enum NotebookEditorRevealType {
 	Default = 0,
 	InCenter = 1,
@@ -869,7 +847,7 @@ export interface INotebookDocumentShowOptions {
 	selections?: ICellRange[];
 }
 
-export type INotebookCellStatusBarEntryDto = Dto<INotebookCellStatusBarItem>;
+export type INotebookCellStatusBarEntryDto = Dto<notebookCommon.INotebookCellStatusBarItem>;
 
 export interface INotebookCellStatusBarListDto {
 	items: INotebookCellStatusBarEntryDto[];
@@ -877,11 +855,11 @@ export interface INotebookCellStatusBarListDto {
 }
 
 export interface MainThreadNotebookShape extends IDisposable {
-	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, registration: INotebookContributionData | undefined): Promise<void>;
-	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: TransientCellMetadata; transientDocumentMetadata: TransientDocumentMetadata; }): Promise<void>;
+	$registerNotebookProvider(extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): Promise<void>;
+	$updateNotebookProviderOptions(viewType: string, options?: { transientOutputs: boolean; transientCellMetadata: notebookCommon.TransientCellMetadata; transientDocumentMetadata: notebookCommon.TransientDocumentMetadata; }): Promise<void>;
 	$unregisterNotebookProvider(viewType: string): Promise<void>;
 
-	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: TransientOptions, registration: INotebookContributionData | undefined): void;
+	$registerNotebookSerializer(handle: number, extension: NotebookExtensionDescription, viewType: string, options: notebookCommon.TransientOptions, registration: notebookCommon.INotebookContributionData | undefined): void;
 	$unregisterNotebookSerializer(handle: number): void;
 
 	$registerNotebookCellStatusBarItemProvider(handle: number, eventHandle: number | undefined, viewType: string): Promise<void>;
@@ -892,18 +870,17 @@ export interface MainThreadNotebookShape extends IDisposable {
 export interface MainThreadNotebookEditorsShape extends IDisposable {
 	$tryShowNotebookDocument(uriComponents: UriComponents, viewType: string, options: INotebookDocumentShowOptions): Promise<string>;
 	$tryRevealRange(id: string, range: ICellRange, revealType: NotebookEditorRevealType): Promise<void>;
-	$registerNotebookEditorDecorationType(key: string, options: INotebookDecorationRenderOptions): void;
+	$registerNotebookEditorDecorationType(key: string, options: notebookCommon.INotebookDecorationRenderOptions): void;
 	$removeNotebookEditorDecorationType(key: string): void;
 	$trySetSelections(id: string, range: ICellRange[]): void;
 	$trySetDecorations(id: string, range: ICellRange, decorationKey: string): void;
-	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperation[]): Promise<boolean>
+	$tryApplyEdits(editorId: string, modelVersionId: number, cellEdits: ICellEditOperationDto[]): Promise<boolean>
 }
 
 export interface MainThreadNotebookDocumentsShape extends IDisposable {
 	$tryCreateNotebook(options: { viewType: string, content?: NotebookDataDto }): Promise<UriComponents>;
 	$tryOpenNotebook(uriComponents: UriComponents): Promise<UriComponents>;
 	$trySaveNotebook(uri: UriComponents): Promise<boolean>;
-	$applyEdits(resource: UriComponents, edits: IImmediateCellEditOperation[], computeUndoRedo?: boolean): Promise<void>;
 }
 
 export interface INotebookKernelDto2 {
@@ -920,12 +897,30 @@ export interface INotebookKernelDto2 {
 	preloads?: { uri: UriComponents; provides: string[] }[];
 }
 
+export interface CellExecuteOutputEditDto {
+	editType: notebookCommon.CellEditType.Output;
+	append?: boolean;
+	handle: number;
+	outputs: NotebookOutputDto[]
+}
+
+export interface CellExecuteOutputItemEditDto {
+	editType: notebookCommon.CellEditType.OutputItems;
+	append?: boolean;
+	outputId: string;
+	items: NotebookOutputItemDto[]
+}
+
+export type CellExecuteEditDto = CellExecuteOutputEditDto | CellExecuteOutputItemEditDto | notebookCommon.ICellPartialInternalMetadataEditByHandle;
+
 export interface MainThreadNotebookKernelsShape extends IDisposable {
 	$postMessage(handle: number, editorId: string | undefined, message: any): Promise<boolean>;
 	$addKernel(handle: number, data: INotebookKernelDto2): Promise<void>;
 	$updateKernel(handle: number, data: Partial<INotebookKernelDto2>): void;
 	$removeKernel(handle: number): void;
 	$updateNotebookPriority(handle: number, uri: UriComponents, value: number | undefined): void;
+
+	$applyExecutionEdits(resource: UriComponents, edits: CellExecuteEditDto[]): Promise<void>;
 }
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
@@ -1514,12 +1509,22 @@ export interface IWorkspaceTextEditDto {
 	metadata?: IWorkspaceEditEntryMetadataDto;
 }
 
+export type ICellEditOperationDto =
+	notebookCommon.ICellPartialMetadataEdit
+	| notebookCommon.IDocumentMetadataEdit
+	| {
+		editType: notebookCommon.CellEditType.Replace,
+		index: number,
+		count: number,
+		cells: NotebookCellDataDto[]
+	};
+
 export interface IWorkspaceCellEditDto {
 	_type: WorkspaceEditType.Cell;
 	resource: UriComponents;
-	edit: ICellEditOperation;
 	notebookVersionId?: number;
 	metadata?: IWorkspaceEditEntryMetadataDto;
+	edit: ICellEditOperationDto;
 }
 
 export interface IWorkspaceEditDto {
@@ -1882,15 +1887,15 @@ export interface INotebookEditorPropertiesChangeData {
 }
 
 export interface INotebookDocumentPropertiesChangeData {
-	metadata?: NotebookDocumentMetadata;
+	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
 
 export interface INotebookModelAddedData {
 	uri: UriComponents;
 	versionId: number;
-	cells: IMainCellDto[],
+	cells: NotebookCellDto[],
 	viewType: string;
-	metadata?: NotebookDocumentMetadata;
+	metadata?: notebookCommon.NotebookDocumentMetadata;
 }
 
 export interface INotebookEditorAddData {
@@ -1908,6 +1913,43 @@ export interface INotebookDocumentsAndEditorsDelta {
 	addedEditors?: INotebookEditorAddData[];
 	newActiveEditor?: string | null;
 	visibleEditors?: string[];
+}
+
+export interface NotebookOutputItemDto {
+	readonly mime: string;
+	readonly valueBytes: number[]; // todo@jrieken ugly, should be VSBuffer
+}
+
+export interface NotebookOutputDto {
+	items: NotebookOutputItemDto[];
+	outputId: string;
+	metadata?: Record<string, any>;
+}
+
+export interface NotebookCellDataDto {
+	source: string;
+	language: string;
+	cellKind: notebookCommon.CellKind;
+	outputs: NotebookOutputDto[];
+	metadata?: notebookCommon.NotebookCellMetadata;
+	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
+}
+
+export interface NotebookDataDto {
+	readonly cells: NotebookCellDataDto[];
+	readonly metadata: notebookCommon.NotebookDocumentMetadata;
+}
+
+export interface NotebookCellDto {
+	handle: number;
+	uri: UriComponents;
+	eol: string;
+	source: string[];
+	language: string;
+	cellKind: notebookCommon.CellKind;
+	outputs: NotebookOutputDto[];
+	metadata?: notebookCommon.NotebookCellMetadata;
+	internalMetadata?: notebookCommon.NotebookCellInternalMetadata;
 }
 
 export interface ExtHostNotebookShape extends ExtHostNotebookDocumentsAndEditorsShape {
@@ -1930,6 +1972,44 @@ export interface ExtHostNotebookRenderersShape {
 export interface ExtHostNotebookDocumentsAndEditorsShape {
 	$acceptDocumentAndEditorsDelta(delta: INotebookDocumentsAndEditorsDelta): void;
 }
+
+export type NotebookRawContentEventDto =
+	// notebookCommon.NotebookCellsInitializeEvent<NotebookCellDto>
+	| {
+
+		readonly kind: notebookCommon.NotebookCellsChangeType.ModelChange;
+		readonly changes: notebookCommon.NotebookCellTextModelSplice<NotebookCellDto>[];
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.Move;
+		readonly index: number;
+		readonly length: number;
+		readonly newIdx: number;
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.Output;
+		readonly index: number;
+		readonly outputs: NotebookOutputDto[];
+	}
+	| {
+		readonly kind: notebookCommon.NotebookCellsChangeType.OutputItem;
+		readonly index: number;
+		readonly outputId: string;
+		readonly outputItems: NotebookOutputItemDto[];
+		readonly append: boolean;
+	}
+	| notebookCommon.NotebookCellsChangeLanguageEvent
+	| notebookCommon.NotebookCellsChangeMetadataEvent
+	| notebookCommon.NotebookCellsChangeInternalMetadataEvent
+	// | notebookCommon.NotebookDocumentChangeMetadataEvent
+	// | notebookCommon.NotebookCellContentChangeEvent
+	// | notebookCommon.NotebookDocumentUnknownChangeEvent
+	;
+
+export type NotebookCellsChangedEventDto = {
+	readonly rawEvents: NotebookRawContentEventDto[];
+	readonly versionId: number;
+};
 
 export interface ExtHostNotebookDocumentsShape {
 	$acceptModelChanged(uriComponents: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void;

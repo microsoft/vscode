@@ -344,7 +344,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
 		this._kernelManger = this.instantiationService.createInstance(NotebookEditorKernelManager);
-		this._register(notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
 				this._loadKernelPreloads();
 			}

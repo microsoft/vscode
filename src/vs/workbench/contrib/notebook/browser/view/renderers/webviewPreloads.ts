@@ -469,7 +469,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		readonly mime: string;
 		metadata: unknown;
-		metadata2: unknown;
 
 		text(): string;
 		json(): any;
@@ -579,7 +578,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 								element: outputNode,
 								mime: content.mimeType,
 								metadata: content.metadata,
-								metadata2: content.metadata2,
 								data() {
 									return content.valueBytes;
 								},
@@ -1096,7 +1094,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		// deprecated fields
 		public readonly metadata = undefined;
-		public readonly metadata2 = undefined;
 		public readonly outputId?: string | undefined;
 
 		text() { return this._content; }

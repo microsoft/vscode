@@ -5,8 +5,8 @@
 
 import { Event, Emitter } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INotebookKernel, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookKernelBindEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, ISelectedNotebooksChangeEvent, INotebookKernelMatchResult, INotebookKernelService, INotebookTextModelLike } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { LRUCache, ResourceMap } from 'vs/base/common/map';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { URI } from 'vs/base/common/uri';
@@ -53,12 +53,12 @@ export class NotebookKernelService implements INotebookKernelService {
 	private readonly _typeBindings = new LRUCache<string, string>(100, 0.7);
 	private readonly _notebookBindings = new LRUCache<string, string>(1000, 0.7);
 
-	private readonly _onDidChangeNotebookKernelBinding = new Emitter<INotebookKernelBindEvent>();
+	private readonly _onDidChangeNotebookKernelBinding = new Emitter<ISelectedNotebooksChangeEvent>();
 	private readonly _onDidAddKernel = new Emitter<INotebookKernel>();
 	private readonly _onDidRemoveKernel = new Emitter<INotebookKernel>();
 	private readonly _onDidChangeNotebookAffinity = new Emitter<void>();
 
-	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent> = this._onDidChangeNotebookKernelBinding.event;
+	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent> = this._onDidChangeNotebookKernelBinding.event;
 	readonly onDidAddKernel: Event<INotebookKernel> = this._onDidAddKernel.event;
 	readonly onDidRemoveKernel: Event<INotebookKernel> = this._onDidRemoveKernel.event;
 	readonly onDidChangeNotebookAffinity: Event<void> = this._onDidChangeNotebookAffinity.event;

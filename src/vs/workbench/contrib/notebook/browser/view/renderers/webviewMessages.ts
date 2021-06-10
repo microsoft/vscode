@@ -162,7 +162,7 @@ export interface IOutputRequestDto {
 export interface ICreationRequestMessage {
 	readonly type: 'html';
 	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
-	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; metadata2: unknown; mimeType: string; };
+	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
 	readonly cellId: string;
 	readonly outputId: string;
 	cellTop: number;
