@@ -275,9 +275,9 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				return this._trustState.isEmptyWorkspaceTrusted;
 			}
 
-			// Open editors are trusted
-			if (this._canonicalOpenFiles.length && this.getUrisTrust(this._canonicalOpenFiles)) {
-				return true;
+			// Open editors
+			if (this._canonicalOpenFiles.length) {
+				return this.getUrisTrust(this._canonicalOpenFiles);
 			}
 
 			// User setting
