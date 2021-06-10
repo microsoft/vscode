@@ -875,7 +875,7 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
-  
+
 	export interface Pseudoterminal {
 		/**
 		 * An event that when fired allows changing the name of the terminal.
