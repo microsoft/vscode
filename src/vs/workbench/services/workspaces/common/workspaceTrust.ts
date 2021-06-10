@@ -77,7 +77,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _workspaceResolvedPromiseResolve!: () => void;
 	private _workspaceTrustInitializedPromise: Promise<void>;
 	private _workspaceTrustInitializedPromiseResolve!: () => void;
-	private _remoteAuthority: ResolverResult | undefined;
 
 	private readonly _onDidChangeTrust = this._register(new Emitter<boolean>());
 	readonly onDidChangeTrust = this._onDidChangeTrust.event;
@@ -85,12 +84,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _canonicalWorkspace: IWorkspace;
 	private _canonicalOpenFiles: URI[] = [];
+	private _canonicalWorkspace: IWorkspace;
 	private _canonicalUrisResolved: boolean;
 
 	private _isTrusted: boolean;
 	private _trustStateInfo: IWorkspaceTrustInfo;
+	private _remoteAuthority: ResolverResult | undefined;
+
 	private readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
@@ -100,8 +101,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-
+		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService
 	) {
 		super();
 
@@ -186,10 +186,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private async resolveCanonicalUris(): Promise<void> {
 		// Open editors
-		if (this.environmentService.configuration.filesToOpenOrCreate) {
-			const filesToOpenOrCreate = this.environmentService.configuration.filesToOpenOrCreate;
-			const filesToOpen = filesToOpenOrCreate.filter(f => f.fileUri && f.exists && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
-			const canonicalFilesToOpen = await Promise.all(filesToOpen.map(uri => this.getCanonicalUri(uri)));
+		const filesToOpenOrCreate = this.environmentService.configuration.filesToOpenOrCreate;
+
+		if (filesToOpenOrCreate) {
+			const filesToOpenOrCreateUris = filesToOpenOrCreate.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
+			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
 			this._canonicalOpenFiles.push(...canonicalFilesToOpen);
 		}
@@ -250,12 +251,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private calculateWorkspaceTrust(): boolean {
+		// Feature is disabled
 		if (!this.workspaceTrustEnabled) {
 			return true;
 		}
 
+		// Running tests with vscode-test
 		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
+			return true;
 		}
 
 		// Remote - resolver explicitly sets workspace trust to TRUE
