@@ -323,5 +323,5 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 }
 
 export function valueBytesFromString(value: string) {
-	return Array.from(new TextEncoder().encode(value));
+	return new TextEncoder().encode(value);
 }

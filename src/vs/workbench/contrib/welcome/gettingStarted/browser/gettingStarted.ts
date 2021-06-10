@@ -5,7 +5,7 @@
 
 import 'vs/css!./gettingStarted';
 import { localize } from 'vs/nls';
-import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { assertIsDefined } from 'vs/base/common/types';
@@ -17,7 +17,7 @@ import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platfor
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ITelemetryService, lastSessionDateStorageKey } from 'vs/platform/telemetry/common/telemetry';
+import { firstSessionDateStorageKey, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { gettingStartedCheckedCodicon, gettingStartedUncheckedCodicon } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedIcons';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -27,7 +27,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -103,7 +102,6 @@ export class GettingStartedPage extends EditorPane {
 	private container: HTMLElement;
 
 	private contextService: IContextKeyService;
-	private tasExperimentService?: ITASExperimentService;
 	private previousSelection?: string;
 	private recentlyOpened: Promise<IRecentlyOpened>;
 	private selectedStepElement?: HTMLDivElement;
@@ -144,7 +142,6 @@ export class GettingStartedPage extends EditorPane {
 		@IHostService private readonly hostService: IHostService,
 		@IWebviewService private readonly webviewService: IWebviewService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@optional(ITASExperimentService) tasExperimentService: ITASExperimentService,
 	) {
 
 		super(GettingStartedPage.ID, telemetryService, themeService, storageService);
@@ -157,9 +154,6 @@ export class GettingStartedPage extends EditorPane {
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
-
-
-		this.tasExperimentService = tasExperimentService;
 
 		this.contextService = this._register(contextService.createScoped(this.container));
 		inGettingStartedContext.bindTo(this.contextService).set(true);
@@ -797,28 +791,19 @@ export class GettingStartedPage extends EditorPane {
 		const someStepsComplete = this.gettingStartedCategories.some(categry => categry.content.type === 'steps' && categry.content.stepsComplete);
 		if (!someStepsComplete && !this.hasScrolledToFirstCategory) {
 
-			const fistContentBehaviour =
-				!this.storageService.get(lastSessionDateStorageKey, StorageScope.GLOBAL) // isNewUser ?
-					? 'openToFirstCategory'
-					: await Promise.race([
-						this.tasExperimentService?.getTreatment<'index' | 'openToFirstCategory'>('GettingStartedFirstContent'),
-						new Promise<'index'>(resolve => setTimeout(() => resolve('index'), 1000)),
-					]);
+			const firstSessionDateString = this.storageService.get(firstSessionDateStorageKey, StorageScope.GLOBAL) || new Date().toUTCString();
+			const daysSinceFirstSession = ((+new Date()) - (+new Date(firstSessionDateString))) / 1000 / 60 / 60 / 24;
+			const fistContentBehaviour = daysSinceFirstSession < 1 ? 'openToFirstCategory' : 'index';
 
-			if (this.gettingStartedCategories.some(category => category.content.type === 'steps' && category.content.stepsComplete)) {
-				this.setSlide('categories');
-				return;
-			} else {
-				if (fistContentBehaviour === 'openToFirstCategory') {
-					const first = this.gettingStartedCategories.find(category => category.content.type === 'steps');
-					this.hasScrolledToFirstCategory = true;
-					if (first) {
-						this.currentCategory = first;
-						this.editorInput.selectedCategory = this.currentCategory?.id;
-						this.buildCategorySlide(this.editorInput.selectedCategory);
-						this.setSlide('details');
-						return;
-					}
+			if (fistContentBehaviour === 'openToFirstCategory') {
+				const first = this.gettingStartedCategories.find(category => category.content.type === 'steps');
+				this.hasScrolledToFirstCategory = true;
+				if (first) {
+					this.currentCategory = first;
+					this.editorInput.selectedCategory = this.currentCategory?.id;
+					this.buildCategorySlide(this.editorInput.selectedCategory);
+					this.setSlide('details');
+					return;
 				}
 			}
 		}

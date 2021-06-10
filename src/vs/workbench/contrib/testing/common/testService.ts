@@ -69,10 +69,10 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
  * Iterates through the item and its parents to the root.
  */
 export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	let p: InternalTestItem | undefined = item;
-	while (p) {
-		yield p;
-		p = p.parent ? collection.getNodeById(p.parent) : undefined;
+	let i: InternalTestItem | undefined = item;
+	while (i) {
+		yield i;
+		i = i.parent ? collection.getNodeById(i.parent) : undefined;
 	}
 };
 

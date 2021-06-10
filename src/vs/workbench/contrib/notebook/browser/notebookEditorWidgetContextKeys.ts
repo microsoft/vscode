@@ -43,7 +43,7 @@ export class NotebookEditorContextKeys {
 
 		this._disposables.add(_editor.onDidChangeModel(this._handleDidChangeModel, this));
 		this._disposables.add(_notebookKernelService.onDidAddKernel(this._updateKernelContext, this));
-		this._disposables.add(_notebookKernelService.onDidChangeNotebookKernelBinding(this._updateKernelContext, this));
+		this._disposables.add(_notebookKernelService.onDidChangeSelectedNotebooks(this._updateKernelContext, this));
 		this._disposables.add(_editor.notebookOptions.onDidChangeOptions(() => {
 			this._updateForNotebookOptions();
 		}));

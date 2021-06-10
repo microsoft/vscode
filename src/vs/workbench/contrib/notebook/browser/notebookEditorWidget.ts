@@ -72,6 +72,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
+import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
 
@@ -343,7 +344,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
 		this._kernelManger = this.instantiationService.createInstance(NotebookEditorKernelManager);
-		this._register(notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
 				this._loadKernelPreloads();
 			}
@@ -1385,16 +1386,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			await this._webview!.initializeMarkdown(requests.map(request => ({
-				cellId: request[0].id,
-				cellHandle: request[0].handle,
-				content: request[0].getText(),
-				offset: request[1],
-				visible: false,
-			})));
+			await this._webview!.initializeMarkup(requests.map(([model, offset]) => this.createMarkupCellInitialization(model, offset)));
 		} else {
-			const initRequests = viewModel.viewCells.filter(cell => cell.cellKind === CellKind.Markup).slice(0, 5).map(cell => ({ cellId: cell.id, cellHandle: cell.handle, content: cell.getText(), offset: -10000, visible: false }));
-			await this._webview!.initializeMarkdown(initRequests);
+			const initRequests = viewModel.viewCells
+				.filter(cell => cell.cellKind === CellKind.Markup)
+				.slice(0, 5)
+				.map(cell => this.createMarkupCellInitialization(cell, -10000));
+
+			await this._webview!.initializeMarkup(initRequests);
 
 			// no cached view state so we are rendering the first viewport
 			// after above async call, we already get init height for markdown cells, we can update their offset
@@ -1415,6 +1414,17 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 			this._webview?.updateScrollTops([], offsetUpdateRequests);
 		}
+	}
+
+	private createMarkupCellInitialization(model: ICellViewModel, offset: number): IMarkupCellInitialization {
+		return ({
+			mime: model.mime,
+			cellId: model.id,
+			cellHandle: model.handle,
+			content: model.getText(),
+			offset: offset,
+			visible: false,
+		});
 	}
 
 	restoreListViewState(viewState: INotebookEditorViewState | undefined): void {
@@ -2261,6 +2271,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
 		await this._webview.showMarkdownPreview({
+			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
 			content: cell.getText(),

@@ -5,6 +5,7 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
@@ -215,7 +216,7 @@ class PlainTextRendererContrib extends Disposable implements IOutputRendererCont
 	}
 
 	getMimetypes() {
-		return ['text/plain'];
+		return [Mimes.text];
 	}
 
 	constructor(
@@ -270,7 +271,7 @@ class MdRendererContrib extends Disposable implements IOutputRendererContributio
 	}
 
 	getMimetypes() {
-		return ['text/markdown'];
+		return [Mimes.markdown];
 	}
 
 	constructor(
@@ -310,8 +311,7 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
 		const disposable = new DisposableStore();
 
-		const bytes = new Uint8Array(item.valueBytes);
-		const blob = new Blob([bytes], { type: item.mime });
+		const blob = new Blob([item.data], { type: item.mime });
 		const src = URL.createObjectURL(blob);
 		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
 
@@ -340,7 +340,7 @@ OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 // --- utils ---
 export function getStringValue(item: IOutputItemDto): string {
 	// todo@jrieken NOT proper, should be VSBuffer
-	return new TextDecoder().decode(new Uint8Array(item.valueBytes));
+	return new TextDecoder().decode(item.data);
 }
 
 function getOutputSimpleEditorOptions(): IEditorConstructionOptions {

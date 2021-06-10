@@ -10,7 +10,7 @@ import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
-import { HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { getPathForTestInResult, HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
 import { Convert, ReExportedTestRunState as TestRunState, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
@@ -290,5 +290,25 @@ suite('Workbench - Test Results Service', () => {
 			results.push(hydrated2);
 			assert.deepStrictEqual(results.results, [r, hydrated1, hydrated2]);
 		});
+	});
+
+	test('resultItemParents', () => {
+		assert.deepStrictEqual([...resultItemParents(r, r.getStateById('id-aa')!)], [
+			r.getStateById('id-aa'),
+			r.getStateById('id-a'),
+			r.getStateById('id-root'),
+		]);
+
+		assert.deepStrictEqual([...resultItemParents(r, r.getStateById('id-root')!)], [
+			r.getStateById('id-root'),
+		]);
+	});
+
+	test('getPathForTestInResult', () => {
+		assert.deepStrictEqual([...getPathForTestInResult(r.getStateById('id-aa')!, r)], [
+			'id-root',
+			'id-a',
+			'id-aa',
+		]);
 	});
 });
