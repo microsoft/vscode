@@ -21,7 +21,7 @@ import { HistoryNavigator } from 'vs/base/common/history';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 
 const $ = dom.$;
 
@@ -189,13 +189,14 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = Event.filter(domEvent(document, 'selectionchange'), () => {
+			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
 				const selection = document.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
 			// from DOM to ScrollableElement
-			this._register(onSelectionChange(this.updateScrollDimensions, this));
+			this._register(onAnchoredSelectionChange(this.updateScrollDimensions, this));
 			this._register(this.onDidHeightChange(this.updateScrollDimensions, this));
 		} else {
 			this.input.type = this.options.type || 'text';

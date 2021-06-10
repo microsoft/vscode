@@ -9,9 +9,12 @@ import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
 import { NullAppender, ITelemetryAppender } from 'vs/platform/telemetry/common/telemetryUtils';
 import * as Errors from 'vs/base/common/errors';
 import * as sinon from 'sinon';
+import * as sinonTest from 'sinon-test';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+
+const sinonTestFn = sinonTest(sinon);
 
 class TestTelemetryAppender implements ITelemetryAppender {
 
@@ -85,7 +88,7 @@ class ErrorTestingSettings {
 
 suite('TelemetryService', () => {
 
-	test('Disposing', sinon.test(function () {
+	test('Disposing', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined!);
 
@@ -98,7 +101,7 @@ suite('TelemetryService', () => {
 	}));
 
 	// event reporting
-	test('Simple event', sinon.test(function () {
+	test('Simple event', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined!);
 
@@ -111,7 +114,7 @@ suite('TelemetryService', () => {
 		});
 	}));
 
-	test('Event with data', sinon.test(function () {
+	test('Event with data', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined!);
 
@@ -193,7 +196,7 @@ suite('TelemetryService', () => {
 		});
 	});
 
-	test('enableTelemetry on by default', sinon.test(function () {
+	test('enableTelemetry on by default', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined!);
 
@@ -224,7 +227,7 @@ suite('TelemetryService', () => {
 		}
 	}
 
-	test('Error events', sinon.test(async function (this: any) {
+	test('Error events', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -256,7 +259,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	// 	test('Unhandled Promise Error events', sinon.test(function() {
+	// 	test('Unhandled Promise Error events', sinonTestFn(function() {
 	//
 	// 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 	// 		Errors.setUnexpectedErrorHandler(() => {});
@@ -285,7 +288,7 @@ suite('TelemetryService', () => {
 	// 		}
 	// 	}));
 
-	test('Handle global errors', sinon.test(async function (this: any) {
+	test('Handle global errors', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 
@@ -313,7 +316,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Error Telemetry removes PII from filename with spaces', sinon.test(async function (this: any) {
+	test('Error Telemetry removes PII from filename with spaces', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -336,7 +339,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Uncaught Error Telemetry removes PII from filename', sinon.test(function (this: any) {
+	test('Uncaught Error Telemetry removes PII from filename', sinonTestFn(function (this: any) {
 		let clock = this.clock;
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
@@ -368,7 +371,7 @@ suite('TelemetryService', () => {
 		});
 	}));
 
-	test('Unexpected Error Telemetry removes PII', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII', sinonTestFn(async function (this: any) {
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
 		try {
@@ -399,7 +402,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -426,7 +429,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -462,7 +465,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -491,7 +494,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII but preserves Code file path with node modules', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -523,7 +526,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII but preserves Code file path', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -549,7 +552,7 @@ suite('TelemetryService', () => {
 	}));
 
 
-	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -585,7 +588,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII but preserves Code file path when PIIPath is configured', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -614,7 +617,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -650,7 +653,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII but preserves Missing Model error message', sinonTestFn(async function (this: any) {
 		let errorStub = sinon.stub();
 		window.onerror = errorStub;
 		let settings = new ErrorTestingSettings();
@@ -680,7 +683,7 @@ suite('TelemetryService', () => {
 		service.dispose();
 	}));
 
-	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinon.test(async function (this: any) {
+	test('Unexpected Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(async function (this: any) {
 
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
@@ -716,7 +719,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Uncaught Error Telemetry removes PII but preserves No Such File error message', sinon.test(async function (this: any) {
+	test('Uncaught Error Telemetry removes PII but preserves No Such File error message', sinonTestFn(async function (this: any) {
 		let origErrorHandler = Errors.errorHandler.getUnexpectedErrorHandler();
 		Errors.setUnexpectedErrorHandler(() => { });
 
@@ -754,7 +757,7 @@ suite('TelemetryService', () => {
 		}
 	}));
 
-	test('Telemetry Service sends events when enableTelemetry is on', sinon.test(function () {
+	test('Telemetry Service sends events when enableTelemetry is on', sinonTestFn(function () {
 		let testAppender = new TestTelemetryAppender();
 		let service = new TelemetryService({ appender: testAppender }, undefined!);
 
