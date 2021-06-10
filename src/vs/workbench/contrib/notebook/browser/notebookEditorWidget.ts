@@ -72,7 +72,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
 
@@ -2502,13 +2502,22 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this.updateScrollHeight();
+	private readonly _pendingOutputHeightAcks = new Map</* outputId */ string, IAckOutputHeight>();
 
-			this._debug('ack height', height);
-			this._webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
-		}, 10);
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
+		const wasEmpty = this._pendingOutputHeightAcks.size === 0;
+		this._pendingOutputHeightAcks.set(outputId, { cellId: cellInfo.cellId, outputId, height });
+
+		if (wasEmpty) {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				this._debug('ack height');
+				this.updateScrollHeight();
+
+				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
+
+				this._pendingOutputHeightAcks.clear();
+			}, 10);
+		}
 	}
 
 	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
