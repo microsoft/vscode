@@ -25,7 +25,9 @@ export function renderGhostTextToText(ghostText: GhostText, text: string): strin
 			}] : [])
 		]
 	);
-	return tempModel.getValue();
+	const value = tempModel.getValue();
+	tempModel.dispose();
+	return value;
 }
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {

@@ -151,6 +151,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
 			const context = new GhostTextContext(model, editor);
 			await callback({ editor, editorViewModel, model, context });
+			model.dispose();
 		});
 
 		await p;

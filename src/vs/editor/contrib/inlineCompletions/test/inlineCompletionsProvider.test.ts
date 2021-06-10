@@ -24,6 +24,7 @@ suite('inlineCompletionToGhostText', () => {
 		const tempModel = createTextModel(cleanedText);
 		const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
 		const ghostText = inlineCompletionToGhostText({ text: suggestion, range }, tempModel);
+		tempModel.dispose();
 		if (!ghostText) {
 			return undefined;
 		}
@@ -454,6 +455,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			const model = instantiationService.createInstance(InlineCompletionsModel, editor);
 			const context = new GhostTextContext(model, editor);
 			await callback({ editor, editorViewModel, model, context });
+			model.dispose();
 		});
 
 		await p;
