@@ -83,7 +83,6 @@
 	"configuration.inlayHints.includeInlayPropertyDeclarationTypeHints": "Enable/disable inlay hints of property declaration.",
 	"configuration.inlayHints.includeInlayFunctionLikeReturnTypeHints": "Enable/disable inlay hints of return type for function like.",
 	"configuration.inlayHints.includeInlayEnumMemberValueHints": "Enable/disable inlay hints of enum member.",
-	"configuration.inlayHints.includeInlayCallChainsHints": "Enable/disable inlay hints of call chains.",
 	"taskDefinition.tsconfig.description": "The tsconfig file that defines the TS build.",
 	"javascript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for JavaScript files in the editor.",
 	"typescript.suggestionActions.enabled": "Enable/disable suggestion diagnostics for TypeScript files in the editor.",

@@ -324,12 +324,6 @@
           "description": "%configuration.inlayHints.includeInlayEnumMemberValueHints%",
           "scope": "resource"
         },
-        "typescript.inlayHints.includeInlayCallChainsHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayCallChainsHints%",
-          "scope": "resource"
-        },
         "javascript.inlayHints.includeInlayParameterNameHints": {
           "type": "boolean",
           "default": false,
@@ -382,12 +376,6 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.inlayHints.includeInlayEnumMemberValueHints%",
-          "scope": "resource"
-        },
-        "javascript.inlayHints.includeInlayCallChainsHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayCallChainsHints%",
           "scope": "resource"
         },
         "javascript.suggest.includeCompletionsForImportStatements": {

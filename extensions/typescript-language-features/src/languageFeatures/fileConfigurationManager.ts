@@ -26,7 +26,6 @@ namespace ExperimentalProto {
 		includeInlayPropertyDeclarationTypeHints?: boolean;
 		includeInlayFunctionLikeReturnTypeHints?: boolean;
 		includeInlayEnumMemberValueHints?: boolean;
-		includeInlayCallChainsHints?: boolean;
 	}
 }
 
@@ -229,7 +228,6 @@ export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) 
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.includeInlayPropertyDeclarationTypeHints', false),
 		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionLikeReturnTypeHints', false),
 		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.includeInlayEnumMemberValueHints', false),
-		includeInlayCallChainsHints: config.get<boolean>('inlayHints.includeInlayCallChainsHints', false)
 	};
 }
 
