@@ -102,7 +102,7 @@ workbenchContributionsRegistry.registerWorkbenchContribution(NotebookCodeRendere
 // --- utils ---
 function getStringValue(item: IOutputItemDto): string {
 	// todo@jrieken NOT proper, should be VSBuffer
-	return new TextDecoder().decode(new Uint8Array(item.valueBytes));
+	return new TextDecoder().decode(item.data);
 }
 
 function getOutputSimpleEditorOptions(): IEditorConstructionOptions {
