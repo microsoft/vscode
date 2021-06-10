@@ -61,17 +61,17 @@ export const focusedRowBackground = registerColor('settings.focusedRowBackground
 	hc: null
 }, localize('focusedRowBackground', "The background color of a settings row when focused."));
 
-export const rowHoverBackground = registerColor('notebook.rowHoverBackground', {
+export const rowHoverBackground = registerColor('settings.rowHoverBackground', {
 	dark: transparent(focusedRowBackground, .5),
 	light: transparent(focusedRowBackground, .7),
 	hc: null
-}, localize('notebook.rowHoverBackground', "The background color of a settings row when hovered."));
+}, localize('settings.rowHoverBackground', "The background color of a settings row when hovered."));
 
-export const focusedRowBorder = registerColor('notebook.focusedRowBorder', {
+export const focusedRowBorder = registerColor('settings.focusedRowBorder', {
 	dark: Color.white.transparent(0.12),
 	light: Color.black.transparent(0.12),
 	hc: focusBorder
-}, localize('notebook.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));
+}, localize('settings.focusedRowBorder', "The color of the row's top and bottom border when the row is focused."));
 
 registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
 	const checkboxBackgroundColor = theme.getColor(settingsCheckboxBackground);
