@@ -15,13 +15,14 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workspace Trust', () => {
 	let testObject: WorkspaceTrustManagementService;
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
 	let testStorageService: TestStorageService;
-	let testWorkspaceService: IWorkspaceContextService;
+	let testWorkspaceService: TestContextService;
 
 	setup(async () => {
 		instantiationService = new TestInstantiationService();
@@ -43,18 +44,36 @@ suite('Workspace Trust', () => {
 
 	teardown(() => testObject.dispose());
 
-	test('Initialization - workspace trust disabled (user settings)', async () => {
-		await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { enabled: false } } });
+	suite('Initialization', () => {
+		test('workspace trust disabled (user settings)', async () => {
+			await testConfigurationService.setUserConfiguration('security', { workspace: { trust: { enabled: false } } });
 
-		testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
-		assert.strictEqual(true, testObject.isWorkpaceTrusted());
-	});
+			testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
+			assert.strictEqual(true, testObject.isWorkpaceTrusted());
+		});
 
-	test('Initialization - workspace trust disabled (--disable-workspace-trust)', () => {
-		const testEnvironmentService = { disableWorkspaceTrust: true } as IWorkbenchEnvironmentService;
-		instantiationService.stub(IWorkbenchEnvironmentService, testEnvironmentService);
+		test('workspace trust disabled (--disable-workspace-trust)', () => {
+			const testEnvironmentService = { disableWorkspaceTrust: true } as IWorkbenchEnvironmentService;
+			instantiationService.stub(IWorkbenchEnvironmentService, testEnvironmentService);
 
-		testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
-		assert.strictEqual(true, testObject.isWorkpaceTrusted());
+			testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
+			assert.strictEqual(true, testObject.isWorkpaceTrusted());
+		});
+
+		// test('empty workspace - trusted, no open files', () => {
+		// 	const workspace = new Workspace('empty-workspace');
+		// 	testWorkspaceService.setWorkspace(workspace);
+
+		// 	testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
+		// 	assert.strictEqual(true, testObject.isWorkpaceTrusted());
+		// });
+
+		// test('empty workspace - restricted mode, no open files', () => {
+		// 	const workspace = new Workspace('empty-workspace');
+		// 	testWorkspaceService.setWorkspace(workspace);
+
+		// 	testObject = instantiationService.createInstance(WorkspaceTrustManagementService);
+		// 	assert.strictEqual(true, testObject.isWorkpaceTrusted());
+		// });
 	});
 });
