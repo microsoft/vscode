@@ -618,7 +618,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 
 		DOM.scheduleAtNextAnimationFrame(() => {
-			webview?.ackHeight(cellInfo.cellId, outputId, height);
+			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
 

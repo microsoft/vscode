@@ -667,8 +667,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			}
 			case 'ack-dimension': {
-				const { cellId, outputId, height } = event.data;
-				viewModel.updateOutputHeight(cellId, outputId, height);
+				for (const { cellId, outputId, height } of event.data.updates) {
+					viewModel.updateOutputHeight(cellId, outputId, height);
+				}
 				break;
 			}
 			case 'preload':

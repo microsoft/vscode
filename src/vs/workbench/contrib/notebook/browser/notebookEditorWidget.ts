@@ -2507,7 +2507,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			this.updateScrollHeight();
 
 			this._debug('ack height', height);
-			this._webview?.ackHeight(cellInfo.cellId, outputId, height);
+			this._webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
 
