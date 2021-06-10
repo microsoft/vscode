@@ -15,7 +15,6 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
 suite('Workspace Trust', () => {
 	let testObject: WorkspaceTrustManagementService;
