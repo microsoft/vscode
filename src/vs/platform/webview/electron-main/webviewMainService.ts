@@ -7,7 +7,7 @@ import { session, WebContents, webContents, WebFrameMain } from 'electron';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { FoundInFrameResult, IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
+import { FindInFrameOptions, FoundInFrameResult, IWebviewManagerService, webviewPartitionId, WebviewWebContentsId, WebviewWindowId } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewProtocolProvider } from 'vs/platform/webview/electron-main/webviewProtocolProvider';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 
@@ -15,7 +15,6 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 
 	declare readonly _serviceBrand: undefined;
 
-	private frameHandlers = new Map<string, WebFrameMain>();
 	private readonly _onFoundInFrame = this._register(new Emitter<FoundInFrameResult>());
 	public onFoundInFrame = this._onFoundInFrame.event;
 
@@ -64,24 +63,38 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 	}
 
 	public async findInFrame(windowId: WebviewWindowId, frameName: string, text: string, options: { findNext?: boolean, forward?: boolean }): Promise<void> {
-		const frame = this.getFrameByName(windowId, frameName);
-		frame.findInFrame(text, {
-			findNext: options.findNext,
-			forward: options.forward,
-		});
-		if (!this.frameHandlers.has(frameName)) {
-			const event = frame.on('found-in-frame', (_, result) => {
+		const initialFrame = this.getFrameByName(windowId, frameName);
+
+		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+			findInFrame?(text: string, findOptions: FindInFrameOptions): void;
+		};
+		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
+		if (typeof frame.findInFrame === 'function') {
+			frame.findInFrame(text, {
+				findNext: options.findNext,
+				forward: options.forward,
+			});
+			const foundInFrameHandler = (_: unknown, result: FoundInFrameResult) => {
 				if (result.finalUpdate) {
 					this._onFoundInFrame.fire(result);
+					initialFrame.removeListener('found-in-frame', foundInFrameHandler);
 				}
-			});
-			this.frameHandlers.set(frameName, event);
+			};
+			initialFrame.on('found-in-frame', foundInFrameHandler);
 		}
 	}
 
 	public async stopFindInFrame(windowId: WebviewWindowId, frameName: string, options: { keepSelection?: boolean }): Promise<void> {
-		const frame = this.getFrameByName(windowId, frameName);
-		frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+		const initialFrame = this.getFrameByName(windowId, frameName);
+
+		type WebFrameMainWithFindSupport = typeof WebFrameMain & {
+			stopFindInFrame?(stopOption: 'keepSelection' | 'clearSelection'): void;
+		};
+
+		const frame = initialFrame as unknown as WebFrameMainWithFindSupport;
+		if (typeof frame.stopFindInFrame === 'function') {
+			frame.stopFindInFrame(options.keepSelection ? 'keepSelection' : 'clearSelection');
+		}
 	}
 
 	private getFrameByName(windowId: WebviewWindowId, frameName: string): WebFrameMain {
@@ -96,9 +109,5 @@ export class WebviewMainService extends Disposable implements IWebviewManagerSer
 			throw new Error(`Unknown frame: ${frameName}`);
 		}
 		return frame;
-	}
-
-	override dispose() {
-		this.frameHandlers.clear();
 	}
 }

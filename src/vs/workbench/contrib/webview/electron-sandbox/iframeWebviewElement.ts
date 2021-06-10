@@ -24,7 +24,7 @@ import { WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/bas
 import { WebviewThemeDataProvider } from 'vs/workbench/contrib/webview/browser/themeing';
 import { WebviewContentOptions, WebviewExtensionDescription, WebviewOptions } from 'vs/workbench/contrib/webview/browser/webview';
 import { IFrameWebview } from 'vs/workbench/contrib/webview/browser/webviewElement';
-import { WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
+import { WebviewFindDelegate, WebviewFindWidget } from 'vs/workbench/contrib/webview/browser/webviewFindWidget';
 import { WindowIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/electron-sandbox/windowIgnoreMenuShortcutsManager';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Delayer } from 'vs/base/common/async';
@@ -32,7 +32,7 @@ import { Delayer } from 'vs/base/common/async';
 /**
  * Webview backed by an iframe but that uses Electron APIs to power the webview.
  */
-export class ElectronIframeWebview extends IFrameWebview {
+export class ElectronIframeWebview extends IFrameWebview implements WebviewFindDelegate {
 
 	private readonly _webviewKeyboardHandler: WindowIgnoreMenuShortcutsManager;
 
@@ -40,7 +40,7 @@ export class ElectronIframeWebview extends IFrameWebview {
 	private _findStarted: boolean = false;
 
 	private readonly _webviewMainService: IWebviewManagerService;
-	private readonly _iframeDelayer = new Delayer<void>(200);
+	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
 
 	constructor(
 		id: string,
