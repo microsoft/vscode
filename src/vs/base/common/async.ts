@@ -298,7 +298,7 @@ export class Delayer<T> implements IDisposable {
 	}
 
 	dispose(): void {
-		this.cancelTimeout();
+		this.cancel();
 	}
 }
 

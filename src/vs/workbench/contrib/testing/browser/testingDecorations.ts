@@ -37,11 +37,11 @@ import { buildTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/t
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { IMainThreadTestCollection, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
-function isInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
+function isOriginalInDiffEditor(codeEditorService: ICodeEditorService, codeEditor: ICodeEditor): boolean {
 	const diffEditors = codeEditorService.listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.getModifiedEditor() === codeEditor || diffEditor.getOriginalEditor() === codeEditor) {
+		if (diffEditor.getOriginalEditor() === codeEditor) {
 			return true;
 		}
 	}
@@ -130,7 +130,7 @@ export class TestingDecorations extends Disposable implements IEditorContributio
 	}
 
 	private attachModel(uri?: URI) {
-		if (isInDiffEditor(this.codeEditorService, this.editor)) {
+		if (isOriginalInDiffEditor(this.codeEditorService, this.editor)) {
 			uri = undefined;
 		}
 
