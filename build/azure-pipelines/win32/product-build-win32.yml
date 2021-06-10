@@ -197,7 +197,7 @@ steps:
   - task: PublishPipelineArtifact@0
     inputs:
       artifactName: chrome-traces-windows-$(VSCODE_ARCH)
-      targetPath: .build/traces
+      targetPath: .build\traces
     displayName: "Publish Chrome Traces"
     continueOnError: true
     condition: failed()
