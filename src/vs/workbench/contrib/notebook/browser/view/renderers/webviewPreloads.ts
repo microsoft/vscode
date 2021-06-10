@@ -633,24 +633,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					for (const request of event.data.widgets) {
-						const widget = document.getElementById(request.outputId);
-						if (widget) {
-							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
-							widget.parentElement!.style.top = `${request.outputOffset}px`;
-							if (request.forceDisplay) {
-								widget.parentElement!.parentElement!.style.visibility = 'visible';
-							}
-						}
-					}
-
-					for (const cell of event.data.markupCells) {
-						const container = document.getElementById(cell.id);
-						if (container) {
-							container.style.top = `${cell.top}px`;
-						}
-					}
-
+					notebookDocument.updateOutputsScroll(event.data.widgets);
+					notebookDocument.updateMarkupScrolls(event.data.markupCells);
 					break;
 				}
 			case 'clear':
@@ -1019,6 +1003,15 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 		}
 
+		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
+			for (const { id, top } of markupCells) {
+				const cell = this._markupCells.get(id);
+				if (cell) {
+					cell.element.style.top = `${top}px`;
+				}
+			}
+		}
+
 		public clearAll() {
 			this._markupCells.clear();
 			this._outputCells.clear();
@@ -1053,6 +1046,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public updateOutputHeight(cellId: string, outputId: string, height: number) {
 			const cell = this._outputCells.get(cellId);
 			cell?.updateOutputHeight(outputId, height);
+		}
+
+		public updateOutputsScroll(updates: webviewMessages.IContentWidgetTopRequest[]) {
+			for (const request of updates) {
+				const cell = this._outputCells.get(request.cellId);
+				cell?.updateScroll(request);
+			}
 		}
 	}();
 
@@ -1308,6 +1308,19 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			outputContainer.style.maxHeight = `${height}px`;
 			outputContainer.style.height = `${height}px`;
+		}
+
+		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
+			this.element.style.top = `${request.cellTop}px`;
+
+			const outputContainer = this.outputElements.get(request.outputId);
+			if (outputContainer) {
+				outputContainer.style.top = `${request.outputOffset}px`;
+			}
+
+			if (request.forceDisplay) {
+				this.element.style.visibility = 'visible';
+			}
 		}
 	}
 

@@ -174,6 +174,7 @@ export interface ICreationRequestMessage {
 }
 
 export interface IContentWidgetTopRequest {
+	readonly cellId: string;
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
