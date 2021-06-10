@@ -208,22 +208,18 @@ class PartsWidget implements IDisposable {
 		const newLine = lineStart + text;
 		const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
 
-
 		let contentText = '';
 		let curCol = lineStart.length + 1;
 		for (const c of text) {
 			if (c === '\t') {
-				const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+				let width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+
 				if (renderWhitespace) {
 					contentText += '→';
-					for (let i = 1; i < width; i++) {
-						contentText += '\xa0';
-					}
-				} else {
-					for (let i = 0; i < width; i++) {
-						contentText += '\xa0';
-					}
+					width--;
 				}
+
+				contentText += '\xa0'.repeat(width);
 			} else if (c === ' ') {
 				if (renderWhitespace) {
 					contentText += '·';
