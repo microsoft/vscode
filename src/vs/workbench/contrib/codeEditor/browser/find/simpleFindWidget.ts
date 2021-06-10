@@ -43,7 +43,8 @@ export abstract class SimpleFindWidget extends Widget {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly _state: FindReplaceState = new FindReplaceState(),
-		showOptionButtons?: boolean
+		showOptionButtons?: boolean,
+		checkImeCompletionState?: boolean
 	) {
 		super();
 
@@ -68,12 +69,14 @@ export abstract class SimpleFindWidget extends Widget {
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
-		this.oninput(this._findInput.domNode, (e) => {
-			this.foundMatch = this._onInputChanged();
+		this._register(this._findInput.onInput((e) => {
+			if (checkImeCompletionState && !this._findInput.isImeSessionInProgress) {
+				this.foundMatch = this._onInputChanged();
 
-			this.updateButtons(this.foundMatch);
-			this._delayedUpdateHistory();
-		});
+				this.updateButtons(this.foundMatch);
+				this._delayedUpdateHistory();
+			}
+		}));
 
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);

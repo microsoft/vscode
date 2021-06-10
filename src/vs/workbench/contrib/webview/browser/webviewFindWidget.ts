@@ -11,6 +11,7 @@ import { Event } from 'vs/base/common/event';
 
 export interface WebviewFindDelegate {
 	readonly hasFindResult: Event<boolean>;
+	readonly checkImeCompletionState: boolean;
 	find(value: string, previous: boolean): void;
 	startFind(value: string): void;
 	stopFind(keepSelection?: boolean): void;
@@ -25,7 +26,7 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(contextViewService, contextKeyService);
+		super(contextViewService, contextKeyService, undefined, false, _delegate.checkImeCompletionState);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {

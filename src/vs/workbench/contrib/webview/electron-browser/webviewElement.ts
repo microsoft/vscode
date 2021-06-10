@@ -29,8 +29,9 @@ import { WebviewIgnoreMenuShortcutsManager } from 'vs/workbench/contrib/webview/
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> implements Webview, WebviewFindDelegate {
-
 	private static _webviewKeyboardHandler: WebviewIgnoreMenuShortcutsManager | undefined;
+
+	public readonly checkImeCompletionState = false;
 
 	private static getWebviewKeyboardHandler(
 		configService: IConfigurationService,

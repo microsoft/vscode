@@ -42,6 +42,8 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 	private readonly _webviewMainService: IWebviewManagerService;
 	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
 
+	public readonly checkImeCompletionState = true;
+
 	constructor(
 		id: string,
 		options: WebviewOptions,
