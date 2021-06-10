@@ -1,3 +1,8 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -62,30 +67,30 @@ export class NotebookCodeRendererContribution extends Disposable {
 	constructor(@IModeService _modeService: IModeService) {
 		super();
 
-		_modeService.getRegisteredModes().forEach(id => {
+		const registeredLanguages: string[] = []
+		const registerCodeRendererContrib = (languageId: string) => {
+			if (registeredLanguages.includes(languageId)) { return; }
+
 			OutputRendererRegistry.registerOutputTransform(class extends CodeRendererContrib {
 				override getMimetypes() {
-					return [`application/${id}`];
+					return [`application/${languageId}`];
 				}
 
 				override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
 					const str = getStringValue(item);
-					return this._render(output, container, str, id);
+					return this._render(output, container, str, languageId);
 				}
 			});
+
+			registeredLanguages.push(languageId);
+		};
+
+		_modeService.getRegisteredModes().forEach(id => {
+			registerCodeRendererContrib(id);
 		});
 
 		this._register(_modeService.onDidCreateMode((e) => {
-			OutputRendererRegistry.registerOutputTransform(class extends CodeRendererContrib {
-				override getMimetypes() {
-					return [`application/${e.getId()}`];
-				}
-
-				override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-					const str = getStringValue(item);
-					return this._render(output, container, str, e.getId());
-				}
-			});
+			registerCodeRendererContrib(e.getId());
 		}));
 	}
 }
