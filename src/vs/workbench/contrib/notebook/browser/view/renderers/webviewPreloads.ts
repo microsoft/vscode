@@ -548,6 +548,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			case 'html': {
 				const data = event.data;
+				const outputId = data.outputId;
+
 				outputRunner.enqueue(event.data.outputId, async (state) => {
 					const preloadsAndErrors = await Promise.all<unknown>([
 						data.rendererId ? renderers.load(data.rendererId) : undefined,
@@ -558,28 +560,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						return;
 					}
 
-					const outputId = data.outputId;
-					const cellOutputContainer = notebookDocument.ensureOutputCell(data.cellId, data.cellTop);
+					const cellOutput = notebookDocument.ensureOutputCell(data.cellId, data.cellTop);
+					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
 
-					const outputContainer = document.createElement('div');
-					outputContainer.classList.add('output_container');
-					outputContainer.style.position = 'absolute';
-					outputContainer.style.overflow = 'hidden';
-					outputContainer.style.maxHeight = '0px';
-					outputContainer.style.top = `${data.outputOffset}px`;
-
-					const outputNode = document.createElement('div');
-					outputNode.classList.add('output');
-					outputNode.style.position = 'absolute';
-					outputNode.style.top = `0px`;
-					outputNode.style.left = data.left + 'px';
-					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					// outputNode.style.minHeight = '32px';
-					outputNode.style.padding = '0px';
-					outputNode.id = outputId;
-
-					addMouseoverListeners(outputNode, outputId);
-					addOutputFocusTracker(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -616,8 +599,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						}
 					}
 
-					cellOutputContainer.appendChild(outputContainer);
-					outputContainer.appendChild(outputNode);
 					resizeObserver.observe(outputNode, outputId, true);
 
 					if (content.type === RenderOutputType.Html) {
@@ -643,7 +624,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+					cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
 			}
@@ -1066,7 +1047,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this._outputCells.clear();
 		}
 
-		public ensureOutputCell(cellId: string, cellTop: number): HTMLElement {
+		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
 			let cell = this._outputCells.get(cellId);
 			if (!cell) {
 				cell = new OutputCell(cellId);
@@ -1074,7 +1055,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 
 			cell.element.style.top = cellTop + 'px';
-			return cell.element;
+			return cell;
 		}
 	}();
 
@@ -1241,6 +1222,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		public readonly element: HTMLElement;
 
+		public readonly outputElements = new Map</*outputId*/ string, HTMLElement>();
+
 		constructor(cellId: string) {
 			const container = document.getElementById('container')!;
 
@@ -1258,6 +1241,34 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			const lowerWrapperElement = createFocusSink(cellId, true);
 			container.appendChild(lowerWrapperElement);
+		}
+
+		public createOutputNode(outputId: string, outputOffset: number, left: number): HTMLElement {
+			let outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				outputContainer = document.createElement('div');
+				outputContainer.classList.add('output_container');
+				outputContainer.style.position = 'absolute';
+				outputContainer.style.overflow = 'hidden';
+				this.element.appendChild(outputContainer);
+			}
+			outputContainer.innerText = '';
+			outputContainer.style.maxHeight = '0px';
+			outputContainer.style.top = `${outputOffset}px`;
+
+			const outputNode = document.createElement('div');
+			outputNode.id = outputId;
+			outputNode.classList.add('output');
+			outputNode.style.position = 'absolute';
+			outputNode.style.top = `0px`;
+			outputNode.style.left = left + 'px';
+			outputNode.style.padding = '0px';
+			outputContainer.appendChild(outputNode);
+
+			addMouseoverListeners(outputNode, outputId);
+			addOutputFocusTracker(outputNode, outputId);
+
+			return outputNode;
 		}
 	}
 
