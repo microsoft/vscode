@@ -144,12 +144,12 @@ export class ActiveGhostTextController extends Disposable {
 		);
 
 		const ghostText = this.model.inlineCompletionsModel.ghostText;
-		if (ghostText) {
-			const firstLine = ghostText.lines[0] || '';
-			const suggestionStartsWithWs = firstLine.startsWith(' ') || firstLine.startsWith('\t');
-			const pos = ghostText.position;
-			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(pos.lineNumber);
-			const inIndentation = pos.column <= indentationEndColumn;
+		if (ghostText && ghostText.parts.length > 0) {
+			const { column, text } = ghostText.parts[0];
+			const suggestionStartsWithWs = text.startsWith(' ') || text.startsWith('\t');
+
+			const indentationEndColumn = this.editor.getModel().getLineIndentColumn(ghostText.lineNumber);
+			const inIndentation = column <= indentationEndColumn;
 
 			this.contextKeys.inlineCompletionSuggestsIndentation.set(
 				!!this.model.activeInlineCompletionsModel

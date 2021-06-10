@@ -11,46 +11,42 @@ import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { InlineCompletionsModel, inlineCompletionToGhostText } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
-import { GhostTextContext, MockInlineCompletionsProvider } from 'vs/editor/contrib/inlineCompletions/test/utils';
+import { GhostTextContext, MockInlineCompletionsProvider, renderGhostTextToText } from 'vs/editor/contrib/inlineCompletions/test/utils';
 import { ITestCodeEditor, TestCodeEditorCreationOptions, withAsyncTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import sinon = require('sinon');
 
 suite('inlineCompletionToGhostText', () => {
 	function getOutput(text: string, suggestion: string): unknown {
-		const range = new Range(1, text.indexOf('[') + 1, 1, text.indexOf(']'));
+		const rangeStartOffset = text.indexOf('[');
+		const rangeEndOffset = text.indexOf(']') - 1;
 		const cleanedText = text.replace('[', '').replace(']', '');
 		const tempModel = createTextModel(cleanedText);
+		const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
 		const ghostText = inlineCompletionToGhostText({ text: suggestion, range }, tempModel);
 		if (!ghostText) {
 			return undefined;
 		}
 
-		let str = cleanedText.substr(0, ghostText.position.column - 1);
-		let ghostStr = ghostText.lines.join('\n');
-		if (ghostStr.length > 0) {
-			str += `[${ghostStr}]`;
-		}
-		str += cleanedText.substr(ghostText.position.column - 1);
-
-		return str;
+		return renderGhostTextToText(ghostText, cleanedText);
 	}
 
 	test('Basic', () => {
 		assert.deepStrictEqual(getOutput('[foo]baz', 'foobar'), 'foo[bar]baz');
 		assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
 		assert.deepStrictEqual(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
+		assert.deepStrictEqual(getOutput('foo[]', 'bar\nhello'), 'foo[bar]{\nhello}');
 	});
 
 	test('Empty ghost text', () => {
 		assert.deepStrictEqual(getOutput('[foo]', 'foo'), 'foo');
 	});
 
-	test('Whitespace (in indentation)', () => {
+	test('Whitespace (indentation)', () => {
 		assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
 		assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
 		assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
-		assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), '\tfoo[bar]');
+		assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), '\t[\t]foo[bar]');
 		assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
 		assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
 		assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
@@ -62,7 +58,11 @@ suite('inlineCompletionToGhostText', () => {
 	});
 
 	test('Other', () => {
-		assert.deepStrictEqual(getOutput('foo[()]', '(x);'), undefined);
+		assert.deepStrictEqual(getOutput('foo[()]', '(x);'), 'foo([x])[;]');
+	});
+
+	test('Unsupported cases', () => {
+		assert.deepStrictEqual(getOutput('foo[\n]', '\n'), undefined);
 	});
 });
 

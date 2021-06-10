@@ -7,12 +7,26 @@ import { timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletionsProvider, InlineCompletion, InlineCompletionContext } from 'vs/editor/common/modes';
-import { GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
+import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
+
+export function renderGhostTextToText(ghostText: GhostText, text: string): string {
+	const l = ghostText.lineNumber;
+	const tempModel = createTextModel(text);
+	tempModel.applyEdits(
+		[
+			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.text}]` })),
+			...(ghostText.additionalLines.length > 0 ? [{
+				range: { startLineNumber: l, endLineNumber: l, startColumn: tempModel.getLineMaxColumn(l), endColumn: tempModel.getLineMaxColumn(l) },
+				text: `{${ghostText.additionalLines.map(s => '\n' + s).join('')}}`
+			}] : [])
+		]
+	);
+	return tempModel.getValue();
+}
 
 export class MockInlineCompletionsProvider implements InlineCompletionsProvider {
 	private returnValue: InlineCompletion[] = [];
@@ -77,10 +91,7 @@ export class GhostTextContext extends Disposable {
 		const ghostText = this.model?.ghostText;
 		let view: string | undefined;
 		if (ghostText) {
-			const insertText = ghostText.lines.join('\n');
-			const tempModel = createTextModel(this.editor.getValue());
-			tempModel.applyEdits([{ range: Range.fromPositions(ghostText.position), text: `[${insertText}]` }]);
-			view = tempModel.getValue();
+			view = renderGhostTextToText(ghostText, this.editor.getValue());
 		} else {
 			view = this.editor.getValue();
 		}

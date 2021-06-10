@@ -5,13 +5,14 @@
 
 import { Disposable, IReference, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { InlineCompletionsModel } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SuggestWidgetAdapterModel } from 'vs/editor/contrib/inlineCompletions/suggestWidgetAdapterModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Emitter } from 'vs/base/common/event';
 import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import { createDisposableRef } from 'vs/editor/contrib/inlineCompletions/utils';
+import { GhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export abstract class DelegatingModel extends Disposable implements GhostTextWidgetModel {
 	private readonly onDidChangeEmitter = new Emitter<void>();
@@ -85,7 +86,7 @@ export class GhostTextModel extends DelegatingModel implements GhostTextWidgetMo
 	public shouldShowHoverAt(hoverRange: Range): boolean {
 		const ghostText = this.activeInlineCompletionsModel?.ghostText;
 		if (ghostText) {
-			return hoverRange.containsPosition(ghostText.position);
+			return ghostText.parts.some(p => hoverRange.containsPosition(new Position(ghostText.lineNumber, p.column)));
 		}
 		return false;
 	}

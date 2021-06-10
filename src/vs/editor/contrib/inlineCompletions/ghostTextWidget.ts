@@ -5,9 +5,9 @@
 
 import 'vs/css!./ghostText';
 import * as dom from 'vs/base/browser/dom';
-import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Range } from 'vs/editor/common/core/range';
-import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
+import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as strings from 'vs/base/common/strings';
 import { RenderLineInput, renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
@@ -16,86 +16,26 @@ import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { Configuration } from 'vs/editor/browser/config/configuration';
 import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ghostTextBorder, ghostTextForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { RGBA, Color } from 'vs/base/common/color';
 import { CursorColumns } from 'vs/editor/common/controller/cursorCommon';
+import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { GhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
 
-export interface GhostTextWidgetModel {
-	readonly onDidChange: Event<void>;
-	readonly ghostText: GhostText | undefined;
-
-	setExpanded(expanded: boolean): void;
-	readonly expanded: boolean;
-
-	readonly minReservedLineCount: number;
-}
-
-export interface GhostText {
-	readonly lines: string[];
-	readonly position: Position;
-}
-
-export abstract class BaseGhostTextWidgetModel extends Disposable implements GhostTextWidgetModel {
-	public abstract readonly ghostText: GhostText | undefined;
-
-	private _expanded: boolean | undefined = undefined;
-
-	protected readonly onDidChangeEmitter = new Emitter<void>();
-	public readonly onDidChange = this.onDidChangeEmitter.event;
-
-	public abstract readonly minReservedLineCount: number;
-
-	public get expanded() {
-		if (this._expanded === undefined) {
-			// TODO this should use a global hidden setting.
-			// See https://github.com/microsoft/vscode/issues/125037.
-			return true;
-		}
-		return this._expanded;
-	}
-
-	constructor(protected readonly editor: IActiveCodeEditor) {
-		super();
-
-		this._register(editor.onDidChangeConfiguration((e) => {
-			if (e.hasChanged(EditorOption.suggest) && this._expanded === undefined) {
-				this.onDidChangeEmitter.fire();
-			}
-		}));
-	}
-
-	public setExpanded(expanded: boolean): void {
-		this._expanded = true;
-		this.onDidChangeEmitter.fire();
-	}
-}
-
 export class GhostTextWidget extends Disposable {
-	private static decorationTypeCount = 0;
-
 	private disposed = false;
-	private codeEditorDecorationTypeKey: string | null = null;
-	private decorationIds: string[] = [];
-	private viewZoneId: string | null = null;
-	private viewMoreContentWidget: ViewMoreLinesContentWidget | null = null;
-
-	private readonly onWillRenderEmitter = new Emitter<void>();
-
-	/**
-	 * @deprecated Only use this for testing. This will get removed after the GhostTextController is refactored to use a single model.
-	*/
-	public readonly onWillRender = this.onWillRenderEmitter.event;
+	private readonly partsWidget = this._register(new PartsWidget(this.editor, this.codeEditorService, this.themeService));
+	private readonly additionalLinesWidget = this._register(new AdditionalLinesWidget(this.editor));
+	private viewMoreContentWidget: ViewMoreLinesContentWidget | undefined = undefined;
 
 	constructor(
 		private readonly editor: ICodeEditor,
 		private readonly model: GhostTextWidgetModel,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IThemeService private readonly _themeService: IThemeService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 
@@ -109,138 +49,49 @@ export class GhostTextWidget extends Disposable {
 				|| e.hasChanged(EditorOption.fontInfo)
 				|| e.hasChanged(EditorOption.lineHeight)
 			) {
-				this.render();
+				this.update();
 			}
 		}));
 
 		this._register(toDisposable(() => {
 			this.disposed = true;
-			this.render();
+			this.update();
+
+			this.viewMoreContentWidget?.dispose();
+			this.viewMoreContentWidget = undefined;
 		}));
 
 		this._register(model.onDidChange(() => {
-			this.render();
+			this.update();
 		}));
-		this.render();
+		this.update();
 	}
 
 	public shouldShowHoverAtViewZone(viewZoneId: string): boolean {
-		return (this.viewZoneId === viewZoneId);
+		return (this.additionalLinesWidget.viewZoneId === viewZoneId);
 	}
 
-	private getRenderData() {
+	private update(): void {
 		if (!this.editor.hasModel() || !this.model.ghostText || this.disposed) {
-			return undefined;
+			this.partsWidget.clear();
+			this.additionalLinesWidget.clear();
+			return;
 		}
 
-		const { minReservedLineCount, expanded } = this.model;
-		let { position, lines } = this.model.ghostText;
+		const ghostText = this.model.ghostText;
+		this.partsWidget.setParts(ghostText.lineNumber, ghostText.parts);
+		this.additionalLinesWidget.updateLines(ghostText.lineNumber, ghostText.additionalLines, ghostText.additionalReservedLineCount);
 
-		const textModel = this.editor.getModel();
-		const maxColumn = textModel.getLineMaxColumn(position.lineNumber);
-		const { tabSize } = textModel.getOptions();
-
-		if (lines.length > 1 && position.column !== maxColumn) {
-			console.warn('Can only show multiline ghost text at the end of a line');
-			lines = [];
-			position = new Position(position.lineNumber, maxColumn);
+		if (ghostText.additionalLines.length < 0) {
+			// not supported at the moment
+			this.viewMoreContentWidget = this.renderViewMoreLines(
+				new Position(ghostText.lineNumber, this.editor.getModel()!.getLineMaxColumn(ghostText.lineNumber)),
+				'', ghostText.additionalLines.length
+			);
+		} else {
+			this.viewMoreContentWidget?.dispose();
+			this.viewMoreContentWidget = undefined;
 		}
-
-		return { tabSize, position, lines, minReservedLineCount, expanded };
-	}
-
-	private render(): void {
-		this.onWillRenderEmitter.fire();
-
-		const renderData = this.getRenderData();
-
-		if (this.codeEditorDecorationTypeKey) {
-			this._codeEditorService.removeDecorationType(this.codeEditorDecorationTypeKey);
-			this.codeEditorDecorationTypeKey = null;
-		}
-
-		if (renderData && renderData.lines.length > 0) {
-			const foreground = this._themeService.getColorTheme().getColor(ghostTextForeground);
-			let opacity: string | undefined = undefined;
-			let color: string | undefined = undefined;
-			if (foreground) {
-				function opaque(color: Color): Color {
-					const { r, b, g } = color.rgba;
-					return new Color(new RGBA(r, g, b, 255));
-				}
-
-				opacity = String(foreground.rgba.a);
-				color = Color.Format.CSS.format(opaque(foreground))!;
-			}
-
-			const borderColor = this._themeService.getColorTheme().getColor(ghostTextBorder);
-			let border: string | undefined = undefined;
-			if (borderColor) {
-				border = `2px dashed ${borderColor}`;
-			}
-
-			// We add 0 to bring it before any other decoration.
-			this.codeEditorDecorationTypeKey = `0-ghost-text-${++GhostTextWidget.decorationTypeCount}`;
-
-			const line = this.editor.getModel()?.getLineContent(renderData.position.lineNumber) || '';
-			const linePrefix = line.substr(0, renderData.position.column - 1);
-
-			// To avoid visual confusion, we don't want to render visible whitespace
-			const contentText = renderSingleLineText(renderData.lines[0] || '', linePrefix, renderData.tabSize, false);
-
-			this._codeEditorService.registerDecorationType('ghost-text', this.codeEditorDecorationTypeKey, {
-				after: {
-					// TODO: escape?
-					contentText,
-					opacity,
-					color,
-					border,
-				},
-			});
-		}
-
-		const newDecorations = new Array<IModelDeltaDecoration>();
-		if (renderData && this.codeEditorDecorationTypeKey) {
-			newDecorations.push({
-				range: Range.fromPositions(renderData.position, renderData.position),
-				options: {
-					...this._codeEditorService.resolveDecorationOptions(this.codeEditorDecorationTypeKey, true),
-				}
-			});
-		}
-		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, newDecorations);
-
-		if (this.viewMoreContentWidget) {
-			this.viewMoreContentWidget.dispose();
-			this.viewMoreContentWidget = null;
-		}
-
-		this.editor.changeViewZones((changeAccessor) => {
-			if (this.viewZoneId) {
-				changeAccessor.removeZone(this.viewZoneId);
-				this.viewZoneId = null;
-			}
-
-			if (renderData) {
-				const remainingLines = renderData.lines.slice(1);
-				const heightInLines = Math.max(remainingLines.length, renderData.minReservedLineCount);
-				if (heightInLines > 0) {
-					if (renderData.expanded) {
-						const domNode = document.createElement('div');
-						renderLines(domNode, renderData.tabSize, remainingLines, this.editor.getOptions());
-
-						this.viewZoneId = changeAccessor.addZone({
-							afterLineNumber: renderData.position.lineNumber,
-							afterColumn: renderData.position.column,
-							heightInLines: heightInLines,
-							domNode,
-						});
-					} else if (remainingLines.length > 0) {
-						this.viewMoreContentWidget = this.renderViewMoreLines(renderData.position, renderData.lines[0], remainingLines.length);
-					}
-				}
-			}
-		});
 	}
 
 	private renderViewMoreLines(position: Position, firstLineText: string, remainingLinesLength: number): ViewMoreLinesContentWidget {
@@ -276,95 +127,241 @@ export class GhostTextWidget extends Disposable {
 	}
 }
 
-function renderLines(domNode: HTMLElement, tabSize: number, lines: string[], opts: IComputedEditorOptions): void {
-	const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
-	const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
-	// To avoid visual confusion, we don't want to render visible whitespace
-	const renderWhitespace = 'none';
-	const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
-	const fontLigatures = opts.get(EditorOption.fontLigatures);
-	const fontInfo = opts.get(EditorOption.fontInfo);
-	const lineHeight = opts.get(EditorOption.lineHeight);
+class PartsWidget implements IDisposable {
+	private decorationIds: string[] = [];
+	private disposableStore: DisposableStore = new DisposableStore();
 
-	const sb = createStringBuilder(10000);
-	sb.appendASCIIString('<div class="suggest-preview-text">');
-
-	for (let i = 0, len = lines.length; i < len; i++) {
-		const line = lines[i];
-		sb.appendASCIIString('<div class="view-line');
-		sb.appendASCIIString('" style="top:');
-		sb.appendASCIIString(String(i * lineHeight));
-		sb.appendASCIIString('px;width:1000000px;">');
-
-		const isBasicASCII = strings.isBasicASCII(line);
-		const containsRTL = strings.containsRTL(line);
-		const lineTokens = LineTokens.createEmpty(line);
-
-		renderViewLine(new RenderLineInput(
-			(fontInfo.isMonospace && !disableMonospaceOptimizations),
-			fontInfo.canUseHalfwidthRightwardsArrow,
-			line,
-			false,
-			isBasicASCII,
-			containsRTL,
-			0,
-			lineTokens,
-			[],
-			tabSize,
-			0,
-			fontInfo.spaceWidth,
-			fontInfo.middotWidth,
-			fontInfo.wsmiddotWidth,
-			stopRenderingLineAfter,
-			renderWhitespace,
-			renderControlCharacters,
-			fontLigatures !== EditorFontLigatures.OFF,
-			null
-		), sb);
-
-		sb.appendASCIIString('</div>');
+	constructor(
+		private readonly editor: ICodeEditor,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService,
+		@IThemeService private readonly themeService: IThemeService
+	) {
 	}
-	sb.appendASCIIString('</div>');
 
-	Configuration.applyFontInfoSlow(domNode, fontInfo);
-	const html = sb.build();
-	const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
-	domNode.innerHTML = trustedhtml as string;
+	public dispose(): void {
+		this.clear();
+		this.disposableStore.dispose();
+	}
+
+	public clear(): void {
+		this.editor.deltaDecorations(this.decorationIds, []);
+		this.disposableStore.clear();
+	}
+
+	public setParts(lineNumber: number, parts: GhostTextPart[]): void {
+		this.disposableStore.clear();
+
+		const colorTheme = this.themeService.getColorTheme();
+		const foreground = colorTheme.getColor(ghostTextForeground);
+		let opacity: string | undefined = undefined;
+		let color: string | undefined = undefined;
+		if (foreground) {
+			opacity = String(foreground.rgba.a);
+			color = Color.Format.CSS.format(opaque(foreground))!;
+		}
+
+		const borderColor = colorTheme.getColor(ghostTextBorder);
+		let border: string | undefined = undefined;
+		if (borderColor) {
+			border = `2px dashed ${borderColor}`;
+		}
+
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
+		const { tabSize } = textModel.getOptions();
+
+		const line = textModel.getLineContent(lineNumber) || '';
+		let lastIndex = 0;
+		let currentLinePrefix = '';
+
+		this.decorationIds = this.editor.deltaDecorations(this.decorationIds, parts.map(p => {
+
+			currentLinePrefix += line.substring(lastIndex, p.column - 1);
+			lastIndex = p.column - 1;
+
+			// To avoid visual confusion, we don't want to render visible whitespace
+			const contentText = this.renderSingleLineText(p.text, currentLinePrefix, tabSize, false);
+
+			const decorationType = registerDecorationType(this.codeEditorService, 'ghost-text', '0-ghost-text-', {
+				after: {
+					// TODO: escape?
+					contentText,
+					opacity,
+					color,
+					border,
+				},
+			});
+			this.disposableStore.add(decorationType);
+			return ({
+				range: Range.fromPositions(new Position(lineNumber, p.column)),
+				options: {
+					...decorationType.resolve()
+				}
+			});
+		}));
+	}
+
+	private renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
+		const newLine = lineStart + text;
+		const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+
+
+		let contentText = '';
+		let curCol = lineStart.length + 1;
+		for (const c of text) {
+			if (c === '\t') {
+				const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
+				if (renderWhitespace) {
+					contentText += '→';
+					for (let i = 1; i < width; i++) {
+						contentText += '\xa0';
+					}
+				} else {
+					for (let i = 0; i < width; i++) {
+						contentText += '\xa0';
+					}
+				}
+			} else if (c === ' ') {
+				if (renderWhitespace) {
+					contentText += '·';
+				} else {
+					contentText += '\xa0';
+				}
+			} else {
+				contentText += c;
+			}
+			curCol += 1;
+		}
+
+		return contentText;
+	}
 }
 
-function renderSingleLineText(text: string, lineStart: string, tabSize: number, renderWhitespace: boolean): string {
-	const newLine = lineStart + text;
-	const visibleColumnsByColumns = CursorColumns.visibleColumnsByColumns(newLine, tabSize);
+function opaque(color: Color): Color {
+	const { r, b, g } = color.rgba;
+	return new Color(new RGBA(r, g, b, 255));
+}
 
+class AdditionalLinesWidget implements IDisposable {
+	private _viewZoneId: string | undefined = undefined;
+	public get viewZoneId(): string | undefined { return this._viewZoneId; }
 
-	let contentText = '';
-	let curCol = lineStart.length + 1;
-	for (const c of text) {
-		if (c === '\t') {
-			const width = visibleColumnsByColumns[curCol + 1] - visibleColumnsByColumns[curCol];
-			if (renderWhitespace) {
-				contentText += '→';
-				for (let i = 1; i < width; i++) {
-					contentText += '\xa0';
-				}
-			} else {
-				for (let i = 0; i < width; i++) {
-					contentText += '\xa0';
-				}
-			}
-		} else if (c === ' ') {
-			if (renderWhitespace) {
-				contentText += '·';
-			} else {
-				contentText += '\xa0';
-			}
-		} else {
-			contentText += c;
-		}
-		curCol += 1;
+	constructor(private readonly editor: ICodeEditor) { }
+
+	public dispose(): void {
+		this.clear();
 	}
 
-	return contentText;
+	public clear(): void {
+		this.editor.changeViewZones((changeAccessor) => {
+			if (this._viewZoneId) {
+				changeAccessor.removeZone(this._viewZoneId);
+				this._viewZoneId = undefined;
+			}
+		});
+	}
+
+	public updateLines(lineNumber: number, additionalLines: string[], minReservedLineCount: number): void {
+		const textModel = this.editor.getModel();
+		if (!textModel) {
+			return;
+		}
+
+		const { tabSize } = textModel.getOptions();
+
+		this.editor.changeViewZones((changeAccessor) => {
+			if (this._viewZoneId) {
+				changeAccessor.removeZone(this._viewZoneId);
+				this._viewZoneId = undefined;
+			}
+
+			const heightInLines = Math.max(additionalLines.length, minReservedLineCount);
+			if (heightInLines > 0) {
+				const domNode = document.createElement('div');
+				this.renderLines(domNode, tabSize, additionalLines, this.editor.getOptions());
+
+				this._viewZoneId = changeAccessor.addZone({
+					afterLineNumber: lineNumber,
+					heightInLines: heightInLines,
+					domNode,
+				});
+			}
+		});
+	}
+
+	private renderLines(domNode: HTMLElement, tabSize: number, lines: string[], opts: IComputedEditorOptions): void {
+		const disableMonospaceOptimizations = opts.get(EditorOption.disableMonospaceOptimizations);
+		const stopRenderingLineAfter = opts.get(EditorOption.stopRenderingLineAfter);
+		// To avoid visual confusion, we don't want to render visible whitespace
+		const renderWhitespace = 'none';
+		const renderControlCharacters = opts.get(EditorOption.renderControlCharacters);
+		const fontLigatures = opts.get(EditorOption.fontLigatures);
+		const fontInfo = opts.get(EditorOption.fontInfo);
+		const lineHeight = opts.get(EditorOption.lineHeight);
+
+		const sb = createStringBuilder(10000);
+		sb.appendASCIIString('<div class="suggest-preview-text">');
+
+		for (let i = 0, len = lines.length; i < len; i++) {
+			const line = lines[i];
+			sb.appendASCIIString('<div class="view-line');
+			sb.appendASCIIString('" style="top:');
+			sb.appendASCIIString(String(i * lineHeight));
+			sb.appendASCIIString('px;width:1000000px;">');
+
+			const isBasicASCII = strings.isBasicASCII(line);
+			const containsRTL = strings.containsRTL(line);
+			const lineTokens = LineTokens.createEmpty(line);
+
+			renderViewLine(new RenderLineInput(
+				(fontInfo.isMonospace && !disableMonospaceOptimizations),
+				fontInfo.canUseHalfwidthRightwardsArrow,
+				line,
+				false,
+				isBasicASCII,
+				containsRTL,
+				0,
+				lineTokens,
+				[],
+				tabSize,
+				0,
+				fontInfo.spaceWidth,
+				fontInfo.middotWidth,
+				fontInfo.wsmiddotWidth,
+				stopRenderingLineAfter,
+				renderWhitespace,
+				renderControlCharacters,
+				fontLigatures !== EditorFontLigatures.OFF,
+				null
+			), sb);
+
+			sb.appendASCIIString('</div>');
+		}
+		sb.appendASCIIString('</div>');
+
+		Configuration.applyFontInfoSlow(domNode, fontInfo);
+		const html = sb.build();
+		const trustedhtml = ttPolicy ? ttPolicy.createHTML(html) : html;
+		domNode.innerHTML = trustedhtml as string;
+	}
+}
+
+let keyCounter = 0;
+
+function registerDecorationType(service: ICodeEditorService, description: string, keyPrefix: string, options: IDecorationRenderOptions) {
+	const key = keyPrefix + (keyCounter++);
+	service.registerDecorationType(description, key, options);
+	return {
+		dispose() {
+			service.removeDecorationType(key);
+		},
+		resolve() {
+			return service.resolveDecorationOptions(key, true);
+		}
+	};
 }
 
 class ViewMoreLinesContentWidget extends Disposable implements IContentWidget {
@@ -405,11 +402,6 @@ registerThemingParticipant((theme, collector) => {
 	const foreground = theme.getColor(ghostTextForeground);
 
 	if (foreground) {
-		function opaque(color: Color): Color {
-			const { r, b, g } = color.rgba;
-			return new Color(new RGBA(r, g, b, 255));
-		}
-
 		const opacity = String(foreground.rgba.a);
 		const color = Color.Format.CSS.format(opaque(foreground))!;
 
