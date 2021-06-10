@@ -13,7 +13,7 @@ import { FileAccess, Schemas } from 'vs/base/common/network';
 import { IBaseTextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { MIME_BINARY } from 'vs/base/common/mime';
+import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -277,7 +277,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// TODO@sandbox this will no longer work when `vscode-file`
 		// is enabled because we block loading resources that are not
 		// inside installation dir
-		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [MIME_BINARY, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
+		event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), FileAccess.asBrowserUri(firstFile.resource).toString()].join(':'));
 	}
 
 	// Resource URLs: allows to drop multiple file resources to a target in VS Code

@@ -34,7 +34,7 @@ import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/n
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICreationRequestMessage, IMarkdownCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage } from './webviewMessages';
+import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -63,7 +63,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, IMarkdownCellInitialization>();
+	readonly markdownPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -164,7 +164,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			'notebook-markdown-left-margin': `${this.options.markdownLeftMargin}px`,
 			'notebook-output-node-left-padding': `${this.options.outputNodeLeftPadding}px`,
 			'notebook-markdown-min-height': `${this.options.previewNodePadding * 2}px`,
-			'notebook-cell-output-font-size': `${this.options.fontSize}px`
+			'notebook-cell-output-font-size': `${this.options.fontSize}px`,
+			'notebook-cell-markup-empty-content': nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit."),
 		};
 	}
 
@@ -175,133 +176,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 			<head>
 				<meta charset="UTF-8">
 				<base href="${baseUrl}/"/>
-
-				<!--
-				Markdown previews are rendered using a shadow dom and are not effected by normal css.
-				Insert this style node into all preview shadow doms for styling.
-				-->
-				<template id="preview-styles">
-					<style>
-						img {
-							max-width: 100%;
-							max-height: 100%;
-						}
-
-						a {
-							text-decoration: none;
-						}
-
-						a:hover {
-							text-decoration: underline;
-						}
-
-						a:focus,
-						input:focus,
-						select:focus,
-						textarea:focus {
-							outline: 1px solid -webkit-focus-ring-color;
-							outline-offset: -1px;
-						}
-
-						hr {
-							border: 0;
-							height: 2px;
-							border-bottom: 2px solid;
-						}
-
-						h1 {
-							font-size: 26px;
-							line-height: 31px;
-							margin: 0;
-							margin-bottom: 13px;
-						}
-
-						h2 {
-							font-size: 19px;
-							margin: 0;
-							margin-bottom: 10px;
-						}
-
-						h1,
-						h2,
-						h3 {
-							font-weight: normal;
-						}
-
-						div {
-							width: 100%;
-						}
-
-						/* Adjust margin of first item in markdown cell */
-						*:first-child {
-							margin-top: 0px;
-						}
-
-						/* h1 tags don't need top margin */
-						h1:first-child {
-							margin-top: 0;
-						}
-
-						/* Removes bottom margin when only one item exists in markdown cell */
-						*:only-child,
-						*:last-child {
-							margin-bottom: 0;
-							padding-bottom: 0;
-						}
-
-						/* makes all markdown cells consistent */
-						div {
-							min-height: var(--notebook-markdown-min-height);
-						}
-
-						table {
-							border-collapse: collapse;
-							border-spacing: 0;
-						}
-
-						table th,
-						table td {
-							border: 1px solid;
-						}
-
-						table > thead > tr > th {
-							text-align: left;
-							border-bottom: 1px solid;
-						}
-
-						table > thead > tr > th,
-						table > thead > tr > td,
-						table > tbody > tr > th,
-						table > tbody > tr > td {
-							padding: 5px 10px;
-						}
-
-						table > tbody > tr + tr > td {
-							border-top: 1px solid;
-						}
-
-						blockquote {
-							margin: 0 7px 0 5px;
-							padding: 0 16px 0 10px;
-							border-left-width: 5px;
-							border-left-style: solid;
-						}
-
-						code,
-						.code {
-							font-size: 1em;
-							line-height: 1.357em;
-						}
-
-						.code {
-							white-space: pre-wrap;
-						}
-
-						dragging {
-							background-color: var(--theme-background);
-						}
-					</style>
-				</template>
 				<style>
 					#container .cell_container {
 						width: 100%;
@@ -343,12 +217,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						-webkit-user-select: none;
 						-ms-user-select: none;
 						cursor: grab;
-					}
-
-					#container > div.preview.emptyMarkdownCell::before {
-						content: "${nls.localize('notebook.emptyMarkdownPlaceholder', "Empty markdown cell, double click or press enter to edit.")}";
-						font-style: italic;
-						opacity: 0.6;
 					}
 
 					#container > div.preview.selected {
@@ -657,17 +525,12 @@ var requirejs = (function() {
 					}
 				case 'focus-editor':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (!latestCell) {
-								return;
-							}
-
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
 							if (data.focusNext) {
-								this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
+								this.notebookEditor.focusNextNotebookCell(cell, 'editor');
 							} else {
-								this.notebookEditor.focusNotebookCell(latestCell, 'editor');
+								this.notebookEditor.focusNotebookCell(cell, 'editor');
 							}
 						}
 						break;
@@ -687,7 +550,7 @@ var requirejs = (function() {
 						this.rendererMessaging?.postMessage(data.rendererId, data.message);
 						break;
 					}
-				case 'clickMarkdownPreview':
+				case 'clickMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -701,7 +564,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'contextMenuMarkdownPreview':
+				case 'contextMenuMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -726,7 +589,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'toggleMarkdownPreview':
+				case 'toggleMarkupPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
@@ -735,7 +598,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'mouseEnterMarkdownPreview':
+				case 'mouseEnterMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell instanceof MarkdownCellViewModel) {
@@ -743,7 +606,7 @@ var requirejs = (function() {
 						}
 						break;
 					}
-				case 'mouseLeaveMarkdownPreview':
+				case 'mouseLeaveMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell instanceof MarkdownCellViewModel) {
@@ -884,7 +747,7 @@ var requirejs = (function() {
 
 		const mdCells = [...this.markdownPreviewMapping.values()];
 		this.markdownPreviewMapping.clear();
-		this.initializeMarkdown(mdCells);
+		this.initializeMarkup(mdCells);
 		this._updateStyles();
 		this._updateOptions();
 	}
@@ -944,6 +807,7 @@ var requirejs = (function() {
 			this.hiddenInsetMapping.delete(request.output);
 
 			return {
+				cellId: request.cell.id,
 				outputId: id,
 				cellTop: request.cellTop,
 				outputOffset: request.outputOffset,
@@ -958,11 +822,11 @@ var requirejs = (function() {
 		this._sendMessageToWebview({
 			type: 'view-scroll',
 			widgets: widgets,
-			markdownPreviews,
+			markupCells: markdownPreviews,
 		});
 	}
 
-	private async createMarkdownPreview(initialization: IMarkdownCellInitialization) {
+	private async createMarkdownPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
@@ -979,7 +843,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async showMarkdownPreview(initialization: IMarkdownCellInitialization) {
+	async showMarkdownPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
@@ -1086,7 +950,7 @@ var requirejs = (function() {
 		});
 	}
 
-	async initializeMarkdown(cells: ReadonlyArray<IMarkdownCellInitialization>) {
+	async initializeMarkup(cells: readonly IMarkupCellInitialization[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -1094,7 +958,7 @@ var requirejs = (function() {
 		// TODO: use proper handler
 		const p = new Promise<void>(resolve => {
 			this.webview?.onMessage(e => {
-				if (e.message.type === 'initializedMarkdownPreview') {
+				if (e.message.type === 'initializedMarkup') {
 					resolve();
 				}
 			});

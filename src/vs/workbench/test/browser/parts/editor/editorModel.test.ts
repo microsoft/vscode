@@ -26,6 +26,7 @@ import { TestTextResourcePropertiesService } from 'vs/workbench/test/common/work
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('EditorModel', () => {
 
@@ -86,7 +87,7 @@ suite('EditorModel', () => {
 		const model = new MyTextEditorModel(modelService, modeService);
 		await model.resolve();
 
-		model.createTextEditorModel(createTextBufferFactory('foo'), null!, 'text/plain');
+		model.createTextEditorModel(createTextBufferFactory('foo'), null!, Mimes.text);
 		assert.strictEqual(model.isResolved(), true);
 		model.dispose();
 	});

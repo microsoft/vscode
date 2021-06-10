@@ -1989,7 +1989,7 @@ declare module 'vscode' {
 	 * { language: 'typescript', scheme: 'file' }
 	 *
 	 * @example <caption>A language filter that applies to all package.json paths</caption>
-	 * { language: 'json', scheme: 'untitled', pattern: '**​/package.json' }
+	 * { language: 'json', pattern: '**​/package.json' }
 	 */
 	export interface DocumentFilter {
 
@@ -9500,6 +9500,24 @@ declare module 'vscode' {
 		onDidClose?: Event<void | number>;
 
 		/**
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
+		 */
+		onDidChangeName?: Event<string>;
+
+		/**
 		 * Implement to handle when the pty is open and ready to start firing events.
 		 *
 		 * @param initialDimensions The dimensions of the terminal, this will be undefined if the
@@ -9894,7 +9912,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<T[]>;
+		readonly onDidChangeActive: Event<readonly T[]>;
 
 		/**
 		 * Selected items. This can be read and updated by the extension.
@@ -9904,7 +9922,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the selected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<T[]>;
+		readonly onDidChangeSelection: Event<readonly T[]>;
 	}
 
 	/**
@@ -11419,7 +11437,7 @@ declare module 'vscode' {
 		readonly outputs: readonly NotebookCellOutput[];
 
 		/**
-		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
+		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
 		 */
 		readonly executionSummary?: NotebookCellExecutionSummary;
 	}
@@ -11487,7 +11505,7 @@ declare module 'vscode' {
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
-		 * a range. The range will be adjuset to the notebook.
+		 * a range. The range will be adjusted to the notebook.
 		 *
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
@@ -11525,7 +11543,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A notebook range represents an ordered pair of two cell indicies.
+	 * A notebook range represents an ordered pair of two cell indices.
 	 * It is guaranteed that start is less than or equal to end.
 	 */
 	export class NotebookRange {
@@ -11636,7 +11654,7 @@ declare module 'vscode' {
 		data: Uint8Array;
 
 		/**
-		 * Create a new notbook cell output item.
+		 * Create a new notebook cell output item.
 		 *
 		 * @param data The value of the output item.
 		 * @param mime The mime type of the output item.
@@ -12132,7 +12150,7 @@ declare module 'vscode' {
 	/**
 	 * Namespace for notebooks.
 	 *
-	 * The notebooks functionality is composed of three loosly coupled components:
+	 * The notebooks functionality is composed of three loosely coupled components:
 	 *
 	 * 1. {@link NotebookSerializer} enable the editor to open, show, and save notebooks
 	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
@@ -13522,17 +13540,17 @@ declare module 'vscode' {
 	*/
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been added.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been added.
 		*/
 		readonly added?: readonly AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been removed.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been removed.
 		 */
 		readonly removed?: readonly AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been changed.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been changed.
 		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
 		 * access token being set for the session.
 		 */

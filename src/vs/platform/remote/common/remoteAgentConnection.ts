@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket, ProtocolConstants } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, PersistentProtocol, ISocket, ProtocolConstants, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -532,8 +532,28 @@ abstract class PersistentConnection extends Disposable {
 
 		this._onDidStateChange.fire(new ConnectionGainEvent(this.reconnectionToken, 0, 0));
 
-		this._register(protocol.onSocketClose(() => this._beginReconnecting()));
-		this._register(protocol.onSocketTimeout(() => this._beginReconnecting()));
+		this._register(protocol.onSocketClose((e) => {
+			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+			if (!e) {
+				this._options.logService.info(`${logPrefix} received socket close event.`);
+			} else if (e.type === SocketCloseEventType.NodeSocketCloseEvent) {
+				this._options.logService.info(`${logPrefix} received socket close event (hadError: ${e.hadError}).`);
+				if (e.error) {
+					this._options.logService.error(e.error);
+				}
+			} else {
+				this._options.logService.info(`${logPrefix} received socket close event (wasClean: ${e.wasClean}, code: ${e.code}, reason: ${e.reason}).`);
+				if (e.event) {
+					this._options.logService.error(e.event);
+				}
+			}
+			this._beginReconnecting();
+		}));
+		this._register(protocol.onSocketTimeout(() => {
+			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
+			this._options.logService.trace(`${logPrefix} received socket timeout event.`);
+			this._beginReconnecting();
+		}));
 
 		PersistentConnection._instances.push(this);
 

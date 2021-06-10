@@ -515,6 +515,7 @@
 	color: inherit;
 	text-align: left;
 	padding: 16px;
+	font-size: 13px;
 	margin: 1px 0; /* makes room for focus border */
 	font-family: inherit;
 }
@@ -524,6 +525,7 @@
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer button:focus {
 	outline-style: solid;
+	outline-width: 1px;
 }
 
 .monaco-workbench .part.editor > .content .gettingStartedContainer .prev-button.button-link {

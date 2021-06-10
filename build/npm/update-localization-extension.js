@@ -88,7 +88,7 @@ function update(options) {
 					for (let tp of translationPaths) {
 						localization.translations.push({ id: tp.id, path: `./translations/${tp.resourceName}` });
 					}
-					fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t'));
+					fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t') + '\n');
 				}
 			});
 	});

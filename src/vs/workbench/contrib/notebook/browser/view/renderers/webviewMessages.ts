@@ -11,66 +11,66 @@ interface BaseToWebviewMessage {
 }
 
 export interface WebviewIntialized extends BaseToWebviewMessage {
-	type: 'initialized';
+	readonly type: 'initialized';
 }
 
 export interface DimensionUpdate {
-	id: string;
-	init?: boolean;
-	height: number;
-	isOutput?: boolean;
+	readonly id: string;
+	readonly init?: boolean;
+	readonly height: number;
+	readonly isOutput?: boolean;
 }
 
 export interface IDimensionMessage extends BaseToWebviewMessage {
-	type: 'dimension';
-	updates: readonly DimensionUpdate[];
+	readonly type: 'dimension';
+	readonly updates: readonly DimensionUpdate[];
 }
 
 export interface IMouseEnterMessage extends BaseToWebviewMessage {
-	type: 'mouseenter';
-	id: string;
+	readonly type: 'mouseenter';
+	readonly id: string;
 }
 
 export interface IMouseLeaveMessage extends BaseToWebviewMessage {
-	type: 'mouseleave';
-	id: string;
+	readonly type: 'mouseleave';
+	readonly id: string;
 }
 
 export interface IOutputFocusMessage extends BaseToWebviewMessage {
-	type: 'outputFocus';
-	id: string;
+	readonly type: 'outputFocus';
+	readonly id: string;
 }
 
 export interface IOutputBlurMessage extends BaseToWebviewMessage {
-	type: 'outputBlur';
-	id: string;
+	readonly type: 'outputBlur';
+	readonly id: string;
 }
 
 export interface IWheelMessage extends BaseToWebviewMessage {
-	type: 'did-scroll-wheel';
-	payload: any;
+	readonly type: 'did-scroll-wheel';
+	readonly payload: any;
 }
 
 export interface IScrollAckMessage extends BaseToWebviewMessage {
-	type: 'scroll-ack';
-	data: { top: number; };
-	version: number;
+	readonly type: 'scroll-ack';
+	readonly data: { top: number; };
+	readonly version: number;
 }
 
 export interface IBlurOutputMessage extends BaseToWebviewMessage {
-	type: 'focus-editor';
-	id: string;
-	focusNext?: boolean;
+	readonly type: 'focus-editor';
+	readonly cellId: string;
+	readonly focusNext?: boolean;
 }
 
 export interface IClickedDataUrlMessage extends BaseToWebviewMessage {
-	type: 'clicked-data-url';
-	data: string | ArrayBuffer | null;
-	downloadName?: string;
+	readonly type: 'clicked-data-url';
+	readonly data: string | ArrayBuffer | null;
+	readonly downloadName?: string;
 }
 
-export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'clickMarkdownPreview';
+export interface IClickMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'clickMarkupCell';
 	readonly cellId: string;
 	readonly ctrlKey: boolean;
 	readonly altKey: boolean;
@@ -78,36 +78,36 @@ export interface IClickMarkdownPreviewMessage extends BaseToWebviewMessage {
 	readonly shiftKey: boolean;
 }
 
-export interface IContextMenuMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'contextMenuMarkdownPreview';
+export interface IContextMenuMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'contextMenuMarkupCell';
 	readonly cellId: string;
 	readonly clientX: number;
 	readonly clientY: number;
 }
 
-export interface IMouseEnterMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'mouseEnterMarkdownPreview';
-	cellId: string;
+export interface IMouseEnterMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'mouseEnterMarkupCell';
+	readonly cellId: string;
 }
 
-export interface IMouseLeaveMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'mouseLeaveMarkdownPreview';
-	cellId: string;
+export interface IMouseLeaveMarkupCellMessage extends BaseToWebviewMessage {
+	readonly type: 'mouseLeaveMarkupCell';
+	readonly cellId: string;
 }
 
-export interface IToggleMarkdownPreviewMessage extends BaseToWebviewMessage {
-	type: 'toggleMarkdownPreview';
-	cellId: string;
+export interface IToggleMarkupPreviewMessage extends BaseToWebviewMessage {
+	readonly type: 'toggleMarkupPreview';
+	readonly cellId: string;
 }
 
 export interface ICellDragStartMessage extends BaseToWebviewMessage {
-	type: 'cell-drag-start';
+	readonly type: 'cell-drag-start';
 	readonly cellId: string;
 	readonly dragOffsetY: number;
 }
 
 export interface ICellDragMessage extends BaseToWebviewMessage {
-	type: 'cell-drag';
+	readonly type: 'cell-drag';
 	readonly cellId: string;
 	readonly dragOffsetY: number;
 }
@@ -125,8 +125,8 @@ export interface ICellDragEndMessage extends BaseToWebviewMessage {
 	readonly cellId: string;
 }
 
-export interface IInitializedMarkdownPreviewMessage extends BaseToWebviewMessage {
-	readonly type: 'initializedMarkdownPreview';
+export interface IInitializedMarkupMessage extends BaseToWebviewMessage {
+	readonly type: 'initializedMarkup';
 }
 
 export interface ITelemetryFoundRenderedMarkdownMath extends BaseToWebviewMessage {
@@ -139,150 +139,150 @@ export interface ITelemetryFoundUnrenderedMarkdownMath extends BaseToWebviewMess
 }
 
 export interface IClearMessage {
-	type: 'clear';
+	readonly type: 'clear';
 }
 
 export interface IOutputRequestMetadata {
 	/**
 	 * Additional attributes of a cell metadata.
 	 */
-	custom?: { [key: string]: unknown; };
+	readonly custom?: { [key: string]: unknown; };
 }
 
 export interface IOutputRequestDto {
 	/**
 	 * { mime_type: value }
 	 */
-	data: { [key: string]: unknown; };
+	readonly data: { [key: string]: unknown; };
 
-	metadata?: IOutputRequestMetadata;
-	outputId: string;
+	readonly metadata?: IOutputRequestMetadata;
+	readonly outputId: string;
 }
 
 export interface ICreationRequestMessage {
-	type: 'html';
-	content: { type: RenderOutputType.Html; htmlContent: string; } |
+	readonly type: 'html';
+	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
 	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; metadata2: unknown; mimeType: string; };
-	cellId: string;
-	outputId: string;
+	readonly cellId: string;
+	readonly outputId: string;
 	cellTop: number;
 	outputOffset: number;
-	left: number;
-	requiredPreloads: ReadonlyArray<IControllerPreload>;
+	readonly left: number;
+	readonly requiredPreloads: ReadonlyArray<IControllerPreload>;
 	readonly initiallyHidden?: boolean;
-	rendererId?: string | undefined;
+	readonly rendererId?: string | undefined;
 }
 
 export interface IContentWidgetTopRequest {
-	outputId: string;
-	cellTop: number;
-	outputOffset: number;
-	forceDisplay: boolean;
+	readonly cellId: string;
+	readonly outputId: string;
+	readonly cellTop: number;
+	readonly outputOffset: number;
+	readonly forceDisplay: boolean;
 }
 
 export interface IViewScrollTopRequestMessage {
-	type: 'view-scroll';
-	widgets: IContentWidgetTopRequest[];
-	markdownPreviews: { id: string; top: number; }[];
+	readonly type: 'view-scroll';
+	readonly widgets: IContentWidgetTopRequest[];
+	readonly markupCells: { id: string; top: number; }[];
 }
 
 export interface IScrollRequestMessage {
-	type: 'scroll';
-	id: string;
-	top: number;
-	widgetTop?: number;
-	version: number;
+	readonly type: 'scroll';
+	readonly id: string;
+	readonly top: number;
+	readonly widgetTop?: number;
+	readonly version: number;
 }
 
 export interface IClearOutputRequestMessage {
-	type: 'clearOutput';
-	cellId: string;
-	outputId: string;
-	cellUri: string;
-	rendererId: string | undefined;
+	readonly type: 'clearOutput';
+	readonly cellId: string;
+	readonly outputId: string;
+	readonly cellUri: string;
+	readonly rendererId: string | undefined;
 }
 
 export interface IHideOutputMessage {
-	type: 'hideOutput';
-	outputId: string;
-	cellId: string;
+	readonly type: 'hideOutput';
+	readonly outputId: string;
+	readonly cellId: string;
 }
 
 export interface IShowOutputMessage {
-	type: 'showOutput';
-	cellId: string;
-	outputId: string;
-	cellTop: number;
-	outputOffset: number;
+	readonly type: 'showOutput';
+	readonly cellId: string;
+	readonly outputId: string;
+	readonly cellTop: number;
+	readonly outputOffset: number;
 }
 
 export interface IFocusOutputMessage {
-	type: 'focus-output';
-	cellId: string;
+	readonly type: 'focus-output';
+	readonly cellId: string;
 }
 
 export interface IAckOutputHeightMessage {
-	type: 'ack-dimension';
-	cellId: string;
-	outputId: string;
-	height: number;
+	readonly type: 'ack-dimension';
+	readonly cellId: string;
+	readonly outputId: string;
+	readonly height: number;
 }
 
-
 export interface IControllerPreload {
-	originalUri: string;
-	uri: string;
+	readonly originalUri: string;
+	readonly uri: string;
 }
 
 export interface IUpdateControllerPreloadsMessage {
-	type: 'preload';
-	resources: IControllerPreload[];
+	readonly type: 'preload';
+	readonly resources: IControllerPreload[];
 }
 
 export interface IUpdateDecorationsMessage {
-	type: 'decorations';
-	cellId: string;
-	addedClassNames: string[];
-	removedClassNames: string[];
+	readonly type: 'decorations';
+	readonly cellId: string;
+	readonly addedClassNames: string[];
+	readonly removedClassNames: string[];
 }
 
 export interface ICustomKernelMessage extends BaseToWebviewMessage {
-	type: 'customKernelMessage';
-	message: unknown;
+	readonly type: 'customKernelMessage';
+	readonly message: unknown;
 }
 
 export interface ICustomRendererMessage extends BaseToWebviewMessage {
-	type: 'customRendererMessage';
-	rendererId: string;
-	message: unknown;
+	readonly type: 'customRendererMessage';
+	readonly rendererId: string;
+	readonly message: unknown;
 }
 
 export interface ICreateMarkupCellMessage {
-	type: 'createMarkupCell';
-	cell: IMarkdownCellInitialization;
+	readonly type: 'createMarkupCell';
+	readonly cell: IMarkupCellInitialization;
 }
 
 export interface IDeleteMarkupCellMessage {
-	type: 'deleteMarkupCell';
-	ids: readonly string[];
+	readonly type: 'deleteMarkupCell';
+	readonly ids: readonly string[];
 }
 
 export interface IHideMarkupCellMessage {
-	type: 'hideMarkupCells';
-	ids: readonly string[];
+	readonly type: 'hideMarkupCells';
+	readonly ids: readonly string[];
 }
 
 export interface IUnhideMarkupCellMessage {
-	type: 'unhideMarkupCells';
-	ids: readonly string[];
+	readonly type: 'unhideMarkupCells';
+	readonly ids: readonly string[];
 }
 
 export interface IShowMarkupCellMessage {
-	type: 'showMarkupCell';
-	id: string;
-	handle: number;
-	content: string | undefined;
-	top: number;
+	readonly type: 'showMarkupCell';
+	readonly id: string;
+	readonly handle: number;
+	readonly content: string | undefined;
+	readonly top: number;
 }
 
 export interface IUpdateSelectedMarkupCellsMessage {
@@ -290,7 +290,8 @@ export interface IUpdateSelectedMarkupCellsMessage {
 	readonly selectedCellIds: readonly string[];
 }
 
-export interface IMarkdownCellInitialization {
+export interface IMarkupCellInitialization {
+	mime: string;
 	cellId: string;
 	cellHandle: number;
 	content: string;
@@ -299,20 +300,20 @@ export interface IMarkdownCellInitialization {
 }
 
 export interface IInitializeMarkupCells {
-	type: 'initializeMarkup';
-	cells: ReadonlyArray<IMarkdownCellInitialization>;
+	readonly type: 'initializeMarkup';
+	readonly cells: ReadonlyArray<IMarkupCellInitialization>;
 }
 
 export interface INotebookStylesMessage {
-	type: 'notebookStyles';
-	styles: {
+	readonly type: 'notebookStyles';
+	readonly styles: {
 		[key: string]: string;
 	};
 }
 
 export interface INotebookOptionsMessage {
-	type: 'notebookOptions';
-	options: PreloadOptions;
+	readonly type: 'notebookOptions';
+	readonly options: PreloadOptions;
 }
 
 export type FromWebviewMessage = WebviewIntialized |
@@ -327,16 +328,16 @@ export type FromWebviewMessage = WebviewIntialized |
 	ICustomKernelMessage |
 	ICustomRendererMessage |
 	IClickedDataUrlMessage |
-	IClickMarkdownPreviewMessage |
-	IContextMenuMarkdownPreviewMessage |
-	IMouseEnterMarkdownPreviewMessage |
-	IMouseLeaveMarkdownPreviewMessage |
-	IToggleMarkdownPreviewMessage |
+	IClickMarkupCellMessage |
+	IContextMenuMarkupCellMessage |
+	IMouseEnterMarkupCellMessage |
+	IMouseLeaveMarkupCellMessage |
+	IToggleMarkupPreviewMessage |
 	ICellDragStartMessage |
 	ICellDragMessage |
 	ICellDropMessage |
 	ICellDragEndMessage |
-	IInitializedMarkdownPreviewMessage |
+	IInitializedMarkupMessage |
 	ITelemetryFoundRenderedMarkdownMath |
 	ITelemetryFoundUnrenderedMarkdownMath;
 

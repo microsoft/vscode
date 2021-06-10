@@ -3,7 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, trackDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, IReference, trackDisposable } from 'vs/base/common/lifecycle';
+
+export function createDisposableRef<T>(object: T, disposable?: IDisposable): IReference<T> {
+	return {
+		object,
+		dispose: () => disposable?.dispose(),
+	};
+}
 
 // TODO: merge this class into Matt's MutableDisposable.
 /**
