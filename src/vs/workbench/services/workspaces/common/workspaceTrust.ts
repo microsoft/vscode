@@ -85,17 +85,17 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _canonicalWorkspace: IWorkspace;
 	private _canonicalOpenFiles: URI[] = [];
 	private _canonicalUrisResolved: boolean;
 
 	private _isTrusted: boolean;
-	protected readonly _trustState: WorkspaceTrustState;
+	private _trustStateInfo: IWorkspaceTrustInfo;
+	private readonly _trustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
 	constructor(
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
