@@ -548,7 +548,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 			case 'html': {
 				const data = event.data;
-				outputs.enqueue(event.data.outputId, async (state) => {
+				outputRunner.enqueue(event.data.outputId, async (state) => {
 					const preloadsAndErrors = await Promise.all<unknown>([
 						data.rendererId ? renderers.load(data.rendererId) : undefined,
 						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
@@ -558,28 +558,8 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						return;
 					}
 
-					let cellOutputContainer = document.getElementById(data.cellId);
 					const outputId = data.outputId;
-					if (!cellOutputContainer) {
-						const container = document.getElementById('container')!;
-
-						const upperWrapperElement = createFocusSink(data.cellId);
-						container.appendChild(upperWrapperElement);
-
-						const newElement = document.createElement('div');
-
-						newElement.id = data.cellId;
-						newElement.classList.add('cell_container');
-
-						container.appendChild(newElement);
-						cellOutputContainer = newElement;
-
-						const lowerWrapperElement = createFocusSink(data.cellId, true);
-						container.appendChild(lowerWrapperElement);
-					}
-
-					cellOutputContainer.style.position = 'absolute';
-					cellOutputContainer.style.top = data.cellTop + 'px';
+					const cellOutputContainer = notebookDocument.ensureOutputCell(data.cellId, data.cellTop);
 
 					const outputContainer = document.createElement('div');
 					outputContainer.classList.add('output_container');
@@ -706,7 +686,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				const output = document.getElementById(event.data.outputId);
 				const { rendererId, outputId } = event.data;
 
-				outputs.cancelOutput(outputId);
+				outputRunner.cancelOutput(outputId);
 				if (output && output.parentNode) {
 					if (rendererId) {
 						renderers.clearOutput(rendererId, outputId);
@@ -718,7 +698,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 			case 'hideOutput': {
 				const { outputId } = event.data;
-				outputs.enqueue(event.data.outputId, () => {
+				outputRunner.enqueue(event.data.outputId, () => {
 					const container = document.getElementById(outputId)?.parentElement?.parentElement;
 					if (container) {
 						container.style.visibility = 'hidden';
@@ -728,7 +708,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 			case 'showOutput': {
 				const { outputId, cellTop: top } = event.data;
-				outputs.enqueue(event.data.outputId, () => {
+				outputRunner.enqueue(event.data.outputId, () => {
 					const output = document.getElementById(outputId);
 					if (output) {
 						output.parentElement!.parentElement!.style.visibility = 'visible';
@@ -903,8 +883,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	};
 
-	const outputs = new class {
-		private outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+	const outputRunner = new class {
+		private readonly outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+
 		/**
 		 * Pushes the action onto the list of actions for the given output ID,
 		 * ensuring that it's run in-order.
@@ -971,14 +952,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 
 		public clearAll() {
-			outputs.cancelAll();
+			outputRunner.cancelAll();
 			for (const renderer of this._renderers.values()) {
 				renderer.api?.disposeOutputItem?.();
 			}
 		}
 
 		public clearOutput(rendererId: string, outputId: string) {
-			outputs.cancelOutput(outputId);
+			outputRunner.cancelOutput(outputId);
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
@@ -1002,6 +983,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	const notebookDocument = new class {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
+		private readonly _outputCells = new Map<string, OutputCell>();
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
@@ -1081,6 +1063,18 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		public clearAll() {
 			this._markupCells.clear();
+			this._outputCells.clear();
+		}
+
+		public ensureOutputCell(cellId: string, cellTop: number): HTMLElement {
+			let cell = this._outputCells.get(cellId);
+			if (!cell) {
+				cell = new OutputCell(cellId);
+				this._outputCells.set(cellId, cell);
+			}
+
+			cell.element.style.top = cellTop + 'px';
+			return cell.element;
 		}
 	}();
 
@@ -1240,6 +1234,30 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				this.element.classList.remove('draggable');
 				this.element.removeAttribute('draggable');
 			}
+		}
+	}
+
+	class OutputCell {
+
+		public readonly element: HTMLElement;
+
+		constructor(cellId: string) {
+			const container = document.getElementById('container')!;
+
+			const upperWrapperElement = createFocusSink(cellId);
+			container.appendChild(upperWrapperElement);
+
+			this.element = document.createElement('div');
+			this.element.style.position = 'absolute';
+
+			this.element.id = cellId;
+			this.element.classList.add('cell_container');
+
+			container.appendChild(this.element);
+			this.element = this.element;
+
+			const lowerWrapperElement = createFocusSink(cellId, true);
+			container.appendChild(lowerWrapperElement);
 		}
 	}
 
