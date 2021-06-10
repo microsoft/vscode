@@ -574,9 +574,9 @@
 	display: block;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-input.select-container {
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
 	width: 320px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-input.select-container > select {
+.settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
 	width: inherit;
 }

@@ -204,18 +204,12 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 
 function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
 	return keys => {
-		// let existingKeys: Set<string>;
-		// if (element.setting.uniqueItems) {
-		// 	existingKeys = new Set(keys);
-		// }
 		const enumOptions: IObjectEnumOption[] = [];
 
 		if (element.setting.enum) {
 			element.setting.enum.forEach((staticKey, i) => {
-				// if (!element.setting.uniqueItems || !existingKeys.has(staticKey)) {
 				const description = element.setting.enumDescriptions?.[i];
 				enumOptions.push({ value: staticKey, description });
-				// }
 			});
 		}
 

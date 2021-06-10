@@ -343,6 +343,24 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.listElement.style.height = listHeight + 'px';
 	}
 
+	protected createBasicSelectBox(value: IObjectEnumData): SelectBox {
+		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
+		const selected = value.options.findIndex(option => value.data === option.value);
+
+		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
+			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
+		});
+
+		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
+			selectBackground: settingsSelectBackground,
+			selectForeground: settingsSelectForeground,
+			selectBorder: settingsSelectBorder,
+			selectListBorder: settingsSelectListBorder
+		}));
+		return selectBox;
+	}
+
+
 	protected editSetting(idx: number): void {
 		this.model.setEditKey(idx);
 		this.renderList();
@@ -580,7 +598,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				valueInput = this.renderDropdown(item.value, rowElement);
 				currentEnumOptions = item.value.options;
 				if (item.value.options.length) {
-					currentDisplayValue = currentEnumOptions[0].value;
+					currentDisplayValue = item.value.data;
 				}
 				break;
 		}
@@ -720,21 +738,9 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 		if (value.type !== 'enum') {
 			throw new Error('Valuetype must be enum.');
 		}
-		const selectBoxOptions = value.options.map(({ value, description }) => ({ text: value, description }));
-		const selected = value.options.findIndex(option => value.data === option.value);
+		const selectBox = this.createBasicSelectBox(value);
 
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder,
-			selectListBorder: settingsSelectListBorder
-		}));
-
-		const wrapper = $('.setting-list-object-input');
+		const wrapper = $('.setting-list-object-list-row');
 		selectBox.render(wrapper);
 		rowElement.appendChild(wrapper);
 
@@ -785,7 +791,7 @@ interface IObjectBoolData {
 	data: boolean;
 }
 
-export type ObjectKey = IObjectStringData | IObjectEnumData;
+type ObjectKey = IObjectStringData | IObjectEnumData;
 export type ObjectValue = IObjectStringData | IObjectEnumData | IObjectBoolData;
 
 export interface IObjectDataItem {
@@ -1077,22 +1083,9 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		keyOrValue: IObjectEnumData,
 		{ isKey, originalItem, update }: IObjectRenderEditWidgetOptions,
 	) {
-		const selectBoxOptions = keyOrValue.options.map(({ value, description }) => ({ text: value, description }));
-		const selected = keyOrValue.options.findIndex(option => keyOrValue.data === option.value);
-
-		const selectBox = new SelectBox(selectBoxOptions, selected, this.contextViewService, undefined, {
-			useCustomDrawn: !(isIOS && BrowserFeatures.pointerEvents)
-		});
-
-		this.listDisposables.add(attachSelectBoxStyler(selectBox, this.themeService, {
-			selectBackground: settingsSelectBackground,
-			selectForeground: settingsSelectForeground,
-			selectBorder: settingsSelectBorder,
-			selectListBorder: settingsSelectListBorder
-		}));
+		const selectBox = this.createBasicSelectBox(keyOrValue);
 
 		const originalKeyOrValue = isKey ? originalItem.key : originalItem.value;
-
 		this.listDisposables.add(
 			selectBox.onDidSelect(({ selected }) =>
 				update(
