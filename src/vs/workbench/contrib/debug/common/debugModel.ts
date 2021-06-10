@@ -328,7 +328,8 @@ export class StackFrame implements IStackFrame {
 		public presentationHint: string | undefined,
 		public range: IRange,
 		private index: number,
-		public canRestart: boolean
+		public canRestart: boolean,
+		public instructionPointerReference?: string
 	) { }
 
 	getId(): string {
@@ -491,7 +492,7 @@ export class Thread implements IThread {
 					rsf.column,
 					rsf.endLine || rsf.line,
 					rsf.endColumn || rsf.column
-				), startFrame + index, typeof rsf.canRestart === 'boolean' ? rsf.canRestart : true);
+				), startFrame + index, typeof rsf.canRestart === 'boolean' ? rsf.canRestart : true, rsf.instructionPointerReference);
 			});
 		} catch (err) {
 			if (this.stoppedDetails) {

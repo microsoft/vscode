@@ -144,7 +144,9 @@ class GoToDisassemblyAction extends EditorAction {
 			id: GoToDisassemblyAction.ID,
 			label: GoToDisassemblyAction.LABEL,
 			alias: 'Debug: Go to Disassembly',
-			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			// precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
+			precondition: ContextKeyExpr.and(PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
+
 			contextMenuOpts: {
 				group: 'debug',
 				order: 5

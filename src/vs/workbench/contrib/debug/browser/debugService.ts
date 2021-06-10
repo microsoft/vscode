@@ -991,6 +991,10 @@ export class DebugService implements IDebugService {
 		await this.sendExceptionBreakpoints(session);
 	}
 
+	async getInstructions(session: IDebugSession, memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
+		session.disassemble(memoryReference, offset, instructionOffset, instructionCount);
+	}
+
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {
 		const breakpointsToSend = this.model.getBreakpoints({ uri: modelUri, enabledOnly: true });
 		await sendToOneOrAllSessions(this.model, session, s => s.sendBreakpoints(modelUri, breakpointsToSend, sourceModified));

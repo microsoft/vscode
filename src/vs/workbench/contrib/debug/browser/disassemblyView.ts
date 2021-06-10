@@ -17,7 +17,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DISASSEMBLY_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { DISASSEMBLY_VIEW_ID, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 
 interface IDisassembledInstructionEntry {
@@ -32,16 +32,18 @@ export class DisassemblyView extends EditorPane {
 
 	private _fontInfo: BareFontInfo;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | null;
-
+	private _debugService: IDebugService;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IDebugService debugService: IDebugService
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
+		this._debugService = debugService;
 
 		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 		configurationService.onDidChangeConfiguration(e => {
@@ -99,16 +101,16 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2, '0x00005000');
+		this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2);
 		this._disassembledInstructions.reveal(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, 0.5);
 
 		this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				const topElement = Math.floor(e.scrollTop / this._fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, '0x00004000');
+				this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 				this._disassembledInstructions!.reveal(topElement, 0);
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.loadDisassembledInstructions(this._disassembledInstructions!.length, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, '0x00004000');
+				this.loadDisassembledInstructions(this._disassembledInstructions!.length, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
 		});
 	}
@@ -119,17 +121,26 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
-	private loadDisassembledInstructions(index: number, numInstructions: number, address: string): void {
-		const newEntries: IDisassembledInstructionEntry[] = [];
-		for (let i = 0; i < numInstructions; i++) {
-			newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: { address: `${address}${i}`, instruction: 'instruction instruction, instruction' } });
-		}
-		if (this._disassembledInstructions) {
-			// TODO: append/insert
-			this._disassembledInstructions.splice(index, 0, newEntries);
+	private loadDisassembledInstructions(offset: number, instructionCount: number): void {
+		const session = this._debugService.getViewModel().focusedSession;
+		const frame = this._debugService.getViewModel().focusedStackFrame;
+		const instructionAddress = frame?.instructionPointerReference!;
+
+		const resultEntries = await session?.disassemble(instructionAddress, offset, 0, instructionCount);
+
+		if (resultEntries) {
+			const newEntries: IDisassembledInstructionEntry[] = [];
+
+			for (let i = 0; i < resultEntries.length; i++) {
+				newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: resultEntries[i] });
+			}
+
+			if (this._disassembledInstructions) {
+				// TODO: append/insert
+				this._disassembledInstructions.splice(0, this._disassembledInstructions.length, newEntries);
+			}
 		}
 	}
-
 }
 
 interface IBreakpointColumnTemplateData {

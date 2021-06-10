@@ -267,6 +267,7 @@ export interface IDebugSession extends ITreeElement {
 	evaluate(expression: string, frameId?: number, context?: string): Promise<DebugProtocol.EvaluateResponse | undefined>;
 	customRequest(request: string, args: any): Promise<DebugProtocol.Response | undefined>;
 	cancel(progressId: string): Promise<DebugProtocol.CancelResponse | undefined>;
+	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
 	next(threadId: number): Promise<void>;
@@ -365,6 +366,7 @@ export interface IStackFrame extends ITreeElement {
 	readonly range: IRange;
 	readonly source: Source;
 	readonly canRestart: boolean;
+	readonly instructionPointerReference?: string;
 	getScopes(): Promise<IScope[]>;
 	getMostSpecificScopes(range: IRange): Promise<ReadonlyArray<IScope>>;
 	forgetScopes(): void;

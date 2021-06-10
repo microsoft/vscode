@@ -703,12 +703,13 @@ export class DebugSession implements IDebugSession {
 		return this.raw.cancel({ progressId });
 	}
 
-	async disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembleResponse | undefined> {
+	async disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined> {
 		if (!this.raw) {
 			return Promise.reject(new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'disassemble')));
 		}
 
-		return this.raw.disassemble({ memoryReference, offset, instructionOffset, instructionCount, resolveSymbols: true });
+		const response = await this.raw.disassemble({ memoryReference, offset, instructionOffset, instructionCount, resolveSymbols: true });
+		return response?.body?.instructions;
 	}
 
 	//---- threads
