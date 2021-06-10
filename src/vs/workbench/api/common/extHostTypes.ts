@@ -8,7 +8,7 @@ import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
-import { normalizeMimeType } from 'vs/base/common/mime';
+import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { isArray, isStringArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -3050,7 +3050,7 @@ export class NotebookCellOutputItem {
 
 	static #encoder = new TextEncoder();
 
-	static text(value: string, mime: string = 'text/plain'): NotebookCellOutputItem {
+	static text(value: string, mime: string = Mimes.text): NotebookCellOutputItem {
 		const bytes = NotebookCellOutputItem.#encoder.encode(String(value));
 		return new NotebookCellOutputItem(bytes, mime);
 	}

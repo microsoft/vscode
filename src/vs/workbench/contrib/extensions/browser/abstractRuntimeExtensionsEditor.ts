@@ -14,7 +14,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IExtensionService, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { append, $, reset, Dimension, clearNode } from 'vs/base/browser/dom';
+import { append, $, reset, Dimension, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -22,7 +22,6 @@ import { EnablementState } from 'vs/workbench/services/extensionManagement/commo
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { memoize } from 'vs/base/common/decorators';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -32,7 +31,6 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { Schemas } from 'vs/base/common/network';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { domEvent } from 'vs/base/browser/event';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { RuntimeExtensionsInput } from 'vs/workbench/contrib/extensions/common/runtimeExtensionsInput';
@@ -267,8 +265,7 @@ export abstract class AbstractRuntimeExtensionsEditor extends EditorPane {
 
 				data.root.classList.toggle('odd', index % 2 === 1);
 
-				const onError = Event.once(domEvent(data.icon, 'error'));
-				onError(() => data.icon.src = element.marketplaceInfo?.iconUrlFallback || DefaultIconPath, null, data.elementDisposables);
+				data.elementDisposables.push(addDisposableListener(data.icon, 'error', () => data.icon.src = element.marketplaceInfo?.iconUrlFallback || DefaultIconPath, { once: true }));
 				data.icon.src = element.marketplaceInfo?.iconUrl || DefaultIconPath;
 
 				if (!data.icon.complete) {

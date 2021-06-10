@@ -25,6 +25,7 @@ import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/n
 import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookFileWorkingCopyModel', function () {
 
@@ -35,7 +36,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),
-			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: 'text/plain', value: 'Hello Out' }] }] }],
+			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, value: 'Hello Out' }] }] }],
 			{},
 			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
 		);

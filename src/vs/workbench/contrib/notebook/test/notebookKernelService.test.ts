@@ -16,6 +16,7 @@ import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookKernelService', () => {
 
@@ -176,7 +177,7 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages?: string[], label?: string, viewType?: string }) {
-		this.supportedLanguages = opts?.languages ?? ['text/plain'];
+		this.supportedLanguages = opts?.languages ?? [Mimes.text];
 		this.label = opts?.label ?? this.label;
 		this.viewType = opts?.viewType ?? this.viewType;
 	}

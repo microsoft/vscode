@@ -320,12 +320,12 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	function createFocusSink(cellId: string, outputId: string, focusNext?: boolean) {
+	function createFocusSink(cellId: string, focusNext?: boolean) {
 		const element = document.createElement('div');
 		element.tabIndex = 0;
 		element.addEventListener('focus', () => {
 			postNotebookMessage<webviewMessages.IBlurOutputMessage>('focus-editor', {
-				id: outputId,
+				cellId: cellId,
 				focusNext
 			});
 		});
@@ -357,7 +357,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		return false;
 	}
 
-	class FocusTracker {
+	class OutputFocusTracker {
 		private _outputId: string;
 		private _hasFocus: boolean = false;
 		private _loosingFocus: boolean = false;
@@ -405,14 +405,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	const focusTrackers = new Map<string, FocusTracker>();
+	const outputFocusTrackers = new Map<string, OutputFocusTracker>();
 
-	function addFocusTracker(element: HTMLElement, outputId: string): void {
-		if (focusTrackers.has(outputId)) {
-			focusTrackers.get(outputId)?.dispose();
+	function addOutputFocusTracker(element: HTMLElement, outputId: string): void {
+		if (outputFocusTrackers.has(outputId)) {
+			outputFocusTrackers.get(outputId)?.dispose();
 		}
 
-		focusTrackers.set(outputId, new FocusTracker(element, outputId));
+		outputFocusTrackers.set(outputId, new OutputFocusTracker(element, outputId));
 	}
 
 	function createEmitter<T>(listenerChange: (listeners: Set<Listener<T>>) => void = () => undefined): EmitterLike<T> {
@@ -510,44 +510,46 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				await notebookDocument.ensureMarkupCells(event.data.cells);
+				await viewModel.ensureMarkupCells(event.data.cells);
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
-				notebookDocument.ensureMarkupCells([event.data.cell]);
+				viewModel.ensureMarkupCells([event.data.cell]);
 				break;
 
 			case 'showMarkupCell':
-				notebookDocument.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content);
 				break;
 
 			case 'hideMarkupCells':
 				for (const id of event.data.ids) {
-					notebookDocument.hideMarkupCell(id);
+					viewModel.hideMarkupCell(id);
 				}
 				break;
 
 			case 'unhideMarkupCells':
 				for (const id of event.data.ids) {
-					notebookDocument.unhideMarkupCell(id);
+					viewModel.unhideMarkupCell(id);
 				}
 				break;
 
 			case 'deleteMarkupCell':
 				for (const id of event.data.ids) {
-					notebookDocument.deleteMarkupCell(id);
+					viewModel.deleteMarkupCell(id);
 				}
 				break;
 
 			case 'updateSelectedMarkupCells':
-				notebookDocument.updateSelectedCells(event.data.selectedCellIds);
+				viewModel.updateSelectedCells(event.data.selectedCellIds);
 				break;
 
 			case 'html': {
 				const data = event.data;
-				outputs.enqueue(event.data.outputId, async (state) => {
+				const outputId = data.outputId;
+
+				outputRunner.enqueue(event.data.outputId, async (state) => {
 					const preloadsAndErrors = await Promise.all<unknown>([
 						data.rendererId ? renderers.load(data.rendererId) : undefined,
 						...data.requiredPreloads.map(p => kernelPreloads.waitFor(p.uri)),
@@ -557,48 +559,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						return;
 					}
 
-					let cellOutputContainer = document.getElementById(data.cellId);
-					const outputId = data.outputId;
-					if (!cellOutputContainer) {
-						const container = document.getElementById('container')!;
+					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
+					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
 
-						const upperWrapperElement = createFocusSink(data.cellId, outputId);
-						container.appendChild(upperWrapperElement);
-
-						const newElement = document.createElement('div');
-
-						newElement.id = data.cellId;
-						newElement.classList.add('cell_container');
-
-						container.appendChild(newElement);
-						cellOutputContainer = newElement;
-
-						const lowerWrapperElement = createFocusSink(data.cellId, outputId, true);
-						container.appendChild(lowerWrapperElement);
-					}
-
-					cellOutputContainer.style.position = 'absolute';
-					cellOutputContainer.style.top = data.cellTop + 'px';
-
-					const outputContainer = document.createElement('div');
-					outputContainer.classList.add('output_container');
-					outputContainer.style.position = 'absolute';
-					outputContainer.style.overflow = 'hidden';
-					outputContainer.style.maxHeight = '0px';
-					outputContainer.style.top = `${data.outputOffset}px`;
-
-					const outputNode = document.createElement('div');
-					outputNode.classList.add('output');
-					outputNode.style.position = 'absolute';
-					outputNode.style.top = `0px`;
-					outputNode.style.left = data.left + 'px';
-					// outputNode.style.width = 'calc(100% - ' + data.left + 'px)';
-					// outputNode.style.minHeight = '32px';
-					outputNode.style.padding = '0px';
-					outputNode.id = outputId;
-
-					addMouseoverListeners(outputNode, outputId);
-					addFocusTracker(outputNode, outputId);
 					const content = data.content;
 					if (content.type === RenderOutputType.Html) {
 						const trustedHtml = ttPolicy?.createHTML(content.htmlContent) ?? content.htmlContent;
@@ -634,8 +597,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						}
 					}
 
-					cellOutputContainer.appendChild(outputContainer);
-					outputContainer.appendChild(outputNode);
 					resizeObserver.observe(outputNode, outputId, true);
 
 					if (content.type === RenderOutputType.Html) {
@@ -661,7 +622,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					}
 
 					// don't hide until after this step so that the height is right
-					cellOutputContainer.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
+					cellOutput.element.style.visibility = data.initiallyHidden ? 'hidden' : 'visible';
 				});
 				break;
 			}
@@ -670,84 +631,46 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					for (const request of event.data.widgets) {
-						const widget = document.getElementById(request.outputId);
-						if (widget) {
-							widget.parentElement!.parentElement!.style.top = `${request.cellTop}px`;
-							widget.parentElement!.style.top = `${request.outputOffset}px`;
-							if (request.forceDisplay) {
-								widget.parentElement!.parentElement!.style.visibility = 'visible';
-							}
-						}
-					}
-
-					for (const cell of event.data.markdownPreviews) {
-						const container = document.getElementById(cell.id);
-						if (container) {
-							container.style.top = `${cell.top}px`;
-						}
-					}
-
+					viewModel.updateOutputsScroll(event.data.widgets);
+					viewModel.updateMarkupScrolls(event.data.markupCells);
 					break;
 				}
 			case 'clear':
 				renderers.clearAll();
+				viewModel.clearAll();
 				document.getElementById('container')!.innerText = '';
 
-				focusTrackers.forEach(ft => {
+				outputFocusTrackers.forEach(ft => {
 					ft.dispose();
 				});
-				focusTrackers.clear();
+				outputFocusTrackers.clear();
 				break;
+
 			case 'clearOutput': {
-				const output = document.getElementById(event.data.outputId);
-				const { rendererId, outputId } = event.data;
-
-				outputs.cancelOutput(outputId);
-				if (output && output.parentNode) {
-					if (rendererId) {
-						renderers.clearOutput(rendererId, outputId);
-					}
-					output.parentNode.removeChild(output);
-				}
-
+				const { cellId, rendererId, outputId } = event.data;
+				outputRunner.cancelOutput(outputId);
+				viewModel.clearOutput(cellId, outputId, rendererId);
 				break;
 			}
 			case 'hideOutput': {
-				const { outputId } = event.data;
-				outputs.enqueue(event.data.outputId, () => {
-					const container = document.getElementById(outputId)?.parentElement?.parentElement;
-					if (container) {
-						container.style.visibility = 'hidden';
-					}
+				const { cellId, outputId } = event.data;
+				outputRunner.enqueue(outputId, () => {
+					viewModel.hideOutput(cellId);
 				});
 				break;
 			}
 			case 'showOutput': {
-				const { outputId, cellTop: top } = event.data;
-				outputs.enqueue(event.data.outputId, () => {
-					const output = document.getElementById(outputId);
-					if (output) {
-						output.parentElement!.parentElement!.style.visibility = 'visible';
-						output.parentElement!.parentElement!.style.top = top + 'px';
-
-						dimensionUpdater.update(outputId, output.clientHeight, {
-							isOutput: true,
-						});
-					}
+				const { outputId, cellTop, cellId } = event.data;
+				outputRunner.enqueue(outputId, () => {
+					viewModel.showOutput(cellId, outputId, cellTop);
 				});
 				break;
 			}
-			case 'ack-dimension':
-				{
-					const { outputId, height } = event.data;
-					const output = document.getElementById(outputId);
-					if (output) {
-						output.parentElement!.style.maxHeight = `${height}px`;
-						output.parentElement!.style.height = `${height}px`;
-					}
-					break;
-				}
+			case 'ack-dimension': {
+				const { cellId, outputId, height } = event.data;
+				viewModel.updateOutputHeight(cellId, outputId, height);
+				break;
+			}
 			case 'preload':
 				const resources = event.data.resources;
 				for (const { uri, originalUri } of resources) {
@@ -790,12 +713,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			case 'notebookOptions':
 				currentOptions = event.data.options;
-
-				// Update markdown previews
-				for (const markdownContainer of document.querySelectorAll('.preview')) {
-					setMarkupContainerDraggable(markdownContainer, currentOptions.dragAndDropEnabled);
-				}
-
+				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 				break;
 		}
 	});
@@ -905,8 +823,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	};
 
-	const outputs = new class {
-		private outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+	const outputRunner = new class {
+		private readonly outputs = new Map<string, { cancelled: boolean; queue: Promise<unknown> }>();
+
 		/**
 		 * Pushes the action onto the list of actions for the given output ID,
 		 * ensuring that it's run in-order.
@@ -973,14 +892,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 
 		public clearAll() {
-			outputs.cancelAll();
+			outputRunner.cancelAll();
 			for (const renderer of this._renderers.values()) {
 				renderer.api?.disposeOutputItem?.();
 			}
 		}
 
 		public clearOutput(rendererId: string, outputId: string) {
-			outputs.cancelOutput(outputId);
+			outputRunner.cancelOutput(outputId);
 			this._renderers.get(rendererId)?.api?.disposeOutputItem?.(outputId);
 		}
 
@@ -1001,9 +920,10 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	let hasPostedRenderedMathTelemetry = false;
 	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	const notebookDocument = new class {
+	const viewModel = new class ViewModel {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
+		private readonly _outputCells = new Map<string, OutputCell>();
 
 		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
@@ -1012,11 +932,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return existing;
 			}
 
-			const markdownCell = new MarkupCell(init.cellId, init.mime, init.content, top);
-			this._markupCells.set(init.cellId, markdownCell);
+			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			this._markupCells.set(init.cellId, cell);
 
-			await markdownCell.ready;
-			return markdownCell;
+			await cell.ready;
+			return cell;
 		}
 
 		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
@@ -1074,13 +994,71 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				cell.setSelected(selectedCellSet.has(cell.id));
 			}
 		}
+
+		public toggleDragDropEnabled(dragAndDropEnabled: boolean) {
+			for (const cell of this._markupCells.values()) {
+				cell.toggleDragDropEnabled(dragAndDropEnabled);
+			}
+		}
+
+		public updateMarkupScrolls(markupCells: { id: string; top: number; }[]) {
+			for (const { id, top } of markupCells) {
+				const cell = this._markupCells.get(id);
+				if (cell) {
+					cell.element.style.top = `${top}px`;
+				}
+			}
+		}
+
+		public clearAll() {
+			this._markupCells.clear();
+			this._outputCells.clear();
+		}
+
+		public ensureOutputCell(cellId: string, cellTop: number): OutputCell {
+			let cell = this._outputCells.get(cellId);
+			if (!cell) {
+				cell = new OutputCell(cellId);
+				this._outputCells.set(cellId, cell);
+			}
+
+			cell.element.style.top = cellTop + 'px';
+			return cell;
+		}
+
+		public clearOutput(cellId: string, outputId: string, rendererId: string | undefined) {
+			const cell = this._outputCells.get(cellId);
+			cell?.clearOutput(outputId, rendererId);
+		}
+
+		public showOutput(cellId: string, outputId: string, top: number) {
+			const cell = this._outputCells.get(cellId);
+			cell?.show(outputId, top);
+		}
+
+		public hideOutput(cellId: string) {
+			const cell = this._outputCells.get(cellId);
+			cell?.hide();
+		}
+
+		public updateOutputHeight(cellId: string, outputId: string, height: number) {
+			const cell = this._outputCells.get(cellId);
+			cell?.updateOutputHeight(outputId, height);
+		}
+
+		public updateOutputsScroll(updates: webviewMessages.IContentWidgetTopRequest[]) {
+			for (const request of updates) {
+				const cell = this._outputCells.get(request.cellId);
+				cell?.updateScroll(request);
+			}
+		}
 	}();
 
 	class MarkupCell implements IOutputItem {
 
 		public readonly ready: Promise<void>;
 
-		/// Internal field that holds markdown text
+		/// Internal field that holds text content
 		private _content: string;
 
 		constructor(id: string, mime: string, content: string, top: number) {
@@ -1098,6 +1076,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this.element.classList.add('preview');
 			this.element.style.position = 'absolute';
 			this.element.style.top = top + 'px';
+			this.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 			root.appendChild(this.element);
 
 			this.addEventListeners();
@@ -1155,18 +1134,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				postNotebookMessage<webviewMessages.IMouseLeaveMarkupCellMessage>('mouseLeaveMarkupCell', { cellId: this.id });
 			});
 
-			setMarkupContainerDraggable(this.element, currentOptions.dragAndDropEnabled);
-
 			this.element.addEventListener('dragstart', e => {
-				markdownPreviewDragManager.startDrag(e, this.id);
+				markupCellDragManager.startDrag(e, this.id);
 			});
 
 			this.element.addEventListener('drag', e => {
-				markdownPreviewDragManager.updateDrag(e, this.id);
+				markupCellDragManager.updateDrag(e, this.id);
 			});
 
 			this.element.addEventListener('dragend', e => {
-				markdownPreviewDragManager.endDrag(e, this.id);
+				markupCellDragManager.endDrag(e, this.id);
 			});
 		}
 
@@ -1223,22 +1200,131 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		public setSelected(selected: boolean) {
 			this.element.classList.toggle('selected', selected);
 		}
+
+		public toggleDragDropEnabled(enabled: boolean) {
+			if (enabled) {
+				this.element.classList.add('draggable');
+				this.element.setAttribute('draggable', 'true');
+			} else {
+				this.element.classList.remove('draggable');
+				this.element.removeAttribute('draggable');
+			}
+		}
+	}
+
+	class OutputCell {
+
+		public readonly element: HTMLElement;
+
+		public readonly outputElements = new Map</*outputId*/ string, HTMLElement>();
+
+		constructor(cellId: string) {
+			const container = document.getElementById('container')!;
+
+			const upperWrapperElement = createFocusSink(cellId);
+			container.appendChild(upperWrapperElement);
+
+			this.element = document.createElement('div');
+			this.element.style.position = 'absolute';
+
+			this.element.id = cellId;
+			this.element.classList.add('cell_container');
+
+			container.appendChild(this.element);
+			this.element = this.element;
+
+			const lowerWrapperElement = createFocusSink(cellId, true);
+			container.appendChild(lowerWrapperElement);
+		}
+
+		public createOutputNode(outputId: string, outputOffset: number, left: number): HTMLElement {
+			let outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				outputContainer = document.createElement('div');
+				outputContainer.classList.add('output_container');
+				outputContainer.style.position = 'absolute';
+				outputContainer.style.overflow = 'hidden';
+				this.element.appendChild(outputContainer);
+				this.outputElements.set(outputId, outputContainer);
+			}
+			outputContainer.innerText = '';
+			outputContainer.style.maxHeight = '0px';
+			outputContainer.style.top = `${outputOffset}px`;
+
+			const outputNode = document.createElement('div');
+			outputNode.id = outputId;
+			outputNode.classList.add('output');
+			outputNode.style.position = 'absolute';
+			outputNode.style.top = `0px`;
+			outputNode.style.left = left + 'px';
+			outputNode.style.padding = '0px';
+			outputContainer.appendChild(outputNode);
+
+			addMouseoverListeners(outputNode, outputId);
+			addOutputFocusTracker(outputNode, outputId);
+
+			return outputNode;
+		}
+
+		public clearOutput(outputId: string, rendererId: string | undefined) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			if (rendererId) {
+				renderers.clearOutput(rendererId, outputId);
+			}
+			outputContainer.remove();
+			this.outputElements.delete(outputId);
+		}
+
+		public show(outputId: string, top: number) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			this.element.style.visibility = 'visible';
+			this.element.style.top = `${top}px`;
+
+			dimensionUpdater.update(outputId, outputContainer.clientHeight, {
+				isOutput: true,
+			});
+		}
+
+		public hide() {
+			this.element.style.visibility = 'hidden';
+		}
+
+		public updateOutputHeight(outputId: string, height: number) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			outputContainer.style.maxHeight = `${height}px`;
+			outputContainer.style.height = `${height}px`;
+		}
+
+		public updateScroll(request: webviewMessages.IContentWidgetTopRequest) {
+			this.element.style.top = `${request.cellTop}px`;
+
+			const outputContainer = this.outputElements.get(request.outputId);
+			if (outputContainer) {
+				outputContainer.style.top = `${request.outputOffset}px`;
+			}
+
+			if (request.forceDisplay) {
+				this.element.style.visibility = 'visible';
+			}
+		}
 	}
 
 	vscode.postMessage({
 		__vscode_notebook_message: true,
 		type: 'initialized'
 	});
-
-	function setMarkupContainerDraggable(element: Element, isDraggable: boolean) {
-		if (isDraggable) {
-			element.classList.add('draggable');
-			element.setAttribute('draggable', 'true');
-		} else {
-			element.classList.remove('draggable');
-			element.removeAttribute('draggable');
-		}
-	}
 
 	function postNotebookMessage<T extends webviewMessages.FromWebviewMessage>(
 		type: T['type'],
@@ -1251,13 +1337,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		});
 	}
 
-	const markdownPreviewDragManager = new class MarkdownPreviewDragManager {
+	const markupCellDragManager = new class MarkupCellDragManager {
 
 		private currentDrag: { cellId: string, clientY: number } | undefined;
 
 		constructor() {
 			document.addEventListener('dragover', e => {
-				// Allow dropping dragged markdown cells
+				// Allow dropping dragged markup cells
 				e.preventDefault();
 			});
 

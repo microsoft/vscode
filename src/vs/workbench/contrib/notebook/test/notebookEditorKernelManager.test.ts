@@ -20,6 +20,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookEditorKernelManager', () => {
 
@@ -151,6 +152,6 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages: string[] }) {
-		this.supportedLanguages = opts?.languages ?? ['text/plain'];
+		this.supportedLanguages = opts?.languages ?? [Mimes.text];
 	}
 }

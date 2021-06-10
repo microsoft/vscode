@@ -3,9 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-
 import * as DOM from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
 import { Delayer } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
@@ -49,8 +47,8 @@ export class CellDragAndDropController extends Disposable {
 
 		this.listInsertionIndicator = DOM.append(insertionIndicatorContainer, $('.cell-list-insertion-indicator'));
 
-		this._register(domEvent(document.body, DOM.EventType.DRAG_START, true)(this.onGlobalDragStart.bind(this)));
-		this._register(domEvent(document.body, DOM.EventType.DRAG_END, true)(this.onGlobalDragEnd.bind(this)));
+		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
+		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
 		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
 			this._register(DOM.addDisposableListener(
@@ -300,7 +298,7 @@ export class CellDragAndDropController extends Disposable {
 		const container = templateData.container;
 		dragHandle.setAttribute('draggable', 'true');
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_END)(() => {
+		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
 			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
 				return;
 			}
@@ -310,7 +308,7 @@ export class CellDragAndDropController extends Disposable {
 			this.dragCleanup();
 		}));
 
-		templateData.disposables.add(domEvent(dragHandle, DOM.EventType.DRAG_START)(event => {
+		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, event => {
 			if (!event.dataTransfer) {
 				return;
 			}

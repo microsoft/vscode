@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.58.0",
-  "distro": "3f43781e788d694f33746808cc5182852222f935",
+  "distro": "f9acd3d731fc630bf6b665d551d5fa12ce0560e6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -103,7 +103,8 @@
     "@types/minimist": "^1.2.1",
     "@types/mocha": "^8.2.0",
     "@types/node": "14.x",
-    "@types/sinon": "^1.16.36",
+    "@types/sinon": "^10.0.2",
+    "@types/sinon-test": "^2.4.2",
     "@types/trusted-types": "^1.0.6",
     "@types/vscode-windows-registry": "^1.0.0",
     "@types/webpack": "^4.41.25",
@@ -183,7 +184,8 @@
     "rcedit": "^1.1.0",
     "request": "^2.85.0",
     "rimraf": "^2.2.8",
-    "sinon": "^1.17.2",
+    "sinon": "^11.1.1",
+    "sinon-test": "^3.1.0",
     "source-map": "0.6.1",
     "source-map-support": "^0.3.2",
     "style-loader": "^1.0.0",
@@ -196,7 +198,7 @@
     "vinyl-fs": "^3.0.0",
     "vscode-debugprotocol": "1.47.0",
     "vscode-nls-dev": "^3.3.1",
-    "vscode-telemetry-extractor": "^1.7.0",
+    "vscode-telemetry-extractor": "^1.8.0",
     "webpack": "^4.43.0",
     "webpack-cli": "^3.3.12",
     "webpack-stream": "^5.2.1",
