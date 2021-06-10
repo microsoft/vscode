@@ -664,17 +664,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				outputFocusTrackers.clear();
 				break;
 			case 'clearOutput': {
-				const output = document.getElementById(event.data.outputId);
-				const { rendererId, outputId } = event.data;
-
+				const { cellId, rendererId, outputId } = event.data;
 				outputRunner.cancelOutput(outputId);
-				if (output && output.parentNode) {
-					if (rendererId) {
-						renderers.clearOutput(rendererId, outputId);
-					}
-					output.parentNode.removeChild(output);
-				}
-
+				notebookDocument.clearOutput(cellId, outputId, rendererId);
 				break;
 			}
 			case 'hideOutput': {
@@ -1057,6 +1049,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			cell.element.style.top = cellTop + 'px';
 			return cell;
 		}
+
+		public clearOutput(cellId: string, outputId: string, rendererId: string | undefined) {
+			const cell = this._outputCells.get(cellId);
+			cell?.clearOutput(outputId, rendererId);
+		}
 	}();
 
 	class MarkupCell implements IOutputItem {
@@ -1251,6 +1248,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				outputContainer.style.position = 'absolute';
 				outputContainer.style.overflow = 'hidden';
 				this.element.appendChild(outputContainer);
+				this.outputElements.set(outputId, outputContainer);
 			}
 			outputContainer.innerText = '';
 			outputContainer.style.maxHeight = '0px';
@@ -1269,6 +1267,19 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			addOutputFocusTracker(outputNode, outputId);
 
 			return outputNode;
+		}
+
+		public clearOutput(outputId: string, rendererId: string | undefined) {
+			const outputContainer = this.outputElements.get(outputId);
+			if (!outputContainer) {
+				return;
+			}
+
+			if (rendererId) {
+				renderers.clearOutput(rendererId, outputId);
+			}
+			outputContainer.remove();
+			this.outputElements.delete(outputId);
 		}
 	}
 
