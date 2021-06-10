@@ -207,7 +207,8 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		// None of the test run the project
+		// None of the current smoke tests have a dependency on the packages.
+		// If new smoke tests are added that need the packages, uncomment this.
 		// console.log('*** Running yarn...');
 		// cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
@@ -299,27 +300,16 @@ describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
 	}
 
 	describe(`VSCode Smoke Tests (${opts.web ? 'Web' : 'Electron'})`, () => {
-		before(async function () {
-			const app = new Application(this.defaultOptions);
-			await app!.start(opts.web ? false : undefined);
-			this.app = app;
-		});
-
-		after(async function () {
-			await this.app.stop();
-		});
-
-		if (!opts.web) { setupDataLossTests(); }
-		if (!opts.web) { setupDataPreferencesTests(); }
-		setupDataSearchTests();
-		setupDataNotebookTests();
-		setupDataLanguagesTests();
-		setupDataEditorTests();
-		setupDataStatusbarTests(!!opts.web);
-		setupDataExtensionTests();
-		if (!opts.web) { setupDataMultirootTests(); }
-		if (!opts.web) { setupDataLocalizationTests(); }
+		if (!opts.web) { setupDataLossTests(opts); }
+		if (!opts.web) { setupDataPreferencesTests(opts); }
+		setupDataSearchTests(opts);
+		setupDataNotebookTests(opts);
+		setupDataLanguagesTests(opts);
+		setupDataEditorTests(opts);
+		setupDataStatusbarTests(opts);
+		setupDataExtensionTests(opts);
+		if (!opts.web) { setupDataMultirootTests(opts); }
+		if (!opts.web) { setupDataLocalizationTests(opts); }
 		if (!opts.web) { setupLaunchTests(); }
 	});
 });
-
