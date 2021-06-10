@@ -103,15 +103,7 @@ export interface TransientOptions {
 	transientDocumentMetadata: TransientDocumentMetadata;
 }
 
-export interface INotebookMimeTypeSelector {
-	mimeTypes?: string[];
-}
 
-/**
- * Passed to INotebookRendererInfo.matches when the notebook is initially
- * loaded before the kernel is known.
- */
-export const AnyRendererApi = Symbol('AnyRendererApi');
 
 /** Note: enum values are used for sorting */
 export const enum NotebookRendererMatch {
@@ -155,13 +147,6 @@ export interface INotebookRendererInfo {
 	matches(mimeType: string, kernelProvides: ReadonlyArray<string>): NotebookRendererMatch;
 }
 
-
-export interface NotebookCellOutputMetadata {
-	/**
-	 * Additional attributes of a cell metadata.
-	 */
-	custom?: { [key: string]: unknown; };
-}
 
 export interface IOrderedMimeType {
 	mimeType: string;
@@ -242,17 +227,9 @@ export interface IMainCellDto {
 	internalMetadata?: NotebookCellInternalMetadata;
 }
 
-export type NotebookCellsSplice2 = [
-	start: number,
-	deleteCount: number,
-	newItems: IMainCellDto[]
-];
-
 export enum NotebookCellsChangeType {
 	ModelChange = 1,
 	Move = 2,
-	CellClearOutput = 3,
-	CellsClearOutput = 4,
 	ChangeLanguage = 5,
 	Initialize = 6,
 	ChangeCellMetadata = 7,
@@ -485,20 +462,6 @@ export interface INotebookContributionData {
 }
 
 
-export function getCellUndoRedoComparisonKey(uri: URI, undoRedoPerCell: boolean) {
-	if (undoRedoPerCell) {
-		return uri.toString();
-	}
-
-	const data = CellUri.parse(uri);
-	if (!data) {
-		return uri.toString();
-	}
-
-	return data.notebook.toString();
-}
-
-
 export namespace CellUri {
 
 	export const scheme = Schemas.vscodeNotebookCell;
@@ -607,10 +570,6 @@ export function mimeTypeSupportedByCore(mimeType: string) {
 export function mimeTypeIsMergeable(mimeType: string): boolean {
 	return _mimeTypeInfo.get(mimeType)?.mergeable ?? false;
 }
-
-// if (isWindows) {
-// 	value = value.replace(/\//g, '\\');
-// }
 
 function matchGlobUniversal(pattern: string, path: string) {
 	if (isWindows) {
@@ -748,12 +707,6 @@ export interface INotebookDiffEditorModel extends IEditorModel {
 	modified: IResolvedNotebookEditorModel;
 	resolveOriginalFromDisk(): Promise<void>;
 	resolveModifiedFromDisk(): Promise<void>;
-}
-
-export interface INotebookTextModelBackup {
-	metadata: NotebookDocumentMetadata;
-	languages: string[];
-	cells: ICellDto2[];
 }
 
 export interface NotebookDocumentBackupData extends IWorkingCopyBackupMeta {
