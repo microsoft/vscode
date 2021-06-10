@@ -511,39 +511,39 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				await notebookDocument.ensureMarkupCells(event.data.cells);
+				await viewModel.ensureMarkupCells(event.data.cells);
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
-				notebookDocument.ensureMarkupCells([event.data.cell]);
+				viewModel.ensureMarkupCells([event.data.cell]);
 				break;
 
 			case 'showMarkupCell':
-				notebookDocument.showMarkupCell(event.data.id, event.data.top, event.data.content);
+				viewModel.showMarkupCell(event.data.id, event.data.top, event.data.content);
 				break;
 
 			case 'hideMarkupCells':
 				for (const id of event.data.ids) {
-					notebookDocument.hideMarkupCell(id);
+					viewModel.hideMarkupCell(id);
 				}
 				break;
 
 			case 'unhideMarkupCells':
 				for (const id of event.data.ids) {
-					notebookDocument.unhideMarkupCell(id);
+					viewModel.unhideMarkupCell(id);
 				}
 				break;
 
 			case 'deleteMarkupCell':
 				for (const id of event.data.ids) {
-					notebookDocument.deleteMarkupCell(id);
+					viewModel.deleteMarkupCell(id);
 				}
 				break;
 
 			case 'updateSelectedMarkupCells':
-				notebookDocument.updateSelectedCells(event.data.selectedCellIds);
+				viewModel.updateSelectedCells(event.data.selectedCellIds);
 				break;
 
 			case 'html': {
@@ -560,7 +560,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 						return;
 					}
 
-					const cellOutput = notebookDocument.ensureOutputCell(data.cellId, data.cellTop);
+					const cellOutput = viewModel.ensureOutputCell(data.cellId, data.cellTop);
 					const outputNode = cellOutput.createOutputNode(outputId, data.outputOffset, data.left);
 
 					const content = data.content;
@@ -633,13 +633,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					// const date = new Date();
 					// console.log('----- will scroll ----  ', date.getMinutes() + ':' + date.getSeconds() + ':' + date.getMilliseconds());
 
-					notebookDocument.updateOutputsScroll(event.data.widgets);
-					notebookDocument.updateMarkupScrolls(event.data.markupCells);
+					viewModel.updateOutputsScroll(event.data.widgets);
+					viewModel.updateMarkupScrolls(event.data.markupCells);
 					break;
 				}
 			case 'clear':
 				renderers.clearAll();
-				notebookDocument.clearAll();
+				viewModel.clearAll();
 				document.getElementById('container')!.innerText = '';
 
 				outputFocusTrackers.forEach(ft => {
@@ -651,26 +651,26 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			case 'clearOutput': {
 				const { cellId, rendererId, outputId } = event.data;
 				outputRunner.cancelOutput(outputId);
-				notebookDocument.clearOutput(cellId, outputId, rendererId);
+				viewModel.clearOutput(cellId, outputId, rendererId);
 				break;
 			}
 			case 'hideOutput': {
 				const { cellId, outputId } = event.data;
 				outputRunner.enqueue(outputId, () => {
-					notebookDocument.hideOutput(cellId);
+					viewModel.hideOutput(cellId);
 				});
 				break;
 			}
 			case 'showOutput': {
 				const { outputId, cellTop, cellId } = event.data;
 				outputRunner.enqueue(outputId, () => {
-					notebookDocument.showOutput(cellId, outputId, cellTop);
+					viewModel.showOutput(cellId, outputId, cellTop);
 				});
 				break;
 			}
 			case 'ack-dimension': {
 				const { cellId, outputId, height } = event.data;
-				notebookDocument.updateOutputHeight(cellId, outputId, height);
+				viewModel.updateOutputHeight(cellId, outputId, height);
 				break;
 			}
 			case 'preload':
@@ -715,7 +715,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			case 'notebookOptions':
 				currentOptions = event.data.options;
-				notebookDocument.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
+				viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 				break;
 		}
 	});
@@ -922,7 +922,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	let hasPostedRenderedMathTelemetry = false;
 	const unsupportedKatexTermsRegex = /(\\(?:abovewithdelims|array|Arrowvert|arrowvert|atopwithdelims|bbox|bracevert|buildrel|cancelto|cases|class|cssId|ddddot|dddot|DeclareMathOperator|definecolor|displaylines|enclose|eqalign|eqalignno|eqref|hfil|hfill|idotsint|iiiint|label|leftarrowtail|leftroot|leqalignno|lower|mathtip|matrix|mbox|mit|mmlToken|moveleft|moveright|mspace|newenvironment|Newextarrow|notag|oldstyle|overparen|overwithdelims|pmatrix|raise|ref|renewenvironment|require|root|Rule|scr|shoveleft|shoveright|sideset|skew|Space|strut|style|texttip|Tiny|toggle|underparen|unicode|uproot)\b)/gi;
 
-	const notebookDocument = new class {
+	const viewModel = new class ViewModel {
 
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
