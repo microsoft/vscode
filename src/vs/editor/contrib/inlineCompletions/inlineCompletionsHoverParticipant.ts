@@ -18,7 +18,8 @@ import { ITextContentData, IViewZoneData } from 'vs/editor/browser/controller/mo
 export class InlineCompletionsHover implements IHoverPart {
 	constructor(
 		public readonly owner: IEditorHoverParticipant<InlineCompletionsHover>,
-		public readonly range: Range
+		public readonly range: Range,
+		public readonly controller: GhostTextController
 	) { }
 
 	public isValidForHoverAnchor(anchor: HoverAnchor): boolean {
@@ -27,6 +28,10 @@ export class InlineCompletionsHover implements IHoverPart {
 			&& this.range.startColumn <= anchor.range.startColumn
 			&& this.range.endColumn >= anchor.range.endColumn
 		);
+	}
+
+	public hasMultipleSuggestions(): Promise<boolean> {
+		return this.controller.hasMultipleInlineCompletions();
 	}
 }
 
@@ -70,7 +75,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	computeSync(anchor: HoverAnchor, lineDecorations: IModelDecoration[]): InlineCompletionsHover[] {
 		const controller = GhostTextController.get(this._editor);
 		if (controller && controller.shouldShowHoverAt(anchor.range)) {
-			return [new InlineCompletionsHover(this, anchor.range)];
+			return [new InlineCompletionsHover(this, anchor.range, controller)];
 		}
 		return [];
 	}
@@ -81,12 +86,12 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			this._contextKeyService
 		);
 
-		statusBar.addAction({
+		const previousAction = statusBar.addAction({
 			label: nls.localize('showNextInlineSuggestion', "Next"),
 			commandId: ShowNextInlineSuggestionAction.ID,
 			run: () => this._commandService.executeCommand(ShowNextInlineSuggestionAction.ID)
 		});
-		statusBar.addAction({
+		const nextAction = statusBar.addAction({
 			label: nls.localize('showPreviousInlineSuggestion', "Previous"),
 			commandId: ShowPreviousInlineSuggestionAction.ID,
 			run: () => this._commandService.executeCommand(ShowPreviousInlineSuggestionAction.ID)
@@ -95,6 +100,16 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			label: nls.localize('acceptInlineSuggestion', "Accept"),
 			commandId: commitInlineSuggestionAction.id,
 			run: () => this._commandService.executeCommand(commitInlineSuggestionAction.id)
+		});
+
+		const actions = [previousAction, nextAction];
+		for (const action of actions) {
+			action.setEnabled(false);
+		}
+		hoverParts[0].hasMultipleSuggestions().then(hasMore => {
+			for (const action of actions) {
+				action.setEnabled(hasMore);
+			}
 		});
 
 		for (const [_, group] of menu.getActions()) {
