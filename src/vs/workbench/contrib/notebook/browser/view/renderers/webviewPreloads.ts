@@ -248,21 +248,16 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
-							let height = 0;
 							if (entry.contentRect.height !== 0) {
 								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
-								height = entry.contentRect.height + style.outputNodePadding * 2;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							dimensionUpdater.update(observedElementInfo.id, height, {
-								isOutput: true
-							});
-						} else {
-							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
-								isOutput: false
-							});
 						}
+
+						dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
+							isOutput: observedElementInfo.output
+						});
 					}
 				}
 			});
