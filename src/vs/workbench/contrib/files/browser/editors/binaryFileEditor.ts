@@ -48,12 +48,12 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
 			// Try to let the user pick an override if there is one availabe
 			let overridenInput: ReturnedOverride | undefined = await this.editorOverrideService.resolveEditorOverride(input, { ...options, override: EditorOverride.PICK, }, this.group);
-
-			if (overridenInput === OverrideStatus.ABORT) {
-				return;
-			} else if (overridenInput === OverrideStatus.NONE) {
+			if (overridenInput === OverrideStatus.NONE) {
 				overridenInput = undefined;
+			} else if (overridenInput === OverrideStatus.ABORT) {
+				return;
 			}
+
 			// Replace the overrriden input, with the text based input
 			await this.editorService.replaceEditors([{
 				editor: input,
