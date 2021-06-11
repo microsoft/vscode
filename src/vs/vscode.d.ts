@@ -5801,7 +5801,7 @@ declare module 'vscode' {
 	/**
 	 * A link on a terminal line.
 	 */
-	export interface TerminalLink {
+	export class TerminalLink {
 		/**
 		 * The start index of the link on {@link TerminalLinkContext.line}.
 		 */
@@ -5820,6 +5820,8 @@ declare module 'vscode' {
 		 * depending on OS, user settings, and localization.
 		 */
 		tooltip?: string;
+
+		constructor(startIndex: number, length: number, tooltip?: string);
 	}
 
 	/**
