@@ -598,10 +598,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					resizeObserver.observe(outputNode, outputId, true);
 
-					if (content.type === RenderOutputType.Html) {
-						domEval(outputNode);
-					}
-
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
