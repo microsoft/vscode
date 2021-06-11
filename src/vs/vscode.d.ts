@@ -5828,11 +5828,13 @@ declare module 'vscode' {
 	/**
 	 * A terminal profile defines how a termianl will be launched.
 	 */
-	export interface TerminalProfile {
+	export class TerminalProfile {
 		/**
 		 * The options that the terminal will launch with.
 		 */
 		options: TerminalOptions | ExtensionTerminalOptions;
+
+		constructor(options: TerminalOptions | ExtensionTerminalOptions);
 	}
 
 	/**

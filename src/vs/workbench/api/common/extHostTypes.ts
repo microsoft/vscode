@@ -1729,6 +1729,13 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export class TerminalProfile implements vscode.TerminalProfile {
+	constructor(
+		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
+	) {
+	}
+}
+
 export enum TaskRevealKind {
 	Always = 1,
 
