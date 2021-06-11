@@ -833,10 +833,16 @@ suite('QueryBuilder', () => {
 					}
 				],
 				[
+					'./folder/onesomethingelse',
+					{ searchPaths: [] }
+				],
+				[
+					'./folder/onesomethingelse/foo',
+					{ searchPaths: [] }
+				],
+				[
 					'./folder',
-					{
-						searchPaths: []
-					}
+					{ searchPaths: [] }
 				]
 			];
 			cases.forEach(testIncludesDataItem);
