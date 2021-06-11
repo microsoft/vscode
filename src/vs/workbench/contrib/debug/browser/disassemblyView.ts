@@ -14,7 +14,7 @@ import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DISASSEMBLY_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
@@ -134,7 +134,7 @@ export class DisassemblyView extends EditorPane {
 
 interface IBreakpointColumnTemplateData {
 	container: HTMLElement,
-	icon: HTMLElement | undefined
+	icon: HTMLElement
 }
 
 class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
@@ -144,55 +144,37 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
 
 	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
-		return { container, icon: undefined };
+		const icon = append(container, $('.disassembly-view'));
+		icon.classList.add('codicon');
+		return { container, icon };
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
 		if (element.allowBreakpoint) {
+			const breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
+			const breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
+
 			if (element.isBreakpointSet) {
-				templateData.container.className = ThemeIcon.asClassName(icons.breakpoint.regular);
-			} else {
-				templateData.container.onmouseover = () => {
-					if (!templateData.icon) {
-						templateData.icon = append(templateData.container, $('.icon'));
-					}
-					templateData.icon.className = ThemeIcon.asClassName(icons.debugBreakpointHint);
-				};
-				templateData.container.onmouseout = () => {
-					if (templateData.icon) {
-						templateData.container.removeChild(templateData.icon);
-						templateData.icon = undefined;
-					}
-				};
+				templateData.icon.classList.add(breakpointIcon);
 			}
+
+			templateData.container.onmouseover = () => {
+				templateData.icon.classList.add(breakpointHintIcon);
+			};
+
+			templateData.container.onmouseout = () => {
+				templateData.icon.classList.remove(breakpointHintIcon);
+			};
 
 			templateData.container.onclick = () => {
 				if (element.isBreakpointSet) {
 					element.isBreakpointSet = false;
-					if (templateData.icon) {
-						templateData.container.removeChild(templateData.icon);
-						templateData.icon = undefined;
-					}
-					templateData.container.onmouseover = () => {
-						templateData.icon = append(templateData.container, $('.icon'));
-						templateData.icon.className = ThemeIcon.asClassName(icons.debugBreakpointHint);
-					};
-					templateData.container.onmouseout = () => {
-						if (templateData.icon) {
-							templateData.container.removeChild(templateData.icon);
-							templateData.icon = undefined;
-						}
-					};
+					templateData.icon.classList.remove(breakpointIcon);
 				} else if (element.allowBreakpoint) {
 					element.isBreakpointSet = true;
-					if (!templateData.icon) {
-						templateData.icon = append(templateData.container, $('.icon'));
-					}
-					templateData.icon.className = ThemeIcon.asClassName(icons.breakpoint.regular);
-					templateData.container.onmouseover = null;
-					templateData.container.onmouseout = null;
+					templateData.icon.classList.add(breakpointIcon);
 				}
 			};
 		}
