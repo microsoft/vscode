@@ -15,8 +15,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
@@ -72,6 +71,18 @@ export enum ContributedEditorPriority {
 	default = 'default'
 }
 
+/**
+ * If we didn't resolve an override dictates what to do with the opening state
+ * ABORT = Do not continue with opening the editor
+ * NONE = Continue as if the override has been disabled as the service could not resolve one
+ */
+export const enum OverrideStatus {
+	ABORT = 1,
+	NONE = 2,
+}
+
+export type ReturnedOverride = IEditorInputWithOptionsAndGroup | OverrideStatus;
+
 export type RegisteredEditorOptions = {
 	/**
 	 * If your editor cannot be opened in multiple groups for the same resource
@@ -91,7 +102,6 @@ export type RegisteredEditorOptions = {
 
 export type ContributedEditorInfo = {
 	id: string;
-	describes: (currentEditor: IEditorInput) => boolean;
 	label: string;
 	detail?: string;
 	priority: ContributedEditorPriority;
@@ -99,7 +109,7 @@ export type ContributedEditorInfo = {
 
 export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -137,9 +147,9 @@ export interface IEditorOverrideService {
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
