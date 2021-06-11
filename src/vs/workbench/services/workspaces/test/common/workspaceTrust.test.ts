@@ -19,27 +19,28 @@ import { TestContextService, TestStorageService } from 'vs/workbench/test/common
 
 suite('Workspace Trust', () => {
 	let testObject: WorkspaceTrustManagementService;
+
 	let instantiationService: TestInstantiationService;
-	let testConfigurationService: TestConfigurationService;
-	let testEnvironmentService: IWorkbenchEnvironmentService;
-	let testStorageService: TestStorageService;
-	let testWorkspaceService: TestContextService;
+	let configurationService: TestConfigurationService;
+	let environmentService: IWorkbenchEnvironmentService;
+	let storageService: TestStorageService;
+	let workspaceService: TestContextService;
 
 	setup(async () => {
 		instantiationService = new TestInstantiationService();
 
-		testConfigurationService = new TestConfigurationService();
-		instantiationService.stub(IConfigurationService, testConfigurationService);
-		await testConfigurationService.setUserConfiguration('security', getUserSettings());
+		configurationService = new TestConfigurationService();
+		instantiationService.stub(IConfigurationService, configurationService);
+		await configurationService.setUserConfiguration('security', getUserSettings());
 
-		testStorageService = new TestStorageService();
-		instantiationService.stub(IStorageService, testStorageService);
+		storageService = new TestStorageService();
+		instantiationService.stub(IStorageService, storageService);
 
-		testWorkspaceService = new TestContextService();
-		instantiationService.stub(IWorkspaceContextService, testWorkspaceService);
+		workspaceService = new TestContextService();
+		instantiationService.stub(IWorkspaceContextService, workspaceService);
 
-		testEnvironmentService = { configuration: {} } as IWorkbenchEnvironmentService;
-		instantiationService.stub(IWorkbenchEnvironmentService, testEnvironmentService);
+		environmentService = { configuration: {} } as IWorkbenchEnvironmentService;
+		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
 		instantiationService.stub(IUriIdentityService, new class extends mock<IUriIdentityService>() { });
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
@@ -48,33 +49,30 @@ suite('Workspace Trust', () => {
 	teardown(() => testObject.dispose());
 
 	suite('Initialization', () => {
-		test.only('workspace trust disabled (user settings)', async () => {
-			await testConfigurationService.setUserConfiguration('security', getUserSettings(false));
+		test('workspace trust disabled (user settings)', async () => {
+			await configurationService.setUserConfiguration('security', getUserSettings(false));
 
 			testObject = await initializeTestObject();
 			assert.strictEqual(true, testObject.isWorkpaceTrusted());
 		});
 
 		test('workspace trust disabled (--disable-workspace-trust)', async () => {
-			instantiationService.stub(IWorkbenchEnvironmentService, { ...testEnvironmentService, disableWorkspaceTrust: true });
+			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService, disableWorkspaceTrust: true });
 
 			testObject = await initializeTestObject();
 			assert.strictEqual(true, testObject.isWorkpaceTrusted());
 		});
 
-		test('empty workspace - trusted, no open files', async () => {
-			const workspace = new Workspace('empty-workspace');
-			testWorkspaceService.setWorkspace(workspace);
+		test.skip('empty workspace - trusted', async () => {
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
 
 			testObject = await initializeTestObject();
 			assert.strictEqual(true, testObject.isWorkpaceTrusted());
 		});
 
-		test('empty workspace - untrusted, no open files', async () => {
-			await testConfigurationService.setUserConfiguration('security', getUserSettings(true, false));
-
-			const workspace = new Workspace('empty-workspace');
-			testWorkspaceService.setWorkspace(workspace);
+		test.skip('empty workspace - untrusted', async () => {
+			workspaceService.setWorkspace(new Workspace('empty-workspace'));
+			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 
 			testObject = await initializeTestObject();
 			assert.strictEqual(false, testObject.isWorkpaceTrusted());
