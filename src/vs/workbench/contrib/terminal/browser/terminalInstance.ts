@@ -533,13 +533,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
 
-		let xtermRendererType: RendererType = 'canvas';
-		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-
-		if (config.gpuAcceleration === 'off' || (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-			xtermRendererType = 'dom';
-		}
-
 		const xterm = new Terminal({
 			// TODO: Replace null with undefined when https://github.com/xtermjs/xterm.js/issues/3329 is resolved
 			cols: this._cols || null as any,
@@ -562,7 +555,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: xtermRendererType,
+			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL)),
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -1447,13 +1440,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			let rendererType = 'canvas';
-			if (config.gpuAcceleration === 'off' || (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
-				rendererType = 'dom';
-			}
-			this._safeSetOption('rendererType', rendererType);
+			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
+		let rendererType: RendererType = 'canvas';
+		if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
+			rendererType = 'dom';
+		}
+		return rendererType;
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
