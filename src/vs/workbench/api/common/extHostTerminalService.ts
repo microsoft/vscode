@@ -602,7 +602,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (!profile) {
+		if (!profile || !('options' in profile)) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
 		if ('pty' in profile.options) {

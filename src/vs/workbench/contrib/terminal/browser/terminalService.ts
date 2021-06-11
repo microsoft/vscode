@@ -1024,9 +1024,13 @@ export class TerminalService implements ITerminalService {
 			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
 			return;
 		}
-		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
-		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
-		await this.getActiveInstance()?.focusWhenReady();
+		try {
+			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+			this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+			await this.getActiveInstance()?.focusWhenReady();
+		} catch (e) {
+			this._notificationService.error(e.message);
+		}
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
