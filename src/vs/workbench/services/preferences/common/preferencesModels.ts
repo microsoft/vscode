@@ -715,7 +715,9 @@ export class DefaultSettings extends Disposable {
 		builder.pushLine('[');
 		settingsGroups.forEach((settingsGroup, i) => {
 			builder.pushGroup(settingsGroup);
-			builder.pushLine(',');
+			if (i < settingsGroups.length - 1) {
+				builder.pushLine(',');
+			}
 		});
 		builder.pushLine(']');
 		return builder.getContent();
@@ -839,7 +841,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			});
 
 		builder.pushGroup(settingsGroup);
-		builder.pushLine(',');
 
 		// builder has rewritten settings ranges, fix match ranges
 		const fixedMatches = flatten(
