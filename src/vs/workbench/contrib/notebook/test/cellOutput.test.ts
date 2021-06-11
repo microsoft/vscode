@@ -81,10 +81,10 @@ suite('NotebookViewModel Outputs', async () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [
-					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('1') }] },
-					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('2') }] },
-					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: valueBytesFromString('1000') }] },
-					{ outputId: 'output_id_3', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('3') }] },
+					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
+					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
+					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
+					{ outputId: 'output_id_3', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('3') }] },
 				], {}]
 			],
 			(editor, accessor) => {
@@ -114,11 +114,11 @@ suite('NotebookViewModel Outputs', async () => {
 					outputs: [
 						{
 							outputId: 'output_id_4',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('4') }]
+							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('4') }]
 						},
 						{
 							outputId: 'output_id_5',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('5') }]
+							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }]
 						}
 					],
 					append: true
@@ -131,12 +131,12 @@ suite('NotebookViewModel Outputs', async () => {
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [
-						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('1') }] },
-						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('2') }] },
-						{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: valueBytesFromString('1000') }] },
+						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
+						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
+						{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
 						{
 							outputId: 'output_id_5',
-							outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('5') }]
+							outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }]
 						}
 					],
 				}], true, undefined, () => undefined, undefined);
@@ -158,12 +158,12 @@ suite('NotebookViewModel Outputs', async () => {
 		await withTestNotebook(
 			[
 				['var a = 1;', 'javascript', CellKind.Code, [
-					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('1') }] },
-					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('2') }] },
-					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', valueBytes: valueBytesFromString('1000') }] },
-					{ outputId: 'output_id_4', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('4') }] },
-					{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('5') }] },
-					{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('6') }] },
+					{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
+					{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
+					{ outputId: 'output_id_err', outputs: [{ mime: 'application/vnd.code.notebook.stderr', data: valueBytesFromString('1000') }] },
+					{ outputId: 'output_id_4', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('4') }] },
+					{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }] },
+					{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('6') }] },
 				], {}]
 			],
 			(editor, accessor) => {
@@ -195,11 +195,11 @@ suite('NotebookViewModel Outputs', async () => {
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [
-						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('1') }] },
-						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('2') }] },
-						{ outputId: 'output_id_7', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('7') }] },
-						{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('5') }] },
-						{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', valueBytes: valueBytesFromString('6') }] },
+						{ outputId: 'output_id_1', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('1') }] },
+						{ outputId: 'output_id_2', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('2') }] },
+						{ outputId: 'output_id_7', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('7') }] },
+						{ outputId: 'output_id_5', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('5') }] },
+						{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('6') }] },
 
 					]
 				}], true, undefined, () => undefined, undefined);
