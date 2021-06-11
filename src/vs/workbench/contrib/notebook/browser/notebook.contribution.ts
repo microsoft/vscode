@@ -80,6 +80,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
+import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';

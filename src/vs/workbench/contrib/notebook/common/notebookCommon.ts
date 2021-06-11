@@ -187,7 +187,7 @@ export interface ICell {
 	outputs: ICellOutput[];
 	metadata: NotebookCellMetadata;
 	internalMetadata: NotebookCellInternalMetadata;
-	onDidChangeOutputs?: Event<NotebookCellOutputsSplice[]>;
+	onDidChangeOutputs?: Event<NotebookCellOutputsSplice>;
 	onDidChangeLanguage: Event<string>;
 	onDidChangeMetadata: Event<void>;
 	onDidChangeInternalMetadata: Event<CellInternalMetadataChangedEvent>;
@@ -209,11 +209,11 @@ export type NotebookCellTextModelSplice<T> = [
 	newItems: T[]
 ];
 
-export type NotebookCellOutputsSplice = [
-	start: number /* start */,
-	deleteCount: number /* delete count */,
-	newOutputs: ICellOutput[]
-];
+export type NotebookCellOutputsSplice = {
+	start: number /* start */;
+	deleteCount: number /* delete count */;
+	newOutputs: ICellOutput[];
+};
 
 export interface IMainCellDto {
 	handle: number;
@@ -267,6 +267,7 @@ export interface NotebookOutputChangedEvent {
 	readonly kind: NotebookCellsChangeType.Output;
 	readonly index: number;
 	readonly outputs: IOutputDto[];
+	readonly append: boolean;
 }
 
 export interface NotebookOutputItemChangedEvent {
