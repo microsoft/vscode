@@ -68,6 +68,16 @@
 									"type": "string",
 									"description": "Label that will be shown in the UI for this port.",
 									"default": "Application"
+								},
+								"requireLocalPort": {
+									"type": "boolean",
+									"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+									"default": false
+								},
+								"protocol": {
+									"type": "string",
+									"enum": ["http", "https"],
+									"description": "The protocol to use when forwarding this port."
 								}
 							},
 							"default": {
@@ -120,6 +130,16 @@
 							"type": "string",
 							"description": "Label that will be shown in the UI for this port.",
 							"default": "Application"
+						},
+						"requireLocalPort": {
+							"type": "boolean",
+							"markdownDescription": "When true, a modal dialog will show if the chosen local port isn't used for forwarding.",
+							"default": false
+						},
+						"protocol": {
+							"type": "string",
+							"enum": ["http", "https"],
+							"description": "The protocol to use when forwarding this port."
 						}
 					},
 					"defaultSnippets": [
@@ -151,7 +171,27 @@
 						"string",
 						"array"
 					],
-					"description": "A command to run locally before anything else. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run locally before anything else. This command is run before \"onCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"onCreateCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run when creating the container. This command is run after \"initializeCommand\" and before \"updateContentCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"items": {
+						"type": "string"
+					}
+				},
+				"updateContentCommand": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "A command to run when creating the container and rerun when the workspace content was updated while creating the container. This command is run after \"onCreateCommand\" and before \"postCreateCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
 					"items": {
 						"type": "string"
 					}
@@ -161,7 +201,7 @@
 						"string",
 						"array"
 					],
-					"description": "A command to run after creating the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after creating the container. This command is run after \"updateContentCommand\" and before \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
 					"items": {
 						"type": "string"
 					}
@@ -171,7 +211,7 @@
 						"string",
 						"array"
 					],
-					"description": "A command to run after starting the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run after starting the container. This command is run after \"postCreateCommand\" and before \"postAttachCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
 					"items": {
 						"type": "string"
 					}
@@ -181,10 +221,22 @@
 						"string",
 						"array"
 					],
-					"description": "A command to run after attaching to the container. If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
+					"description": "A command to run when attaching to the container. This command is run after \"postStartCommand\". If this is a single string, it will be run in a shell. If this is an array of strings, it will be run as a single command without shell.",
 					"items": {
 						"type": "string"
 					}
+				},
+				"waitFor": {
+					"type": "string",
+					"enum": [
+						"initializeCommand",
+						"onCreateCommand",
+						"updateContentCommand",
+						"postCreateCommand",
+						"postStartCommand",
+						"postAttachCommand"
+					],
+					"description": "The user command to wait for before continuing execution in the background while the UI is starting up. The default is \"updateContentCommand\"."
 				},
 				"devPort": {
 					"type": "integer",
@@ -204,6 +256,32 @@
 					"type": "object",
 					"additionalProperties": true,
 					"description": "Codespaces-specific configuration."
+				},
+				"hostRequirements": {
+					"type": "object",
+					"description": "Host hardware requirements.",
+					"allOf": [
+						{
+							"type": "object",
+							"properties": {
+								"cpus": {
+									"type": "integer",
+									"minimum": 1,
+									"description": "Number of required CPUs."
+								},
+								"memory": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required RAM in bytes. Supports units tb, gb, mb and kb."
+								},
+								"storage": {
+									"type": "string",
+									"pattern": "^\\d+([tgmk]b)?$",
+									"description": "Amount of required disk space in bytes. Supports units tb, gb, mb and kb."
+								}
+							}
+						}
+					]
 				}
 			}
 		},

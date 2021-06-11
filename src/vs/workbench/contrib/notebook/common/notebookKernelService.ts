@@ -8,65 +8,82 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICellRange, INotebookTextModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookSelector } from 'vs/workbench/contrib/notebook/common/notebookSelector';
 
-export interface INotebookKernel2ChangeEvent {
+export interface ISelectedNotebooksChangeEvent {
+	notebook: URI;
+	oldKernel: string | undefined;
+	newKernel: string | undefined;
+}
+
+export interface INotebookKernelMatchResult {
+	readonly selected: INotebookKernel | undefined;
+	readonly suggested: INotebookKernel | undefined;
+	readonly all: INotebookKernel[];
+}
+
+
+export interface INotebookKernelChangeEvent {
 	label?: true;
 	description?: true;
 	detail?: true;
-	isPreferred?: true;
 	supportedLanguages?: true;
 	hasExecutionOrder?: true;
 }
 
-export interface INotebookKernel2 {
+export interface INotebookKernel {
 
 	readonly id: string;
-	readonly selector: NotebookSelector
+	readonly viewType: string;
+	readonly onDidChange: Event<Readonly<INotebookKernelChangeEvent>>;
 	readonly extension: ExtensionIdentifier;
 
-	readonly onDidChange: Event<INotebookKernel2ChangeEvent>;
+	readonly localResourceRoot: URI;
+	readonly preloadUris: URI[];
+	readonly preloadProvides: string[];
 
 	label: string;
 	description?: string;
 	detail?: string;
-	isPreferred?: boolean;
 	supportedLanguages: string[];
-	implementsExecutionOrder: boolean;
-	implementsInterrupt: boolean;
+	implementsInterrupt?: boolean;
+	implementsExecutionOrder?: boolean;
 
-	localResourceRoot: URI;
-	preloadUris: URI[];
-	preloadProvides: string[];
-
-	executeNotebookCellsRequest(uri: URI, ranges: ICellRange[]): void;
-	cancelNotebookCellExecution(uri: URI, ranges: ICellRange[]): void
+	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
+	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 }
 
-export interface INotebookKernelBindEvent {
-	notebook: URI;
-	oldKernel: INotebookKernel2 | undefined;
-	newKernel: INotebookKernel2 | undefined;
-}
+export interface INotebookTextModelLike { uri: URI; viewType: string; }
 
 export const INotebookKernelService = createDecorator<INotebookKernelService>('INotebookKernelService');
 
 export interface INotebookKernelService {
 	_serviceBrand: undefined;
 
-	readonly onDidAddKernel: Event<INotebookKernel2>;
-	readonly onDidRemoveKernel: Event<INotebookKernel2>;
-	readonly onDidChangeNotebookKernelBinding: Event<INotebookKernelBindEvent>;
+	readonly onDidAddKernel: Event<INotebookKernel>;
+	readonly onDidRemoveKernel: Event<INotebookKernel>;
+	readonly onDidChangeSelectedNotebooks: Event<ISelectedNotebooksChangeEvent>;
+	readonly onDidChangeNotebookAffinity: Event<void>
 
-	registerKernel(kernel: INotebookKernel2): IDisposable;
-	getMatchingKernels(notebook: INotebookTextModel): INotebookKernel2[];
+	registerKernel(kernel: INotebookKernel): IDisposable;
+
+	getMatchingKernel(notebook: INotebookTextModelLike): INotebookKernelMatchResult;
 
 	/**
 	 * Bind a notebook document to a kernel. A notebook is only bound to one kernel
 	 * but a kernel can be bound to many notebooks (depending on its configuration)
 	 */
-	updateNotebookKernelBinding(notebook: INotebookTextModel, kernel: INotebookKernel2 | undefined): void;
+	selectKernelForNotebook(kernel: INotebookKernel, notebook: INotebookTextModelLike): void;
 
-	getBoundKernel(notebook: INotebookTextModel): INotebookKernel2 | undefined
+	/**
+	 * Bind a notebook type to a kernel.
+	 * @param viewType
+	 * @param kernel
+	 */
+	selectKernelForNotebookType(kernel: INotebookKernel, viewType: string): void;
+
+	/**
+	 * Set a perference of a kernel for a certain notebook. Higher values win, `undefined` removes the preference
+	 */
+	updateKernelNotebookAffinity(kernel: INotebookKernel, notebook: URI, preference: number | undefined): void;
+
 }

@@ -24,6 +24,7 @@ import { IExtensionHost, ExtensionHostKind, ActivationKind } from 'vs/workbench/
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { timeout } from 'vs/base/common/async';
+import { URI } from 'vs/base/common/uri';
 
 // Enable to see detailed message communication between window and extension host
 const LOG_EXTENSION_HOST_COMMUNICATION = false;
@@ -130,6 +131,10 @@ export class ExtensionHostManager extends Disposable {
 			return null;
 		}
 		return p.value;
+	}
+
+	public async ready(): Promise<void> {
+		await this._getProxy();
 	}
 
 	private async _measureLatency(proxy: ExtHostExtensionServiceShape): Promise<number> {
@@ -283,6 +288,15 @@ export class ExtensionHostManager extends Disposable {
 		} else {
 			throw new RemoteAuthorityResolverError(result.error.message, result.error.code, result.error.detail);
 		}
+	}
+
+	public async getCanonicalURI(remoteAuthority: string, uri: URI): Promise<URI> {
+		const proxy = await this._getProxy();
+		if (!proxy) {
+			throw new Error(`Cannot resolve canonical URI`);
+		}
+		const result = await proxy.$getCanonicalURI(remoteAuthority, uri);
+		return URI.revive(result);
 	}
 
 	public async start(enabledExtensionIds: ExtensionIdentifier[]): Promise<void> {

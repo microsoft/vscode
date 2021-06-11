@@ -32,7 +32,7 @@ const height = 800;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--no-sandbox'] : undefined; // disable sandbox to run chrome on certain Linux distros
+	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
 	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
 	const context = await browser.newContext();
 	const page = await context.newPage();
@@ -46,7 +46,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"]]`;
 
 	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
 
@@ -54,23 +54,20 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	page.on('console', async (msg: playwright.ConsoleMessage) => {
-		const msgText = msg.text();
-		if (msgText.indexOf('vscode:exit') >= 0) {
-			try {
-				await browser.close();
-			} catch (error) {
-				console.error(`Error when closing browser: ${error}`);
-			}
-
-			try {
-				await pkill(server.pid);
-			} catch (error) {
-				console.error(`Error when killing server process tree: ${error}`);
-			}
-
-			process.exit(msgText === 'vscode:exit 0' ? 0 : 1);
+	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+		try {
+			await browser.close();
+		} catch (error) {
+			console.error(`Error when closing browser: ${error}`);
 		}
+
+		try {
+			await pkill(server.pid);
+		} catch (error) {
+			console.error(`Error when killing server process tree: ${error}`);
+		}
+
+		process.exit(code);
 	});
 }
 

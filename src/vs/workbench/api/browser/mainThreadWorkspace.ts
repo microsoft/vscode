@@ -61,7 +61,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
-		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidReceiveWorkspaceTrust, this, this._toDispose);
+		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -209,7 +209,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	// --- trust ---
 
-	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean> {
+	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
 	}
 
@@ -217,7 +217,7 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		return this._workspaceTrustManagementService.isWorkpaceTrusted();
 	}
 
-	private _onDidReceiveWorkspaceTrust(): void {
-		this._proxy.$onDidReceiveWorkspaceTrust();
+	private _onDidGrantWorkspaceTrust(): void {
+		this._proxy.$onDidGrantWorkspaceTrust();
 	}
 }

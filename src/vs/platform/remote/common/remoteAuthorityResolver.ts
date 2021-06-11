@@ -5,6 +5,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
+import { URI } from 'vs/base/common/uri';
 
 export const IRemoteAuthorityResolverService = createDecorator<IRemoteAuthorityResolverService>('remoteAuthorityResolverService');
 
@@ -15,15 +16,9 @@ export interface ResolvedAuthority {
 	readonly connectionToken: string | undefined;
 }
 
-export enum RemoteTrustOption {
-	Unknown = 0,
-	DisableTrust = 1,
-	MachineTrusted = 2
-}
-
 export interface ResolvedOptions {
 	readonly extensionHostEnv?: { [key: string]: string | null };
-	readonly trust?: RemoteTrustOption;
+	readonly isTrusted?: boolean;
 }
 
 export interface TunnelDescription {
@@ -98,9 +93,18 @@ export interface IRemoteAuthorityResolverService {
 
 	resolveAuthority(authority: string): Promise<ResolverResult>;
 	getConnectionData(authority: string): IRemoteConnectionData | null;
+	/**
+	 * Get the canonical URI for a `vscode-remote://` URI.
+	 *
+	 * **NOTE**: This can throw e.g. in cases where there is no resolver installed for the specific remote authority.
+	 *
+	 * @param uri The `vscode-remote://` URI
+	 */
+	getCanonicalURI(uri: URI): Promise<URI>;
 
 	_clearResolvedAuthority(authority: string): void;
 	_setResolvedAuthority(resolvedAuthority: ResolvedAuthority, resolvedOptions?: ResolvedOptions): void;
 	_setResolvedAuthorityError(authority: string, err: any): void;
 	_setAuthorityConnectionToken(authority: string, connectionToken: string): void;
+	_setCanonicalURIProvider(provider: (uri: URI) => Promise<URI>): void;
 }

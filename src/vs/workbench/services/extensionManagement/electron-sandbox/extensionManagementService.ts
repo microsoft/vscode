@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { generateUuid } from 'vs/base/common/uuid';
-import { ILocalExtension, IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ILocalExtension, IExtensionGalleryService, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionManagementService as BaseExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -18,7 +18,7 @@ import { joinPath } from 'vs/base/common/resources';
 import { IUserDataAutoSyncEnablementService, IUserDataSyncResourceEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
-import { IExtensionWorkspaceTrustRequestService } from 'vs/workbench/services/extensions/common/extensionWorkspaceTrustRequest';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class ExtensionManagementService extends BaseExtensionManagementService {
 
@@ -26,19 +26,19 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
 		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService,
 		@IExtensionGalleryService extensionGalleryService: IExtensionGalleryService,
-		@IExtensionWorkspaceTrustRequestService extensionWorkspaceTrustRequestService: IExtensionWorkspaceTrustRequestService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
 		@IDownloadService downloadService: IDownloadService,
 		@IUserDataAutoSyncEnablementService userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IUserDataSyncResourceEnablementService userDataSyncResourceEnablementService: IUserDataSyncResourceEnablementService,
 		@IDialogService dialogService: IDialogService,
-		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService
+		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(extensionManagementServerService, extensionGalleryService, extensionWorkspaceTrustRequestService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService);
+		super(extensionManagementServerService, extensionGalleryService, configurationService, productService, downloadService, userDataAutoSyncEnablementService, userDataSyncResourceEnablementService, dialogService, workspaceTrustRequestService, extensionManifestPropertiesService);
 	}
 
-	protected async override installVSIX(vsix: URI, server: IExtensionManagementServer): Promise<ILocalExtension> {
+	protected override async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		if (vsix.scheme === Schemas.vscodeRemote && server === this.extensionManagementServerService.localExtensionManagementServer) {
 			const downloadedLocation = joinPath(this.environmentService.tmpDir, generateUuid());
 			await this.downloadService.download(vsix, downloadedLocation);
@@ -47,7 +47,7 @@ export class ExtensionManagementService extends BaseExtensionManagementService {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {
 			await this.checkForWorkspaceTrust(manifest);
-			return server.extensionManagementService.install(vsix);
+			return server.extensionManagementService.install(vsix, options);
 		}
 
 		return Promise.reject('Unable to get the extension manifest.');

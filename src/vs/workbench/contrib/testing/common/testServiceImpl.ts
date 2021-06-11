@@ -14,6 +14,7 @@ import { localize } from 'vs/nls';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
@@ -64,6 +65,7 @@ export class TestService extends Disposable implements ITestService {
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITestResultService private readonly testResults: ITestResultService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
 		this.providerCount = TestingContextKeys.providerCount.bindTo(contextKeyService);
@@ -195,6 +197,15 @@ export class TestService extends Disposable implements ITestService {
 		}
 
 		const result = this.testResults.createLiveResult(req);
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
+			message: localize('testTrust', "Running tests may execute code in your workspace."),
+		});
+
+		if (!trust) {
+			result.markComplete();
+			return result;
+		}
+
 		const testsWithIds = req.tests.map(test => {
 			if (test.src) {
 				return test as TestIdWithSrc;
@@ -442,7 +453,7 @@ export class MainThreadTestCollection extends AbstractIncrementalTestCollection<
 	 * @inheritdoc
 	 */
 	public getReviverDiff() {
-		const ops: TestsDiff = [[TestDiffOpType.DeltaRootsComplete, this.pendingRootCount]];
+		const ops: TestsDiff = [[TestDiffOpType.IncrementPendingExtHosts, this.pendingRootCount]];
 
 		const queue = [this.roots];
 		while (queue.length) {

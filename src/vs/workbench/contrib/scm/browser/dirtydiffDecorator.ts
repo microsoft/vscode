@@ -46,10 +46,10 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class DiffActionRunner extends ActionRunner {
 
@@ -890,6 +890,7 @@ class DirtyDiffDecorator extends Disposable {
 
 	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
 		};
 
@@ -1142,7 +1143,7 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(changes);
-			});
+			}, (err) => onUnexpectedError(err));
 	}
 
 	private setChanges(changes: IChange[]): void {

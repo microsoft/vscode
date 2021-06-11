@@ -14,26 +14,6 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	readonly _serviceBrand: undefined;
 
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: string): string;
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: string[]): string[];
-	/**
-	 * @deprecated Use the async version of `resolve` instead.
-	 */
-	resolve(folder: IWorkspaceFolder | undefined, value: IStringDictionary<string>): IStringDictionary<string>;
-
-	/**
-	 * Recursively resolves all variables in the given config and returns a copy of it with substituted values.
-	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
-	 * @deprecated Use the async version of `resolveAny` instead.
-	 */
-	resolveAny(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): any;
-
 	resolveWithEnvironment(environment: IProcessEnvironment, folder: IWorkspaceFolder | undefined, value: string): string;
 
 	resolveAsync(folder: IWorkspaceFolder | undefined, value: string): Promise<string>;
@@ -45,6 +25,13 @@ export interface IConfigurationResolverService {
 	 * Command variables are only substituted if a "commandValueMapping" dictionary is given and if it contains an entry for the command.
 	 */
 	resolveAnyAsync(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<any>;
+
+	/**
+	 * Recursively resolves all variables in the given config.
+	 * Returns a copy of it with substituted values and a map of variables and their resolution.
+	 * Keys in the map will be of the format input:variableName or command:variableName.
+	 */
+	resolveAnyMap(folder: IWorkspaceFolder | undefined, config: any, commandValueMapping?: IStringDictionary<string>): Promise<{ newConfig: any, resolvedVariables: Map<string, string> }>;
 
 	/**
 	 * Recursively resolves all variables (including commands and user input) in the given config and returns a copy of it with substituted values.

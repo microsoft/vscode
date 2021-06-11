@@ -163,6 +163,7 @@ export class Match {
 export class FileMatch extends Disposable implements IFileMatch {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
 		className: 'currentFindMatch',
@@ -177,6 +178,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	});
 
 	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -1142,7 +1144,7 @@ export class SearchModel extends Disposable {
 		if (errors.isPromiseCanceledError(e)) {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
-					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [] }
+					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: null,
 				duration);
 			this.searchCancelledForNewSearch = false;
@@ -1279,6 +1281,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		description: 'search-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true

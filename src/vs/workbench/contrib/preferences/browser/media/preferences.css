@@ -15,6 +15,20 @@
 	padding-top: 11px;
 }
 
+.preferences-editor .deprecation-warning {
+	display: flex;
+	margin-top: 4px;
+}
+
+.preferences-editor .deprecation-warning .icon {
+	margin-right: 3px;
+}
+
+.preferences-editor .deprecation-warning .learnMore-button {
+	margin-left: 3px;
+	text-decoration: underline;
+}
+
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {
 	flex: 1;
 }

@@ -276,11 +276,7 @@ export class DebugService implements IDebugService {
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
 		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
-		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({
-			modal: true,
-			message,
-
-		});
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
 		if (!trust) {
 			return false;
 		}
@@ -289,8 +285,7 @@ export class DebugService implements IDebugService {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
-				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart');
-
+				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: this.editorService.activeTextEditorMode });
 				if (saveBeforeStartConfig !== 'none') {
 					await this.editorService.saveAll();
 					if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
@@ -407,7 +402,7 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 
 		if (!type) {
-			const guess = await this.adapterManager.guessDebugger();
+			const guess = await this.adapterManager.guessDebugger(false);
 			if (guess) {
 				type = guess.type;
 			}

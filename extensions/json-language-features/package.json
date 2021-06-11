@@ -17,7 +17,12 @@
   "main": "./client/out/node/jsonClientMain",
   "browser": "./client/dist/browser/jsonClientMain",
   "enableProposedApi": true,
-  "workspaceTrust": { "request": "never" },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
   "scripts": {
     "compile": "gulp compile-extension:json-language-features-client compile-extension:json-language-features-server",
     "watch": "gulp watch-extension:json-language-features-client watch-extension:json-language-features-server",
@@ -135,7 +140,7 @@
     "vscode-nls": "^5.0.0"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "repository": {
     "type": "git",

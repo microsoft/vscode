@@ -10,7 +10,7 @@ import { IConstructorSignature0, BrandedService, IInstantiationService } from 'v
 import { assertIsDefined } from 'vs/base/common/types';
 import { PaneComposite } from 'vs/workbench/browser/panecomposite';
 import { IAction, Separator } from 'vs/base/common/actions';
-import { CompositeMenuActions } from 'vs/workbench/browser/menuActions';
+import { CompositeMenuActions } from 'vs/workbench/browser/actions';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -37,19 +37,19 @@ export abstract class Panel extends PaneComposite implements IPanel {
 		this._register(this.panelActions.onDidChange(() => this.updateTitleArea()));
 	}
 
-	override getActions(): ReadonlyArray<IAction> {
+	override getActions(): readonly IAction[] {
 		return [...super.getActions(), ...this.panelActions.getPrimaryActions()];
 	}
 
-	override getSecondaryActions(): ReadonlyArray<IAction> {
+	override getSecondaryActions(): readonly IAction[] {
 		return this.mergeSecondaryActions(super.getSecondaryActions(), this.panelActions.getSecondaryActions());
 	}
 
-	override getContextMenuActions(): ReadonlyArray<IAction> {
+	override getContextMenuActions(): readonly IAction[] {
 		return this.mergeSecondaryActions(super.getContextMenuActions(), this.panelActions.getContextMenuActions());
 	}
 
-	private mergeSecondaryActions(actions: ReadonlyArray<IAction>, panelActions: IAction[]): ReadonlyArray<IAction> {
+	private mergeSecondaryActions(actions: readonly IAction[], panelActions: IAction[]): readonly IAction[] {
 		if (panelActions.length && actions.length) {
 			return [
 				...actions,

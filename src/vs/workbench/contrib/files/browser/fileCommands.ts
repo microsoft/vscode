@@ -5,7 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, SideBySideEditorInput, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorCommandsContext, SideBySideEditor, IEditorIdentifier, SaveReason, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWindowOpenable, IOpenWindowOptions, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/windows/common/windows';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -44,6 +45,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { hash } from 'vs/base/common/hash';
 
 // Commands
 
@@ -242,8 +244,8 @@ CommandsRegistry.registerCommand({
 
 		if (resources.length === 2) {
 			return editorService.openEditor({
-				leftResource: resources[0],
-				rightResource: resources[1],
+				originalInput: { resource: resources[0] },
+				modifiedInput: { resource: resources[1] },
 				options: { pinned: true }
 			});
 		}
@@ -261,8 +263,8 @@ CommandsRegistry.registerCommand({
 		const rightResource = getResourceForCommand(resource, listService, editorService);
 		if (globalResourceToCompare && rightResource) {
 			editorService.openEditor({
-				leftResource: globalResourceToCompare,
-				rightResource,
+				originalInput: { resource: globalResourceToCompare },
+				modifiedInput: { resource: rightResource },
 				options: { pinned: true }
 			});
 		}
@@ -276,8 +278,6 @@ async function resourcesToClipboard(resources: URI[], relative: boolean, clipboa
 		const text = resources.map(resource => labelService.getUriLabel(resource, { relative, noPrefix: true }))
 			.join(lineDelimiter);
 		await clipboardService.writeText(text);
-	} else {
-		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));
 	}
 }
 
@@ -387,7 +387,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// See also https://github.com/microsoft/vscode/issues/106330
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.isUntitled() || activeGroup.activeEditor.secondary.isUntitled())
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -422,7 +422,7 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 	}
 }
 
-function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: ReadonlyArray<IEditorGroup>, options?: ISaveEditorsOptions): Promise<void> {
+function saveDirtyEditorsOfGroups(accessor: ServicesAccessor, groups: readonly IEditorGroup[], options?: ISaveEditorsOptions): Promise<void> {
 	const dirtyEditors: IEditorIdentifier[] = [];
 	for (const group of groups) {
 		for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
@@ -445,6 +445,7 @@ async function doSaveEditors(accessor: ServicesAccessor, editors: IEditorIdentif
 	} catch (error) {
 		if (!isPromiseCanceledError(error)) {
 			notificationService.notify({
+				id: editors.map(({ editor }) => hash(editor.resource?.toString())).join(), // ensure unique notification ID per set of editor
 				severity: Severity.Error,
 				message: nls.localize({ key: 'genericSaveError', comment: ['{0} is the resource that failed to save and {1} the error message'] }, "Failed to save '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)),
 				actions: {
@@ -508,7 +509,7 @@ CommandsRegistry.registerCommand({
 
 		const contexts = getMultiSelectedEditorContexts(editorContext, accessor.get(IListService), accessor.get(IEditorGroupsService));
 
-		let groups: ReadonlyArray<IEditorGroup> | undefined = undefined;
+		let groups: readonly IEditorGroup[] | undefined = undefined;
 		if (!contexts.length) {
 			groups = editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 		} else {
@@ -550,7 +551,7 @@ CommandsRegistry.registerCommand({
 		}
 
 		try {
-			await editorService.revert(editors.filter(({ editor }) => !editor.isUntitled() /* all except untitled */), { force: true });
+			await editorService.revert(editors.filter(({ editor }) => !editor.hasCapability(EditorInputCapabilities.Untitled) /* all except untitled */), { force: true });
 		} catch (error) {
 			notificationService.error(nls.localize('genericRevertError', "Failed to revert '{0}': {1}", editors.map(({ editor }) => editor.getName()).join(', '), toErrorMessage(error, false)));
 		}

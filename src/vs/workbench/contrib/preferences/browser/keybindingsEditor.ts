@@ -7,7 +7,7 @@ import 'vs/css!./media/keybindingsEditor';
 import { localize } from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
-import { OS } from 'vs/base/common/platform';
+import { isIOS, OS } from 'vs/base/common/platform';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { CheckboxActionViewItem } from 'vs/base/browser/ui/checkbox/checkbox';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
@@ -15,7 +15,7 @@ import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLa
 import { IAction, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { KeybindingsEditorModel, KEYBINDING_ENTRY_TEMPLATE_ID } from 'vs/workbench/services/preferences/browser/keybindingsEditorModel';
@@ -34,7 +34,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { attachStylerCallback, attachInputBoxStyler, attachCheckboxStyler, attachKeybindingLabelStyler } from 'vs/platform/theme/common/styler';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -48,6 +47,8 @@ import { IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionV
 import { IKeybindingItemEntry, IKeybindingsEditorPane } from 'vs/workbench/services/preferences/common/preferences';
 import { keybindingsRecordKeysIcon, keybindingsSortIcon, keybindingsAddIcon, preferencesClearInputIcon, keybindingsEditIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
+import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 const $ = DOM.$;
 
@@ -146,7 +147,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.createBody(keybindingsEditorElement);
 	}
 
-	override setInput(input: KeybindingsEditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: KeybindingsEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.keybindingsEditorContextKey.set(true);
 		return super.setInput(input, options, context, token)
 			.then(() => this.render(!!(options && options.preserveFocus)));
@@ -174,7 +175,7 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
-		} else {
+		} else if (!isIOS) {
 			this.searchWidget.focus();
 		}
 	}

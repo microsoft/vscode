@@ -170,7 +170,7 @@
 	border-top-style: solid;
 }
 
-.quick-input-list .monaco-list-row:first-child .quick-input-list-entry.quick-input-list-separator-border {
+.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-style: none;
 }
 
@@ -275,4 +275,15 @@
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
 	display: flex;
+}
+
+/* focused items in quick pick */
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator,
+.quick-input-list .monaco-list-row.focused .quick-input-list-rows .quick-input-list-row .codicon,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .codicon {
+	color: inherit
+}
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
+	background: none;
 }

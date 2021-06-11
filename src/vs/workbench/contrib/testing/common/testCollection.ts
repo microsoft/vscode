@@ -89,9 +89,10 @@ export interface ITestItem {
 	extId: string;
 	label: string;
 	children?: never;
-	uri: URI;
-	range: IRange | undefined;
-	description: string | undefined;
+	uri?: URI;
+	range: IRange | null;
+	description: string | null;
+	error: string | IMarkdownString | null;
 	runnable: boolean;
 	debuggable: boolean;
 }
@@ -127,7 +128,7 @@ export const applyTestItemUpdate = (internal: InternalTestItem | ITestItemUpdate
 		internal.expand = patch.expand;
 	}
 	if (patch.item !== undefined) {
-		Object.assign(internal.item, patch.item);
+		internal.item = internal.item ? Object.assign(internal.item, patch.item) : patch.item;
 	}
 };
 
@@ -147,6 +148,8 @@ export interface TestResultItem {
 	computedState: TestResultState;
 	/** True if the test is outdated */
 	retired: boolean;
+	/** Max duration of the item's tasks (if run directly) */
+	ownDuration?: number;
 	/** True if the test was directly requested by the run (is not a child or parent) */
 	direct?: boolean;
 }
@@ -168,6 +171,8 @@ export interface ISerializedTestResults {
 	items: SerializedTestResultItem[];
 	/** Tasks involved in the run. */
 	tasks: ITestRunTask[];
+	/** Human-readable name of the test run. */
+	name: string;
 }
 
 export const enum TestDiffOpType {
@@ -178,7 +183,7 @@ export const enum TestDiffOpType {
 	/** Removes a test (and all its children) */
 	Remove,
 	/** Changes the number of controllers who are yet to publish their collection roots. */
-	DeltaRootsComplete,
+	IncrementPendingExtHosts,
 	/** Retires a test/result */
 	Retire,
 }
@@ -188,7 +193,7 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.Update, item: ITestItemUpdate]
 	| [op: TestDiffOpType.Remove, itemId: string]
 	| [op: TestDiffOpType.Retire, itemId: string]
-	| [op: TestDiffOpType.DeltaRootsComplete, amount: number];
+	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
 
 /**
  * Utility function to get a unique string for a subscription to a resource,
@@ -286,7 +291,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					}
 
 					if (internalTest.expand === TestItemExpandState.BusyExpanding) {
-						this.updateBusyControllers(1);
+						this.busyControllerCount++;
 					}
 					break;
 				}
@@ -298,11 +303,17 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 						break;
 					}
 
+					if (patch.expand !== undefined) {
+						if (existing.expand === TestItemExpandState.BusyExpanding) {
+							this.busyControllerCount--;
+						}
+						if (patch.expand === TestItemExpandState.BusyExpanding) {
+							this.busyControllerCount++;
+						}
+					}
+
 					applyTestItemUpdate(existing, patch);
 					changes.update(existing);
-					if (patch.expand !== undefined && existing.expand === TestItemExpandState.BusyExpanding && patch.expand !== TestItemExpandState.BusyExpanding) {
-						this.updateBusyControllers(-1);
-					}
 					break;
 				}
 
@@ -329,7 +340,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 								changes.remove(existing, existing !== toRemove);
 
 								if (existing.expand === TestItemExpandState.BusyExpanding) {
-									this.updateBusyControllers(-1);
+									this.busyControllerCount--;
 								}
 							}
 						}
@@ -341,7 +352,7 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 					this.retireTest(op[1]);
 					break;
 
-				case TestDiffOpType.DeltaRootsComplete:
+				case TestDiffOpType.IncrementPendingExtHosts:
 					this.updatePendingRoots(op[1]);
 					break;
 			}
@@ -355,13 +366,6 @@ export abstract class AbstractIncrementalTestCollection<T extends IncrementalTes
 	 */
 	protected retireTest(testId: string) {
 		// no-op
-	}
-
-	/**
-	 * Updates the number of controllers who are still discovering items.
-	 */
-	protected updateBusyControllers(delta: number) {
-		this.busyControllerCount += delta;
 	}
 
 	/**

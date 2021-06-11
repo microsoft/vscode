@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { timeout } from 'vs/base/common/async';
 import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByName';
 import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { makeTestWorkspaceFolder, TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
@@ -25,8 +26,10 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('renders initial tree', async () => {
+		await timeout(1000);
 		harness.c.addRoot(testStubs.nested(), 'a');
-		assert.deepStrictEqual(harness.flush(folder1), [
+		harness.flush(folder1);
+		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'aa' }, { e: 'ab' }, { e: 'b' }
 		]);
 	});
@@ -54,10 +57,15 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 	});
 
 	test('updates render if second test provider appears', async () => {
+		await timeout(100);
 		harness.c.addRoot(testStubs.nested(), 'a');
 		harness.flush(folder1);
 		harness.c.addRoot(testStubs.test('root2', undefined, [testStubs.test('c')]), 'b');
-		assert.deepStrictEqual(harness.flush(folder1), [
+		harness.flush(folder1);
+		await timeout(10);
+		harness.flush(folder1);
+		await timeout(10);
+		assert.deepStrictEqual(harness.tree.getRendered(), [
 			{ e: 'root', children: [{ e: 'aa' }, { e: 'ab' }, { e: 'b' }] },
 			{ e: 'root2', children: [{ e: 'c' }] },
 		]);

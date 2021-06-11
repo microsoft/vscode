@@ -22,9 +22,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
-import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
-import { ActivityHoverAlignment, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
+import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
@@ -37,6 +37,7 @@ import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContain
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 interface ICachedPanel {
 	id: string;
@@ -149,7 +150,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			activityHoverOptions: {
-				alignment: () => ActivityHoverAlignment.BELOW,
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
 				delay: () => 0
 			},
 			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
@@ -856,30 +857,20 @@ registerThemingParticipant((theme, collector) => {
 			`);
 	}
 
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover:not(.icon) {
-				background-color: ${toolbarHoverBackgroundColor} !important;
-			}
-		`);
-	}
-
 	// Styling with Outline color (e.g. high contrast theme)
 	const outline = theme.getColor(activeContrastBorder);
 	if (outline) {
 		collector.addRule(`
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
 				border-bottom: none;
-				padding-bottom: 0;
-				outline-offset: 1px;
+				outline-offset: -2px;
 			}
 
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
 				outline-style: dashed;
 			}
 		`);

@@ -20,6 +20,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { URI } from 'vs/base/common/uri';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingService {
 
@@ -36,9 +37,10 @@ export class BrowserWorkspaceEditingService extends AbstractWorkspaceEditingServ
 		@IFileDialogService fileDialogService: IFileDialogService,
 		@IDialogService dialogService: IDialogService,
 		@IHostService hostService: IHostService,
-		@IUriIdentityService uriIdentityService: IUriIdentityService
+		@IUriIdentityService uriIdentityService: IUriIdentityService,
+		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
-		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService);
+		super(jsonEditingService, contextService, configurationService, notificationService, commandService, fileService, textFileService, workspacesService, environmentService, fileDialogService, dialogService, hostService, uriIdentityService, workspaceTrustManagementService);
 	}
 
 	async enterWorkspace(path: URI): Promise<void> {

@@ -14,7 +14,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IMenuService, MenuId, IMenu, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { activeContrastBorder, focusBorder, toolbarHoverBackground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ActivityAction, ActivityActionViewItem, IActivityHoverOptions, ICompositeBar, ICompositeBarColors, ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositeBarActions';
 import { CATEGORIES } from 'vs/workbench/common/actions';
@@ -36,6 +36,7 @@ import { getTitleBarStyle } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class ViewContainerActivityAction extends ActivityAction {
 
@@ -57,7 +58,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		this.activity = activity;
 	}
 
-	async override run(event: unknown): Promise<void> {
+	override async run(event: any | { preserveFocus: boolean }): Promise<void> {
 		if (event instanceof MouseEvent && event.button === 2) {
 			return; // do not run on right click
 		}
@@ -73,11 +74,12 @@ export class ViewContainerActivityAction extends ActivityAction {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const focusBehavior = this.configurationService.getValue<string>('workbench.activityBar.iconClickBehavior');
 
+		const focus = (event && 'preserveFocus' in event) ? !event.preserveFocus : true;
 		if (sideBarVisible && activeViewlet?.getId() === this.activity.id) {
 			switch (focusBehavior) {
 				case 'focus':
 					this.logAction('refocus');
-					this.viewletService.openViewlet(this.activity.id, true);
+					this.viewletService.openViewlet(this.activity.id, focus);
 					break;
 				case 'toggle':
 				default:
@@ -91,7 +93,7 @@ export class ViewContainerActivityAction extends ActivityAction {
 		}
 
 		this.logAction('show');
-		await this.viewletService.openViewlet(this.activity.id, true);
+		await this.viewletService.openViewlet(this.activity.id, focus);
 
 		return this.activate();
 	}
@@ -112,16 +114,17 @@ class MenuActivityActionViewItem extends ActivityActionViewItem {
 		action: ActivityAction,
 		private contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		hoverOptions: IActivityHoverOptions | undefined,
+		hoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService protected readonly menuService: IMenuService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
-		@IConfigurationService protected readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkbenchEnvironmentService protected readonly environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService);
+		super(action, { draggable: false, colors, icon: true, hasPopup: true, hoverOptions }, themeService, hoverService, configurationService, keybindingService);
 	}
 
 	override render(container: HTMLElement): void {
@@ -193,7 +196,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions | undefined,
+		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -203,12 +206,13 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 
-	protected async override resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
+	protected override async resolveMainMenuActions(accountsMenu: IMenu, disposables: DisposableStore): Promise<IAction[]> {
 		await super.resolveMainMenuActions(accountsMenu, disposables);
 
 		const otherCommands = accountsMenu.getActions();
@@ -284,7 +288,7 @@ export class AccountsActivityActionViewItem extends MenuActivityActionViewItem {
 		return menus;
 	}
 
-	protected async override resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
+	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
 		const actions = await super.resolveContextMenuActions(disposables);
 
 		actions.unshift(...[
@@ -302,16 +306,17 @@ export class GlobalActivityActionViewItem extends MenuActivityActionViewItem {
 		action: ActivityAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
-		activityHoverOptions: IActivityHoverOptions | undefined,
+		activityHoverOptions: IActivityHoverOptions,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
 		@IMenuService menuService: IMenuService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
-		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService);
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService);
 	}
 }
 
@@ -386,15 +391,6 @@ registerAction2(
 );
 
 registerThemingParticipant((theme, collector) => {
-	const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
-	if (toolbarHoverBackgroundColor) {
-		collector.addRule(`
-			.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover {
-				background-color: ${toolbarHoverBackgroundColor} !important;
-			}
-		`);
-	}
-
 	const activityBarForegroundColor = theme.getColor(ACTIVITY_BAR_FOREGROUND);
 	if (activityBarForegroundColor) {
 		collector.addRule(`

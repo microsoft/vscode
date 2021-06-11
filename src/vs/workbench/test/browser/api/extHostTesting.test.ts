@@ -4,11 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { URI } from 'vs/base/common/uri';
+import { createDefaultDocumentTestRoot, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { stubTest, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestItem } from 'vscode';
+import { TestItem, TextDocument } from 'vscode';
 
 const simplify = (item: TestItem<unknown>) => ({
 	id: item.id,
@@ -79,7 +82,19 @@ suite('ExtHost Testing', () => {
 				],
 				[
 					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(stubTest('a')) } }
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.Expandable, item: { ...convert.TestItem.from(stubTest('a')) } }
+				],
+				[
+					TestDiffOpType.Add,
+					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
+				],
+				[
+					TestDiffOpType.Update,
+					{ extId: 'id-a', expand: TestItemExpandState.BusyExpanding }
 				],
 				[
 					TestDiffOpType.Add,
@@ -92,14 +107,6 @@ suite('ExtHost Testing', () => {
 				[
 					TestDiffOpType.Update,
 					{ extId: 'id-a', expand: TestItemExpandState.Expanded }
-				],
-				[
-					TestDiffOpType.Add,
-					{ src: { tree: 0, controller: 'pid' }, parent: 'id-root', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(stubTest('b')) }
-				],
-				[
-					TestDiffOpType.Update,
-					{ extId: 'id-root', expand: TestItemExpandState.Expanded }
 				],
 			]);
 		});
@@ -164,284 +171,256 @@ suite('ExtHost Testing', () => {
 	});
 
 
-	// todo@connor4312: re-renable when we figure out what observing looks like we async children
-	// suite('MirroredTestCollection', () => {
-	// 	let m: TestMirroredCollection;
-	// 	setup(() => m = new TestMirroredCollection());
+	suite('MirroredTestCollection', () => {
+		// todo@connor4312: re-renable when we figure out what observing looks like we async children
+		// 	let m: TestMirroredCollection;
+		// 	setup(() => m = new TestMirroredCollection());
 
-	// 	test('mirrors creation of the root', () => {
-	// 		const tests = testStubs.nested();
-	// 		single.addRoot(tests, 'pid');
-	// 		single.expand('id-root', Infinity);
-	// 		m.apply(single.collectDiff());
-	// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
-	// 		assert.strictEqual(m.length, single.itemToInternal.size);
-	// 	});
+		// 	test('mirrors creation of the root', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		single.expand('id-root', Infinity);
+		// 		m.apply(single.collectDiff());
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
 
-	// 	test('mirrors node deletion', () => {
-	// 		const tests = testStubs.nested();
-	// 		single.addRoot(tests, 'pid');
-	// 		m.apply(single.collectDiff());
-	// 		single.expand('id-root', Infinity);
-	// 		tests.children!.splice(0, 1);
-	// 		single.onItemChange(tests, 'pid');
-	// 		single.expand('id-root', Infinity);
-	// 		m.apply(single.collectDiff());
+		// 	test('mirrors node deletion', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		single.expand('id-root', Infinity);
+		// 		tests.children!.splice(0, 1);
+		// 		single.onItemChange(tests, 'pid');
+		// 		single.expand('id-root', Infinity);
+		// 		m.apply(single.collectDiff());
 
-	// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
-	// 		assert.strictEqual(m.length, single.itemToInternal.size);
-	// 	});
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
 
-	// 	test('mirrors node addition', () => {
-	// 		const tests = testStubs.nested();
-	// 		single.addRoot(tests, 'pid');
-	// 		m.apply(single.collectDiff());
-	// 		tests.children![0].children!.push(stubTest('ac'));
-	// 		single.onItemChange(tests, 'pid');
-	// 		m.apply(single.collectDiff());
+		// 	test('mirrors node addition', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		tests.children![0].children!.push(stubTest('ac'));
+		// 		single.onItemChange(tests, 'pid');
+		// 		m.apply(single.collectDiff());
 
-	// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
-	// 		assert.strictEqual(m.length, single.itemToInternal.size);
-	// 	});
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 		assert.strictEqual(m.length, single.itemToInternal.size);
+		// 	});
 
-	// 	test('mirrors node update', () => {
-	// 		const tests = testStubs.nested();
-	// 		single.addRoot(tests, 'pid');
-	// 		m.apply(single.collectDiff());
-	// 		tests.children![0].description = 'Hello world'; /* item a */
-	// 		single.onItemChange(tests, 'pid');
-	// 		m.apply(single.collectDiff());
+		// 	test('mirrors node update', () => {
+		// 		const tests = testStubs.nested();
+		// 		single.addRoot(tests, 'pid');
+		// 		m.apply(single.collectDiff());
+		// 		tests.children![0].description = 'Hello world'; /* item a */
+		// 		single.onItemChange(tests, 'pid');
+		// 		m.apply(single.collectDiff());
 
-	// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
-	// 	});
+		// 		assertTreesEqual(m.rootTestItems[0], owned.getTestById('id-root')![1].actual);
+		// 	});
 
-	// 	suite('MirroredChangeCollector', () => {
-	// 		let tests = testStubs.nested();
-	// 		setup(() => {
-	// 			tests = testStubs.nested();
-	// 			single.addRoot(tests, 'pid');
-	// 			m.apply(single.collectDiff());
-	// 		});
+		// 	suite('MirroredChangeCollector', () => {
+		// 		let tests = testStubs.nested();
+		// 		setup(() => {
+		// 			tests = testStubs.nested();
+		// 			single.addRoot(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+		// 		});
 
-	// 		test('creates change for root', () => {
-	// 			assertTreeListEqual(m.changeEvent.added, [
-	// 				tests,
-	// 				tests.children[0],
-	// 				tests.children![0].children![0],
-	// 				tests.children![0].children![1],
-	// 				tests.children[1],
-	// 			]);
-	// 			assertTreeListEqual(m.changeEvent.removed, []);
-	// 			assertTreeListEqual(m.changeEvent.updated, []);
-	// 		});
+		// 		test('creates change for root', () => {
+		// 			assertTreeListEqual(m.changeEvent.added, [
+		// 				tests,
+		// 				tests.children[0],
+		// 				tests.children![0].children![0],
+		// 				tests.children![0].children![1],
+		// 				tests.children[1],
+		// 			]);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
 
-	// 		test('creates change for delete', () => {
-	// 			const rm = tests.children.shift()!;
-	// 			single.onItemChange(tests, 'pid');
-	// 			m.apply(single.collectDiff());
+		// 		test('creates change for delete', () => {
+		// 			const rm = tests.children.shift()!;
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
 
-	// 			assertTreeListEqual(m.changeEvent.added, []);
-	// 			assertTreeListEqual(m.changeEvent.removed, [
-	// 				{ ...rm },
-	// 				{ ...rm.children![0] },
-	// 				{ ...rm.children![1] },
-	// 			]);
-	// 			assertTreeListEqual(m.changeEvent.updated, []);
-	// 		});
+		// 			assertTreeListEqual(m.changeEvent.added, []);
+		// 			assertTreeListEqual(m.changeEvent.removed, [
+		// 				{ ...rm },
+		// 				{ ...rm.children![0] },
+		// 				{ ...rm.children![1] },
+		// 			]);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
 
-	// 		test('creates change for update', () => {
-	// 			tests.children[0].label = 'updated!';
-	// 			single.onItemChange(tests, 'pid');
-	// 			m.apply(single.collectDiff());
+		// 		test('creates change for update', () => {
+		// 			tests.children[0].label = 'updated!';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
 
-	// 			assertTreeListEqual(m.changeEvent.added, []);
-	// 			assertTreeListEqual(m.changeEvent.removed, []);
-	// 			assertTreeListEqual(m.changeEvent.updated, [tests.children[0]]);
-	// 		});
+		// 			assertTreeListEqual(m.changeEvent.added, []);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, [tests.children[0]]);
+		// 		});
 
-	// 		test('is a no-op if a node is added and removed', () => {
-	// 			const nested = testStubs.nested('id2-');
-	// 			tests.children.push(nested);
-	// 			single.onItemChange(tests, 'pid');
-	// 			tests.children.pop();
-	// 			single.onItemChange(tests, 'pid');
-	// 			const previousEvent = m.changeEvent;
-	// 			m.apply(single.collectDiff());
-	// 			assert.strictEqual(m.changeEvent, previousEvent);
-	// 		});
+		// 		test('is a no-op if a node is added and removed', () => {
+		// 			const nested = testStubs.nested('id2-');
+		// 			tests.children.push(nested);
+		// 			single.onItemChange(tests, 'pid');
+		// 			tests.children.pop();
+		// 			single.onItemChange(tests, 'pid');
+		// 			const previousEvent = m.changeEvent;
+		// 			m.apply(single.collectDiff());
+		// 			assert.strictEqual(m.changeEvent, previousEvent);
+		// 		});
 
-	// 		test('is a single-op if a node is added and changed', () => {
-	// 			const child = stubTest('c');
-	// 			tests.children.push(child);
-	// 			single.onItemChange(tests, 'pid');
-	// 			child.label = 'd';
-	// 			single.onItemChange(tests, 'pid');
-	// 			m.apply(single.collectDiff());
+		// 		test('is a single-op if a node is added and changed', () => {
+		// 			const child = stubTest('c');
+		// 			tests.children.push(child);
+		// 			single.onItemChange(tests, 'pid');
+		// 			child.label = 'd';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
 
-	// 			assertTreeListEqual(m.changeEvent.added, [child]);
-	// 			assertTreeListEqual(m.changeEvent.removed, []);
-	// 			assertTreeListEqual(m.changeEvent.updated, []);
-	// 		});
+		// 			assertTreeListEqual(m.changeEvent.added, [child]);
+		// 			assertTreeListEqual(m.changeEvent.removed, []);
+		// 			assertTreeListEqual(m.changeEvent.updated, []);
+		// 		});
 
-	// 		test('gets the common ancestor (1)', () => {
-	// 			tests.children![0].children![0].label = 'za';
-	// 			tests.children![0].children![1].label = 'zb';
-	// 			single.onItemChange(tests, 'pid');
-	// 			m.apply(single.collectDiff());
+		// 		test('gets the common ancestor (1)', () => {
+		// 			tests.children![0].children![0].label = 'za';
+		// 			tests.children![0].children![1].label = 'zb';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
 
-	// 		});
+		// 		});
 
-	// 		test('gets the common ancestor (2)', () => {
-	// 			tests.children![0].children![0].label = 'za';
-	// 			tests.children![1].label = 'ab';
-	// 			single.onItemChange(tests, 'pid');
-	// 			m.apply(single.collectDiff());
-	// 		});
-	// 	});
+		// 		test('gets the common ancestor (2)', () => {
+		// 			tests.children![0].children![0].label = 'za';
+		// 			tests.children![1].label = 'ab';
+		// 			single.onItemChange(tests, 'pid');
+		// 			m.apply(single.collectDiff());
+		// 		});
+		// 	});
 
-	// 	suite('TestItemFilteredWrapper', () => {
-	// 		const stubTestWithLocation = (label: string, location: Location, children: StubTestItem[] = []) => {
-	// 			const t = stubTest(label, undefined, children);
-	// 			t.location = location as any;
-	// 			return t;
-	// 		};
+		suite('TestItemFilteredWrapper', () => {
+			const textDocumentFilter = {
+				uri: URI.parse('file:///foo.ts'),
+			} as TextDocument;
 
-	// 		const location1: Location = {
-	// 			range: new Range(0, 0, 0, 0),
-	// 			uri: URI.parse('file:///foo.ts')
-	// 		};
+			let testsWithLocation: TestItemImpl;
+			setup(async () => {
+				testsWithLocation =
+					stubTest('root', undefined, [
+						stubTest('a', undefined, [
+							stubTest('aa', undefined, undefined, URI.parse('file:///foo.ts')),
+							stubTest('ab', undefined, undefined, URI.parse('file:///foo.ts'))
+						], URI.parse('file:///foo.ts')),
+						stubTest('b', undefined, [
+							stubTest('ba', undefined, undefined, URI.parse('file:///bar.ts')),
+							stubTest('bb', undefined, undefined, URI.parse('file:///bar.ts'))
+						], URI.parse('file:///bar.ts')),
+						stubTest('c', undefined, undefined, URI.parse('file:///baz.ts')),
+					]);
 
-	// 		const location2: Location = {
-	// 			range: new Range(0, 0, 0, 0),
-	// 			uri: URI.parse('file:///bar.ts')
-	// 		};
+				// todo: this is not used, don't think it's needed anymore
+				await createDefaultDocumentTestRoot<void>(
+					{
+						createWorkspaceTestRoot: () => testsWithLocation as TestItem<void>,
+						runTests() {
+							throw new Error('no implemented');
+						}
+					},
+					textDocumentFilter,
+					undefined,
+					CancellationToken.None
+				);
+			});
 
-	// 		const location3: Location = {
-	// 			range: new Range(0, 0, 0, 0),
-	// 			uri: URI.parse('file:///baz.ts')
-	// 		};
+			teardown(() => {
+				TestItemFilteredWrapper.removeFilter(textDocumentFilter);
+			});
 
-	// 		const textDocumentFilter = {
-	// 			uri: location1.uri
-	// 		} as TextDocument;
+			test('gets all actual properties', () => {
+				const testItem = stubTest('test1');
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
 
-	// 		let testsWithLocation: StubTestItem;
-	// 		let hierarchy: TestHierarchy<TestItemFilteredWrapper>;
-	// 		setup(async () => {
-	// 			testsWithLocation =
-	// 				stubTest('root', undefined, [
-	// 					stubTestWithLocation('a', location1, [stubTestWithLocation('aa', location1), stubTestWithLocation('ab', location1)]),
-	// 					stubTestWithLocation('b', location2, [stubTestWithLocation('ba', location2), stubTestWithLocation('bb', location2)]),
-	// 					stubTestWithLocation('b', location3),
-	// 				]);
+				assert.strictEqual(testItem.debuggable, wrapper.debuggable);
+				assert.strictEqual(testItem.description, wrapper.description);
+				assert.strictEqual(testItem.label, wrapper.label);
+				assert.strictEqual(testItem.uri, wrapper.uri);
+				assert.strictEqual(testItem.runnable, wrapper.runnable);
+			});
 
-	// 			hierarchy = (await createDefaultDocumentTestHierarchy<StubTestItem>(
-	// 				{
-	// 					provideWorkspaceTestHierarchy: () => ({
-	// 						getChildren.getChildren,
-	// 						getParent.getParent,
-	// 						onDidChangeTest: new Emitter<StubTestItem>().event,
-	// 						root: testsWithLocation
-	// 					}),
-	// 					runTests() {
-	// 						throw new Error('no implemented');
-	// 					}
-	// 				},
-	// 				textDocumentFilter,
-	// 				undefined,
-	// 				CancellationToken.None
-	// 			))!;
-	// 		});
+			test('gets no children if nothing matches Uri filter', () => {
+				const tests = testStubs.nested();
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
+				wrapper.resolveHandler?.(CancellationToken.None);
+				assert.strictEqual(wrapper.children.size, 0);
+			});
 
-	// 		teardown(() => {
-	// 			TestItemFilteredWrapper.removeFilter(textDocumentFilter);
-	// 		});
+			test('filter is applied to children', () => {
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				assert.strictEqual(wrapper.label, 'root');
+				wrapper.resolveHandler?.(CancellationToken.None);
 
-	// 		test('gets all actual properties', () => {
-	// 			const testItem: TestItem = stubTest('test1');
-	// 			const wrapper: TestItemFilteredWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
+				const children = [...wrapper.children.values()];
+				assert.strictEqual(children.length, 1);
+				assert.strictEqual(children[0] instanceof TestItemFilteredWrapper, true);
+				assert.strictEqual(children[0].label, 'a');
+			});
 
-	// 			assert.strictEqual(testItem.debuggable, wrapper.debuggable);
-	// 			assert.strictEqual(testItem.description, wrapper.description);
-	// 			assert.strictEqual(testItem.label, wrapper.label);
-	// 			assert.strictEqual(testItem.location, wrapper.location);
-	// 			assert.strictEqual(testItem.runnable, wrapper.runnable);
-	// 		});
+			test('can get if node has matching filter', () => {
+				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				rootWrapper.resolveHandler?.(CancellationToken.None);
 
-	// 		test('gets no children if nothing matches Uri filter', () => {
-	// 			let tests: TestItem = testStubs.nested();
-	// 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
-	// 			const children = hierarchy.getChildren(wrapper, CancellationToken.None) as TestItemFilteredWrapper[];
-	// 			assert.strictEqual(children.length, 0);
-	// 		});
+				const invisible = testsWithLocation.children.get('id-b')!;
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+				const visible = testsWithLocation.children.get('id-a')!;
+				const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
 
-	// 		test('filter is applied to children', () => {
-	// 			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-	// 			assert.strictEqual(wrapper.label, 'root');
-	// 			const children = hierarchy.getChildren(wrapper, CancellationToken.None) as TestItemFilteredWrapper[];
-	// 			assert.strictEqual(children.length, 1);
-	// 			assert.strictEqual(children[0] instanceof TestItemFilteredWrapper, true);
-	// 			assert.strictEqual(children[0].label, 'a');
-	// 		});
+				// The root is always visible
+				assert.strictEqual(rootWrapper.hasNodeMatchingFilter, true);
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
+				assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
+			});
 
-	// 		test('can get if node has matching filter', () => {
-	// 			const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+			test('can reset cached value of hasNodeMatchingFilter', () => {
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				wrapper.resolveHandler?.(CancellationToken.None);
 
-	// 			const invisible = testsWithLocation.children![1];
-	// 			const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
-	// 			const visible = testsWithLocation.children![0];
-	// 			const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
+				const invisible = testsWithLocation.children.get('id-b')!;
+				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
 
-	// 			// The root is always visible
-	// 			assert.strictEqual(rootWrapper.hasNodeMatchingFilter, true);
-	// 			assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
-	// 			assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
-	// 		});
+				assert.strictEqual(wrapper.children.get('id-b'), undefined);
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
 
-	// 		test('can get visible parent', () => {
-	// 			const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				invisible.addChild(stubTest('bc', undefined, undefined, URI.parse('file:///foo.ts')));
+				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, true);
+				assert.strictEqual(invisibleWrapper.children.size, 1);
+				assert.strictEqual(wrapper.children.get('id-b'), invisibleWrapper);
+			});
 
-	// 			const invisible = testsWithLocation.children![1];
-	// 			const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
-	// 			const visible = testsWithLocation.children![0];
-	// 			const visibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(visible, textDocumentFilter);
+			// test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
+			// 	const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
 
-	// 			// The root is always visible
-	// 			assert.strictEqual(rootWrapper.visibleParent, rootWrapper);
-	// 			assert.strictEqual(invisibleWrapper.visibleParent, rootWrapper);
-	// 			assert.strictEqual(visibleWrapper.visibleParent, visibleWrapper);
-	// 		});
+			// 	const invisibleParent = testsWithLocation.children.get('id-b')!;
+			// 	const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
+			// 	const invisible = invisibleParent.children.get('id-bb')!;
+			// 	const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
 
-	// 		test('can reset cached value of hasNodeMatchingFilter', () => {
-	// 			TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
+			// 	invisible.location = location1 as any;
+			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
+			// 	invisibleWrapper.reset();
+			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
 
-	// 			const invisible = testsWithLocation.children![1];
-	// 			const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
-
-	// 			assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
-	// 			invisible.location = location1 as any;
-	// 			assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, false);
-	// 			invisibleWrapper.reset();
-	// 			assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, true);
-	// 		});
-
-	// 		test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
-	// 			const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-
-	// 			const invisibleParent = testsWithLocation.children![1];
-	// 			const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
-	// 			const invisible = invisibleParent.children![1];
-	// 			const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
-
-	// 			assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-	// 			invisible.location = location1 as any;
-	// 			assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-	// 			invisibleWrapper.reset();
-	// 			assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
-
-	// 			// the root should be undefined due to the reset.
-	// 			assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
-	// 		});
-	// 	});
-	// });
+			// 	// the root should be undefined due to the reset.
+			// 	assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
+			// });
+		});
+	});
 });

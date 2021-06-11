@@ -1,0 +1,69 @@
+{
+  "name": "markdown-math",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "icon": "icon.png",
+  "publisher": "vscode",
+  "license": "MIT",
+  "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
+  "engines": {
+    "vscode": "^1.54.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "main": "./out/extension",
+  "browser": "./dist/browser/extension",
+  "activationEvents": [],
+  "contributes": {
+    "notebookRenderer": [
+      {
+        "id": "markdownItRenderer-katex",
+        "displayName": "Markdown it KaTeX renderer",
+        "entrypoint": {
+          "extends": "markdownItRenderer",
+          "path": "./notebook-out/katex.js"
+        }
+      }
+    ],
+    "markdown.markdownItPlugins": true,
+    "markdown.previewStyles": [
+      "./node_modules/katex/dist/katex.min.css",
+      "./preview-styles/index.css"
+    ],
+    "configuration": [
+      {
+        "title": "Markdown",
+        "properties": {
+          "markdown.math.enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "%config.markdown.math.enabled%"
+          }
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "npm run build-notebook",
+    "watch": "npm run build-notebook",
+    "build-notebook": "node ./esbuild"
+  },
+  "dependencies": {
+    "@iktakahiro/markdown-it-katex": "https://github.com/mjbvz/markdown-it-katex.git"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^0.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

@@ -26,6 +26,9 @@ import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remot
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -47,6 +50,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
@@ -63,12 +68,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
+			extensionManifestPropertiesService
 		);
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
 
-		// Initialize only after workbench is ready
-		this._lifecycleService.when(LifecyclePhase.Ready).then(() => this._initialize());
+		// Initialize installed extensions first and do it only after workbench is ready
+		this._lifecycleService.when(LifecyclePhase.Ready).then(async () => {
+			await this._userDataInitializationService.initializeInstalledExtensions(this._instantiationService);
+			this._initialize();
+		});
 
 		this._initFetchFileSystem();
 	}
@@ -177,8 +186,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			this._remoteAgentService.getEnvironment(),
 			this._remoteAgentService.scanExtensions()
 		]);
-		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
+		localExtensions = this._checkEnabledAndProposedAPI(localExtensions, false);
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
@@ -212,10 +221,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
 
-		// We log the exit code to the console. Do NOT remove this
-		// code as the automated integration tests in browser rely
-		// on this message to exit properly.
-		console.log(`vscode:exit ${code}`);
+		const automatedWindow = window as unknown as IAutomatedWindow;
+		if (typeof automatedWindow.codeAutomationExit === 'function') {
+			automatedWindow.codeAutomationExit(code);
+		}
 	}
 }
 

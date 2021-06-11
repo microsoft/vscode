@@ -9,9 +9,10 @@ import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
+import { localize } from 'vs/nls';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IComputedStateAccessor, refreshComputedState } from 'vs/workbench/contrib/testing/common/getComputedState';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, ITestTaskState, RunTestsRequest, TestIdPath, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { maxPriority, statesInOrder } from 'vs/workbench/contrib/testing/common/testingStates';
 
 export interface ITestResult {
@@ -35,6 +36,11 @@ export interface ITestResult {
 	 * Whether this test result is triggered from an auto run.
 	 */
 	readonly isAutoRun?: boolean;
+
+	/**
+	 * Human-readable name of the test result.
+	 */
+	readonly name: string;
 
 	/**
 	 * Gets all tests involved in the run.
@@ -63,6 +69,23 @@ export interface ITestResult {
 	toJSON(): ISerializedTestResults | undefined;
 }
 
+export const resultItemParents = function* (results: ITestResult, item: TestResultItem) {
+	let i: TestResultItem | undefined = item;
+	while (i) {
+		yield i;
+		i = i.parent ? results.getStateById(i.parent) : undefined;
+	}
+};
+
+export const getPathForTestInResult = (test: TestResultItem, results: ITestResult): TestIdPath => {
+	const path: TestIdPath = [];
+	for (const node of resultItemParents(results, test)) {
+		path.unshift(node.item.extId);
+	}
+
+	return path;
+};
+
 /**
  * Count of the number of tests in each run state.
  */
@@ -86,6 +109,16 @@ export const sumCounts = (counts: Iterable<TestStateCount>) => {
 	}
 
 	return total;
+};
+
+export const maxCountPriority = (counts: Readonly<TestStateCount>) => {
+	for (const state of statesInOrder) {
+		if (counts[state] > 0) {
+			return state;
+		}
+	}
+
+	return TestResultState.Unset;
 };
 
 /**
@@ -210,6 +243,7 @@ export class LiveTestResult implements ITestResult {
 	public readonly onChange = this.changeEmitter.event;
 	public readonly onComplete = this.completeEmitter.event;
 	public readonly tasks: ITestRunTask[] = [];
+	public readonly name = localize('runFinished', 'Test run at {0}', new Date().toLocaleString());
 
 	/**
 	 * Test IDs directly included in this run.
@@ -249,7 +283,7 @@ export class LiveTestResult implements ITestResult {
 		getOwnState: i => i.ownComputedState,
 		getCurrentComputedState: i => i.computedState,
 		setComputedState: (i, s) => i.computedState = s,
-		getChildren: i => i.children[Symbol.iterator](),
+		getChildren: i => i.children,
 		getParents: i => {
 			const { testById: testByExtId } = this;
 			return (function* () {
@@ -329,6 +363,7 @@ export class LiveTestResult implements ITestResult {
 		const index = this.mustGetTaskIndex(taskId);
 		if (duration !== undefined) {
 			entry.tasks[index].duration = duration;
+			entry.ownDuration = Math.max(entry.ownDuration || 0, duration);
 		}
 
 		this.fireUpdateAndRefresh(entry, index, state);
@@ -448,7 +483,7 @@ export class LiveTestResult implements ITestResult {
 		entry.ownComputedState = newOwnComputed;
 		this.counts[previousOwnComputed]--;
 		this.counts[newOwnComputed]++;
-		refreshComputedState(this.computedStateAccessor, entry, t =>
+		refreshComputedState(this.computedStateAccessor, entry).forEach(t =>
 			this.changeEmitter.fire(
 				t === entry
 					? { item: entry, result: this, reason: TestResultItemChangeReason.OwnStateChange, previous: previousOwnComputed }
@@ -489,6 +524,7 @@ export class LiveTestResult implements ITestResult {
 		id: this.id,
 		completedAt: this.completedAt!,
 		tasks: this.tasks,
+		name: this.name,
 		items: [...this.testById.values()].map(entry => ({
 			...entry,
 			retired: undefined,
@@ -529,6 +565,11 @@ export class HydratedTestResult implements ITestResult {
 		return this.testById.values();
 	}
 
+	/**
+	 * @inheritdoc
+	 */
+	public readonly name: string;
+
 	private readonly testById = new Map<string, TestResultItem>();
 
 	constructor(
@@ -539,6 +580,7 @@ export class HydratedTestResult implements ITestResult {
 		this.id = serialized.id;
 		this.completedAt = serialized.completedAt;
 		this.tasks = serialized.tasks;
+		this.name = serialized.name;
 
 		for (const item of serialized.items) {
 			const cast: TestResultItem = { ...item, retired: true };

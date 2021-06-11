@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { statSync } from 'fs';
-import { release } from 'os';
+import { release, hostname } from 'os';
 import product from 'vs/platform/product/common/product';
 import { mark, getMarks } from 'vs/base/common/performance';
 import { basename, normalize, join, posix } from 'vs/base/common/path';
@@ -14,7 +14,7 @@ import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { IStateService } from 'vs/platform/state/node/state';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { CodeWindow } from 'vs/platform/windows/electron-main/window';
 import { app, BrowserWindow, MessageBoxOptions, nativeTheme, WebContents } from 'electron';
 import { ILifecycleMainService, UnloadReason } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -139,13 +139,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private readonly _onDidChangeWindowsCount = this._register(new Emitter<IWindowsCountChangedEvent>());
 	readonly onDidChangeWindowsCount = this._onDidChangeWindowsCount.event;
 
-	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
+	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateMainService, this.lifecycleMainService, this.logService, this.configurationService));
 
 	constructor(
 		private readonly machineId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
-		@IStateService private readonly stateService: IStateService,
+		@IStateMainService private readonly stateMainService: IStateMainService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
@@ -341,7 +341,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// process can continue. We do this by deleting the waitMarkerFilePath.
 		const waitMarkerFileURI = openConfig.waitMarkerFileURI;
 		if (openConfig.context === OpenContext.CLI && waitMarkerFileURI && usedWindows.length === 1 && usedWindows[0]) {
-			usedWindows[0].whenClosedOrLoaded.then(() => this.fileService.del(waitMarkerFileURI), () => undefined);
+			(async () => {
+				await usedWindows[0].whenClosedOrLoaded;
+
+				try {
+					await this.fileService.del(waitMarkerFileURI);
+				} catch (error) {
+					// ignore - could have been deleted from the window already
+				}
+			})();
 		}
 
 		return usedWindows;
@@ -401,7 +409,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			let windowToUseForFiles: ICodeWindow | undefined = undefined;
 			if (fileToCheck?.fileUri && !openFilesInNewWindow) {
 				if (openConfig.context === OpenContext.DESKTOP || openConfig.context === OpenContext.CLI || openConfig.context === OpenContext.DOCK) {
-					windowToUseForFiles = findWindowOnFile(windows, fileToCheck.fileUri, workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath) : null);
+					windowToUseForFiles = findWindowOnFile(windows, fileToCheck.fileUri, workspace => workspace.configPath.scheme === Schemas.file ? this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath) : undefined);
 				}
 
 				if (!windowToUseForFiles) {
@@ -848,6 +856,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isFileToOpen(openable)) {
 				options = { ...options, forceOpenWorkspaceAsFile: true };
 			}
+
 			return this.doResolveFilePath(uri.fsPath, options);
 		}
 
@@ -1154,15 +1163,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			machineId: this.machineId,
 
-			sessionId: '', 	// Will be filled in by the window once loaded later
 			windowId: -1,	// Will be filled in by the window once loaded later
 
 			mainPid: process.pid,
 
 			appRoot: this.environmentMainService.appRoot,
 			execPath: process.execPath,
-			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
-			partsSplashPath: join(this.environmentMainService.userDataPath, 'rapid_render.json'),
+			codeCachePath: this.environmentMainService.codeCachePath,
 			// If we know the backup folder upfront (for empty windows to restore), we can set it
 			// directly here which helps for restoring UI state associated with that window.
 			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before
@@ -1187,7 +1194,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			product,
 			isInitialStartup: options.initialStartup,
 			perfMarks: getMarks(),
-			os: { release: release() },
+			os: { release: release(), hostname: hostname() },
 			zoomLevel: typeof windowConfig?.zoomLevel === 'number' ? windowConfig.zoomLevel : undefined,
 
 			autoDetectHighContrast: windowConfig?.autoDetectHighContrast ?? true,
@@ -1268,7 +1275,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Update window identifier and session now
 		// that we have the window object in hand.
 		configuration.windowId = window.id;
-		configuration.sessionId = `window:${window.id}`;
 
 		// If the window was already loaded, make sure to unload it
 		// first and only load the new configuration if that was

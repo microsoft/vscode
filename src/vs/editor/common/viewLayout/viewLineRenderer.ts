@@ -47,6 +47,10 @@ class LinePart {
 	public isWhitespace(): boolean {
 		return (this.metadata & LinePartMetadata.IS_WHITESPACE_MASK ? true : false);
 	}
+
+	public isPseudoAfter(): boolean {
+		return (this.metadata & LinePartMetadata.PSEUDO_AFTER_MASK ? true : false);
+	}
 }
 
 export class LineRange {
@@ -213,16 +217,23 @@ export const enum CharacterMappingConstants {
 	PART_INDEX_OFFSET = 16
 }
 
+export class DomPosition {
+	constructor(
+		public readonly partIndex: number,
+		public readonly charIndex: number
+	) { }
+}
+
 /**
  * Provides a both direction mapping between a line's character and its rendered position.
  */
 export class CharacterMapping {
 
-	public static getPartIndex(partData: number): number {
+	private static getPartIndex(partData: number): number {
 		return (partData & CharacterMappingConstants.PART_INDEX_MASK) >>> CharacterMappingConstants.PART_INDEX_OFFSET;
 	}
 
-	public static getCharIndex(partData: number): number {
+	private static getCharIndex(partData: number): number {
 		return (partData & CharacterMappingConstants.CHAR_INDEX_MASK) >>> CharacterMappingConstants.CHAR_INDEX_OFFSET;
 	}
 
@@ -236,20 +247,24 @@ export class CharacterMapping {
 		this._absoluteOffsets = new Uint32Array(this.length);
 	}
 
-	public setPartData(charOffset: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
-		let partData = (
+	public setColumnInfo(column: number, partIndex: number, charIndex: number, partAbsoluteOffset: number): void {
+		const partData = (
 			(partIndex << CharacterMappingConstants.PART_INDEX_OFFSET)
 			| (charIndex << CharacterMappingConstants.CHAR_INDEX_OFFSET)
 		) >>> 0;
-		this._data[charOffset] = partData;
-		this._absoluteOffsets[charOffset] = partAbsoluteOffset + charIndex;
+		this._data[column - 1] = partData;
+		this._absoluteOffsets[column - 1] = partAbsoluteOffset + charIndex;
 	}
 
-	public getAbsoluteOffsets(): Uint32Array {
-		return this._absoluteOffsets;
+	public getAbsoluteOffset(column: number): number {
+		if (this._absoluteOffsets.length === 0) {
+			// No characters on this line
+			return 0;
+		}
+		return this._absoluteOffsets[column - 1];
 	}
 
-	public charOffsetToPartData(charOffset: number): number {
+	private charOffsetToPartData(charOffset: number): number {
 		if (this.length === 0) {
 			return 0;
 		}
@@ -262,7 +277,19 @@ export class CharacterMapping {
 		return this._data[charOffset];
 	}
 
-	public partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
+	public getDomPosition(column: number): DomPosition {
+		const partData = this.charOffsetToPartData(column - 1);
+		const partIndex = CharacterMapping.getPartIndex(partData);
+		const charIndex = CharacterMapping.getCharIndex(partData);
+		return new DomPosition(partIndex, charIndex);
+	}
+
+	public getColumn(domPosition: DomPosition, partLength: number): number {
+		const charOffset = this.partDataToCharOffset(domPosition.partIndex, partLength, domPosition.charIndex);
+		return charOffset + 1;
+	}
+
+	private partDataToCharOffset(partIndex: number, partLength: number, charIndex: number): number {
 		if (this.length === 0) {
 			return 0;
 		}
@@ -373,7 +400,7 @@ export function renderViewLine(input: RenderLineInput, sb: IStringBuilder): Rend
 			sb.appendASCIIString(`</span>`);
 
 			const characterMapping = new CharacterMapping(1, beforeCount + afterCount);
-			characterMapping.setPartData(0, beforeCount, 0, 0);
+			characterMapping.setColumnInfo(1, beforeCount, 0, 0);
 
 			return new RenderLineOutput(
 				characterMapping,
@@ -792,14 +819,11 @@ function _applyInlineDecorations(lineContent: string, len: number, tokens: LineP
 
 	const lastTokenEndIndex = tokens[tokens.length - 1].endIndex;
 	if (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-		let classNames: string[] = [];
-		let metadata = 0;
 		while (lineDecorationIndex < lineDecorationsLen && lineDecorations[lineDecorationIndex].startOffset === lastTokenEndIndex) {
-			classNames.push(lineDecorations[lineDecorationIndex].className);
-			metadata |= lineDecorations[lineDecorationIndex].metadata;
+			const lineDecoration = lineDecorations[lineDecorationIndex];
+			result[resultLen++] = new LinePart(lastResultEndIndex, lineDecoration.className, lineDecoration.metadata);
 			lineDecorationIndex++;
 		}
-		result[resultLen++] = new LinePart(lastResultEndIndex, classNames.join(' '), metadata);
 	}
 
 	return result;
@@ -827,6 +851,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 	const renderControlCharacters = input.renderControlCharacters;
 
 	const characterMapping = new CharacterMapping(len + 1, parts.length);
+	let lastCharacterMappingDefined = false;
 
 	let charIndex = 0;
 	let visibleColumn = startVisibleColumn;
@@ -850,7 +875,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 		const partType = part.type;
 		const partRendersWhitespace = (renderWhitespace !== RenderWhitespace.None && part.isWhitespace());
 		const partRendersWhitespaceWithWidth = partRendersWhitespace && !fontIsMonospace && (partType === 'mtkw'/*only whitespace*/ || !containsForeignElements);
-		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.metadata === LinePartMetadata.PSEUDO_AFTER);
+		const partIsEmptyAndHasPseudoAfter = (charIndex === partEndIndex && part.isPseudoAfter());
 		charOffsetInPart = 0;
 
 		sb.appendASCIIString('<span class="');
@@ -882,7 +907,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 				let charWidth: number;
@@ -920,7 +945,7 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			sb.appendASCII(CharCode.GreaterThan);
 
 			for (; charIndex < partEndIndex; charIndex++) {
-				characterMapping.setPartData(charIndex, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
+				characterMapping.setColumnInfo(charIndex + 1, partIndex - partDisplacement, charOffsetInPart, partAbsoluteOffset);
 				partDisplacement = 0;
 				const charCode = lineContent.charCodeAt(charIndex);
 
@@ -999,13 +1024,20 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 			partDisplacement = 0;
 		}
 
+		if (charIndex >= len && !lastCharacterMappingDefined && part.isPseudoAfter()) {
+			lastCharacterMappingDefined = true;
+			characterMapping.setColumnInfo(charIndex + 1, partIndex, charOffsetInPart, partAbsoluteOffset);
+		}
+
 		sb.appendASCIIString('</span>');
 
 	}
 
-	// When getting client rects for the last character, we will position the
-	// text range at the end of the span, insteaf of at the beginning of next span
-	characterMapping.setPartData(len, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+	if (!lastCharacterMappingDefined) {
+		// When getting client rects for the last character, we will position the
+		// text range at the end of the span, insteaf of at the beginning of next span
+		characterMapping.setColumnInfo(len + 1, parts.length - 1, charOffsetInPart, partAbsoluteOffset);
+	}
 
 	if (isOverflowing) {
 		sb.appendASCIIString('<span>&hellip;</span>');

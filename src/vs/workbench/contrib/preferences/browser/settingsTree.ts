@@ -37,7 +37,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -60,7 +60,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { settingsMoreActionIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
-import { untrustedForegroundColor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustColors';
 
 const $ = DOM.$;
 
@@ -74,11 +73,13 @@ function getExcludeDisplayValue(element: SettingsTreeSettingElement): IListDataI
 		.map(key => {
 			const value = data[key];
 			const sibling = typeof value === 'boolean' ? undefined : value.when;
-
 			return {
-				id: key,
-				value: key,
-				sibling
+				value: {
+					type: 'string',
+					data: key
+				},
+				sibling,
+				elementType: element.valueType
 			};
 		});
 }
@@ -201,6 +202,23 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 	});
 }
 
+function createArraySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
+	return keys => {
+		const enumOptions: IObjectEnumOption[] = [];
+
+		if (element.setting.enum) {
+			element.setting.enum.forEach((staticKey, i) => {
+				const description = element.setting.enumDescriptions?.[i];
+				enumOptions.push({ value: staticKey, description });
+			});
+		}
+
+		return enumOptions.length > 0
+			? { type: 'enum', data: enumOptions[0].value, options: enumOptions }
+			: undefined;
+	};
+}
+
 function createObjectKeySuggester(element: SettingsTreeSettingElement): IObjectKeySuggester {
 	const { objectProperties } = element.setting;
 	const allStaticKeys = Object.keys(objectProperties ?? {});
@@ -268,11 +286,43 @@ function getListDisplayValue(element: SettingsTreeSettingElement): IListDataItem
 		return [];
 	}
 
-	return element.value.map((key: string) => {
-		return {
-			value: key
-		};
-	});
+	if (element.setting.arrayItemType === 'enum') {
+		let enumOptions: IObjectEnumOption[] = [];
+		if (element.setting.enum) {
+			enumOptions = element.setting.enum.map((setting, i) => {
+				return {
+					value: setting,
+					description: element.setting.enumDescriptions?.[i]
+				};
+			});
+		}
+		return element.value.map((key: string) => {
+			return {
+				value: {
+					type: 'enum',
+					data: key,
+					options: enumOptions
+				}
+			};
+		});
+	} else {
+		return element.value.map((key: string) => {
+			return {
+				value: {
+					type: 'string',
+					data: key
+				}
+			};
+		});
+	}
+}
+
+function getShowAddButtonList(dataElement: SettingsTreeSettingElement, listDisplayValue: IListDataItem[]): boolean {
+	if (dataElement.setting.enum && dataElement.setting.uniqueItems) {
+		return dataElement.setting.enum.length - listDisplayValue.length > 0;
+	} else {
+		return true;
+	}
 }
 
 export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGroups: ISettingsGroup[], logService: ILogService): { tree: ITOCEntry<ISetting>, leftoverSettings: Set<ISetting> } {
@@ -285,7 +335,7 @@ export function resolveSettingsTree(tocData: ITOCEntry<string>, coreSettingsGrou
 
 export function resolveConfiguredUntrustedSettings(groups: ISettingsGroup[], target: SettingsTarget, configurationService: IWorkbenchConfigurationService): ISetting[] {
 	const allSettings = getFlatSettings(groups);
-	return [...allSettings].filter(setting => setting.requireTrust && inspectSetting(setting.key, target, configurationService).isConfigured);
+	return [...allSettings].filter(setting => setting.restricted && inspectSetting(setting.key, target, configurationService).isConfigured);
 }
 
 export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry<ISetting> {
@@ -660,7 +710,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 
 		const toolbar = new ToolBar(container, this._contextMenuService, {
 			toggleMenuTitle,
-			renderDropdownAsChildElement: true,
+			renderDropdownAsChildElement: !isIOS,
 			moreIcon: settingsMoreActionIcon // change icon from ellipsis to gear
 		});
 		return toolbar;
@@ -979,7 +1029,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 		});
 	}
 
-	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined | null {
+	private computeNewList(template: ISettingListItemTemplate, e: ISettingListChangeEvent<IListDataItem>): string[] | undefined {
 		if (template.context) {
 			let newValue: string[] = [];
 			if (isArray(template.context.scopeValue)) {
@@ -990,23 +1040,23 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 			if (e.targetIndex !== undefined) {
 				// Delete value
-				if (!e.item?.value && e.originalItem.value && e.targetIndex > -1) {
+				if (!e.item?.value.data && e.originalItem.value.data && e.targetIndex > -1) {
 					newValue.splice(e.targetIndex, 1);
 				}
 				// Update value
-				else if (e.item?.value && e.originalItem.value) {
+				else if (e.item?.value.data && e.originalItem.value.data) {
 					if (e.targetIndex > -1) {
-						newValue[e.targetIndex] = e.item.value;
+						newValue[e.targetIndex] = e.item.value.data.toString();
 					}
 					// For some reason, we are updating and cannot find original value
 					// Just append the value in this case
 					else {
-						newValue.push(e.item.value);
+						newValue.push(e.item.value.data.toString());
 					}
 				}
 				// Add value
-				else if (e.item?.value && !e.originalItem.value && e.targetIndex >= newValue.length) {
-					newValue.push(e.item.value);
+				else if (e.item?.value.data && !e.originalItem.value.data && e.targetIndex >= newValue.length) {
+					newValue.push(e.item.value.data.toString());
 				}
 			}
 			if (
@@ -1030,7 +1080,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
-		template.listWidget.setValue(value);
+		template.listWidget.setValue(value, {
+			keySuggester: createArraySuggester(dataElement),
+			showAddButton: getShowAddButtonList(dataElement, value)
+		});
 		template.context = dataElement;
 
 		template.onChange = (v) => {
@@ -1038,7 +1091,7 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 			renderArrayValidations(dataElement, template, v, false);
 		};
 
-		renderArrayValidations(dataElement, template, value.map(v => v.value), true);
+		renderArrayValidations(dataElement, template, value.map(v => v.value.data.toString()), true);
 	}
 }
 
@@ -1178,22 +1231,22 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 			const newValue = { ...template.context.scopeValue };
 
 			// first delete the existing entry, if present
-			if (e.originalItem.value) {
-				if (e.originalItem.value in template.context.defaultValue) {
+			if (e.originalItem.value.data) {
+				if (e.originalItem.value.data.toString() in template.context.defaultValue) {
 					// delete a default by overriding it
-					newValue[e.originalItem.value] = false;
+					newValue[e.originalItem.value.data.toString()] = false;
 				} else {
-					delete newValue[e.originalItem.value];
+					delete newValue[e.originalItem.value.data.toString()];
 				}
 			}
 
 			// then add the new or updated entry, if present
 			if (e.item?.value) {
-				if (e.item.value in template.context.defaultValue && !e.item.sibling) {
+				if (e.item.value.data.toString() in template.context.defaultValue && !e.item.sibling) {
 					// add a default by deleting its override
-					delete newValue[e.item.value];
+					delete newValue[e.item.value.data.toString()];
 				} else {
-					newValue[e.item.value] = e.item.sibling ? { when: e.item.sibling } : true;
+					newValue[e.item.value.data.toString()] = e.item.sibling ? { when: e.item.sibling } : true;
 				}
 			}
 
@@ -1537,11 +1590,11 @@ export class SettingUntrustedRenderer extends AbstractSettingRenderer implements
 		const manageWorkspaceTrustLabel = localize('manageWorkspaceTrust', "Manage Workspace Trust");
 		const trustLabelElement = $('.setting-item-trust-description');
 		const untrustedWorkspaceIcon = DOM.append(trustLabelElement, $('span.codicon.codicon-workspace-untrusted'));
-		template.toDispose.add(attachStylerCallback(this._themeService, { untrustedForegroundColor }, colors => {
-			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.untrustedForegroundColor?.toString() || '');
+		template.toDispose.add(attachStylerCallback(this._themeService, { editorErrorForeground }, colors => {
+			untrustedWorkspaceIcon.style.setProperty('--workspace-trust-state-untrusted-color', colors.editorErrorForeground?.toString() || '');
 		}));
 		const element = DOM.append(trustLabelElement, $('span'));
-		element.textContent = localize('trustLabel', "This setting can be applied only in the trusted workspace.");
+		element.textContent = localize('trustLabel', "This setting can only be applied in a trusted workspace");
 		const linkElement: HTMLAnchorElement = DOM.append(trustLabelElement, $('a'));
 		linkElement.textContent = manageWorkspaceTrustLabel;
 		linkElement.setAttribute('tabindex', '0');
@@ -1593,7 +1646,9 @@ export class SettingTreeRenderers {
 		this.settingActions = [
 			new Action('settings.resetSetting', localize('resetSettingLabel', "Reset Setting"), undefined, undefined, async context => {
 				if (context instanceof SettingsTreeSettingElement) {
-					this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+					if (!context.isUntrusted) {
+						this._onDidChangeSetting.fire({ key: context.setting.key, value: undefined, type: context.setting.type as SettingValueType });
+					}
 				}
 			}),
 			new Separator(),
@@ -1847,7 +1902,7 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 				return SETTINGS_ENUM_TEMPLATE_ID;
 			}
 
-			if (element.valueType === SettingValueType.ArrayOfString) {
+			if (element.valueType === SettingValueType.StringOrEnumArray) {
 				return SETTINGS_ARRAY_TEMPLATE_ID;
 			}
 
@@ -2066,7 +2121,7 @@ class CopySettingIdAction extends Action {
 		super(CopySettingIdAction.ID, CopySettingIdAction.LABEL);
 	}
 
-	async override run(context: SettingsTreeSettingElement): Promise<void> {
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			await this.clipboardService.writeText(context.setting.key);
 		}
@@ -2085,7 +2140,7 @@ class CopySettingAsJSONAction extends Action {
 		super(CopySettingAsJSONAction.ID, CopySettingAsJSONAction.LABEL);
 	}
 
-	async override run(context: SettingsTreeSettingElement): Promise<void> {
+	override async run(context: SettingsTreeSettingElement): Promise<void> {
 		if (context) {
 			const jsonResult = `"${context.setting.key}": ${JSON.stringify(context.value, undefined, '  ')}`;
 			await this.clipboardService.writeText(jsonResult);
@@ -2113,7 +2168,7 @@ class SyncSettingAction extends Action {
 		this.checked = !ignoredSettings.includes(this.setting.key);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		// first remove the current setting completely from ignored settings
 		let currentValue = [...this.configService.getValue<string[]>('settingsSync.ignoredSettings')];
 		currentValue = currentValue.filter(v => v !== this.setting.key && v !== `-${this.setting.key}`);

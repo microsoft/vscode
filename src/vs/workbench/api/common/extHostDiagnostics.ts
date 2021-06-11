@@ -217,7 +217,7 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 	private readonly _collections = new Map<string, DiagnosticCollection>();
 	private readonly _onDidChangeDiagnostics = new Emitter<vscode.Uri[]>();
 
-	static _debouncer(last: (vscode.Uri | string)[] | undefined, current: (vscode.Uri | string)[]): (vscode.Uri | string)[] {
+	static _debouncer(last: vscode.Uri[] | undefined, current: vscode.Uri[]): vscode.Uri[] {
 		if (!last) {
 			return current;
 		} else {
@@ -225,24 +225,12 @@ export class ExtHostDiagnostics implements ExtHostDiagnosticsShape {
 		}
 	}
 
-	static _mapper(last: (vscode.Uri | string)[]): { uris: vscode.Uri[] } {
-		const uris: vscode.Uri[] = [];
-		const map = new Set<string>();
+	static _mapper(last: vscode.Uri[]): { uris: readonly vscode.Uri[] } {
+		const map = new ResourceMap<vscode.Uri>();
 		for (const uri of last) {
-			if (typeof uri === 'string') {
-				if (!map.has(uri)) {
-					map.add(uri);
-					uris.push(URI.parse(uri));
-				}
-			} else {
-				if (!map.has(uri.toString())) {
-					map.add(uri.toString());
-					uris.push(uri);
-				}
-			}
+			map.set(uri, uri);
 		}
-		Object.freeze(uris);
-		return { uris };
+		return { uris: Object.freeze(Array.from(map.values())) };
 	}
 
 	readonly onDidChangeDiagnostics: Event<vscode.DiagnosticChangeEvent> = Event.map(Event.debounce(this._onDidChangeDiagnostics.event, ExtHostDiagnostics._debouncer, 50), ExtHostDiagnostics._mapper);

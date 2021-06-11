@@ -20,9 +20,14 @@ export type ConfigurationSyncStore = {
 	authenticationProviders: IStringDictionary<{ scopes: string[] }>
 };
 
-export type ExtensionWorkspaceTrustRequest = {
-	readonly default?: 'never' | 'onStart' | 'onDemand',
-	readonly override?: 'never' | 'onStart' | 'onDemand'
+export type ExtensionUntrustedWorkspaceSupport = {
+	readonly default?: boolean | 'limited',
+	readonly override?: boolean | 'limited'
+};
+
+export type ExtensionVirtualWorkspaceSupport = {
+	readonly default?: boolean,
+	readonly override?: boolean
 };
 
 export interface IProductConfiguration {
@@ -74,6 +79,7 @@ export interface IProductConfiguration {
 	readonly remoteExtensionTips?: { [remoteName: string]: IRemoteExtensionTip; };
 	readonly extensionKeywords?: { [extension: string]: readonly string[]; };
 	readonly keymapExtensionTips?: readonly string[];
+	readonly languageExtensionTips?: readonly string[];
 	readonly trustedExtensionUrlPublicKeys?: { [id: string]: string[]; };
 
 	readonly crashReporter?: {
@@ -121,7 +127,8 @@ export interface IProductConfiguration {
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
-	readonly extensionWorkspaceTrustRequest?: { readonly [extensionId: string]: ExtensionWorkspaceTrustRequest };
+	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };
+	readonly extensionVirtualWorkspacesSupport?: { readonly [extensionId: string]: ExtensionVirtualWorkspaceSupport };
 
 	readonly msftInternalDomains?: string[];
 	readonly linkProtectionTrustedDomains?: readonly string[];
@@ -129,6 +136,8 @@ export interface IProductConfiguration {
 	readonly 'configurationSync.store'?: ConfigurationSyncStore;
 
 	readonly darwinUniversalAssetId?: string;
+
+	readonly webviewContentExternalBaseUrlTemplate?: string;
 }
 
 export type ImportantExtensionTip = { name: string; languages?: string[]; pattern?: string; isExtensionPack?: boolean };

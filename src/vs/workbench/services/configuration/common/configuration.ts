@@ -3,13 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
-import { Registry } from 'vs/platform/registry/common/platform';
 
 export const FOLDER_CONFIG_FOLDER_NAME = '.vscode';
 export const FOLDER_SETTINGS_NAME = 'settings';
@@ -48,15 +47,7 @@ export interface IConfigurationCache {
 
 }
 
-export function filterSettingsRequireWorkspaceTrust(settings: ReadonlyArray<string>): ReadonlyArray<string> {
-	const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
-	return settings.filter(key => {
-		const property = configurationRegistry.getConfigurationProperties()[key];
-		return property.requireTrust && property.scope !== ConfigurationScope.APPLICATION && property.scope !== ConfigurationScope.MACHINE;
-	});
-}
-
-export type UntrustedSettings = {
+export type RestrictedSettings = {
 	default: ReadonlyArray<string>;
 	userLocal?: ReadonlyArray<string>;
 	userRemote?: ReadonlyArray<string>;
@@ -67,14 +58,14 @@ export type UntrustedSettings = {
 export const IWorkbenchConfigurationService = refineServiceDecorator<IConfigurationService, IWorkbenchConfigurationService>(IConfigurationService);
 export interface IWorkbenchConfigurationService extends IConfigurationService {
 	/**
-	 * List of untrusted settings
+	 * Restricted settings defined in each configuraiton target
 	 */
-	readonly unTrustedSettings: UntrustedSettings;
+	readonly restrictedSettings: RestrictedSettings;
 
 	/**
-	 * Event that triggers when the list of untrusted settings changes
+	 * Event that triggers when the restricted settings changes
 	 */
-	readonly onDidChangeUntrustdSettings: Event<UntrustedSettings>;
+	readonly onDidChangeRestrictedSettings: Event<RestrictedSettings>;
 
 	/**
 	 * A promise that resolves when the remote configuration is loaded in a remote window.

@@ -822,7 +822,7 @@ class EditSettingRenderer extends Disposable {
 	private onEditSettingClicked(editPreferenceWidget: EditPreferenceWidget<IIndexedSetting>, e: IEditorMouseEvent): void {
 		EventHelper.stop(e.event, true);
 
-		const anchor = { x: e.event.posx, y: e.event.posy + 10 };
+		const anchor = { x: e.event.posx, y: e.event.posy };
 		const actions = this.getSettings(editPreferenceWidget.getLine()).length === 1 ? this.getActions(editPreferenceWidget.preferences[0], this.getConfigurationsMap()[editPreferenceWidget.preferences[0].key])
 			: editPreferenceWidget.preferences.map(setting => new SubmenuAction(`preferences.submenu.${setting.key}`, setting.key, this.getActions(setting, this.getConfigurationsMap()[setting.key])));
 		this.contextMenuService.showContextMenu({
@@ -1059,7 +1059,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			markerData.push(this.generateUnsupportedMachineSettingMarker(setting));
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1085,7 +1085,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 			});
 		}
 
-		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.requireTrust) {
+		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && configuration.restricted) {
 			const marker = this.generateUntrustedSettingMarker(setting);
 			markerData.push(marker);
 			const codeActions = this.generateUntrustedSettingCodeActions([marker]);
@@ -1115,7 +1115,7 @@ class UnsupportedSettingsRenderer extends Disposable implements modes.CodeAction
 		return {
 			severity: MarkerSeverity.Warning,
 			...setting.range,
-			message: nls.localize('untrustedSetting', "This setting can be applied only in the trusted workspace.")
+			message: nls.localize('untrustedSetting', "This setting can only be applied in a trusted workspace.")
 		};
 	}
 
@@ -1201,6 +1201,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	}
 
 	private static readonly _DIM_CONFIGURATION_ = ModelDecorationOptions.register({
+		description: 'dim-configuration',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'dim-configuration'
 	});

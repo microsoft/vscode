@@ -29,7 +29,8 @@
           ".ts.map",
           ".har",
           ".jslintrc",
-          ".jsonld"
+          ".jsonld",
+          ".ipynb"
         ],
         "filenames": [
           "composer.lock",
@@ -57,6 +58,8 @@
           ".babelrc"
         ],
         "filenames": [
+          "babel.config.json",
+          ".babelrc.json",
           ".ember-cli"
         ],
         "configuration": "./language-configuration.json"

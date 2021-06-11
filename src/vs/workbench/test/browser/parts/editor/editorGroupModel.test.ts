@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { EditorGroupModel, ISerializedEditorGroupModel, EditorCloseEvent } from 'vs/workbench/common/editor/editorGroupModel';
-import { Extensions as EditorExtensions, IEditorInputFactoryRegistry, EditorInput, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorExtensions, IEditorInputFactoryRegistry, IFileEditorInput, IEditorInputSerializer, CloseDirection, EditorsOrder } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { TestLifecycleService, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -22,8 +22,9 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
-suite('Workbench editor group model', () => {
+suite('EditorGroupModel', () => {
 
 	function inst(): IInstantiationService {
 		let inst = new TestInstantiationService();
@@ -120,7 +121,7 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups'; }
-		async override resolve(): Promise<IEditorModel> { return null!; }
+		override async resolve(): Promise<IEditorModel> { return null!; }
 
 		override matches(other: TestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof TestEditorInput;
@@ -143,7 +144,7 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testEditorInputForGroups-nonSerializable'; }
-		async override resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IEditorModel | null> { return null; }
 
 		override matches(other: NonSerializableTestEditorInput): boolean {
 			return other && this.id === other.id && other instanceof NonSerializableTestEditorInput;
@@ -158,14 +159,15 @@ suite('Workbench editor group model', () => {
 			super();
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
-		async override resolve(): Promise<IEditorModel | null> { return null; }
+		override async resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
 		setPreferredResource(resource: URI): void { }
-		setEncoding(encoding: string) { }
+		async setEncoding(encoding: string) { }
 		getEncoding() { return undefined; }
 		setPreferredEncoding(encoding: string) { }
 		setForceOpenAsBinary(): void { }
+		setPreferredContents(contents: string): void { }
 		setMode(mode: string) { }
 		setPreferredMode(mode: string) { }
 		isResolved(): boolean { return false; }
@@ -256,7 +258,7 @@ suite('Workbench editor group model', () => {
 		assert.strictEqual(clone.count, 3);
 
 		let didEditorLabelChange = false;
-		const toDispose = clone.onDidEditorLabelChange(() => didEditorLabelChange = true);
+		const toDispose = clone.onDidChangeEditorLabel(() => didEditorLabelChange = true);
 		input1.setLabel();
 		assert.ok(didEditorLabelChange);
 
@@ -1558,12 +1560,12 @@ suite('Workbench editor group model', () => {
 		});
 
 		let label1ChangeCounter = 0;
-		group1.onDidEditorLabelChange(() => {
+		group1.onDidChangeEditorLabel(() => {
 			label1ChangeCounter++;
 		});
 
 		let label2ChangeCounter = 0;
-		group2.onDidEditorLabelChange(() => {
+		group2.onDidChangeEditorLabel(() => {
 			label2ChangeCounter++;
 		});
 

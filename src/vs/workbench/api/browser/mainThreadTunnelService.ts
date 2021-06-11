@@ -41,7 +41,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	private processFindingEnabled(): boolean {
-		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING) || this.tunnelService.hasTunnelProvider)
+			&& (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 	}
 
 	async $setRemoteTunnelService(processId: number): Promise<void> {

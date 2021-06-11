@@ -14,7 +14,7 @@ import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionS
 import { URI } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel, createHttpPatch, ProxyResolveEvent, createProxyResolver, createTlsPatch } from 'vscode-proxy-agent';
+import { LogLevel, createHttpPatch, ProxyResolveEvent, createProxyResolver, createTlsPatch, ProxySupportSetting } from 'vscode-proxy-agent';
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -72,11 +72,11 @@ export function connectProxyResolver(
 function createPatchedModules(configProvider: ExtHostConfigProvider, resolveProxy: ReturnType<typeof createProxyResolver>) {
 	const proxySetting = {
 		config: configProvider.getConfiguration('http')
-			.get<'override' | 'on' | 'off'>('proxySupport') || 'off'
+			.get<ProxySupportSetting>('proxySupport') || 'off'
 	};
 	configProvider.onDidChangeConfiguration(e => {
 		proxySetting.config = configProvider.getConfiguration('http')
-			.get<'override' | 'on' | 'off'>('proxySupport') || 'off';
+			.get<ProxySupportSetting>('proxySupport') || 'off';
 	});
 	const certSetting = {
 		config: !!configProvider.getConfiguration('http')

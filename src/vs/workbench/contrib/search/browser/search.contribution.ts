@@ -17,7 +17,7 @@ import { Action2, ICommandAction, MenuId, MenuRegistry, registerAction2, SyncAct
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { ContextKeyEqualsExpr, ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyEqualsExpr, ContextKeyExpr, ContextKeyRegexExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -608,7 +608,7 @@ class ShowAllSymbolsAction extends Action {
 		super(actionId, actionLabel);
 	}
 
-	async override run(): Promise<void> {
+	override async run(): Promise<void> {
 		this.quickInputService.quickAccess.show(ShowAllSymbolsAction.ALL_SYMBOLS_PREFIX);
 	}
 }
@@ -636,6 +636,8 @@ const viewDescriptor: IViewDescriptor = {
 		mnemonicTitle: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search"),
 		keybindings: {
 			primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
+			// Yes, this is weird. See #116188, #115556, #115511, and now #124146, for examples of what can go wrong here.
+			when: ContextKeyRegexExpr.create('neverMatch', /doesNotMatch/)
 		},
 		order: 1
 	}
@@ -709,8 +711,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		]
 	},
 	id: Constants.FindInFilesActionId,
-	// Give more weightage to this keybinding than of `View: Show Search` keybinding. See #116188, #115556, #115511
-	weight: KeybindingWeight.WorkbenchContrib + 1,
+	weight: KeybindingWeight.WorkbenchContrib,
 	when: null,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_F,
 	handler: FindInFilesCommand
@@ -822,7 +823,6 @@ configurationRegistry.registerConfiguration({
 	properties: {
 		[SEARCH_EXCLUDE_CONFIG]: {
 			type: 'object',
-			requireTrust: true, // This will be passed to various CLI processes, better safe than sorry.
 			markdownDescription: nls.localize('exclude', "Configure glob patterns for excluding files and folders in fulltext searches and quick open. Inherits all glob patterns from the `#files.exclude#` setting. Read more about glob patterns [here](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options)."),
 			default: { '**/node_modules': true, '**/bower_components': true, '**/*.code-search': true },
 			additionalProperties: {

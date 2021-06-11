@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ICellEditOperationDto, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
+import { illegalArgument } from 'vs/base/common/errors';
 
 interface INotebookEditData {
 	documentVersionId: number;
-	cellEdits: ICellEditOperation[];
+	cellEdits: ICellEditOperationDto[];
 }
 
 class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
@@ -20,7 +21,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 	private readonly _documentVersionId: number;
 
 	private _finalized: boolean = false;
-	private _collectedEdits: ICellEditOperation[] = [];
+	private _collectedEdits: ICellEditOperationDto[] = [];
 
 	constructor(documentVersionId: number) {
 		this._documentVersionId = documentVersionId;
@@ -40,7 +41,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		}
 	}
 
-	replaceMetadata(value: vscode.NotebookDocumentMetadata): void {
+	replaceMetadata(value: { [key: string]: any }): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
 			editType: CellEditType.DocumentMetadata,
@@ -48,23 +49,12 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 		});
 	}
 
-	replaceCellMetadata(index: number, metadata: vscode.NotebookCellMetadata): void {
+	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
-			editType: CellEditType.Metadata,
+			editType: CellEditType.PartialMetadata,
 			index,
 			metadata
-		});
-	}
-
-	replaceCellOutput(index: number, outputs: vscode.NotebookCellOutput[]): void {
-		this._throwIfFinalized();
-		this._collectedEdits.push({
-			editType: CellEditType.Output,
-			index,
-			outputs: outputs.map(output => {
-				return extHostConverter.NotebookCellOutput.from(output);
-			})
 		});
 	}
 
@@ -84,13 +74,13 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 
 export class ExtHostNotebookEditor {
 
+	public static readonly apiEditorsToExtHost = new WeakMap<vscode.NotebookEditor, ExtHostNotebookEditor>();
+
 	private _selections: vscode.NotebookRange[] = [];
 	private _visibleRanges: vscode.NotebookRange[] = [];
 	private _viewColumn?: vscode.ViewColumn;
 
 	private _visible: boolean = false;
-	private _kernel?: vscode.NotebookKernel;
-
 	private readonly _hasDecorationsForKey = new Set<string>();
 
 	private _editor?: vscode.NotebookEditor;
@@ -113,10 +103,17 @@ export class ExtHostNotebookEditor {
 			const that = this;
 			this._editor = {
 				get document() {
-					return that.notebookData.notebookDocument;
+					return that.notebookData.apiNotebook;
 				},
 				get selections() {
 					return that._selections;
+				},
+				set selections(value: vscode.NotebookRange[]) {
+					if (!Array.isArray(value) || !value.every(extHostTypes.NotebookRange.isNotebookRange)) {
+						throw illegalArgument('selections');
+					}
+					that._selections = value;
+					that._trySetSelections(value);
 				},
 				get visibleRanges() {
 					return that._visibleRanges;
@@ -136,19 +133,14 @@ export class ExtHostNotebookEditor {
 					callback(edit);
 					return that._applyEdit(edit.finalize());
 				},
-				get kernel() {
-					return that._kernel;
-				},
 				setDecorations(decorationType, range) {
 					return that.setDecorations(decorationType, range);
 				}
 			};
+
+			ExtHostNotebookEditor.apiEditorsToExtHost.set(this._editor, this);
 		}
 		return this._editor;
-	}
-
-	_acceptKernel(kernel?: vscode.NotebookKernel) {
-		this._kernel = kernel;
 	}
 
 	get visible(): boolean {
@@ -167,6 +159,10 @@ export class ExtHostNotebookEditor {
 		this._selections = selections;
 	}
 
+	private _trySetSelections(value: vscode.NotebookRange[]): void {
+		this._proxy.$trySetSelections(this.id, value.map(extHostConverter.NotebookRange.from));
+	}
+
 	_acceptViewColumn(value: vscode.ViewColumn | undefined) {
 		this._viewColumn = value;
 	}
@@ -178,7 +174,7 @@ export class ExtHostNotebookEditor {
 			return Promise.resolve(true);
 		}
 
-		const compressedEdits: ICellEditOperation[] = [];
+		const compressedEdits: ICellEditOperationDto[] = [];
 		let compressedEditsIndex = -1;
 
 		for (let i = 0; i < editData.cellEdits.length; i++) {
@@ -194,8 +190,8 @@ export class ExtHostNotebookEditor {
 			const edit = editData.cellEdits[i];
 			if (prev.editType === CellEditType.Replace && edit.editType === CellEditType.Replace) {
 				if (prev.index === edit.index) {
-					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
-					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
+					prev.cells.push(...(editData.cellEdits[i] as any).cells);
+					prev.count += (editData.cellEdits[i] as any).count;
 					continue;
 				}
 			}

@@ -60,11 +60,13 @@ export interface NativeParsedArgs {
 	'enable-proposed-api'?: string[]; // undefined or array of 1 or more
 	'open-url'?: boolean;
 	'skip-release-notes'?: boolean;
+	'skip-welcome'?: boolean;
 	'disable-telemetry'?: boolean;
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
 	'disable-keytar'?: boolean;
+	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
 	'crash-reporter-id'?: string;

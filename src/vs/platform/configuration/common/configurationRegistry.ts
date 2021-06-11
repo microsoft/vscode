@@ -113,10 +113,10 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 	scope?: ConfigurationScope;
 
 	/**
-	 * When enabled, value of this configuration will be read only from trusted sources.
+	 * When restricted, value of this configuration will be read only from trusted sources.
 	 * For eg., If the workspace is not trusted, then the value of this configuration is not read from workspace settings file.
 	 */
-	requireTrust?: boolean;
+	restricted?: boolean;
 
 	included?: boolean;
 
@@ -137,7 +137,7 @@ export interface IConfigurationPropertySchema extends IJSONSchema {
 
 export interface IConfigurationExtensionInfo {
 	id: string;
-	requireTrustForConfigurations?: string[];
+	restrictedConfigurations?: string[];
 }
 
 export interface IConfigurationNode {
@@ -329,7 +329,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.requireTrust = types.isUndefinedOrNull(property.requireTrust) ? !!extensionInfo?.requireTrustForConfigurations?.includes(key) : property.requireTrust;
+					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!extensionInfo?.restrictedConfigurations?.includes(key) : property.restricted;
 				}
 
 				// Add to properties maps

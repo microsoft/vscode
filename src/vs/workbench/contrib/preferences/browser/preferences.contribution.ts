@@ -23,10 +23,9 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { RemoteNameContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
-import { EditorDescriptor, Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { AbstractSideBySideEditorInputSerializer } from 'vs/workbench/browser/parts/editor/editor.contribution';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorInput, Extensions as EditorInputExtensions, IEditorInputSerializer, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { ExplorerFolderContext, ExplorerRootContext } from 'vs/workbench/contrib/files/common/files';
 import { KeybindingsEditor } from 'vs/workbench/contrib/preferences/browser/keybindingsEditor';
@@ -39,8 +38,11 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { DefaultPreferencesEditorInput, KeybindingsEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
+import { DefaultPreferencesEditorInput, PreferencesEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { preferencesOpenSettingsIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
+import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/browser/keybindingsEditorInput';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { AbstractSideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 
 const SETTINGS_EDITOR_COMMAND_SEARCH = 'settings.action.search';
 
@@ -109,14 +111,10 @@ class KeybindingsEditorInputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(editorInput: EditorInput): string {
-		const input = <KeybindingsEditorInput>editorInput;
-		return JSON.stringify({
-			name: input.getName(),
-			typeId: input.typeId
-		});
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput {
+	deserialize(instantiationService: IInstantiationService): EditorInput {
 		return instantiationService.createInstance(KeybindingsEditorInput);
 	}
 }
@@ -128,10 +126,10 @@ class SettingsEditor2InputSerializer implements IEditorInputSerializer {
 	}
 
 	serialize(input: SettingsEditor2Input): string {
-		return '{}';
+		return '';
 	}
 
-	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): SettingsEditor2Input {
+	deserialize(instantiationService: IInstantiationService): SettingsEditor2Input {
 		return instantiationService.createInstance(SettingsEditor2Input);
 	}
 }
@@ -162,10 +160,10 @@ class DefaultPreferencesEditorInputSerializer implements IEditorInputSerializer 
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
-Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactories).registerEditorInputSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(PreferencesEditorInput.ID, PreferencesEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(DefaultPreferencesEditorInput.ID, DefaultPreferencesEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(KeybindingsEditorInput.ID, KeybindingsEditorInputSerializer);
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(SettingsEditor2Input.ID, SettingsEditor2InputSerializer);
 
 const OPEN_SETTINGS2_ACTION_TITLE = { value: nls.localize('openSettings2', "Open Settings (UI)"), original: 'Open Settings (UI)' };
 

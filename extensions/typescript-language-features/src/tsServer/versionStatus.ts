@@ -135,12 +135,8 @@ export default class VersionStatus extends Disposable {
 	) {
 		super();
 
-		this._statusBarEntry = this._register(vscode.window.createStatusBarItem({
-			id: 'status.typescript',
-			name: localize('projectInfo.name', "TypeScript: Project Info"),
-			alignment: vscode.StatusBarAlignment.Right,
-			priority: 99 /* to the right of editor status (100) */
-		}));
+		this._statusBarEntry = this._register(vscode.window.createStatusBarItem('status.typescript', vscode.StatusBarAlignment.Right, 99 /* to the right of editor status (100) */));
+		this._statusBarEntry.name = localize('projectInfo.name', "TypeScript: Project Info");
 
 		const command = new ProjectStatusCommand(this._client, () => this._state);
 		commandManager.register(command);

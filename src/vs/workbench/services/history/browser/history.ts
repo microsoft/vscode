@@ -7,7 +7,8 @@ import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, EditorExtensions, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
@@ -398,7 +399,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return this.editorService.openEditor(location.input, options);
 		}
 
-		return this.editorService.openEditor({ resource: (location.input as IResourceEditorInput).resource, options });
+		return this.editorService.openEditor({ resource: location.input.resource, options });
 	}
 
 	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
@@ -769,7 +770,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Deserialize and open editor unless already opened
 		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
 		let editorPane: IEditorPane | undefined = undefined;
-		if (restoredEditor && !this.editorGroupService.activeGroup.isOpened(restoredEditor)) {
+		if (restoredEditor && !this.editorGroupService.activeGroup.contains(restoredEditor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do
@@ -964,7 +965,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.editorHistoryListeners.clear();
 	}
 
-	getHistory(): ReadonlyArray<IEditorInput | IResourceEditorInput> {
+	getHistory(): readonly (IEditorInput | IResourceEditorInput)[] {
 		this.ensureHistoryLoaded(this.history);
 
 		return this.history.slice(0);
@@ -1011,7 +1012,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
 			if (editorSerializer) {
 				const input = editorSerializer.deserialize(this.instantiationService, editorInputJSON.deserialized);
-				if (input) {
+				if (input instanceof EditorInput) {
 					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
 				}
 
@@ -1122,10 +1123,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region Editor Most Recently Used History
 
-	private recentlyUsedEditorsStack: ReadonlyArray<IEditorIdentifier> | undefined = undefined;
+	private recentlyUsedEditorsStack: readonly IEditorIdentifier[] | undefined = undefined;
 	private recentlyUsedEditorsStackIndex = 0;
 
-	private recentlyUsedEditorsInGroupStack: ReadonlyArray<IEditorIdentifier> | undefined = undefined;
+	private recentlyUsedEditorsInGroupStack: readonly IEditorIdentifier[] | undefined = undefined;
 	private recentlyUsedEditorsInGroupStackIndex = 0;
 
 	private navigatingInRecentlyUsedEditorsStack = false;
@@ -1163,8 +1164,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private ensureRecentlyUsedStack(indexModifier: (index: number) => number, groupId?: GroupIdentifier): [ReadonlyArray<IEditorIdentifier>, number] {
-		let editors: ReadonlyArray<IEditorIdentifier>;
+	private ensureRecentlyUsedStack(indexModifier: (index: number) => number, groupId?: GroupIdentifier): [readonly IEditorIdentifier[], number] {
+		let editors: readonly IEditorIdentifier[];
 		let index: number;
 
 		const group = typeof groupId === 'number' ? this.editorGroupService.getGroup(groupId) : undefined;

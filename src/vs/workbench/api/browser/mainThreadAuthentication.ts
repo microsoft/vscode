@@ -34,12 +34,14 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		const allowedExtensions = readAllowedExtensions(this.storageService, this.id, accountName);
 
 		if (!allowedExtensions.length) {
-			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."), []);
+			this.dialogService.show(Severity.Info, nls.localize('noTrustedExtensions', "This account has not been used by any extensions."));
 			return;
 		}
 
 		const quickPick = this.quickInputService.createQuickPick<{ label: string, description: string, extension: AllowedExtension }>();
 		quickPick.canSelectMany = true;
+		quickPick.customButton = true;
+		quickPick.customLabel = nls.localize('manageTrustedExtensions.cancel', 'Cancel');
 		const usages = readAccountUsages(this.storageService, this.id, accountName);
 		const items = allowedExtensions.map(extension => {
 			const usage = usages.find(usage => extension.id === usage.extensionId);
@@ -66,6 +68,10 @@ export class MainThreadAuthenticationProvider extends Disposable {
 
 		quickPick.onDidHide(() => {
 			quickPick.dispose();
+		});
+
+		quickPick.onDidCustom(() => {
+			quickPick.hide();
 		});
 
 		quickPick.show();

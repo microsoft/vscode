@@ -6,7 +6,7 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export const IHoverService = createDecorator<IHoverService>('hoverService');
 
@@ -82,10 +82,20 @@ export interface IHoverOptions {
 	hideOnHover?: boolean;
 
 	/**
-	 * Whether to anchor the hover above (default) or below the target. This option will be ignored
-	 * if there is not enough room to layout the hover in the specified anchor position.
+	 * Position of the hover. Default is to show above the target.
+	 * It will be ignored if there is not enough room to layout the hover in the specified position.
 	 */
-	anchorPosition?: AnchorPosition;
+	hoverPosition?: HoverPosition;
+
+	/**
+	 * Whether to show the hover pointer
+	 */
+	showPointer?: boolean;
+
+	/**
+	 * Whether to show a compact hover
+	 */
+	compact?: boolean;
 }
 
 export interface IHoverAction {

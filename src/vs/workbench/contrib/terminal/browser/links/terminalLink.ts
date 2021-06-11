@@ -24,17 +24,17 @@ export class TerminalLink extends DisposableStore implements ILink {
 	private _hoverListeners: DisposableStore | undefined;
 
 	private readonly _onInvalidated = new Emitter<void>();
-	public get onInvalidated(): Event<void> { return this._onInvalidated.event; }
+	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
 	constructor(
 		private readonly _xterm: Terminal,
-		public readonly range: IBufferRange,
-		public readonly text: string,
+		readonly range: IBufferRange,
+		readonly text: string,
 		private readonly _viewportY: number,
 		private readonly _activateCallback: (event: MouseEvent | undefined, uri: string) => void,
 		private readonly _tooltipCallback: (link: TerminalLink, viewportRange: IViewportRange, modifierDownCallback?: () => void, modifierUpCallback?: () => void) => void,
 		private readonly _isHighConfidenceLink: boolean,
-		public readonly label: string | undefined,
+		readonly label: string | undefined,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();

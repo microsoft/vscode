@@ -266,6 +266,11 @@ export interface PresentationOptions {
 	 * Controls whether the task is executed in a specific terminal group using split panes.
 	 */
 	group?: string;
+
+	/**
+	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 */
+	close?: boolean;
 }
 
 export namespace PresentationOptions {
@@ -291,6 +296,14 @@ export namespace RuntimeType {
 				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
+		}
+	}
+	export function toString(value: RuntimeType): string {
+		switch (value) {
+			case RuntimeType.Shell: return 'shell';
+			case RuntimeType.Process: return 'process';
+			case RuntimeType.CustomExecution: return 'customExecution';
+			default: return 'process';
 		}
 	}
 }

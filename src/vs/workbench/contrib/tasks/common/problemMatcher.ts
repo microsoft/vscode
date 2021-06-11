@@ -1294,7 +1294,7 @@ class ProblemPatternRegistryImpl implements IProblemPatternRegistry {
 		});
 		this.add('eslint-stylish', [
 			{
-				regexp: /^([^\s].*)$/,
+				regexp: /^((?:[a-zA-Z]:)*[\\\/.]+.*?)$/,
 				kind: ProblemLocationKind.Location,
 				file: 1
 			},

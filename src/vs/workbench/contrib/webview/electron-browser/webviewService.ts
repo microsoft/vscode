@@ -8,8 +8,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { DynamicWebviewEditorOverlay } from 'vs/workbench/contrib/webview/browser/dynamicWebviewEditorOverlay';
 import { WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewService } from 'vs/workbench/contrib/webview/browser/webviewService';
-import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-sandbox/iframeWebviewElement';
 import { ElectronWebviewBasedWebview } from 'vs/workbench/contrib/webview/electron-browser/webviewElement';
+import { ElectronIframeWebview } from 'vs/workbench/contrib/webview/electron-sandbox/iframeWebviewElement';
 
 export class ElectronWebviewService extends WebviewService {
 
@@ -28,7 +28,7 @@ export class ElectronWebviewService extends WebviewService {
 	): WebviewElement {
 		const useIframes = this._configService.getValue<string>('webview.experimental.useIframes') ?? !options.enableFindWidget;
 		const webview = this._instantiationService.createInstance(useIframes ? ElectronIframeWebview : ElectronWebviewBasedWebview, id, options, contentOptions, extension, this._webviewThemeDataProvider);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 
@@ -39,7 +39,7 @@ export class ElectronWebviewService extends WebviewService {
 		extension: WebviewExtensionDescription | undefined,
 	): WebviewOverlay {
 		const webview = this._instantiationService.createInstance(DynamicWebviewEditorOverlay, id, options, contentOptions, extension);
-		this.addWebviewListeners(webview);
+		this.registerNewWebview(webview);
 		return webview;
 	}
 }

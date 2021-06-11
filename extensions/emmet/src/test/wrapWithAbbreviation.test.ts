@@ -13,6 +13,7 @@ const htmlContentsForBlockWrapTests = `
 	<ul class="nav main">
 		<li class="item1">img</li>
 		<li class="item2">$hithere</li>
+		<li class="item3">\${hithere}</li>
 	</ul>
 `;
 
@@ -20,6 +21,7 @@ const htmlContentsForInlineWrapTests = `
 	<ul class="nav main">
 		<em class="item1">img</em>
 		<em class="item2">$hithere</em>
+		<em class="item3">\${hithere}</em>
 	</ul>
 `;
 
@@ -31,6 +33,9 @@ const wrapBlockElementExpected = `
 		<div>
 			<li class="item2">$hithere</li>
 		</div>
+		<div>
+			<li class="item3">\${hithere}</li>
+		</div>
 	</ul>
 `;
 
@@ -38,6 +43,7 @@ const wrapInlineElementExpected = `
 	<ul class="nav main">
 		<span><em class="item1">img</em></span>
 		<span><em class="item2">$hithere</em></span>
+		<span><em class="item3">\${hithere}</em></span>
 	</ul>
 `;
 
@@ -48,6 +54,9 @@ const wrapSnippetExpected = `
 		</a>
 		<a href="">
 			<li class="item2">$hithere</li>
+		</a>
+		<a href="">
+			<li class="item3">\${hithere}</li>
 		</a>
 	</ul>
 `;
@@ -64,6 +73,11 @@ const wrapMultiLineAbbrExpected = `
 				<li class="item2">$hithere</li>
 			</li>
 		</ul>
+		<ul>
+			<li>
+				<li class="item3">\${hithere}</li>
+			</li>
+		</ul>
 	</ul>
 `;
 
@@ -77,15 +91,18 @@ const wrapInlineElementExpectedFormatFalse = `
 		<h1>
 			<li class="item2">$hithere</li>
 		</h1>
+		<h1>
+			<li class="item3">\${hithere}</li>
+		</h1>
 	</ul>
 `;
 
 suite('Tests for Wrap with Abbreviations', () => {
 	teardown(closeAllEditors);
 
-	const multiCursors = [new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6)];
-	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33)];
-	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 4, 0)];
+	const multiCursors = [new Selection(2, 6, 2, 6), new Selection(3, 6, 3, 6), new Selection(4, 6, 4, 6)];
+	const multiCursorsWithSelection = [new Selection(2, 2, 2, 28), new Selection(3, 2, 3, 33), new Selection(4, 6, 4, 36)];
+	const multiCursorsWithFullLineSelection = [new Selection(2, 0, 2, 28), new Selection(3, 0, 3, 33), new Selection(4, 0, 4, 36)];
 
 	const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfile');
 
@@ -200,6 +217,79 @@ suite('Tests for Wrap with Abbreviations', () => {
 	</div>
 	`;
 		return testWrapWithAbbreviation([new Selection(3, 2, 3, 2)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation inner node in cdata', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[
+			<div>
+				<p>Test 1</p>
+			</div>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div class="nav main">
+		<![CDATA[
+			<div>
+				<p>Test 1</p>
+			</div>
+			<div>
+				<p>Test 2</p>
+			</div>
+		]]>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(6, 5, 6, 5)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation inner node in script in cdata', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[
+			<script type="text/plain">
+				<p>Test 1</p>
+			</script>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		const expectedContents = `
+	<div class="nav main">
+		<![CDATA[
+			<script type="text/plain">
+				<div>
+					<p>Test 1</p>
+				</div>
+			</script>
+			<p>Test 2</p>
+		]]>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(4, 10, 4, 10)], 'div', expectedContents, contents);
+	});
+
+	test('Wrap with abbreviation inner node in cdata one-liner', () => {
+		const contents = `
+	<div class="nav main">
+		<![CDATA[<p>Test here</p>]]>
+		hello
+	</div>
+	`;
+		// this result occurs because no selection on the open/close p tag was given
+		const expectedContents = `
+	<div class="nav main">
+		<div><![CDATA[<p>Test here</p>]]></div>
+		hello
+	</div>
+	`;
+		return testWrapWithAbbreviation([new Selection(2, 15, 2, 15)], 'div', expectedContents, contents);
 	});
 
 	test('Wrap with multiline abbreviation doesnt add extra spaces', () => {
@@ -343,11 +433,12 @@ suite('Tests for Wrap with Abbreviations', () => {
 		<div className="hello">
 			<li class="item1">img</li>
 			<li class="item2">$hithere</li>
+			<li class="item3">\${hithere}</li>
 		</div>
 	</ul>
 `;
 
-		return testWrapWithAbbreviation([new Selection(2, 2, 3, 33)], '.hello', wrapMultiLineJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
+		return testWrapWithAbbreviation([new Selection(2, 2, 4, 36)], '.hello', wrapMultiLineJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
 	});
 
 	test('Wrap individual line with abbreviation uses className for jsx files', () => {
@@ -359,10 +450,13 @@ suite('Tests for Wrap with Abbreviations', () => {
 		<div className="hello2">
 			<li class="item2">$hithere</li>
 		</div>
+		<div className="hello3">
+			<li class="item3">\${hithere}</li>
+		</div>
 	</ul>
 `;
 
-		return testWrapIndividualLinesWithAbbreviation([new Selection(2, 2, 3, 33)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
+		return testWrapIndividualLinesWithAbbreviation([new Selection(2, 2, 4, 36)], '.hello$*', wrapIndividualLinesJsxExpected, htmlContentsForBlockWrapTests, 'jsx');
 	});
 
 	test('Wrap with abbreviation merge overlapping computed ranges', () => {

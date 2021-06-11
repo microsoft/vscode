@@ -11,6 +11,8 @@ export const configureKernelIcon = registerIcon('notebook-kernel-configure', Cod
 export const selectKernelIcon = registerIcon('notebook-kernel-select', Codicon.serverEnvironment, localize('selectKernelIcon', 'Configure icon to select a kernel in notebook editors.'));
 
 export const executeIcon = registerIcon('notebook-execute', Codicon.play, localize('executeIcon', 'Icon to execute in notebook editors.'));
+export const executeAboveIcon = registerIcon('notebook-execute-above', Codicon.runAbove, localize('executeAboveIcon', 'Icon to execute above cells in notebook editors.'));
+export const executeBelowIcon = registerIcon('notebook-execute-below', Codicon.runBelow, localize('executeBelowIcon', 'Icon to execute below cells in notebook editors.'));
 export const stopIcon = registerIcon('notebook-stop', Codicon.primitiveSquare, localize('stopIcon', 'Icon to stop an execution in notebook editors.'));
 export const deleteCellIcon = registerIcon('notebook-delete-cell', Codicon.trash, localize('deleteCellIcon', 'Icon to delete a cell in notebook editors.'));
 export const executeAllIcon = registerIcon('notebook-execute-all', Codicon.runAll, localize('executeAllIcon', 'Icon to execute all cells in notebook editors.'));
@@ -24,6 +26,8 @@ export const unfoldIcon = registerIcon('notebook-unfold', Codicon.unfold, locali
 
 export const successStateIcon = registerIcon('notebook-state-success', Codicon.check, localize('successStateIcon', 'Icon to indicate a success state in notebook editors.'));
 export const errorStateIcon = registerIcon('notebook-state-error', Codicon.error, localize('errorStateIcon', 'Icon to indicate an error state in notebook editors.'));
+export const pendingStateIcon = registerIcon('notebook-state-pending', Codicon.clock, localize('pendingStateIcon', 'Icon to indicate a pending state in notebook editors.'));
+export const executingStateIcon = registerIcon('notebook-state-executing', Codicon.sync, localize('executingStateIcon', 'Icon to indicate an executing state in notebook editors.'));
 
 export const collapsedIcon = registerIcon('notebook-collapsed', Codicon.chevronRight, localize('collapsedIcon', 'Icon to annotate a collapsed section in notebook editors.'));
 export const expandedIcon = registerIcon('notebook-expanded', Codicon.chevronDown, localize('expandedIcon', 'Icon to annotate an expanded section in notebook editors.'));

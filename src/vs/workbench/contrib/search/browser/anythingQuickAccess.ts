@@ -27,7 +27,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorConfiguration, IEditorInput, EditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IWorkbenchEditorConfiguration, IEditorInput, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ThrottledDelayer } from 'vs/base/common/async';
@@ -51,6 +51,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -143,11 +144,12 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		async restoreEditorViewState(): Promise<void> {
 			if (this.editorViewState) {
-				await this.editorService.openEditor(
-					this.editorViewState.editor,
-					{ viewState: this.editorViewState.state, preserveFocus: true /* import to not close the picker as a result */ },
-					this.editorViewState.group
-				);
+				const options: ITextEditorOptions = {
+					viewState: this.editorViewState.state,
+					preserveFocus: true /* import to not close the picker as a result */
+				};
+
+				await this.editorService.openEditor(this.editorViewState.editor, options, this.editorViewState.group);
 			}
 		}
 	}(this, this.editorService);
@@ -259,7 +261,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		return toDisposable(() => this.clearDecorations(activeEditorControl));
 	}
 
-	protected getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
+	protected _getPicks(originalFilter: string, disposables: DisposableStore, token: CancellationToken): Picks<IAnythingQuickPickItem> | Promise<Picks<IAnythingQuickPickItem>> | FastAndSlowPicks<IAnythingQuickPickItem> | null {
 
 		// Find a suitable range from the pattern looking for ":", "#" or ","
 		// unless we have the `@` editor symbol character inside the filter

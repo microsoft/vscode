@@ -50,7 +50,7 @@ export interface IExtUri {
 
 	/**
 	 * Creates a key from a resource URI to be used to resource comparison and for resource maps.
-	 * @see ResourceMap
+	 * @see {@link ResourceMap}
 	 * @param uri Uri
 	 * @param ignoreFragment Ignore the fragment (defaults to `false`)
 	 */
@@ -264,12 +264,7 @@ export class ExtUri implements IExtUri {
 				path: newURI.path
 			});
 		}
-		if (path.indexOf('/') === -1) { // no slashes? it's likely a Windows path
-			path = extpath.toSlashes(path);
-			if (/^[a-zA-Z]:(\/|$)/.test(path)) { // starts with a drive letter
-				path = '/' + path;
-			}
-		}
+		path = extpath.toPosixPath(path); // we allow path to be a windows path
 		return base.with({
 			path: paths.posix.resolve(base.path, path)
 		});

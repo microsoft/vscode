@@ -31,12 +31,13 @@ export interface IConfirmDialogArgs {
 export interface IShowDialogArgs {
 	severity: Severity;
 	message: string;
-	buttons: string[];
+	buttons?: string[];
 	options?: IDialogOptions;
 }
 
 export interface IInputDialogArgs extends IShowDialogArgs {
-	inputs: IInput[],
+	buttons: string[];
+	inputs: IInput[];
 }
 
 export interface IDialog {
@@ -181,9 +182,11 @@ export interface IOpenDialogOptions {
 export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface ICustomDialogOptions {
-	markdownDetails?: ICustomDialogMarkdown[]
+	buttonDetails?: string[];
+	markdownDetails?: ICustomDialogMarkdown[];
 	classes?: string[];
 	icon?: Codicon;
+	disableCloseAction?: boolean;
 }
 
 export interface ICustomDialogMarkdown {
@@ -220,7 +223,7 @@ export interface IDialogHandler {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.
@@ -260,7 +263,7 @@ export interface IDialogService {
 	 * then a promise with index of `cancelId` option is returned. If there is no such
 	 * option then promise with index `0` is returned.
 	 */
-	show(severity: Severity, message: string, buttons: string[], options?: IDialogOptions): Promise<IShowResult>;
+	show(severity: Severity, message: string, buttons?: string[], options?: IDialogOptions): Promise<IShowResult>;
 
 	/**
 	 * Present a modal dialog to the user asking for input.

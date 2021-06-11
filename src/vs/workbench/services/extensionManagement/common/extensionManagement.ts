@@ -36,6 +36,7 @@ export const enum EnablementState {
 	DisabledByTrustRequirement,
 	DisabledByExtensionKind,
 	DisabledByEnvironment,
+	DisabledByVirtualWorkspace,
 	DisabledGlobally,
 	DisabledWorkspace,
 	EnabledGlobally,
@@ -79,6 +80,12 @@ export interface IWorkbenchExtensionEnablementService {
 	 * This will
 	 */
 	isDisabledGlobally(extension: IExtension): boolean;
+
+	/**
+	 * Returns `true` if the given extension identifier is enabled by the user but it it
+	 * disabled due to the fact that the current window/folder/workspace is not trusted.
+	 */
+	isDisabledByWorkspaceTrust(extension: IExtension): boolean;
 
 	/**
 	 * Enable or disable the given extension.

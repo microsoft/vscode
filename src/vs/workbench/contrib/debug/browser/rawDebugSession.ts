@@ -16,7 +16,8 @@ import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 /**
  * This interface represents a single command line argument split into a "prefix" and a "path" half.
@@ -80,11 +81,12 @@ export class RawDebugSession implements IDisposable {
 		debugAdapter: IDebugAdapter,
 		public readonly dbgr: IDebugger,
 		private readonly sessionId: string,
-		private readonly telemetryService: ITelemetryService,
-		private readonly customTelemetryService: ICustomEndpointTelemetryService,
-		private readonly extensionHostDebugService: IExtensionHostDebugService,
-		private readonly openerService: IOpenerService,
-		private readonly notificationService: INotificationService
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICustomEndpointTelemetryService private readonly customTelemetryService: ICustomEndpointTelemetryService,
+		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@IDialogService private readonly dialogSerivce: IDialogService,
 	) {
 		this.debugAdapter = debugAdapter;
 		this._capabilities = Object.create(null);
@@ -565,17 +567,28 @@ export class RawDebugSession implements IDisposable {
 
 		switch (request.command) {
 			case 'launchVSCode':
-				this.launchVsCode(<ILaunchVSCodeArguments>request.arguments).then(result => {
+				try {
+					let result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+					if (!result.success) {
+						const showResult = await this.dialogSerivce.show(Severity.Warning, nls.localize('canNotStart', "The debugger needs to open a new tab or window for the debuggee but the browser prevented this. You must give permission to continue."),
+							[nls.localize('continue', "Continue"), nls.localize('cancel', "Cancel")], { cancelId: 1 });
+						if (showResult.choice === 0) {
+							result = await this.launchVsCode(<ILaunchVSCodeArguments>request.arguments);
+						} else {
+							response.success = false;
+							safeSendResponse(response);
+							await this.shutdown();
+						}
+					}
 					response.body = {
 						rendererDebugPort: result.rendererDebugPort,
-						//processId: pid
 					};
 					safeSendResponse(response);
-				}, err => {
+				} catch (err) {
 					response.success = false;
 					response.message = err.message;
 					safeSendResponse(response);
-				});
+				}
 				break;
 			case 'runInTerminal':
 				try {
@@ -679,7 +692,7 @@ export class RawDebugSession implements IDisposable {
 			const label = error.urlLabel ? error.urlLabel : nls.localize('moreInfo', "More Info");
 			return errors.createErrorWithActions(userMessage, {
 				actions: [new Action('debug.moreInfo', label, undefined, true, async () => {
-					this.openerService.open(URI.parse(url));
+					this.openerService.open(URI.parse(url), { allowCommands: true });
 				})]
 			});
 		}

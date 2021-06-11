@@ -37,7 +37,10 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		},
 		capturePage: () => Promise.resolve(''),
 		reloadWindow: (windowId) => Promise.resolve(),
-		exitApplication: () => browser.close(),
+		exitApplication: async () => {
+			await browser.close();
+			await teardown();
+		},
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
 			for (let i = 0; i < chords.length; i++) {
@@ -123,9 +126,9 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	endpoint = await waitForEndpoint();
 }
 
-function teardown(): void {
+async function teardown(): Promise<void> {
 	if (server) {
-		kill(server.pid);
+		await new Promise((c, e) => kill(server!.pid, error => error ? e(error) : c(null)));
 		server = undefined;
 	}
 }

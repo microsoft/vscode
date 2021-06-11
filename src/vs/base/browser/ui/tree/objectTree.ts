@@ -38,7 +38,7 @@ export interface IObjectTreeSetChildrenOptions<T> {
 
 export class ObjectTree<T extends NonNullable<any>, TFilterData = void> extends AbstractTree<T | null, TFilterData, T | null> {
 
-	protected model!: IObjectTreeModel<T, TFilterData>;
+	protected override model!: IObjectTreeModel<T, TFilterData>;
 
 	override get onDidChangeCollapseState(): Event<ICollapseStateChangeEvent<T | null, TFilterData>> { return this.model.onDidChangeCollapseState; }
 
@@ -194,7 +194,7 @@ export interface ICompressibleObjectTreeOptionsUpdate extends IAbstractTreeOptio
 
 export class CompressibleObjectTree<T extends NonNullable<any>, TFilterData = void> extends ObjectTree<T, TFilterData> implements ICompressedTreeNodeProvider<T, TFilterData> {
 
-	protected model!: CompressibleObjectTreeModel<T, TFilterData>;
+	protected override model!: CompressibleObjectTreeModel<T, TFilterData>;
 
 	constructor(
 		user: string,

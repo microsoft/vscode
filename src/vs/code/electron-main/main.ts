@@ -5,7 +5,8 @@
 
 import 'vs/platform/update/common/update.config.contribution';
 import { app, dialog } from 'electron';
-import { promises, unlinkSync } from 'fs';
+import { unlinkSync } from 'fs';
+import { Promises as FSPromises } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
 import { isWindows, IProcessEnvironment, isMacintosh } from 'vs/base/common/platform';
 import { mark } from 'vs/base/common/performance';
@@ -22,8 +23,8 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ILogService, ConsoleMainLogger, MultiplexLogService, getLogLevel, ILoggerService } from 'vs/platform/log/common/log';
-import { StateService } from 'vs/platform/state/node/stateService';
-import { IStateService } from 'vs/platform/state/node/state';
+import { StateMainService } from 'vs/platform/state/electron-main/stateMainService';
+import { IStateMainService } from 'vs/platform/state/electron-main/state';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
@@ -57,6 +58,7 @@ import { LoggerService } from 'vs/platform/log/node/loggerService';
 import { cwd } from 'vs/base/common/process';
 import { IProtocolMainService } from 'vs/platform/protocol/electron-main/protocol';
 import { ProtocolMainService } from 'vs/platform/protocol/electron-main/protocolMainService';
+import { Promises } from 'vs/base/common/async';
 
 /**
  * The main VS Code entry point.
@@ -84,17 +86,17 @@ class CodeMain {
 		setUnexpectedErrorHandler(err => console.error(err));
 
 		// Create services
-		const [instantiationService, instanceEnvironment, environmentService, configurationService, stateService, bufferLogService, productService] = this.createServices();
+		const [instantiationService, instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService] = this.createServices();
 
 		try {
 
 			// Init services
 			try {
-				await this.initServices(environmentService, configurationService, stateService);
+				await this.initServices(environmentMainService, configurationService, stateMainService);
 			} catch (error) {
 
 				// Show a dialog for errors that can be resolved by the user
-				this.handleStartupDataDirError(environmentService, productService.nameLong, error);
+				this.handleStartupDataDirError(environmentMainService, productService.nameLong, error);
 
 				throw error;
 			}
@@ -108,10 +110,10 @@ class CodeMain {
 				// Create the main IPC server by trying to be the server
 				// If this throws an error it means we are not the first
 				// instance of VS Code running and so we would quit.
-				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentService, lifecycleMainService, instantiationService, productService, true);
+				const mainProcessNodeIpcServer = await this.claimInstance(logService, environmentMainService, lifecycleMainService, instantiationService, productService, true);
 
 				// Delay creation of spdlog for perf reasons (https://github.com/microsoft/vscode/issues/72906)
-				bufferLogService.logger = new SpdLogLogger('main', join(environmentService.logsPath, 'main.log'), true, bufferLogService.getLevel());
+				bufferLogService.logger = new SpdLogLogger('main', join(environmentMainService.logsPath, 'main.log'), true, bufferLogService.getLevel());
 
 				// Lifecycle
 				once(lifecycleMainService.onWillShutdown)(() => {
@@ -126,7 +128,7 @@ class CodeMain {
 		}
 	}
 
-	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateService, BufferLogService, IProductService] {
+	private createServices(): [IInstantiationService, IProcessEnvironment, IEnvironmentMainService, ConfigurationService, StateMainService, BufferLogService, IProductService] {
 		const services = new ServiceCollection();
 
 		// Product
@@ -163,8 +165,8 @@ class CodeMain {
 		services.set(ILifecycleMainService, new SyncDescriptor(LifecycleMainService));
 
 		// State
-		const stateService = new StateService(environmentMainService, logService);
-		services.set(IStateService, stateService);
+		const stateMainService = new StateMainService(environmentMainService, logService, fileService);
+		services.set(IStateMainService, stateMainService);
 
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestMainService));
@@ -181,7 +183,7 @@ class CodeMain {
 		// Protocol
 		services.set(IProtocolMainService, new SyncDescriptor(ProtocolMainService));
 
-		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateService, bufferLogService, productService];
+		return [new InstantiationService(services, true), instanceEnvironment, environmentMainService, configurationService, stateMainService, bufferLogService, productService];
 	}
 
 	private patchEnvironment(environmentMainService: IEnvironmentMainService): IProcessEnvironment {
@@ -201,25 +203,25 @@ class CodeMain {
 		return instanceEnvironment;
 	}
 
-	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateService: StateService): Promise<unknown> {
+	private initServices(environmentMainService: IEnvironmentMainService, configurationService: ConfigurationService, stateMainService: StateMainService): Promise<unknown> {
+		return Promises.settled<unknown>([
 
-		// Environment service (paths)
-		const environmentServiceInitialization = Promise.all<string | undefined>([
-			environmentMainService.extensionsPath,
-			environmentMainService.nodeCachedDataDir,
-			environmentMainService.logsPath,
-			environmentMainService.globalStorageHome.fsPath,
-			environmentMainService.workspaceStorageHome.fsPath,
-			environmentMainService.backupHome
-		].map(path => path ? promises.mkdir(path, { recursive: true }) : undefined));
+			// Environment service (paths)
+			Promise.all<string | undefined>([
+				environmentMainService.extensionsPath,
+				environmentMainService.codeCachePath,
+				environmentMainService.logsPath,
+				environmentMainService.globalStorageHome.fsPath,
+				environmentMainService.workspaceStorageHome.fsPath,
+				environmentMainService.backupHome
+			].map(path => path ? FSPromises.mkdir(path, { recursive: true }) : undefined)),
 
-		// Configuration service
-		const configurationServiceInitialization = configurationService.initialize();
+			// Configuration service
+			configurationService.initialize(),
 
-		// State service
-		const stateServiceInitialization = stateService.init();
-
-		return Promise.all([environmentServiceInitialization, configurationServiceInitialization, stateServiceInitialization]);
+			// State service
+			stateMainService.init()
+		]);
 	}
 
 	private async claimInstance(logService: ILogService, environmentMainService: IEnvironmentMainService, lifecycleMainService: ILifecycleMainService, instantiationService: IInstantiationService, productService: IProductService, retry: boolean): Promise<NodeIPCServer> {

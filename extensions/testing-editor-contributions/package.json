@@ -9,6 +9,7 @@
   "engines": {
     "vscode": "^1.39.0"
   },
+  "icon": "media/icon.png",
   "categories": [
     "Other"
   ],
@@ -19,6 +20,12 @@
   ],
   "dependencies": {
     "vscode-nls": "^5.0.0"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
   },
   "scripts": {
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:testing-editor-contributions ./tsconfig.json"

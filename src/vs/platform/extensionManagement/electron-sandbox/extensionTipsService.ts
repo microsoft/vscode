@@ -101,7 +101,7 @@ export class ExtensionTipsService extends BaseExtensionTipsService {
 		});
 	}
 
-	async override getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
+	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
 		const highImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.highImportanceExecutableTips);
 		const mediumImportanceExeTips = await this.getValidExecutableBasedExtensionTips(this.mediumImportanceExecutableTips);
 		return [...highImportanceExeTips, ...mediumImportanceExeTips];

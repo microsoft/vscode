@@ -9,10 +9,14 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+
+const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 // Configuration
 (function registerConfiguration(): void {
-	const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
 	// Workbench
 	registry.registerConfiguration({
@@ -511,3 +515,23 @@ import { isStandalone } from 'vs/base/browser/browser';
 		}
 	});
 })();
+
+class ExperimentalCustomHoverConfigContribution implements IWorkbenchContribution {
+	constructor(@ITASExperimentService tasExperimentService: ITASExperimentService) {
+		tasExperimentService.getTreatment<boolean>('customHovers').then(useCustomHoversAsDefault => {
+			registry.registerConfiguration({
+				...workbenchConfigurationNodeBase,
+				'properties': {
+					'workbench.experimental.useCustomHover': {
+						'type': 'boolean',
+						'description': localize('workbench.experimental.useCustomHover', "Enable/disable custom hovers on Activity Bar & Panel. Note this configuration is experimental and subjected to be removed at any time."),
+						'default': !!useCustomHoversAsDefault
+					}
+				}
+			});
+		});
+	}
+}
+
+const workbenchRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchRegistry.registerWorkbenchContribution(ExperimentalCustomHoverConfigContribution, LifecyclePhase.Starting);

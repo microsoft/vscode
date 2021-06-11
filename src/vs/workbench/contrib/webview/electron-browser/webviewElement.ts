@@ -9,7 +9,9 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IMainProcessService } from 'vs/platform/ipc/electron-sandbox/services';
@@ -17,7 +19,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
-import { IRequestService } from 'vs/platform/request/common/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { webviewPartitionId } from 'vs/platform/webview/common/webviewManagerService';
 import { BaseWebview, WebviewMessageChannels } from 'vs/workbench/contrib/webview/browser/baseWebviewElement';
@@ -50,25 +51,27 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		contentOptions: WebviewContentOptions,
 		extension: WebviewExtensionDescription | undefined,
 		private readonly _webviewThemeDataProvider: WebviewThemeDataProvider,
+		@IContextMenuService contextMenuService: IContextMenuService,
 		@ILogService private readonly _myLogService: ILogService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IMainProcessService mainProcessService: IMainProcessService,
+		@IMenuService menuService: IMenuService,
 		@INotificationService notificationService: INotificationService,
 		@IFileService fileService: IFileService,
-		@IRequestService requestService: IRequestService,
 		@ITunnelService tunnelService: ITunnelService,
 		@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 	) {
 		super(id, options, contentOptions, extension, _webviewThemeDataProvider, {
+			contextMenuService,
 			notificationService,
 			logService: _myLogService,
 			telemetryService,
 			environmentService,
 			fileService,
-			requestService,
+			menuService,
 			tunnelService,
 			remoteAuthorityResolverService
 		});
@@ -156,7 +159,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		// and not the `vscode-file` URI because preload scripts are loaded
 		// via node.js from the main side and only allow `file:` protocol
 		this.element!.preload = FileAccess.asFileUri('./pre/electron-index.js', require).toString(true);
-		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-origin=${encodeURIComponent(this.webviewResourceEndpoint)}`;
+		this.element!.src = `${Schemas.vscodeWebview}://${this.id}/electron-browser-index.html?platform=electron&id=${this.id}&vscode-resource-base-authority=${encodeURIComponent(this.webviewRootResourceAuthority)}&swVersion=${this._expectedServiceWorkerVersion}`;
 	}
 
 	protected createElement(options: WebviewOptions) {
@@ -187,10 +190,6 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	public override set contentOptions(options: WebviewContentOptions) {
 		this._myLogService.debug(`Webview(${this.id}): will set content options`);
 		super.contentOptions = options;
-	}
-
-	protected override get webviewResourceEndpoint(): string {
-		return `https://${this.id}.vscode-webview-test.com`;
 	}
 
 	protected readonly extraContentOptions = {};
