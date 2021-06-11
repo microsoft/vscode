@@ -79,7 +79,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, context?: { id: string, extension: string }): Promise<boolean> {
+	async run(accessor: ServicesAccessor, context?: { id: string, extension: string; }): Promise<boolean> {
 		const notebookKernelService = accessor.get(INotebookKernelService);
 		const editorService = accessor.get(IEditorService);
 		const quickInputService = accessor.get(IQuickInputService);
@@ -96,7 +96,7 @@ registerAction2(class extends Action2 {
 			context = undefined;
 		}
 
-		const notebook = editor.viewModel.notebookDocument;
+		const notebook = editor.textModel;
 		const { selected, all } = notebookKernelService.getMatchingKernel(notebook);
 
 		if (selected && context && selected.id === context.id && ExtensionIdentifier.equals(selected.extension, context.extension)) {
@@ -120,10 +120,10 @@ registerAction2(class extends Action2 {
 		}
 
 		if (!newKernel) {
-			type KernelPick = IQuickPickItem & { kernel: INotebookKernel };
+			type KernelPick = IQuickPickItem & { kernel: INotebookKernel; };
 			const configButton: IQuickInputButton = {
 				iconClass: ThemeIcon.asClassName(configureKernelIcon),
-				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.viewModel.viewType)
+				tooltip: nls.localize('notebook.promptKernel.setDefaultTooltip', "Set as default for '{0}' notebooks", editor.textModel.viewType)
 			};
 			const picks = all.map(kernel => {
 				const res = <KernelPick>{
@@ -246,7 +246,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 				return;
 			}
 
-			const notebook = activeEditor.viewModel?.notebookDocument;
+			const notebook = activeEditor.textModel;
 			if (notebook) {
 				this._showKernelStatus(notebook);
 			} else {
