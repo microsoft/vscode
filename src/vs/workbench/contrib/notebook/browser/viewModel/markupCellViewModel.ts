@@ -20,8 +20,10 @@ import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/vie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { dirname } from 'vs/base/common/resources';
 
-export class MarkdownCellViewModel extends BaseCellViewModel implements ICellViewModel {
+export class MarkupCellViewModel extends BaseCellViewModel implements ICellViewModel {
+
 	readonly cellKind = CellKind.Markup;
+
 	private _html: HTMLElement | null = null;
 	private _layoutInfo: MarkdownCellLayoutInfo;
 

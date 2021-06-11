@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, ProblemSeverity, Problems } from '../../../../automation/out';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Language Features', () => {
+		beforeSuite(opts);
+		afterSuite();
+
 		it('verifies quick outline', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile('style.css');

@@ -222,11 +222,15 @@ export interface IFocusOutputMessage {
 	readonly cellId: string;
 }
 
-export interface IAckOutputHeightMessage {
-	readonly type: 'ack-dimension';
+export interface IAckOutputHeight {
 	readonly cellId: string;
 	readonly outputId: string;
 	readonly height: number;
+}
+
+export interface IAckOutputHeightMessage {
+	readonly type: 'ack-dimension';
+	readonly updates: readonly IAckOutputHeight[];
 }
 
 export interface IControllerPreload {

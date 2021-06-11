@@ -396,7 +396,7 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		if (this.useCustomHover) {
 			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 				if (!this.showHoverScheduler.isScheduled()) {
-					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 150);
+					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 500);
 				}
 			}, true));
 			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {

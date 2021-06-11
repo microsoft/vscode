@@ -74,8 +74,12 @@ export class HoverForeignElementAnchor {
 export type HoverAnchor = HoverRangeAnchor | HoverForeignElementAnchor;
 
 export interface IEditorHoverStatusBar {
-	addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): void;
+	addAction(actionOptions: { label: string, iconClass?: string, run: (target: HTMLElement) => void, commandId: string }): IEditorHoverAction;
 	append(element: HTMLElement): HTMLElement;
+}
+
+export interface IEditorHoverAction {
+	setEnabled(enabled: boolean): void;
 }
 
 export interface IEditorHoverParticipant<T extends IHoverPart = IHoverPart> {

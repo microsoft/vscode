@@ -56,7 +56,7 @@ import { SIDE_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { VirtualWorkspaceContext, WorkbenchStateContext } from 'vs/workbench/browser/contextkeys';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { isIOS, isWeb } from 'vs/base/common/platform';
+import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { WorkspaceTrustContext } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -555,12 +555,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		this._register(this.searchBox.onShouldFocusResults(() => this.focusListView(), this));
 
-		this._register(this.onDidChangeVisibility(visible => {
-			if (visible && !isIOS) {
-				this.searchBox!.focus();
-			}
-		}));
-
 		// Register DragAndDrop support
 		this._register(new DragAndDropObserver(this.root, {
 			onDragEnd: (e: DragEvent) => undefined,
@@ -608,7 +602,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	override focus(): void {
-		if (this.searchBox && !isIOS) {
+		if (this.searchBox) {
 			this.searchBox.focus();
 		}
 	}

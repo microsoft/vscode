@@ -4,26 +4,32 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import minimist = require('minimist');
 import { Application } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
 // function wait(ms: number): Promise<void> {
 // 	return new Promise(r => setTimeout(r, ms));
 // }
 
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Notebooks', () => {
-		after(async function () {
-			const app = this.app as Application;
-			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
-		});
+		beforeSuite(opts);
 
 		afterEach(async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.runCommand('workbench.action.files.save');
 			await app.workbench.quickaccess.runCommand('workbench.action.closeActiveEditor');
 		});
+
+		after(async function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+		});
+
+		afterSuite();
 
 		// it('inserts/edits code cell', async function () {
 		// 	const app = this.app as Application;
