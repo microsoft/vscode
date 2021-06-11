@@ -26,7 +26,7 @@ import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { WorkspaceTrustContext, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -141,12 +141,8 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	private readonly statusbarEntryAccessor: MutableDisposable<IStatusbarEntryAccessor>;
 
-	// try showing the banner only after some files have been opened
-	private showIndicatorsInEmptyWindow = false;
-
 	constructor(
 		@IDialogService private readonly dialogService: IDialogService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -167,9 +163,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			if (this.workspaceTrustManagementService.workspaceTrustEnabled) {
 				this.registerListeners();
 				this.createStatusbarEntry();
-
-				// Set empty workspace indicators
-				this.setEmptyWorkspaceIndicators();
 
 				// Show modal dialog
 				if (this.hostService.hasFocus) {
@@ -428,29 +421,6 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		};
 	}
 
-	private setEmptyWorkspaceIndicators(): void {
-		if (this.workspaceContextService.getWorkbenchState() !== WorkbenchState.EMPTY) {
-			return;
-		}
-
-		// Open files
-		const openFiles = this.editorService.editors.map(editor => EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })).filter(uri => !!uri);
-
-		if (openFiles.length) {
-			this.showIndicatorsInEmptyWindow = true;
-		} else {
-			// No open files, use the setting to set workspace trust state
-			const disposable = this._register(this.editorService.onDidActiveEditorChange(() => {
-				const editor = this.editorService.activeEditor;
-				if (editor && !!EditorResourceAccessor.getCanonicalUri(editor, { filterByScheme: Schemas.file })) {
-					this.showIndicatorsInEmptyWindow = true;
-					this.updateWorkbenchIndicators(this.workspaceTrustManagementService.isWorkpaceTrusted());
-					disposable.dispose();
-				}
-			}));
-		}
-	}
-
 	private updateStatusbarEntry(trusted: boolean): void {
 		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
 		this.updateStatusbarEntryVisibility(trusted);
@@ -461,18 +431,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	}
 
 	private updateWorkbenchIndicators(trusted: boolean): void {
-		const isEmptyWorkspace = this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY;
 		const bannerItem = this.getBannerItem(!trusted);
 
-		if (!isEmptyWorkspace || this.showIndicatorsInEmptyWindow) {
-			this.updateStatusbarEntry(trusted);
+		this.updateStatusbarEntry(trusted);
 
-			if (bannerItem) {
-				if (!trusted) {
-					this.bannerService.show(bannerItem);
-				} else {
-					this.bannerService.hide(BANNER_RESTRICTED_MODE);
-				}
+		if (bannerItem) {
+			if (!trusted) {
+				this.bannerService.show(bannerItem);
+			} else {
+				this.bannerService.hide(BANNER_RESTRICTED_MODE);
 			}
 		}
 	}
