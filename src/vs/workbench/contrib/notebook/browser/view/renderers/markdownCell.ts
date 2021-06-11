@@ -12,7 +12,7 @@ import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditState, CellFocusMode, MarkdownCellRenderTemplate, ICellViewModel, IActiveNotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellFoldingState } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -29,13 +29,13 @@ interface IMarkdownRenderStrategy extends IDisposable {
 class WebviewMarkdownRenderer extends Disposable implements IMarkdownRenderStrategy {
 	constructor(
 		readonly notebookEditor: IActiveNotebookEditor,
-		readonly viewCell: MarkdownCellViewModel
+		readonly viewCell: MarkupCellViewModel
 	) {
 		super();
 	}
 
 	update(): void {
-		this.notebookEditor.createMarkdownPreview(this.viewCell);
+		this.notebookEditor.createMarkupPreview(this.viewCell);
 	}
 }
 
@@ -44,7 +44,7 @@ class BuiltinMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditor,
-		private readonly viewCell: MarkdownCellViewModel,
+		private readonly viewCell: MarkupCellViewModel,
 		private readonly container: HTMLElement,
 		private readonly markdownContainer: HTMLElement,
 		private readonly editorAccessor: () => CodeEditorWidget | null
@@ -114,7 +114,7 @@ export class StatefulMarkdownCell extends Disposable {
 
 	constructor(
 		private readonly notebookEditor: IActiveNotebookEditor,
-		private readonly viewCell: MarkdownCellViewModel,
+		private readonly viewCell: MarkupCellViewModel,
 		private readonly templateData: MarkdownCellRenderTemplate,
 		private editorOptions: IEditorOptions,
 		private readonly renderedEditors: Map<ICellViewModel, ICodeEditor | undefined>,
@@ -282,7 +282,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 
 		if (this.useRenderer) {
-			this.notebookEditor.hideMarkdownPreviews([this.viewCell]);
+			this.notebookEditor.hideMarkupPreviews([this.viewCell]);
 		}
 
 		this.templateData.container.classList.toggle('collapsed', false);

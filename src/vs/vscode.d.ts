@@ -5127,7 +5127,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when {@link WorkspaceConfiguration} is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean | null, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -5811,6 +5811,31 @@ declare module 'vscode' {
 		 * depending on OS, user settings, and localization.
 		 */
 		tooltip?: string;
+	}
+
+	/**
+	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * command.
+	 */
+	export interface TerminalProfileProvider {
+		/**
+		 * Provide the terminal profile.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @returns The terminal profile.
+		 */
+		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+	}
+
+	/**
+	 * A terminal profile defines how a terminal will be launched.
+	 */
+	export class TerminalProfile {
+		/**
+		 * The options that the terminal will launch with.
+		 */
+		options: TerminalOptions | ExtensionTerminalOptions;
+
+		constructor(options: TerminalOptions | ExtensionTerminalOptions);
 	}
 
 	/**
@@ -7605,8 +7630,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * A webview based view.
- */
+	 * A webview based view.
+	 */
 	export interface WebviewView {
 		/**
 		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
@@ -8995,6 +9020,12 @@ declare module 'vscode' {
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
+		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
+		 */
+		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
+		/**
 		 * Register a file decoration provider.
 		 *
 		 * @param provider A {@link FileDecorationProvider}.
@@ -9902,7 +9933,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the active items have changed.
 		 */
-		readonly onDidChangeActive: Event<T[]>;
+		readonly onDidChangeActive: Event<readonly T[]>;
 
 		/**
 		 * Selected items. This can be read and updated by the extension.
@@ -9912,7 +9943,7 @@ declare module 'vscode' {
 		/**
 		 * An event signaling when the selected items have changed.
 		 */
-		readonly onDidChangeSelection: Event<T[]>;
+		readonly onDidChangeSelection: Event<readonly T[]>;
 	}
 
 	/**
@@ -11427,7 +11458,7 @@ declare module 'vscode' {
 		readonly outputs: readonly NotebookCellOutput[];
 
 		/**
-		 * The most recent {@link NotebookCellExecutionSummary excution summary} for this cell.
+		 * The most recent {@link NotebookCellExecutionSummary execution summary} for this cell.
 		 */
 		readonly executionSummary?: NotebookCellExecutionSummary;
 	}
@@ -11495,7 +11526,7 @@ declare module 'vscode' {
 
 		/**
 		 * Get the cells of this notebook. A subset can be retrieved by providing
-		 * a range. The range will be adjuset to the notebook.
+		 * a range. The range will be adjusted to the notebook.
 		 *
 		 * @param range A notebook range.
 		 * @returns The cells contained by the range or all cells.
@@ -11533,7 +11564,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A notebook range represents an ordered pair of two cell indicies.
+	 * A notebook range represents an ordered pair of two cell indices.
 	 * It is guaranteed that start is less than or equal to end.
 	 */
 	export class NotebookRange {
@@ -11644,7 +11675,7 @@ declare module 'vscode' {
 		data: Uint8Array;
 
 		/**
-		 * Create a new notbook cell output item.
+		 * Create a new notebook cell output item.
 		 *
 		 * @param data The value of the output item.
 		 * @param mime The mime type of the output item.
@@ -12140,7 +12171,7 @@ declare module 'vscode' {
 	/**
 	 * Namespace for notebooks.
 	 *
-	 * The notebooks functionality is composed of three loosly coupled components:
+	 * The notebooks functionality is composed of three loosely coupled components:
 	 *
 	 * 1. {@link NotebookSerializer} enable the editor to open, show, and save notebooks
 	 * 2. {@link NotebookController} own the execution of notebooks, e.g they create output from code cells.
@@ -13530,17 +13561,17 @@ declare module 'vscode' {
 	*/
 	export interface AuthenticationProviderAuthenticationSessionsChangeEvent {
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been added.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been added.
 		*/
 		readonly added?: readonly AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been removed.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been removed.
 		 */
 		readonly removed?: readonly AuthenticationSession[];
 
 		/**
-		 * The {@link AuthenticationSession}s of the {@link AuthentiationProvider AuthenticationProvider} that have been changed.
+		 * The {@link AuthenticationSession}s of the {@link AuthenticationProvider} that have been changed.
 		 * A session changes when its data excluding the id are updated. An example of this is a session refresh that results in a new
 		 * access token being set for the session.
 		 */

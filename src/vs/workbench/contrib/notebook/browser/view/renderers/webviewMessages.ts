@@ -59,7 +59,7 @@ export interface IScrollAckMessage extends BaseToWebviewMessage {
 
 export interface IBlurOutputMessage extends BaseToWebviewMessage {
 	readonly type: 'focus-editor';
-	readonly id: string;
+	readonly cellId: string;
 	readonly focusNext?: boolean;
 }
 
@@ -162,7 +162,7 @@ export interface IOutputRequestDto {
 export interface ICreationRequestMessage {
 	readonly type: 'html';
 	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
-	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; metadata2: unknown; mimeType: string; };
+	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
 	readonly cellId: string;
 	readonly outputId: string;
 	cellTop: number;
@@ -174,6 +174,7 @@ export interface ICreationRequestMessage {
 }
 
 export interface IContentWidgetTopRequest {
+	readonly cellId: string;
 	readonly outputId: string;
 	readonly cellTop: number;
 	readonly outputOffset: number;
@@ -183,7 +184,7 @@ export interface IContentWidgetTopRequest {
 export interface IViewScrollTopRequestMessage {
 	readonly type: 'view-scroll';
 	readonly widgets: IContentWidgetTopRequest[];
-	readonly markdownPreviews: { id: string; top: number; }[];
+	readonly markupCells: { id: string; top: number; }[];
 }
 
 export interface IScrollRequestMessage {
@@ -221,11 +222,15 @@ export interface IFocusOutputMessage {
 	readonly cellId: string;
 }
 
-export interface IAckOutputHeightMessage {
-	readonly type: 'ack-dimension';
+export interface IAckOutputHeight {
 	readonly cellId: string;
 	readonly outputId: string;
 	readonly height: number;
+}
+
+export interface IAckOutputHeightMessage {
+	readonly type: 'ack-dimension';
+	readonly updates: readonly IAckOutputHeight[];
 }
 
 export interface IControllerPreload {

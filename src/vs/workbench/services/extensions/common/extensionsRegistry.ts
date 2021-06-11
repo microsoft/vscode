@@ -312,7 +312,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onNotebook',
-						body: 'onNotebook:${10:viewType}',
+						body: 'onNotebook:${1:type}',
 						description: nls.localize('vscode.extension.activationEvents.onNotebook', 'An activation event emitted whenever the specified notebook document is opened.'),
 					},
 					{

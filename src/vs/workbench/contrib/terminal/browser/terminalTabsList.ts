@@ -30,7 +30,7 @@ import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from 
 import { IListDragAndDrop, IListDragOverReaction, IListRenderer, ListDragOverEffect } from 'vs/base/browser/ui/list/list';
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
 import { disposableTimeout } from 'vs/base/common/async';
-import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
+import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { Schemas } from 'vs/base/common/network';
@@ -41,6 +41,7 @@ import { once } from 'vs/base/common/functional';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { containsDragType } from 'vs/workbench/browser/dnd';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 const $ = DOM.$;
@@ -548,7 +549,11 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		let result = true;
+		if (data instanceof NativeDragAndDropData) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
+				return false;
+			}
+		}
 
 		const didChangeAutoFocusInstance = this._autoFocusInstance !== targetInstance;
 		if (didChangeAutoFocusInstance) {
@@ -557,7 +562,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		if (!targetInstance) {
-			return result;
+			return data instanceof ElementsDragAndDropData;
 		}
 
 		if (didChangeAutoFocusInstance) {

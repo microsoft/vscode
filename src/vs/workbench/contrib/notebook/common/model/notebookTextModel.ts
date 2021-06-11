@@ -187,6 +187,13 @@ class DelayedEmitter {
 	}
 }
 
+type TransformedEdit = {
+	edit: ICellEditOperation;
+	cellIndex: number;
+	end: number | undefined;
+	originalIndex: number;
+};
+
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -367,15 +374,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean = true): void {
-		type TransformedEdit = {
-			edit: ICellEditOperation;
-			cellIndex: number;
-			end: number | undefined;
-			originalIndex: number;
-		};
 
 		// compress all edits which have no side effects on cell index
-		const edits = rawEdits.map((edit, index) => {
+		const edits = this._mergeCellEdits(rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
 			if ('index' in edit) {
 				cellIndex = edit.index;
@@ -398,7 +399,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index
 			};
-		}).sort((a, b) => {
+		})).sort((a, b) => {
 			if (a.end === undefined) {
 				return -1;
 			}
@@ -440,6 +441,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		});
 
 		const flattenEdits = flatten(edits);
+		console.log('applyEdits', flattenEdits);
 
 		for (const { edit, cellIndex } of flattenEdits) {
 			switch (edit.editType) {
@@ -491,6 +493,31 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 			}
 		}
+	}
+
+	private _mergeCellEdits(rawEdits: TransformedEdit[]): TransformedEdit[] {
+		let mergedEdits: TransformedEdit[] = [];
+
+		rawEdits.forEach(edit => {
+			if (mergedEdits.length) {
+				const last = mergedEdits[mergedEdits.length - 1];
+
+				if (last.edit.editType === CellEditType.Output
+					&& last.edit.append
+					&& edit.edit.editType === CellEditType.Output
+					&& edit.edit.append
+					&& last.cellIndex === edit.cellIndex
+				) {
+					last.edit.outputs = [...last.edit.outputs, ...edit.edit.outputs];
+				} else {
+					mergedEdits.push(edit);
+				}
+			} else {
+				mergedEdits.push(edit);
+			}
+		});
+
+		return mergedEdits;
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {

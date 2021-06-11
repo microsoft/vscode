@@ -100,15 +100,15 @@ suite('Workbench - Test Results Service', () => {
 				[TestRunState.Queued]: 3,
 			});
 
-			r.setAllToState(TestRunState.Passed, 't', (_, t) => t.item.label !== 'root');
+			r.setAllToState(TestRunState.Failed, 't', (_, t) => t.item.label !== 'root');
 			assert.deepStrictEqual(r.counts, {
 				...makeEmptyCounts(),
 				[TestRunState.Unset]: 1,
-				[TestRunState.Passed]: 3,
+				[TestRunState.Failed]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById('id-a')?.ownComputedState, TestRunState.Passed);
-			assert.deepStrictEqual(r.getStateById('id-a')?.tasks[0].state, TestRunState.Passed);
+			assert.deepStrictEqual(r.getStateById('id-a')?.ownComputedState, TestRunState.Failed);
+			assert.deepStrictEqual(r.getStateById('id-a')?.tasks[0].state, TestRunState.Failed);
 			assert.deepStrictEqual(getChangeSummary(), [
 				{ label: 'a', reason: TestResultItemChangeReason.OwnStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },

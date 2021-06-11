@@ -491,8 +491,8 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 
 export class InMemoryStorageService extends AbstractStorageService {
 
-	private globalStorage = new Storage(new InMemoryStorageDatabase());
-	private workspaceStorage = new Storage(new InMemoryStorageDatabase());
+	private readonly globalStorage = this._register(new Storage(new InMemoryStorageDatabase()));
+	private readonly workspaceStorage = this._register(new Storage(new InMemoryStorageDatabase()));
 
 	constructor() {
 		super();

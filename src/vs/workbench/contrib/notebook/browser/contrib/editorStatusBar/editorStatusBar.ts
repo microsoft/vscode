@@ -19,8 +19,8 @@ import { configureKernelIcon, selectKernelIcon } from 'vs/workbench/contrib/note
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
-import { INotebookKernel, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService } from 'vs/platform/log/common/log';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -255,7 +255,7 @@ export class KernelStatus extends Disposable implements IWorkbenchContribution {
 		};
 
 		this._editorDisposables.add(this._notebookKernelService.onDidAddKernel(updateStatus));
-		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookKernelBinding(updateStatus));
+		this._editorDisposables.add(this._notebookKernelService.onDidChangeSelectedNotebooks(updateStatus));
 		this._editorDisposables.add(this._notebookKernelService.onDidChangeNotebookAffinity(updateStatus));
 		this._editorDisposables.add(activeEditor.onDidChangeModel(updateStatus));
 		this._editorDisposables.add(activeEditor.notebookOptions.onDidChangeOptions(updateStatus));

@@ -15,14 +15,14 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { Cache } from 'vs/workbench/api/common/cache';
-import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostNotebookShape, IMainContext, IModelAddedData, INotebookCellStatusBarListDto, INotebookDocumentsAndEditorsDelta, INotebookDocumentShowOptions, INotebookEditorAddData, MainContext, MainThreadNotebookDocumentsShape, MainThreadNotebookEditorsShape, MainThreadNotebookShape, NotebookDataDto } from 'vs/workbench/api/common/extHost.protocol';
 import { CommandsConverter, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { INotebookExclusiveDocumentFilter, INotebookContributionData, NotebookCellsChangeType, NotebookDataDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExclusiveDocumentFilter, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 import { ExtHostCell, ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { ExtHostNotebookEditor } from './extHostNotebookEditor';
@@ -438,7 +438,6 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 
 			for (const modelData of delta.addedDocuments) {
 				const uri = URI.revive(modelData.uri);
-				const viewType = modelData.viewType;
 
 				if (this._documents.has(uri)) {
 					throw new Error(`adding EXISTING notebook ${uri} `);
@@ -463,18 +462,9 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 							that._onDidChangeCellExecutionState.fire(event);
 						}
 					},
-					viewType,
-					modelData.metadata ?? Object.create({}),
 					uri,
+					modelData
 				);
-
-				document.acceptModelChanged({
-					versionId: modelData.versionId,
-					rawEvents: [{
-						kind: NotebookCellsChangeType.Initialize,
-						changes: [[0, 0, modelData.cells]]
-					}]
-				}, false);
 
 				// add cell document as vscode.TextDocument
 				addedCellDocuments.push(...modelData.cells.map(cell => ExtHostCell.asModelAddData(document.apiNotebook, cell)));

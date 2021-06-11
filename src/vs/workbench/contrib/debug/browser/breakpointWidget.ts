@@ -37,6 +37,7 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 
 const $ = dom.$;
 const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakpointWidgetService');
@@ -166,6 +167,14 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		}
 	}
 
+	private setInputMode(): void {
+		if (this.editor.hasModel()) {
+			// Use plaintext language mode for log messages, otherwise respect underlying editor mode #125619
+			const languageIdentifier = this.context === Context.LOG_MESSAGE ? PLAINTEXT_LANGUAGE_IDENTIFIER : this.editor.getModel().getLanguageIdentifier();
+			this.input.getModel().setMode(languageIdentifier);
+		}
+	}
+
 	override show(rangeOrPos: IRange | IPosition): void {
 		const lineNum = this.input.getModel().getLineCount();
 		super.show(rangeOrPos, lineNum + 1);
@@ -185,6 +194,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 		selectBox.onDidSelect(e => {
 			this.rememberInput();
 			this.context = e.index;
+			this.setInputMode();
 
 			const value = this.getInputValue(this.breakpoint);
 			this.input.getModel().setValue(value);
@@ -225,6 +235,7 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 			model.setMode(this.editor.getModel().getLanguageIdentifier());
 		}
 		this.input.setModel(model);
+		this.setInputMode();
 		this.toDispose.push(model);
 		const setDecorations = () => {
 			const value = this.input.getModel().getValue();

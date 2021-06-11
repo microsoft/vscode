@@ -21,9 +21,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { joinPath } from 'vs/base/common/resources';
+import { extname, joinPath } from 'vs/base/common/resources';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
+import { PLAINTEXT_EXTENSION, PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class TextFileEditorModelManager extends Disposable implements ITextFileEditorModelManager {
@@ -273,7 +273,14 @@ export class TextFileEditorModelManager extends Disposable implements ITextFileE
 							});
 
 							// restore previous mode only if the mode is now unspecified and it was specified
-							if (modelToRestore.mode && modelToRestore.mode !== PLAINTEXT_MODE_ID && restoredModel.getMode() === PLAINTEXT_MODE_ID) {
+							// but not when the file was explicitly stored with the plain text extension
+							// (https://github.com/microsoft/vscode/issues/125795)
+							if (
+								modelToRestore.mode &&
+								modelToRestore.mode !== PLAINTEXT_MODE_ID &&
+								restoredModel.getMode() === PLAINTEXT_MODE_ID &&
+								extname(modelToRestore.target) !== PLAINTEXT_EXTENSION
+							) {
 								restoredModel.updateTextEditorModel(undefined, modelToRestore.mode);
 							}
 						}));

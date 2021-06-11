@@ -6,12 +6,11 @@
 import { Emitter } from 'vs/base/common/event';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostNotebookDocumentsShape, INotebookDocumentPropertiesChangeData } from 'vs/workbench/api/common/extHost.protocol';
+import * as extHostProtocol from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
-import { NotebookCellsChangedEventDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
-export class ExtHostNotebookDocuments implements ExtHostNotebookDocumentsShape {
+export class ExtHostNotebookDocuments implements extHostProtocol.ExtHostNotebookDocumentsShape {
 
 	private readonly _onDidChangeNotebookDocumentMetadata = new Emitter<vscode.NotebookDocumentMetadataChangeEvent>();
 	readonly onDidChangeNotebookDocumentMetadata = this._onDidChangeNotebookDocumentMetadata.event;
@@ -24,14 +23,14 @@ export class ExtHostNotebookDocuments implements ExtHostNotebookDocumentsShape {
 		private readonly _notebooksAndEditors: ExtHostNotebookController,
 	) { }
 
-	$acceptModelChanged(uri: UriComponents, event: NotebookCellsChangedEventDto, isDirty: boolean): void {
+	$acceptModelChanged(uri: UriComponents, event: extHostProtocol.NotebookCellsChangedEventDto, isDirty: boolean): void {
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
 		document.acceptModelChanged(event, isDirty);
 	}
 
 	$acceptDirtyStateChanged(uri: UriComponents, isDirty: boolean): void {
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
-		document.acceptModelChanged({ rawEvents: [], versionId: document.apiNotebook.version }, isDirty);
+		document.acceptDirty(isDirty);
 	}
 
 	$acceptModelSaved(uri: UriComponents): void {
@@ -39,7 +38,7 @@ export class ExtHostNotebookDocuments implements ExtHostNotebookDocumentsShape {
 		this._onDidSaveNotebookDocument.fire(document.apiNotebook);
 	}
 
-	$acceptDocumentPropertiesChanged(uri: UriComponents, data: INotebookDocumentPropertiesChangeData): void {
+	$acceptDocumentPropertiesChanged(uri: UriComponents, data: extHostProtocol.INotebookDocumentPropertiesChangeData): void {
 		this._logService.debug('ExtHostNotebook#$acceptDocumentPropertiesChanged', uri.path, data);
 		const document = this._notebooksAndEditors.getNotebookDocument(URI.revive(uri));
 		document.acceptDocumentPropertiesChanged(data);
