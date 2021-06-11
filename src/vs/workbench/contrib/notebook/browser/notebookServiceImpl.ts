@@ -21,6 +21,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
@@ -58,6 +59,7 @@ export class NotebookProviderInfoStore extends Disposable {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILabelService private readonly _labelService: ILabelService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
@@ -167,7 +169,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				const originalInput = diffEditorInput.originalInput;
 				const notebookUri = modifiedInput.resource!;
 				const originalNotebookUri = originalInput.resource!;
-				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, 'Modified Input Name', originalNotebookUri, 'Original Input Name', 'Diff Editor Input Name', notebookProviderInfo.id) };
+				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.resource ? this._labelService.getUriBasenameLabel(modifiedInput.resource) : '', originalNotebookUri, originalInput.resource ? this._labelService.getUriBasenameLabel(originalInput.resource) : '', this._labelService.getUriBasenameLabel(notebookUri), notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
 			disposables.add(this._editorOverrideService.registerEditor(
