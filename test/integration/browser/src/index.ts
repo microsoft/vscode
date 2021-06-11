@@ -95,14 +95,18 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	const root = path.join(__dirname, '..', '..', '..', '..');
 	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
 
+	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api'];
+
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		serverArgs.push(`--logsPath=${logsPath}`);
 
 		console.log(`Starting built server from '${serverLocation}'`);
 		console.log(`Storing log files into '${logsPath}'`);
 	} else {
 		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverArgs.push('--logsPath', logsPath);
 		process.env.VSCODE_DEV = '1';
 
 		console.log(`Starting server out of sources from '${serverLocation}'`);
@@ -111,7 +115,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 
 	let serverProcess = cp.spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web', '--enable-proposed-api', '--logsPath', `${path.join(root, '.build', 'logs', 'integration-tests-browser')}`],
+		serverArgs,
 		{ env }
 	);
 
