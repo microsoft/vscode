@@ -50,7 +50,7 @@ import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -144,7 +144,7 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected setBetweenCellToolbarContext(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkdownCellViewModel, context: INotebookCellActionContext): void {
+	protected setBetweenCellToolbarContext(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkupCellViewModel, context: INotebookCellActionContext): void {
 		templateData.betweenCellToolbar.context = context;
 
 		const container = templateData.bottomCellContainer;
@@ -301,7 +301,7 @@ abstract class AbstractCellRenderer {
 	}
 }
 
-export class MarkupCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
+export class MarkupCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkupCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
 	private readonly useRenderer: boolean;
@@ -422,7 +422,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		return new CodeCellDragImageRenderer().getDragImage(templateData, templateData.currentEditor!, 'markdown');
 	}
 
-	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+	renderElement(element: MarkupCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
@@ -517,7 +517,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		templateData.statusBar.update(toolbarContext);
 	}
 
-	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.viewModel?.viewType);
 		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
@@ -526,11 +526,11 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 	}
 
-	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+	private updateForHover(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
-	private updateCollapsedState(element: MarkdownCellViewModel) {
+	private updateCollapsedState(element: MarkupCellViewModel) {
 		if (element.metadata.inputCollapsed) {
 			this.notebookEditor.hideMarkupPreviews([element]);
 		} else {
