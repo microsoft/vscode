@@ -181,12 +181,12 @@ export interface ICommonNotebookEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
-	markdownCellDragEnd(cellId: string): void;
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
+	didEndDragMarkupCell(cellId: string): void;
 }
 
 //#endregion
@@ -478,9 +478,9 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
-	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
-	hideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	createMarkupPreview(cell: ICellViewModel): Promise<void>;
+	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -794,14 +794,13 @@ export enum CellRevealPosition {
 export enum CellEditState {
 	/**
 	 * Default state.
-	 * For markdown cell, it's Markdown preview.
+	 * For markup cells, this is the renderer version of the markup.
 	 * For code cell, the browser focus should be on the container instead of the editor
 	 */
 	Preview,
 
-
 	/**
-	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
+	 * Editing mode. Source for markup or code is rendered in editors and the state will be persistent.
 	 */
 	Editing
 }

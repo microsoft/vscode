@@ -35,7 +35,7 @@ class WebviewMarkdownRenderer extends Disposable implements IMarkdownRenderStrat
 	}
 
 	update(): void {
-		this.notebookEditor.createMarkdownPreview(this.viewCell);
+		this.notebookEditor.createMarkupPreview(this.viewCell);
 	}
 }
 
@@ -282,7 +282,7 @@ export class StatefulMarkdownCell extends Disposable {
 		DOM.hide(this.templateData.collapsedPart);
 
 		if (this.useRenderer) {
-			this.notebookEditor.hideMarkdownPreviews([this.viewCell]);
+			this.notebookEditor.hideMarkupPreviews([this.viewCell]);
 		}
 
 		this.templateData.container.classList.toggle('collapsed', false);

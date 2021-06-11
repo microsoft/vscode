@@ -532,9 +532,9 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 
 	private updateCollapsedState(element: MarkdownCellViewModel) {
 		if (element.metadata.inputCollapsed) {
-			this.notebookEditor.hideMarkdownPreviews([element]);
+			this.notebookEditor.hideMarkupPreviews([element]);
 		} else {
-			this.notebookEditor.unhideMarkdownPreviews([element]);
+			this.notebookEditor.unhideMarkupPreviews([element]);
 		}
 	}
 
