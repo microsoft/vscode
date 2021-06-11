@@ -67,9 +67,11 @@ export class NotebookCodeRendererContribution extends Disposable {
 	constructor(@IModeService _modeService: IModeService) {
 		super();
 
-		const registeredLanguages: string[] = []
+		OutputRendererRegistry.registerOutputTransform(CodeRendererContrib);
+
+		const registeredLanguages = new Map();
 		const registerCodeRendererContrib = (languageId: string) => {
-			if (registeredLanguages.includes(languageId)) { return; }
+			if (registeredLanguages.has(languageId)) { return; }
 
 			OutputRendererRegistry.registerOutputTransform(class extends CodeRendererContrib {
 				override getMimetypes() {
@@ -82,7 +84,7 @@ export class NotebookCodeRendererContribution extends Disposable {
 				}
 			});
 
-			registeredLanguages.push(languageId);
+			registeredLanguages.set(languageId, true);
 		};
 
 		_modeService.getRegisteredModes().forEach(id => {
