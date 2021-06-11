@@ -1071,7 +1071,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 	}
 
-	async function createMarkdownPreview(cellId: string, content: string, top: number): Promise<HTMLElement> {
+	async function createMarkdownPreview(cellId: string, content: string, top: number, visible: boolean): Promise<HTMLElement> {
 		const container = document.getElementById('container')!;
 		const cellContainer = document.createElement('div');
 
@@ -1084,6 +1084,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		cellContainer.id = cellId;
 		cellContainer.classList.add('preview');
 
+		cellContainer.style.visibility = visible ? 'visible' : 'hidden';
 		cellContainer.style.position = 'absolute';
 		cellContainer.style.top = top + 'px';
 		container.appendChild(cellContainer);
@@ -1157,12 +1158,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		await Promise.all(update.map(async cell => {
 			let container = document.getElementById(cell.cellId);
 			if (container) {
+				container.style.visibility = cell.visible ? 'visible' : 'hidden';
 				await updateMarkdownPreview(container, cell.cellId, cell.content);
 			} else {
-				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset);
+				container = await createMarkdownPreview(cell.cellId, cell.content, cell.offset, cell.visible);
 			}
-
-			container.style.visibility = cell.visible ? 'visible' : 'hidden';
 		}));
 	}
 
