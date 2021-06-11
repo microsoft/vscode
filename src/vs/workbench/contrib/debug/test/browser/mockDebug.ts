@@ -157,6 +157,10 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
+	getDisassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
+		throw new Error('not implemented');
+	}
+
 	logToRepl(session: IDebugSession, value: string): void { }
 
 	sourceIsNotAvailable(uri: uri): void { }
@@ -386,6 +390,9 @@ export class MockSession implements IDebugSession {
 		throw new Error('Method not implemented.');
 	}
 	loadSource(resource: uri): Promise<DebugProtocol.SourceResponse> {
+		throw new Error('Method not implemented.');
+	}
+	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined> {
 		throw new Error('Method not implemented.');
 	}
 

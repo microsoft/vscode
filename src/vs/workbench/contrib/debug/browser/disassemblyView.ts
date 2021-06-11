@@ -33,6 +33,8 @@ export class DisassemblyView extends EditorPane {
 	private _fontInfo: BareFontInfo;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | null;
 	private _debugService: IDebugService;
+	// private _currentAddress: string | undefined;
+	private _lastOffset: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -101,14 +103,18 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2);
-		this._disassembledInstructions.reveal(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, 0.5);
+		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
+		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() =>
+			this._disassembledInstructions?.reveal(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, 0.5)
+		);
 
 		this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				const topElement = Math.floor(e.scrollTop / this._fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this.loadDisassembledInstructions(0, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
-				this._disassembledInstructions!.reveal(topElement, 0);
+				this._lastOffset -= DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
+				this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() =>
+					this._disassembledInstructions!.reveal(topElement, 0)
+				);
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this.loadDisassembledInstructions(this._disassembledInstructions!.length, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
@@ -121,23 +127,28 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
-	private loadDisassembledInstructions(offset: number, instructionCount: number): void {
-		const session = this._debugService.getViewModel().focusedSession;
-		const frame = this._debugService.getViewModel().focusedStackFrame;
-		const instructionAddress = frame?.instructionPointerReference!;
+	private async loadDisassembledInstructions(offset: number, instructionCount: number): Promise<void> {
+		/* if (!this._currentAddress) {
+			const frame = this._debugService.getViewModel().focusedStackFrame;
+			this._currentAddress = frame?.instructionPointerReference!;
+		} */
 
-		const resultEntries = await session?.disassemble(instructionAddress, offset, 0, instructionCount);
-
-		if (resultEntries) {
+		// const session = this._debugService.getViewModel().focusedSession;
+		// session?.disassemble(this._currentAddress, offset, 0, instructionCount)
+		const resultEntries = await this._debugService.getDisassemble('0x12345678', offset, 0, instructionCount);
+		if (resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
 			for (let i = 0; i < resultEntries.length; i++) {
 				newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: resultEntries[i] });
 			}
 
-			if (this._disassembledInstructions) {
-				// TODO: append/insert
-				this._disassembledInstructions.splice(0, this._disassembledInstructions.length, newEntries);
+			// request is either at the end or start
+			if (offset >= 0) {
+				this._disassembledInstructions.splice(offset, 0, newEntries);
+			}
+			else {
+				this._disassembledInstructions.splice(0, 0, newEntries);
 			}
 		}
 	}
