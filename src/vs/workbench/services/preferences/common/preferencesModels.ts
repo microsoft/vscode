@@ -634,6 +634,20 @@ export class DefaultSettings extends Disposable {
 					enumDescriptions = prop.items!.enumDescriptions || prop.items!.markdownEnumDescriptions;
 				}
 
+				let allKeysAreBoolean = false;
+				if (prop.type === 'object' && !prop.additionalProperties && prop.properties && Object.keys(prop.properties).length) {
+					allKeysAreBoolean = Object.keys(prop.properties).every(key => {
+						return prop.properties![key].type === 'boolean';
+					});
+				}
+
+				if (enumToUse && listItemType === 'enum') {
+					console.log('dbg enumArray ' + key);
+				}
+				if (allKeysAreBoolean) {
+					console.log('dbg allKeysAreBoolean ' + key);
+				}
+
 				result.push({
 					key,
 					value,
@@ -661,7 +675,8 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels
+					enumItemLabels: prop.enumItemLabels,
+					allKeysAreBoolean
 				});
 			}
 		}
