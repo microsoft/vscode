@@ -15,9 +15,8 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.getVersionId(), 0);
 				assert.strictEqual(viewModel.getAlternativeId(), '0_0,1;1,1');
@@ -60,9 +59,8 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
@@ -103,9 +101,8 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				const modeService = accessor.get(IModeService);
-				const viewModel = editor.viewModel;
 				viewModel.notebookDocument.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);

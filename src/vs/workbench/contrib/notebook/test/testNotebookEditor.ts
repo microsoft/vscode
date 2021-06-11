@@ -166,7 +166,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
 
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
@@ -242,10 +242,10 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override async removeInset() { }
 	};
 
-	return notebookEditor;
+	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
 	return _createTestNotebookEditor(setupInstantiationService(), cells);
 }
 
@@ -277,25 +277,33 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	const res = await callback(model, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => {
-			originalNotebook.dispose();
-			modifiedNotebook.dispose();
+			originalNotebook.editor.dispose();
+			originalNotebook.viewModel.dispose();
+			modifiedNotebook.editor.dispose();
+			modifiedNotebook.viewModel.dispose();
 		});
 	} else {
-		originalNotebook.dispose();
-		modifiedNotebook.dispose();
+		originalNotebook.editor.dispose();
+		originalNotebook.viewModel.dispose();
+		modifiedNotebook.editor.dispose();
+		modifiedNotebook.viewModel.dispose();
 	}
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
 	const instantiationService = accessor ?? setupInstantiationService();
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
-	const res = await callback(notebookEditor, instantiationService);
+	const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
 	if (res instanceof Promise) {
-		res.finally(() => notebookEditor.dispose());
+		res.finally(() => {
+			notebookEditor.editor.dispose();
+			notebookEditor.viewModel.dispose();
+		});
 	} else {
-		notebookEditor.dispose();
+		notebookEditor.editor.dispose();
+		notebookEditor.viewModel.dispose();
 	}
 	return res;
 }
