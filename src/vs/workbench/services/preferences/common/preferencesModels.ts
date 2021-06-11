@@ -614,13 +614,25 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || prop.markdownDescription || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				const listItemType = prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type && !isArray(prop.items.type)
-					? prop.items.type
-					: undefined;
+				let listItemType: string | undefined;
+				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
+					if (prop.items.enum) {
+						listItemType = 'enum';
+					} else if (!isArray(prop.items.type)) {
+						listItemType = prop.items.type;
+					}
+				}
 
 				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
 				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
+				let enumToUse = prop.enum;
+				let enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
+				if (listItemType === 'enum' && !isArray(prop.items)) {
+					enumToUse = prop.items!.enum;
+					enumDescriptions = prop.items!.enumDescriptions || prop.items!.markdownEnumDescriptions;
+				}
 
 				result.push({
 					key,
@@ -638,9 +650,10 @@ export class DefaultSettings extends Disposable {
 					objectProperties,
 					objectPatternProperties,
 					objectAdditionalProperties,
-					enum: prop.enum,
-					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
-					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					enum: enumToUse,
+					enumDescriptions: enumDescriptions,
+					enumDescriptionsAreMarkdown: !enumDescriptions,
+					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
 					restricted: prop.restricted,
