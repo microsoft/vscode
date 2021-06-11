@@ -19,8 +19,7 @@ import { BaseCellViewModel } from './baseCellViewModel';
 
 export class CodeCellViewModel extends BaseCellViewModel implements ICellViewModel {
 	readonly cellKind = CellKind.Code;
-
-	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice[]>());
+	protected readonly _onDidChangeOutputs = this._register(new Emitter<NotebookCellOutputsSplice>());
 	readonly onDidChangeOutputs = this._onDidChangeOutputs.event;
 
 	private readonly _onDidRemoveOutputs = this._register(new Emitter<readonly ICellOutputViewModel[]>());
@@ -108,15 +107,13 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		super(viewType, model, UUID.generateUuid(), viewContext, configurationService, modelService);
 		this._outputViewModels = this.model.outputs.map(output => new CellOutputViewModel(this, output, this._notebookService));
 
-		this._register(this.model.onDidChangeOutputs((splices) => {
+		this._register(this.model.onDidChangeOutputs((splice) => {
 			const removedOutputs: ICellOutputViewModel[] = [];
-			splices.reverse().forEach(splice => {
-				this._outputCollection.splice(splice[0], splice[1], ...splice[2].map(() => 0));
-				removedOutputs.push(...this._outputViewModels.splice(splice[0], splice[1], ...splice[2].map(output => new CellOutputViewModel(this, output, this._notebookService))));
-			});
+			this._outputCollection.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(() => 0));
+			removedOutputs.push(...this._outputViewModels.splice(splice.start, splice.deleteCount, ...splice.newOutputs.map(output => new CellOutputViewModel(this, output, this._notebookService))));
 
 			this._outputsTop = null;
-			this._onDidChangeOutputs.fire(splices);
+			this._onDidChangeOutputs.fire(splice);
 			this._onDidRemoveOutputs.fire(removedOutputs);
 			this.layoutChange({ outputHeight: true }, 'CodeCellViewModel#model.onDidChangeOutputs');
 		}));

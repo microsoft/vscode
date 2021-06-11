@@ -248,6 +248,10 @@
 	box-sizing: border-box;
 }
 
+.monaco-workbench .notebookOverlay .output > div.foreground.output-inner-container .rendered-output {
+	display: inline;
+}
+
 .monaco-workbench .notebookOverlay .output > div.foreground .output-stream,
 .monaco-workbench .notebookOverlay .output > div.foreground .output-plaintext {
 	font-family: var(--monaco-monospace-font);

@@ -18,8 +18,8 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
-	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice>();
+	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
 	private _onDidChangeContent = new Emitter<'content' | 'language'>();
 	onDidChangeContent: Event<'content' | 'language'> = this._onDidChangeContent.event;
@@ -197,7 +197,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		let filteredMetadata: { [key: string]: any } = {};
+		let filteredMetadata: { [key: string]: any; } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);
@@ -220,13 +220,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 	}
 
-	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
-		if (splices.length > 0) {
-			splices.reverse().forEach(splice => {
-				this.outputs.splice(splice[0], splice[1], ...splice[2]);
-			});
-			this._onDidChangeOutputs.fire(splices);
-		}
+	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
+		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+		this._onDidChangeOutputs.fire(splice);
 	}
 	override dispose() {
 		dispose(this._outputs);
