@@ -243,7 +243,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(tokenCancelCount, 0);
 	});
 
-	test('set outputs on cancel', async function () {
+	test.skip('set outputs on cancel', async function () {
 
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
