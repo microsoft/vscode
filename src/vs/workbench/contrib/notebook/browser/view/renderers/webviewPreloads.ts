@@ -921,7 +921,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
 
-		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
@@ -929,6 +929,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 
 			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			cell.element.style.visibility = visible ? 'visible' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
 			await cell.ready;
@@ -939,11 +940,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			await Promise.all(update.map(async info => {
 				let cell = this._markupCells.get(info.cellId);
 				if (cell) {
+					cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 					await cell.updateContentAndRender(info.content);
 				} else {
-					cell = await this.createMarkupCell(info, info.offset);
+					cell = await this.createMarkupCell(info, info.offset, info.visible);
 				}
-				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 			}));
 		}
 
