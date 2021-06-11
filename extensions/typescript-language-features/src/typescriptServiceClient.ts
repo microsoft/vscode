@@ -12,7 +12,7 @@ import { EventName } from './protocol.const';
 import BufferSyncSupport from './tsServer/bufferSyncSupport';
 import { OngoingRequestCancellerFactory } from './tsServer/cancellation';
 import { ILogDirectoryProvider } from './tsServer/logDirectoryProvider';
-import { ITypeScriptServer, TsServerProcessFactory } from './tsServer/server';
+import { ITypeScriptServer, TsServerProcessFactory, TypeScriptServerExitEvent } from './tsServer/server';
 import { TypeScriptServerError } from './tsServer/serverError';
 import { TypeScriptServerSpawner } from './tsServer/spawner';
 import { TypeScriptVersionManager } from './tsServer/versionManager';
@@ -432,27 +432,30 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.serviceExited(false);
 		});
 
-		handle.onExit((code: any) => {
+		handle.onExit((data: TypeScriptServerExitEvent) => {
 			if (this.token !== mytoken) {
 				// this is coming from an old process
 				return;
 			}
 
+			const { code, signal } = data;
+
 			if (code === null || typeof code === 'undefined') {
-				this.info('TSServer exited');
+				this.info(`TSServer exited. Signal: ${signal}`);
 			} else {
 				// In practice, the exit code is an integer with no ties to any identity,
 				// so it can be classified as SystemMetaData, rather than CallstackOrException.
-				this.error(`TSServer exited with code: ${code}`);
+				this.error(`TSServer exited with code: ${code}. Signal: ${signal}`);
 				/* __GDPR__
 					"tsserver.exitWithCode" : {
 						"code" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+						"signal" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
 						"${include}": [
 							"${TypeScriptCommonProperties}"
 						]
 					}
 				*/
-				this.logTelemetry('tsserver.exitWithCode', { code: code });
+				this.logTelemetry('tsserver.exitWithCode', { code, signal: signal ?? undefined });
 			}
 
 			if (handle.tsServerLogFile) {
