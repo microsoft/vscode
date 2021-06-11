@@ -11,7 +11,7 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverPosition, HoverWidget as BaseHoverWidget, renderHoverAction } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -128,7 +128,7 @@ export class HoverWidget extends Widget {
 			options.actions.forEach(action => {
 				const keybinding = this._keybindingService.lookupKeybinding(action.commandId);
 				const keybindingLabel = keybinding ? keybinding.getLabel() : null;
-				renderHoverAction(actionsElement, {
+				HoverAction.render(actionsElement, {
 					label: action.label,
 					commandId: action.commandId,
 					run: e => {

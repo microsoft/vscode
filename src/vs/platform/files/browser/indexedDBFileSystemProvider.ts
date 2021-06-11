@@ -283,10 +283,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	async readFile(resource: URI): Promise<Uint8Array> {
 		const buffer = await new Promise<Uint8Array>((c, e) => {
 			const transaction = this.database.transaction([this.store]);
-			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.get(resource.path);
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => {
+			transaction.oncomplete = () => {
 				if (request.result instanceof Uint8Array) {
 					c(request.result);
 				} else if (typeof request.result === 'string') {
@@ -300,6 +297,10 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 					}
 				}
 			};
+			transaction.onerror = () => e(transaction.error);
+
+			const objectStore = transaction.objectStore(this.store);
+			const request = objectStore.get(resource.path);
 		});
 
 		(await this.getFiletree()).add(resource.path, { type: 'file', size: buffer.byteLength });
@@ -374,10 +375,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		if (!this.cachedFiletree) {
 			this.cachedFiletree = new Promise((c, e) => {
 				const transaction = this.database.transaction([this.store]);
-				const objectStore = transaction.objectStore(this.store);
-				const request = objectStore.getAllKeys();
-				request.onerror = () => e(request.error);
-				request.onsuccess = () => {
+				transaction.oncomplete = () => {
 					const rootNode = new IndexedDBFileSystemNode({
 						children: new Map(),
 						path: '',
@@ -387,6 +385,10 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 					keys.forEach(key => rootNode.add(key, { type: 'file' }));
 					c(rootNode);
 				};
+				transaction.onerror = () => e(transaction.error);
+
+				const objectStore = transaction.objectStore(this.store);
+				const request = objectStore.getAllKeys();
 			});
 		}
 		return this.cachedFiletree;
@@ -397,41 +399,44 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		return new Promise<void>((c, e) => {
 			const fileBatch = this.fileWriteBatch;
 			this.fileWriteBatch = [];
-			if (fileBatch.length === 0) { return c(); }
+			if (fileBatch.length === 0) {
+				return c();
+			}
 
 			const transaction = this.database.transaction([this.store], 'readwrite');
+			transaction.oncomplete = () => c();
 			transaction.onerror = () => e(transaction.error);
 			const objectStore = transaction.objectStore(this.store);
-			let request: IDBRequest = undefined!;
 			for (const entry of fileBatch) {
-				request = objectStore.put(entry.content, entry.resource.path);
+				objectStore.put(entry.content, entry.resource.path);
 			}
-			request.onsuccess = () => c();
 		});
 	}
 
 	private deleteKeys(keys: string[]): Promise<void> {
 		return new Promise(async (c, e) => {
-			if (keys.length === 0) { return c(); }
-			const transaction = this.database.transaction([this.store], 'readwrite');
-			transaction.onerror = () => e(transaction.error);
-			const objectStore = transaction.objectStore(this.store);
-			let request: IDBRequest = undefined!;
-			for (const key of keys) {
-				request = objectStore.delete(key);
+			if (keys.length === 0) {
+				return c();
 			}
 
-			request.onsuccess = () => c();
+			const transaction = this.database.transaction([this.store], 'readwrite');
+			transaction.oncomplete = () => c();
+			transaction.onerror = () => e(transaction.error);
+			const objectStore = transaction.objectStore(this.store);
+			for (const key of keys) {
+				objectStore.delete(key);
+			}
 		});
 	}
 
 	reset(): Promise<void> {
 		return new Promise(async (c, e) => {
 			const transaction = this.database.transaction([this.store], 'readwrite');
+			transaction.oncomplete = () => c();
+			transaction.onerror = () => e(transaction.error);
+
 			const objectStore = transaction.objectStore(this.store);
-			const request = objectStore.clear();
-			request.onerror = () => e(request.error);
-			request.onsuccess = () => c();
+			objectStore.clear();
 		});
 	}
 }

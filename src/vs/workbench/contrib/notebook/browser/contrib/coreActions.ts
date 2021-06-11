@@ -311,6 +311,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
+// If this changes, update getCodeCellExecutionContextKeyService to match
 const executeCellCondition = ContextKeyExpr.and(
 	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
 	ContextKeyExpr.or(
@@ -1874,14 +1875,18 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 					group: 'notebookLayout',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+						ContextKeyExpr.equals('config.notebook.experimental.openGettingStarted', true)
 					),
 					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+						ContextKeyExpr.equals('config.notebook.experimental.openGettingStarted', true)
+					),
 					order: 0
 				}
 			]

@@ -25,7 +25,7 @@ function update(options) {
 		throw new Error(`${location} doesn't exist.`);
 	}
 	let locExtFolder = idOrPath;
-	if (/^\w{2}(-\w+)?$/.test(idOrPath)) {
+	if (/^\w{2,3}(-\w+)?$/.test(idOrPath)) {
 		locExtFolder = path.join('..', 'vscode-loc', 'i18n', `vscode-language-pack-${idOrPath}`);
 	}
 	let locExtStat = fs.statSync(locExtFolder);
@@ -88,7 +88,7 @@ function update(options) {
 					for (let tp of translationPaths) {
 						localization.translations.push({ id: tp.id, path: `./translations/${tp.resourceName}` });
 					}
-					fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t'));
+					fs.writeFileSync(path.join(locExtFolder, 'package.json'), JSON.stringify(packageJSON, null, '\t') + '\n');
 				}
 			});
 	});

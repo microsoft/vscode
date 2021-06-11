@@ -125,7 +125,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			}
 		});
 
-		this._sessions.map(session => {
+		this._sessions.forEach(session => {
 			const matchesExisting = storedSessions.some(s => s.id === session.id);
 			// Another window has logged out, remove from our state
 			if (!matchesExisting) {
@@ -209,7 +209,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			return session;
 		} catch (e) {
 			// If login was cancelled, do not notify user.
-			if (e.message === 'Cancelled') {
+			if (e === 'Cancelled') {
 				/* __GDPR__
 					"loginCancelled" : { }
 				*/

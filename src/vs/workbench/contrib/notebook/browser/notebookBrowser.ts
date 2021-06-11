@@ -21,7 +21,7 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -32,6 +32,7 @@ import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instant
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -180,12 +181,12 @@ export interface ICommonNotebookEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
-	markdownCellDragEnd(cellId: string): void;
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
+	didEndDragMarkupCell(cellId: string): void;
 }
 
 //#endregion
@@ -263,6 +264,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	handle: number;
 	uri: URI;
 	language: string;
+	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
 	focusMode: CellFocusMode;
@@ -476,9 +478,9 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
-	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
-	hideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	createMarkupPreview(cell: ICellViewModel): Promise<void>;
+	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -764,7 +766,7 @@ export interface IOutputTransformContribution {
 	 * This call is allowed to have side effects, such as placing output
 	 * directly into the container element.
 	 */
-	render(output: ICellOutputViewModel, items: IOutputItemDto[], container: HTMLElement, notebookUri: URI): IRenderOutput;
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput;
 }
 
 export interface CellFindMatch {
@@ -792,14 +794,13 @@ export enum CellRevealPosition {
 export enum CellEditState {
 	/**
 	 * Default state.
-	 * For markdown cell, it's Markdown preview.
+	 * For markup cells, this is the renderer version of the markup.
 	 * For code cell, the browser focus should be on the container instead of the editor
 	 */
 	Preview,
 
-
 	/**
-	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
+	 * Editing mode. Source for markup or code is rendered in editors and the state will be persistent.
 	 */
 	Editing
 }

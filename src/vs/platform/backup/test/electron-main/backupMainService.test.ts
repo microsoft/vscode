@@ -66,7 +66,7 @@ flakySuite('BackupMainService', () => {
 
 	async function ensureWorkspaceExists(workspace: IWorkspaceIdentifier): Promise<IWorkspaceIdentifier> {
 		if (!fs.existsSync(workspace.configPath.fsPath)) {
-			await pfs.writeFile(workspace.configPath.fsPath, 'Hello');
+			await pfs.Promises.writeFile(workspace.configPath.fsPath, 'Hello');
 		}
 
 		const backupFolder = service.toBackupPath(workspace.id);
@@ -79,7 +79,7 @@ flakySuite('BackupMainService', () => {
 		if (!fs.existsSync(backupFolder)) {
 			fs.mkdirSync(backupFolder);
 			fs.mkdirSync(path.join(backupFolder, Schemas.file));
-			await pfs.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
+			await pfs.Promises.writeFile(path.join(backupFolder, Schemas.file, 'foo.txt'), 'Hello');
 		}
 	}
 
@@ -132,7 +132,7 @@ flakySuite('BackupMainService', () => {
 	});
 
 	teardown(() => {
-		return pfs.rimraf(testDir);
+		return pfs.Promises.rm(testDir);
 	});
 
 	test('service validates backup workspaces on startup and cleans up (folder workspaces)', async function () {
@@ -443,7 +443,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString()],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
@@ -460,7 +460,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [existingTestFolder1.toString(), existingTestFolder1.toString().toLowerCase()],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
 			const json = <IBackupWorkspacesFormat>JSON.parse(buffer);
@@ -481,7 +481,7 @@ flakySuite('BackupMainService', () => {
 				folderURIWorkspaces: [],
 				emptyWorkspaceInfos: []
 			};
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 
 			const buffer = await pfs.Promises.readFile(backupWorkspacesPath, 'utf-8');
@@ -596,7 +596,7 @@ flakySuite('BackupMainService', () => {
 			await ensureFolderExists(existingTestFolder1); // make sure backup folder exists, so the folder is not removed on loadSync
 
 			const workspacesJson: IBackupWorkspacesFormat = { rootURIWorkspaces: [], folderURIWorkspaces: [existingTestFolder1.toString()], emptyWorkspaceInfos: [] };
-			await pfs.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
+			await pfs.Promises.writeFile(backupWorkspacesPath, JSON.stringify(workspacesJson));
 			await service.initialize();
 			service.unregisterFolderBackupSync(barFile);
 			service.unregisterEmptyWindowBackupSync('test');

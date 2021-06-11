@@ -14,25 +14,26 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { stringDiff } from 'vs/base/common/diff/diff';
+import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	private readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
 
 	private active: boolean = false;
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
@@ -108,10 +109,10 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 			return;
 		}
 
-		this.startSession();
+		this.trigger();
 	}
 
-	public startSession(): void {
+	public trigger(): void {
 		if (this.completionSession.value) {
 			return;
 		}
@@ -140,15 +141,20 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	public showPrevious(): void {
 		this.session?.showPreviousInlineCompletion();
 	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		const result = await this.session?.hasMultipleInlineCompletions();
+		return result !== undefined ? result : false;
+	}
 }
 
-class InlineCompletionsSession extends BaseGhostTextWidgetModel {
+export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
+	private readonly updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
@@ -267,6 +273,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		await this.ensureUpdateWithExplicitContext();
+		return (this.cache.value?.completions.length || 0) > 1;
+	}
+
 	//#endregion
 
 	public get ghostText(): GhostText | undefined {
@@ -294,6 +305,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
+		// Since updateSoon debounces, starvation can happen.
+		// To prevent stale cache, we clear the current update operation.
+		this.updateOperation.clear();
 		this.updateSoon.schedule();
 	}
 
@@ -342,6 +356,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commitCurrentCompletion(): void {
+		if (!this.ghostText) {
+			// No ghost text was shown for this completion.
+			// Thus, we don't want to commit anything.
+			return;
+		}
 		const completion = this.currentCompletion;
 		if (completion) {
 			this.commit(completion);
@@ -366,6 +385,8 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 					cache?.dispose();
 				})
 				.then(undefined, onUnexpectedExternalError);
+		} else {
+			cache?.dispose();
 		}
 
 		this.onDidChangeEmitter.fire();
@@ -458,47 +479,53 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-function leftTrim(str: string): string {
-	return str.replace(/^\s+/, '');
-}
-
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
-	// This is a single line string
-	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-
-	let remainingInsertText: string;
-
-	// Consider these cases
-	// valueToBeReplaced -> inlineCompletion.text
-	// "\t\tfoo" -> "\t\tfoobar" (+"bar")
-	// "\t" -> "\t\tfoobar" (+"\tfoobar")
-	// "\t\tfoo" -> "\t\t\tfoobar" (+"\t", +"bar")
-	// "\t\tfoo" -> "\tfoobar" (-"\t", +"\bar")
-
-	if (inlineCompletion.text.startsWith(valueToBeReplaced)) {
-		remainingInsertText = inlineCompletion.text.substr(valueToBeReplaced.length);
-	} else {
-		const valueToBeReplacedTrimmed = leftTrim(valueToBeReplaced);
-		const insertTextTrimmed = leftTrim(inlineCompletion.text);
-		if (!insertTextTrimmed.startsWith(valueToBeReplacedTrimmed)) {
-			return undefined;
-		}
-		remainingInsertText = insertTextTrimmed.substr(valueToBeReplacedTrimmed.length);
-	}
-
-	const position = inlineCompletion.range.getEndPosition();
-
-	const lines = strings.splitLines(remainingInsertText);
-
-	if (lines.length > 1 && textModel.getLineMaxColumn(position.lineNumber) !== position.column) {
-		// Such ghost text is not supported.
+	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
+		// Only single line replacements are supported.
 		return undefined;
 	}
 
-	return {
-		lines,
-		position
-	};
+	// This is a single line string
+	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
+
+	const changes = stringDiff(valueToBeReplaced, inlineCompletion.text, false);
+
+	const lineNumber = inlineCompletion.range.startLineNumber;
+
+	const parts = new Array<GhostTextPart>();
+	let additionalLines = new Array<string>();
+
+	for (const c of changes) {
+		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
+
+		if (c.originalLength > 0) {
+			const originalText = valueToBeReplaced.substr(c.originalStart, c.originalLength);
+			const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (!(/^(\t| )*$/.test(originalText) && (firstNonWsCol === 0 || insertColumn <= firstNonWsCol))) {
+				return undefined;
+			}
+		}
+
+		if (c.modifiedLength === 0) {
+			continue;
+		}
+
+		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
+		const isEndOfLine = insertColumn === textModel.getLineMaxColumn(lineNumber);
+		if (!isEndOfLine) {
+			if (text.indexOf('\n') !== -1) {
+				// no line breaks inside the text
+				return undefined;
+			}
+			parts.push({ column: insertColumn, text });
+		} else {
+			const lines = strings.splitLines(text);
+			additionalLines = lines.slice(1);
+			parts.push({ column: insertColumn, text: lines[0] });
+		}
+	}
+
+	return new GhostText(lineNumber, parts, additionalLines, 0);
 }
 
 export interface LiveInlineCompletion extends NormalizedInlineCompletion {

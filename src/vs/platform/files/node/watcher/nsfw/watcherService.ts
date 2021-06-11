@@ -66,7 +66,7 @@ export class FileWatcher extends Disposable {
 		this.service.setVerboseLogging(this.verboseLogging);
 
 		this._register(this.service.onDidChangeFile(e => !this.isDisposed && this.onDidFilesChange(e)));
-		this._register(this.service.onDidLogMessage(m => this.onLogMessage(m)));
+		this._register(this.service.onDidLogMessage(e => this.onLogMessage(e)));
 
 		// Start watching
 		this.setFolders(this.folders);

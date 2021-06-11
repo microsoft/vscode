@@ -497,25 +497,28 @@ export class TernarySearchTree<K, V> {
 		yield* this._entries(this._root);
 	}
 
-	private *_entries(node: TernarySearchTreeNode<K, V> | undefined, i: number = 0): IterableIterator<[K, V]> {
-		if (i > 5000) {
-			console.log('potential CYCLE detected', new Error().stack);
+	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
+		// DFS
+		if (!node) {
 			return;
 		}
-		if (node) {
-			// left
-			yield* this._entries(node.left, i++);
-
-			// node
-			if (node.value) {
-				// callback(node.value, this._iter.join(parts));
-				yield [node.key, node.value];
+		const stack = [node];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			if (node) {
+				if (node.value) {
+					yield [node.key, node.value];
+				}
+				if (node.left) {
+					stack.push(node.left);
+				}
+				if (node.mid) {
+					stack.push(node.mid);
+				}
+				if (node.right) {
+					stack.push(node.right);
+				}
 			}
-			// mid
-			yield* this._entries(node.mid, i++);
-
-			// right
-			yield* this._entries(node.right, i++);
 		}
 	}
 }

@@ -13,6 +13,7 @@ import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -57,7 +58,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 							},
 							{
 								iconClass: ThemeIcon.asClassName(killTerminalIcon),
-								tooltip: localize('killTerminal', "Kill Terminal Instance")
+								tooltip: terminalStrings.kill.value
 							}
 						],
 						iconClasses,

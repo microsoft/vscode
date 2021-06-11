@@ -58,8 +58,10 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -281,6 +283,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
+		// When a custom pty is used set the name immediately so it gets passed over to the exthost
+		// and is available when Pseudoterminal.open fires.
+		if (this.shellLaunchConfig.customPtyImplementation) {
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+		}
+
 		this._initDimensions();
 		this._createProcessManager();
 
@@ -377,7 +385,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
 								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								const profiles = this._configurationService.inspect<{ [key: string]: ITerminalProfileObject }>(TerminalSettingPrefix.Profiles + platform).userValue || {};
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + platform).userValue } || {};
 								const profileConfig: ITerminalProfileObject = { path: profile.path };
 								if (profile.args) {
 									profileConfig.args = profile.args;
@@ -826,14 +834,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
-		const dndController = new TerminalInstanceDragAndDropController(container);
+		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
 			this.sendText(preparedPath, false);
 			this.focus();
 		});
-		this._dndObserver = new DragAndDropObserver(container.parentElement!, dndController);
+		this._dndObserver = new DragAndDropObserver(container, dndController);
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -1930,7 +1938,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
 
 	constructor(
-		private readonly _container: HTMLElement
+		private readonly _container: HTMLElement,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
@@ -1944,6 +1954,10 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	onDragEnter(e: DragEvent) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, 'terminals')) {
+			return;
+		}
+
 		if (!this._dropOverlay) {
 			this._dropOverlay = document.createElement('div');
 			this._dropOverlay.classList.add('terminal-drop-overlay');
@@ -1954,8 +1968,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		// Dragging terminals
 		if (types.includes('terminals')) {
 			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-left', side === 'left');
-			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+			this._dropOverlay.classList.toggle('drop-before', side === 'before');
+			this._dropOverlay.classList.toggle('drop-after', side === 'after');
 		}
 
 		if (!this._dropOverlay.parentElement) {
@@ -1980,8 +1994,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		// Dragging terminals
 		if (types.includes('terminals')) {
 			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-left', side === 'left');
-			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+			this._dropOverlay.classList.toggle('drop-before', side === 'before');
+			this._dropOverlay.classList.toggle('drop-after', side === 'after');
 		}
 
 		this._dropOverlay.style.opacity = '1';
@@ -2020,13 +2034,24 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		this._onDropFile.fire(path);
 	}
 
-	private _getDropSide(e: DragEvent): 'left' | 'right' {
+	private _getDropSide(e: DragEvent): 'before' | 'after' {
 		const target = this._container;
 		if (!target) {
-			return 'right';
+			return 'after';
 		}
+
 		const rect = target.getBoundingClientRect();
-		return e.clientX - rect.left < rect.width / 2 ? 'left' : 'right';
+		return this._getViewOrientation() === Orientation.HORIZONTAL
+			? (e.clientX - rect.left < rect.width / 2 ? 'before' : 'after')
+			: (e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
+	}
+
+	private _getViewOrientation(): Orientation {
+		const panelPosition = this._layoutService.getPanelPosition();
+		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
+		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
+			? Orientation.HORIZONTAL
+			: Orientation.VERTICAL;
 	}
 }
 

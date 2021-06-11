@@ -18,16 +18,20 @@ export async function activate(ctx: {
 	link.rel = 'stylesheet';
 	link.classList.add('markdown-style');
 	link.href = styleHref;
-	document.head.append(link);
 
 	const style = document.createElement('style');
-	style.classList.add('markdown-style');
 	style.textContent = `
 		.katex-error {
 			color: var(--vscode-editorError-foreground);
 		}
 	`;
-	document.head.append(style);
+
+	// Put Everything into a template
+	const styleTemplate = document.createElement('template');
+	styleTemplate.classList.add('markdown-style');
+	styleTemplate.content.appendChild(style);
+	styleTemplate.content.appendChild(link);
+	document.head.appendChild(styleTemplate);
 
 	const katex = require('@iktakahiro/markdown-it-katex');
 	markdownItRenderer.extendMarkdownIt((md: markdownIt.MarkdownIt) => {

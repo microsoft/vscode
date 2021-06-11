@@ -22,6 +22,7 @@ import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/comm
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IComposite } from 'vs/workbench/common/composite';
 import { CompositeDragAndDropData, CompositeDragAndDropObserver, IDraggedCompositeData, ICompositeDragAndDrop, Before2D, toggleDropEffect } from 'vs/workbench/browser/dnd';
+import { Gesture, EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 
 export interface ICompositeBarItem {
 	id: string;
@@ -233,6 +234,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Contextmenu for composites
 		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._register(Gesture.addTarget(parent));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
 
 		let insertDropBefore: Before2D | undefined = undefined;
 		// Register a drop target on the whole bar to prevent forbidden feedback
@@ -619,7 +622,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
-	private showContextMenu(e: MouseEvent): void {
+	private showContextMenu(e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 		const event = new StandardMouseEvent(e);
 		this.contextMenuService.showContextMenu({

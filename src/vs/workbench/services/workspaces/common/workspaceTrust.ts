@@ -235,8 +235,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		if (!this._initialized) {
-			return false;
+		if (this.environmentService.extensionTestsLocationURI) {
+			return true; // trust running tests with vscode-test
 		}
 
 		// Remote - remote authority explicitly sets workspace trust
@@ -244,14 +244,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return this._remoteAuthority.options.isTrusted;
 		}
 
-		if (this.environmentService.extensionTestsLocationURI) {
-			return true; // trust running tests with vscode-test
-		}
-
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present, otherwise default to restricted mode
 			// Workspace may transition to trusted based on the opened editors
 			return this._trustState.isTrusted ?? false;
+		}
+
+		if (!this._initialized) {
+			return false;
 		}
 
 		return this.getUrisTrust(this.getWorkspaceUris());
@@ -271,6 +271,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Update workspace trust
 		this._trustState.isTrusted = trusted;
+
+		// Reset acceptsOutOfWorkspaceFiles
+		if (!trusted) {
+			this._trustState.acceptsOutOfWorkspaceFiles = false;
+		}
 
 		// Run workspace trust transition participants
 		await this._trustTransitionManager.participate(trusted);
@@ -742,10 +747,6 @@ class WorkspaceTrustState {
 
 	set isTrusted(value: boolean | undefined) {
 		this._mementoObject[this._isTrustedKey] = value;
-		if (!value) {
-			this._mementoObject[this._acceptsOutOfWorkspaceFilesKey] = value;
-		}
-
 		this._memento.saveMemento();
 	}
 }

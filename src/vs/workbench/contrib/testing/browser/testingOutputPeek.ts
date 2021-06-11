@@ -64,7 +64,7 @@ import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingC
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
-import { getPathForTestInResult, ITestResult, maxCountPriority, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { getPathForTestInResult, ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
 import { getAllTestsInHierarchy, ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -154,7 +154,7 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	/** @inheritdoc */
 	public closeAllPeeks() {
 		for (const editor of this.codeEditorService.listCodeEditors()) {
-			TestingOutputPeekController.get(editor).removePeek();
+			TestingOutputPeekController.get(editor)?.removePeek();
 		}
 	}
 
@@ -196,9 +196,11 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 
 		// don't show the peek if the user asked to only auto-open peeks for visible tests,
 		// and this test is not in any of the editors' models.
-		const testUri = evt.item.item.uri?.toString();
-		if (cfg === AutoOpenPeekViewWhen.FailureVisible && (!testUri || !editors.some(e => e.getModel()?.uri.toString() === testUri))) {
-			return;
+		if (cfg === AutoOpenPeekViewWhen.FailureVisible) {
+			const editorUris = new Set(editors.map(e => e.getModel()?.uri.toString()));
+			if (!Iterable.some(resultItemParents(evt.result, evt.item), i => i.item.uri && editorUris.has(i.item.uri.toString()))) {
+				return;
+			}
 		}
 
 		const controllers = editors.map(TestingOutputPeekController.get);
@@ -912,20 +914,12 @@ export class TestCaseElement implements ITreeElement {
 		private readonly results: ITestResult,
 		public readonly test: TestResultItem,
 	) {
-		for (const parent of this.parents()) {
-			this.description = this.description
-				? parent.item.label + flatTestItemDelimiter + this.description
-				: parent.item.label;
-		}
-	}
-
-	private *parents() {
-		for (
-			let parent = this.test.parent && this.results.getStateById(this.test.parent);
-			parent;
-			parent = parent.parent && this.results.getStateById(parent.parent)
-		) {
-			yield parent;
+		for (const parent of resultItemParents(results, test)) {
+			if (parent !== test) {
+				this.description = this.description
+					? parent.item.label + flatTestItemDelimiter + this.description
+					: parent.item.label;
+			}
 		}
 	}
 }

@@ -327,7 +327,7 @@ suite('SearchModel', () => {
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
-		const stub = sinon.stub(arg1, arg2, arg3);
+		const stub = sinon.stub(arg1, arg2).callsFake(arg3);
 		restoreStubs.push(stub);
 		return stub;
 	}

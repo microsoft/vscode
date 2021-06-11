@@ -8,10 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { dirname } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -31,7 +29,7 @@ import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFocusMode, IC
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -269,14 +267,16 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 				});
 			});
 
+			const selectionHandles = this.selectionHandles;
+
 			this._onDidChangeViewCells.fire({
 				synchronous: synchronous,
 				splices: diffs
 			});
 
 			let endSelectionHandles: number[] = [];
-			if (this.selectionHandles.length) {
-				const primaryHandle = this.selectionHandles[0];
+			if (selectionHandles.length) {
+				const primaryHandle = selectionHandles[0];
 				const primarySelectionIndex = this._viewCells.indexOf(this.getCellByHandle(primaryHandle)!);
 				endSelectionHandles = [primaryHandle];
 				let delta = 0;
@@ -301,7 +301,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			}
 
 			// TODO@rebornix
-			this.selectionHandles = endSelectionHandles;
+			const selectionIndexes = endSelectionHandles.map(handle => this._viewCells.findIndex(cell => cell.handle === handle));
+			this._selectionCollection.setState(cellIndexesToRanges([selectionIndexes[0]])[0], cellIndexesToRanges(selectionIndexes), true, 'model');
 		};
 
 		this._register(this._notebook.onDidChangeContent(e => {
@@ -1179,13 +1180,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 }
 
-export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
+export type CellViewModel = CodeCellViewModel | MarkupCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel) {
 	if (cell.cellKind === CellKind.Code) {
 		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel.viewContext);
 	} else {
-		const mdRenderer = instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookViewModel.uri) });
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel, notebookViewModel.viewContext, mdRenderer);
+		return instantiationService.createInstance(MarkupCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel, notebookViewModel.viewContext);
 	}
 }

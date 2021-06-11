@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -72,10 +72,10 @@ import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/statusBarProviders';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
@@ -200,9 +200,21 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
-				return getCellUndoRedoComparisonKey(uri, undoRedoPerCell);
+				if (undoRedoPerCell) {
+					return uri.toString();
+				}
+				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
 			}
 		}));
+	}
+
+	private static _getCellUndoRedoComparisonKey(uri: URI) {
+		const data = CellUri.parse(uri);
+		if (!data) {
+			return uri.toString();
+		}
+
+		return data.notebook.toString();
 	}
 }
 
@@ -698,7 +710,7 @@ configurationRegistry.registerConfiguration({
 		[ConsolidatedRunButton]: {
 			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['notebookLayout']
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema

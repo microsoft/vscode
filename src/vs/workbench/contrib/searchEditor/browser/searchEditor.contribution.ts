@@ -75,7 +75,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 	) {
 
-		this.editorOverrideService.registerContributionPoint(
+		this.editorOverrideService.registerEditor(
 			'*' + SEARCH_EDITOR_EXT,
 			{
 				id: SearchEditorInput.ID,
@@ -507,7 +507,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.openNewEditorFromView',
-			title: localize('search.openNewEditor', "Open New Search Editor from View"),
+			title: localize('search.openNewEditor', "Open New Search Editor"),
 			category,
 			icon: searchNewEditorIcon,
 			menu: [{

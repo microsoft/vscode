@@ -32,7 +32,7 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { NotebookDiffEditorInput } from 'vs/workbench/contrib/notebook/browser/notebookDiffEditorInput';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookDataDto, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ACCESSIBLE_NOTEBOOK_DISPLAY_ORDER, BUILTIN_RENDERER_ID, CellUri, DisplayOrderKey, INotebookExclusiveDocumentFilter, INotebookContributionData, INotebookRendererInfo, INotebookTextModel, IOrderedMimeType, IOutputDto, mimeTypeIsAlwaysSecure, mimeTypeSupportedByCore, NotebookData, NotebookEditorPriority, NotebookRendererMatch, NotebookTextDiffEditorPreview, RENDERER_NOT_AVAILABLE, sortMimeTypes, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
@@ -173,7 +173,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, notebookUri, modifiedInput.getName(), originalNotebookUri, originalInput.getName(), diffEditorInput.getName(), notebookProviderInfo.id) };
 			};
 			// Register the notebook editor
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				globPattern,
 				notebookEditorInfo,
 				notebookEditorOptions,
@@ -181,7 +181,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
-			disposables.add(this._editorOverrideService.registerContributionPoint(
+			disposables.add(this._editorOverrideService.registerEditor(
 				`${Schemas.vscodeNotebookCell}:/**/${globPattern}`,
 				{ ...notebookEditorInfo, priority: ContributedEditorPriority.exclusive },
 				notebookEditorOptions,
@@ -540,7 +540,7 @@ export class NotebookService extends Disposable implements INotebookService {
 
 	// --- notebook documents: create, destory, retrieve, enumerate
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel {
+	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel {
 		if (this._models.has(uri)) {
 			throw new Error(`notebook for ${uri} already exists`);
 		}

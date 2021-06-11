@@ -2443,7 +2443,7 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 				'editor.inlayHints.fontSize': {
 					type: 'number',
 					default: defaults.fontSize,
-					description: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+					markdownDescription: nls.localize('inlayHints.fontSize', "Controls font size of inlay hints in the editor. When set to `0`, the 90% of `#editor.fontSize#` is used.")
 				},
 				'editor.inlayHints.fontFamily': {
 					type: 'string',
@@ -2471,13 +2471,14 @@ class EditorInlayHints extends BaseEditorOption<EditorOption.inlayHints, EditorI
 
 //#region lineHeight
 
-class EditorLineHeight extends EditorIntOption<EditorOption.lineHeight> {
+class EditorLineHeight extends EditorFloatOption<EditorOption.lineHeight> {
 
 	constructor() {
 		super(
 			EditorOption.lineHeight, 'lineHeight',
-			EDITOR_FONT_DEFAULTS.lineHeight, 0, 150,
-			{ description: nls.localize('lineHeight', "Controls the line height. Use 0 to compute the line height from the font size.") }
+			EDITOR_FONT_DEFAULTS.lineHeight,
+			x => EditorFloatOption.clamp(x, 0, 150),
+			{ markdownDescription: nls.localize('lineHeight', "Controls the line height. \n - Use 0 to automatically compute the line height from the font size.\n - Values between 0 and 8 will be used as a multiplier with the font size.\n - Values greater than 8 will be used as effective values.") }
 		);
 	}
 
@@ -4083,7 +4084,7 @@ export const EditorOptions = {
 		default: 0,
 		minimum: 0,
 		maximum: 100,
-		description: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
+		markdownDescription: nls.localize('codeLensFontSize', "Controls the font size in pixels for CodeLens. When set to `0`, the 90% of `#editor.fontSize#` is used.")
 	})),
 	colorDecorators: register(new EditorBooleanOption(
 		EditorOption.colorDecorators, 'colorDecorators', true,
