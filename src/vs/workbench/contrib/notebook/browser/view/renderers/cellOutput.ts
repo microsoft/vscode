@@ -118,6 +118,10 @@ export class CellOutputElement extends Disposable {
 		}
 
 		this.notebookEditor.removeInset(this.output);
+
+		if (this.renderResult && this.renderResult.type === RenderOutputType.Mainframe) {
+			this.renderResult.disposable?.dispose();
+		}
 	}
 
 	updateDOMTop(top: number) {
