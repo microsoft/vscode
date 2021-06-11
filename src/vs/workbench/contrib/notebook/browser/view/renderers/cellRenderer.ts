@@ -79,7 +79,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 
 	getTemplateId(element: CellViewModel): string {
 		if (element.cellKind === CellKind.Markup) {
-			return MarkdownCellRenderer.TEMPLATE_ID;
+			return MarkupCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
 		}
@@ -301,7 +301,7 @@ abstract class AbstractCellRenderer {
 	}
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
+export class MarkupCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
 	private readonly useRenderer: boolean;
@@ -323,7 +323,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	get templateId() {
-		return MarkdownCellRenderer.TEMPLATE_ID;
+		return MarkupCellRenderer.TEMPLATE_ID;
 	}
 
 	renderTemplate(rootContainer: HTMLElement): MarkdownCellRenderTemplate {
@@ -477,7 +477,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		}));
 
 		this.updateForHover(element, templateData);
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, 'markdown');
+		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(cellEditorOptions);
 
