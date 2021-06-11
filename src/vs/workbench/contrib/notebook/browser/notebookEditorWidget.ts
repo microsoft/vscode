@@ -1600,7 +1600,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// a descendent of the notebook editor root.
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
 		this._editorFocus.set(focused);
-		this.viewModel?.setFocus(focused);
+		this.viewModel?.setEditorFocus(focused);
 	}
 
 	hasFocus() {

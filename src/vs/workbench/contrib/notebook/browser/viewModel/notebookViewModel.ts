@@ -377,7 +377,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._selectionCollection.selections;
 	}
 
-	setFocus(focused: boolean) {
+	setEditorFocus(focused: boolean) {
 		this._focused = focused;
 	}
 
