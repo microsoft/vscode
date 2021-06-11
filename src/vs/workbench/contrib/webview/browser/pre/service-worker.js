@@ -100,7 +100,9 @@ class RequestStore {
 
 /**
  * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: any, mime: string, etag: string | undefined, } | { type: 'not-modified', mime: string } | undefined} ResourceResponse
+ * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
+ *           { type: 'not-modified', mime: string, mtime: number | undefined } |
+ *           undefined} ResourceResponse
  * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
@@ -142,12 +144,12 @@ sw.addEventListener('message', async (event) => {
 				switch (data.status) {
 					case 200:
 						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag };
+							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
 							break;
 						}
 					case 304:
 						{
-							response = { type: 'not-modified', mime: data.mime };
+							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
 							break;
 						}
 				}
@@ -233,14 +235,18 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
-		/** @type {Record<String, string>} */
+		/** @type {Record<string, string>} */
 		const headers = {
 			'Content-Type': entry.mime,
+			'Content-Length': entry.body.byteLength.toString(),
 			'Access-Control-Allow-Origin': '*',
 		};
 		if (entry.etag) {
 			headers['ETag'] = entry.etag;
 			headers['Cache-Control'] = 'no-cache';
+		}
+		if (entry.mtime) {
+			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
 		}
 		const response = new Response(entry.body, {
 			status: 200,
