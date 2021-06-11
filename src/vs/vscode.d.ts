@@ -1700,6 +1700,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -1726,6 +1727,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 	}
@@ -1900,6 +1902,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -9829,6 +9832,7 @@ declare module 'vscode' {
 
 		/**
 		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut: boolean;
 
