@@ -92,7 +92,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _remoteAuthority: ResolverResult | undefined;
 
-	private readonly _storedTrustState: WorkspaceTrustState;
+	private readonly _storedTrustState: WorkspaceTrustMemento;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
 	constructor(
@@ -115,7 +115,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._workspaceTrustInitializedPromiseResolve = resolve;
 		});
 
-		this._storedTrustState = new WorkspaceTrustState(this.storageService);
+		this._storedTrustState = new WorkspaceTrustMemento(this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
@@ -762,7 +762,7 @@ class WorkspaceTrustTransitionManager extends Disposable {
 	}
 }
 
-class WorkspaceTrustState {
+class WorkspaceTrustMemento {
 
 	private readonly _memento: Memento;
 	private readonly _mementoObject: MementoObject;
