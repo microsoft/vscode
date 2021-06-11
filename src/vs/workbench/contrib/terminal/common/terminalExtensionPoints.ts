@@ -14,7 +14,7 @@ export const terminalsExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 export interface ITerminalContributionService {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalProfiles: ReadonlyArray<ITerminalProfileContribution>;
+	readonly terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }>;
 }
 
 export const ITerminalContributionService = createDecorator<ITerminalContributionService>('terminalContributionsService');
@@ -22,7 +22,7 @@ export const ITerminalContributionService = createDecorator<ITerminalContributio
 export class TerminalContributionService implements ITerminalContributionService {
 	declare _serviceBrand: undefined;
 
-	private _terminalProfiles: ReadonlyArray<ITerminalProfileContribution> = [];
+	private _terminalProfiles: ReadonlyArray<ITerminalProfileContribution & { extensionIdentifier: string }> = [];
 	get terminalProfiles() { return this._terminalProfiles; }
 
 	constructor() {
@@ -36,7 +36,7 @@ export class TerminalContributionService implements ITerminalContributionService
 					} else {
 						e.icon = undefined;
 					}
-					return e;
+					return { ...e, extensionIdentifier: c.description.identifier.value };
 				}) || [];
 			}));
 		});

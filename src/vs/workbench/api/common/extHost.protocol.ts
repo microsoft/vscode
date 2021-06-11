@@ -486,7 +486,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$startLinkProvider(): void;
 	$stopLinkProvider(): void;
 	$registerProcessSupport(isSupported: boolean): void;
-	$registerProfileProvider(id: string): void;
+	$registerProfileProvider(id: string, extensionIdentifier: string): void;
 	$unregisterProfileProvider(id: string): void;
 	$setEnvironmentVariableCollection(extensionIdentifier: string, persistent: boolean, collection: ISerializableEnvironmentVariableCollection | undefined): void;
 

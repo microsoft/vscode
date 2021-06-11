@@ -57,7 +57,7 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _activeGroupIndex: number;
 	private _activeInstanceIndex: number;
-	private readonly _profileProviders: Map<string, ITerminalProfileProvider> = new Map();
+	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -811,8 +811,13 @@ export class TerminalService implements ITerminalService {
 		};
 	}
 
-	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable {
-		this._profileProviders.set(id, profileProvider);
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
+		let extMap = this._profileProviders.get(extensionIdenfifier);
+		if (!extMap) {
+			extMap = new Map();
+			this._profileProviders.set(extensionIdenfifier, extMap);
+		}
+		extMap.set(id, profileProvider);
 		return toDisposable(() => this._profileProviders.delete(id));
 	}
 
@@ -976,7 +981,7 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.id, !!(keyMods?.alt && activeInstance));
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, !!(keyMods?.alt && activeInstance));
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
@@ -1017,9 +1022,10 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	async createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void> {
+	async createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void> {
 		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
-		const profileProvider = this._profileProviders.get(id);
+		const extMap = this._profileProviders.get(extensionIdentifier);
+		const profileProvider = extMap?.get(id);
 		if (!profileProvider) {
 			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
 			return;
@@ -1207,7 +1213,7 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | ITerminalProfileContribution;
+	profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string });
 }
 
 interface IInstanceLocation {

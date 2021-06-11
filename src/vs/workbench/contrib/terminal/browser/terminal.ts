@@ -141,7 +141,7 @@ export interface ITerminalService {
 	 */
 	createTerminal(profile: ITerminalProfile): ITerminalInstance;
 
-	createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void>;
+	createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -201,7 +201,7 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
