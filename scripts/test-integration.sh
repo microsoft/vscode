@@ -14,7 +14,7 @@ fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 VSCODECRASHDIR=$ROOT/.build/crashes
-VSCODELOGSDIR=$ROOT/.build/logs
+VSCODELOGSDIR=$ROOT/.build/logs/integration-tests
 cd $ROOT
 
 # Figure out which Electron to use for running tests
@@ -24,6 +24,7 @@ then
 	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
+	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests out of sources."
 else
 	# Run from a built: need to compile all test extensions
@@ -48,6 +49,7 @@ else
 	export ELECTRON_ENABLE_LOGGING=1
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
+	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests with '$INTEGRATION_TEST_ELECTRON_PATH' as build."
 fi
 
