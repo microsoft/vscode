@@ -21,7 +21,7 @@ import { CellExecuteEditDto, ExtHostContext, ExtHostNotebookKernelsShape, IExtHo
 abstract class MainThreadKernel implements INotebookKernel {
 
 	private readonly _onDidChange = new Emitter<INotebookKernelChangeEvent>();
-	private readonly preloads: { uri: URI, provides: string[] }[];
+	private readonly preloads: { uri: URI, provides: string[]; }[];
 	readonly onDidChange: Event<INotebookKernelChangeEvent> = this._onDidChange.event;
 
 	readonly id: string;
@@ -128,7 +128,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				return;
 			}
-			const { selected } = this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument);
+			const { selected } = this._notebookKernelService.getMatchingKernel(editor.textModel);
 			if (!selected) {
 				return;
 			}
@@ -158,7 +158,7 @@ export class MainThreadNotebookKernels implements MainThreadNotebookKernelsShape
 			if (!editor.hasModel()) {
 				continue;
 			}
-			if (this._notebookKernelService.getMatchingKernel(editor.viewModel.notebookDocument).selected !== kernel) {
+			if (this._notebookKernelService.getMatchingKernel(editor.textModel).selected !== kernel) {
 				// different kernel
 				continue;
 			}

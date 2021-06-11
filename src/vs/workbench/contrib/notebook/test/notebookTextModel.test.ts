@@ -25,7 +25,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
@@ -49,7 +49,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
@@ -72,7 +72,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 1, cells: [] },
@@ -94,7 +94,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
@@ -117,7 +117,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
 					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
@@ -141,7 +141,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
@@ -160,7 +160,7 @@ suite('NotebookTextModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 
 				// invalid index 1
 				assert.throws(() => {
@@ -233,7 +233,7 @@ suite('NotebookTextModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 
 				// append
 				textModel.applyEdits([
@@ -272,7 +272,7 @@ suite('NotebookTextModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 
 				// invalid index 1
 				assert.throws(() => {
@@ -316,7 +316,7 @@ suite('NotebookTextModel', () => {
 				['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 
 				textModel.applyEdits([{
 					index: 0,
@@ -346,7 +346,7 @@ suite('NotebookTextModel', () => {
 			],
 			(editor) => {
 				const viewModel = editor.viewModel;
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
@@ -381,7 +381,7 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const textModel = editor.viewModel.notebookDocument;
+				const textModel = editor.textModel;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
@@ -411,7 +411,7 @@ suite('NotebookTextModel', () => {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
-			const model = editor.viewModel.notebookDocument;
+			const model = editor.textModel;
 
 			assert.strictEqual(model.cells.length, 1);
 			assert.strictEqual(model.cells[0].outputs.length, 0);
@@ -447,7 +447,7 @@ suite('NotebookTextModel', () => {
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
-			const model = editor.viewModel.notebookDocument;
+			const model = editor.textModel;
 
 			let event: NotebookTextModelChangedEvent | undefined;
 
@@ -520,7 +520,7 @@ suite('NotebookTextModel', () => {
 			assert.strictEqual(editor.viewModel.getVersionId(), 0);
 			const firstAltVersion = '0_0,1;1,1';
 			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
-			editor.viewModel.notebookDocument.applyEdits([
+			editor.textModel.applyEdits([
 				{
 					index: 0,
 					editType: CellEditType.Metadata,
@@ -543,7 +543,7 @@ suite('NotebookTextModel', () => {
 			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
 			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
 
-			editor.viewModel.notebookDocument.applyEdits([
+			editor.textModel.applyEdits([
 				{
 					index: 1,
 					editType: CellEditType.Metadata,
@@ -567,7 +567,7 @@ suite('NotebookTextModel', () => {
 			['var a = 1;', 'javascript', CellKind.Code, [{ outputId: 'i42', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
 		], async (editor) => {
 
-			const notebook = editor.viewModel.notebookDocument;
+			const notebook = editor.textModel;
 
 			assert.strictEqual(notebook.cells[0].outputs.length, 1);
 			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 1);
@@ -585,7 +585,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 
 			assert.strictEqual(notebook.cells[0].outputs.length, 1);
 			assert.strictEqual(notebook.cells[0].outputs[0].outputs.length, 2);
@@ -598,7 +598,7 @@ suite('NotebookTextModel', () => {
 			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
 			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
 		], async (editor) => {
-			const notebook = editor.viewModel.notebookDocument;
+			const notebook = editor.textModel;
 
 			const edits: ICellEditOperation[] = [
 				{
@@ -615,7 +615,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 
 			assert.strictEqual(notebook.cells.length, 2);
 			assert.strictEqual(notebook.cells[0].outputs.length, 0);
@@ -631,7 +631,7 @@ suite('NotebookTextModel', () => {
 			['var b = 2;', 'javascript', CellKind.Code, [{ outputId: 'i43', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}],
 			['var c = 3;', 'javascript', CellKind.Code, [{ outputId: 'i44', outputs: [{ mime: 'm/ime', data: valueBytesFromString('test') }] }], {}]
 		], async (editor) => {
-			const notebook = editor.viewModel.notebookDocument;
+			const notebook = editor.textModel;
 
 			const edits: ICellEditOperation[] = [
 				{
@@ -651,7 +651,7 @@ suite('NotebookTextModel', () => {
 				}
 			];
 
-			editor.viewModel.notebookDocument.applyEdits(edits, true, undefined, () => undefined, undefined);
+			editor.textModel.applyEdits(edits, true, undefined, () => undefined, undefined);
 
 			assert.strictEqual(notebook.cells.length, 2);
 			assert.strictEqual(notebook.cells[0].outputs.length, 1);
@@ -664,7 +664,7 @@ suite('NotebookTextModel', () => {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}]
 		], (editor) => {
-			const model = editor.viewModel.notebookDocument;
+			const model = editor.textModel;
 
 			assert.strictEqual(model.cells.length, 1);
 			assert.strictEqual(model.cells[0].outputs.length, 0);

@@ -87,8 +87,7 @@ suite('NotebookViewModel Outputs', async () => {
 					{ outputId: 'output_id_3', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('3') }] },
 				], {}]
 			],
-			(editor, accessor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
 					outputContainer: document.createElement('div'),
 					outputShowMoreContainer: document.createElement('div'),
@@ -108,7 +107,7 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.notStrictEqual(container.renderedOutputEntries[1].element.innerContainer, container.renderedOutputEntries[2].element.innerContainer);
 				assert.notStrictEqual(container.renderedOutputEntries[2].element.innerContainer, container.renderedOutputEntries[3].element.innerContainer);
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [
@@ -127,7 +126,7 @@ suite('NotebookViewModel Outputs', async () => {
 				// last one is merged with previous one
 				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer, container.renderedOutputEntries[4].element.innerContainer);
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [
@@ -166,8 +165,7 @@ suite('NotebookViewModel Outputs', async () => {
 					{ outputId: 'output_id_6', outputs: [{ mime: 'application/vnd.code.notebook.stdout', data: valueBytesFromString('6') }] },
 				], {}]
 			],
-			(editor, accessor) => {
-				const viewModel = editor.viewModel;
+			(editor, viewModel, accessor) => {
 				const container = new CellOutputContainer(editor, viewModel.viewCells[0] as CodeCellViewModel, {
 					outputContainer: document.createElement('div'),
 					outputShowMoreContainer: document.createElement('div'),
@@ -191,7 +189,7 @@ suite('NotebookViewModel Outputs', async () => {
 				assert.strictEqual(container.renderedOutputEntries[3].element.innerContainer.innerText, '45');
 
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					index: 0,
 					editType: CellEditType.Output,
 					outputs: [
