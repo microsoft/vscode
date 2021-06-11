@@ -271,6 +271,7 @@ steps:
       targetPath: .build/logs
     displayName: "Publish Log Files"
     continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
