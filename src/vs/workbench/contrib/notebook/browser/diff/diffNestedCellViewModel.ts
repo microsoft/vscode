@@ -111,7 +111,7 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 			throw new Error('Output index out of range!');
 		}
 
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		return this._outputsTop!.getPrefixSum(index - 1);
 	}
 
 	updateOutputHeight(index: number, height: number): void {
@@ -129,6 +129,6 @@ export class DiffNestedCellViewModel extends Disposable implements IDiffNestedCe
 	getOutputTotalHeight() {
 		this._ensureOutputsTop();
 
-		return this._outputsTop?.getTotalValue() ?? 0;
+		return this._outputsTop?.getTotalSum() ?? 0;
 	}
 }
