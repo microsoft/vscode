@@ -456,8 +456,34 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getSelections() ?? [];
 	}
 
+	setSelections(selections: ICellRange[]) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const focus = this.viewModel.getFocus();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
+	}
+
 	getFocus() {
 		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
+	}
+
+	setFocus(focus: ICellRange) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const selections = this.viewModel.getSelections();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {
@@ -1603,7 +1629,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this.viewModel?.setEditorFocus(focused);
 	}
 
-	hasFocus() {
+	hasEditorFocus() {
 		return this._editorFocus.get() || false;
 	}
 
@@ -1612,7 +1638,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	hasOutputTextSelection() {
-		if (!this.hasFocus()) {
+		if (!this.hasEditorFocus()) {
 			return false;
 		}
 

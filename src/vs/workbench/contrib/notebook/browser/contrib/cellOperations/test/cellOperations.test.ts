@@ -282,7 +282,8 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 2);
 			});
@@ -297,7 +298,8 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 2 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 2 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 1);
 			});
@@ -313,7 +315,8 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 4 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 2, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 3);
 			});
@@ -328,7 +331,8 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
 				assert.strictEqual(viewModel.length, 2);
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), 'var a = 1;');
@@ -347,10 +351,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 5 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 0, end: 1 }, { start: 2, end: 4 }]);
 			});
 	});
@@ -366,10 +371,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 2, end: 3 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 1, end: 2 }]);
 			});
 	});
@@ -385,10 +391,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 3, end: 5 }]);
+				editor.setFocus({ start: 2, end: 3 });
+				editor.setSelections([{ start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 4);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 				assert.deepStrictEqual(viewModel.getSelections(), [{ start: 2, end: 4 }]);
 			});
 	});
@@ -403,10 +410,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 2, end: 3 }, [{ start: 2, end: 3 }]);
+				editor.setFocus({ start: 2, end: 3 });
+				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 			});
 	});
 
@@ -420,10 +428,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 0, end: 1 }, [{ start: 0, end: 1 }, { start: 3, end: 4 }]);
+				editor.setFocus({ start: 0, end: 1 });
+				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 0, end: 1 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 0, end: 1 });
 			});
 	});
 
@@ -438,10 +447,11 @@ suite('CellOperations', () => {
 			],
 			async (editor) => {
 				const viewModel = editor.viewModel;
-				viewModel.setSelections({ start: 1, end: 2 }, [{ start: 1, end: 2 }, { start: 3, end: 5 }]);
+				editor.setFocus({ start: 1, end: 2 });
+				editor.setSelections([{ start: 1, end: 2 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);
 				assert.strictEqual(viewModel.length, 2);
-				assert.deepStrictEqual(viewModel.getFocus(), { start: 1, end: 2 });
+				assert.deepStrictEqual(editor.getFocus(), { start: 1, end: 2 });
 			});
 	});
 });

@@ -183,9 +183,9 @@ export interface ICommonNotebookEditor {
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
 	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
 	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
-	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
-	didDragMarkupCell(cellId: string, event: { dragOffsetY: number }): void;
-	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
 	didEndDragMarkupCell(cellId: string): void;
 }
 
@@ -357,10 +357,13 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
 	getSelections(): ICellRange[];
+	setSelections(selections: ICellRange[]): void;
+	getFocus(): ICellRange;
+	setFocus(focus: ICellRange): void;
 	visibleRanges: ICellRange[];
 	textModel?: NotebookTextModel;
 	getId(): string;
-	hasFocus(): boolean;
+	hasEditorFocus(): boolean;
 
 	isEmbedded: boolean;
 
@@ -396,7 +399,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	focus(): void;
 
-	hasFocus(): boolean;
+	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
@@ -461,12 +464,12 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Execute the given notebook cells
 	 */
-	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
+	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
 
 	/**
 	 * Cancel the given notebook cells
 	 */
-	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
+	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
 
 	/**
 	 * Get current active cell
