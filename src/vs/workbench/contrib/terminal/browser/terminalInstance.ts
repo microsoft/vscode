@@ -532,11 +532,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
+
 		let xtermRendererType: RendererType = 'canvas';
-		if (config.gpuAcceleration === 'auto') {
-			const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : xtermRendererType;
-		} else if (config.gpuAcceleration === 'off') {
+		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
+
+		if (config.gpuAcceleration === 'off' || (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
 			xtermRendererType = 'dom';
 		}
 
@@ -1441,13 +1441,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
+
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 		if ((config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
 			let rendererType = 'canvas';
-			if ((config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') || config.gpuAcceleration === 'off') {
+			if (config.gpuAcceleration === 'off' || (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
 				rendererType = 'dom';
 			}
 			this._safeSetOption('rendererType', rendererType);
