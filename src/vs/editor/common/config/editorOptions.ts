@@ -2134,14 +2134,6 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 						maxMinimapScale = memory.stableFitMaxMinimapScale;
 					} else {
 						fitBecomesFill = (effectiveMinimapHeight > minimapCanvasInnerHeight);
-						if (isViewportWrapping && fitBecomesFill) {
-							// remember for next time
-							memory.stableMinimapLayoutInput = input;
-							memory.stableFitRemainingWidth = remainingWidth;
-						} else {
-							memory.stableMinimapLayoutInput = null;
-							memory.stableFitRemainingWidth = 0;
-						}
 					}
 				}
 
@@ -2149,14 +2141,28 @@ export class EditorLayoutInfoComputer extends ComputedEditorOption<EditorOption.
 					minimapHeightIsEditorHeight = true;
 					const configuredMinimapScale = minimapScale;
 					minimapLineHeight = Math.min(lineHeight * pixelRatio, Math.max(1, Math.floor(1 / desiredRatio)));
+					if (isViewportWrapping && couldUseMemory && remainingWidth <= memory.stableFitRemainingWidth) {
+						// There is a loop when using `fill` and viewport wrapping:
+						// - view line count impacts minimap layout
+						// - minimap layout impacts viewport width
+						// - viewport width impacts view line count
+						// To break the loop, once we go to a smaller minimap scale, we try to stick with it.
+						maxMinimapScale = memory.stableFitMaxMinimapScale;
+					}
 					minimapScale = Math.min(maxMinimapScale, Math.max(1, Math.floor(minimapLineHeight / baseCharHeight)));
 					if (minimapScale > configuredMinimapScale) {
 						minimapWidthMultiplier = Math.min(2, minimapScale / configuredMinimapScale);
 					}
 					minimapCharWidth = minimapScale / pixelRatio / minimapWidthMultiplier;
 					minimapCanvasInnerHeight = Math.ceil((Math.max(typicalViewportLineCount, viewLineCount + extraLinesBeyondLastLine)) * minimapLineHeight);
-					if (isViewportWrapping && fitBecomesFill) {
+					if (isViewportWrapping) {
+						// remember for next time
+						memory.stableMinimapLayoutInput = input;
+						memory.stableFitRemainingWidth = remainingWidth;
 						memory.stableFitMaxMinimapScale = minimapScale;
+					} else {
+						memory.stableMinimapLayoutInput = null;
+						memory.stableFitRemainingWidth = 0;
 					}
 				}
 			}
