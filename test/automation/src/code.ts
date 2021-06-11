@@ -144,6 +144,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
+		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
 		'--driver', handle
 	];
 
