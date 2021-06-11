@@ -2,7 +2,7 @@
 Name=@@NAME_LONG@@
 Comment=Code Editing. Redefined.
 GenericName=Text Editor
-Exec=@@EXEC@@ --unity-launch %F
+Exec=@@EXEC@@ --no-sandbox --unity-launch %F
 Icon=@@ICON@@
 Type=Application
 StartupNotify=false
@@ -14,5 +14,5 @@ Keywords=vscode;
 
 [Desktop Action new-empty-window]
 Name=New Empty Window
-Exec=@@EXEC@@ --new-window %F
+Exec=@@EXEC@@ --no-sandbox --new-window %F
 Icon=@@ICON@@
