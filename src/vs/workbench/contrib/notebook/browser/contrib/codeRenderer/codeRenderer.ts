@@ -16,14 +16,12 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
-class CodeRendererContrib extends Disposable implements IOutputTransformContribution {
+abstract class CodeRendererContrib extends Disposable implements IOutputTransformContribution {
 	getType() {
 		return RenderOutputType.Mainframe;
 	}
 
-	getMimetypes() {
-		return ['text/x-javascript'];
-	}
+	abstract getMimetypes(): string[];
 
 	constructor(
 		public notebookEditor: ICommonNotebookEditor,
@@ -34,10 +32,7 @@ class CodeRendererContrib extends Disposable implements IOutputTransformContribu
 		super();
 	}
 
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-		const value = getStringValue(item);
-		return this._render(output, container, value, 'javascript');
-	}
+	abstract render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput;
 
 	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
 		const disposable = new DisposableStore();
@@ -67,33 +62,36 @@ export class NotebookCodeRendererContribution extends Disposable {
 	constructor(@IModeService _modeService: IModeService) {
 		super();
 
-		OutputRendererRegistry.registerOutputTransform(CodeRendererContrib);
-
-		const registeredLanguages = new Map();
-		const registerCodeRendererContrib = (languageId: string) => {
-			if (registeredLanguages.has(languageId)) { return; }
+		const registeredMimeTypes = new Map();
+		const registerCodeRendererContrib = (mimeType: string, languageId: string) => {
+			if (registeredMimeTypes.has(mimeType)) {
+				return;
+			}
 
 			OutputRendererRegistry.registerOutputTransform(class extends CodeRendererContrib {
-				override getMimetypes() {
-					return [`application/${languageId}`];
+				getMimetypes() {
+					return [mimeType];
 				}
 
-				override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
+				render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
 					const str = getStringValue(item);
 					return this._render(output, container, str, languageId);
 				}
 			});
 
-			registeredLanguages.set(languageId, true);
+			registeredMimeTypes.set(mimeType, true);
 		};
 
 		_modeService.getRegisteredModes().forEach(id => {
-			registerCodeRendererContrib(id);
+			registerCodeRendererContrib(`text/x-${id}`, id);
 		});
 
 		this._register(_modeService.onDidCreateMode((e) => {
-			registerCodeRendererContrib(e.getId());
+			const id = e.getId();
+			registerCodeRendererContrib(`text/x-${id}`, id);
 		}));
+
+		registerCodeRendererContrib('application/json', 'json');
 	}
 }
 
