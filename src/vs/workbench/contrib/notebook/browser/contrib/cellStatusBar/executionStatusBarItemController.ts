@@ -5,17 +5,16 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
-import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { getCodeCellExecutionContextKeyService } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -242,19 +241,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	) {
 		super();
 
-		// Create a fake ContextKeyService, and look up the keybindings within this context.
-		const commonContextKeyService = this._register(_contextKeyService.createScoped(document.createElement('div')));
-		InputFocusedContext.bindTo(commonContextKeyService).set(true);
-		EditorContextKeys.editorTextFocus.bindTo(commonContextKeyService).set(true);
-		EditorContextKeys.focus.bindTo(commonContextKeyService).set(true);
-		EditorContextKeys.textInputFocus.bindTo(commonContextKeyService).set(true);
-		NOTEBOOK_CELL_EXECUTION_STATE.bindTo(commonContextKeyService).set('idle');
-		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(commonContextKeyService).set(true);
-		NOTEBOOK_EDITOR_FOCUSED.bindTo(commonContextKeyService).set(true);
-
-		this._codeContextKeyService = this._register(commonContextKeyService.createScoped(document.createElement('div')));
-		NOTEBOOK_CELL_TYPE.bindTo(this._codeContextKeyService).set('code');
-
+		this._codeContextKeyService = this._register(getCodeCellExecutionContextKeyService(_contextKeyService));
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}

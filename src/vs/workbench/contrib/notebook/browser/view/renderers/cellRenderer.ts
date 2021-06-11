@@ -30,6 +30,7 @@ import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionV
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -38,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { DeleteCellAction, INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
@@ -835,8 +836,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const actionViewItemDisposables = disposables.add(new DisposableStore());
 		const dropdownAction = disposables.add(new Action('notebook.moreRunActions', localize('notebook.moreRunActionsLabel', "More..."), 'codicon-chevron-down', true));
 
+		const executionContextKeyService = disposables.add(getCodeCellExecutionContextKeyService(contextKeyService));
 		const toolbar = disposables.add(new ToolBar(container, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService),
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
@@ -1059,6 +1061,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.clear();
 		this.renderedEditors.delete(element);
 	}
+}
+
+export function getCodeCellExecutionContextKeyService(contextKeyService: IContextKeyService): IContextKeyService {
+	// Create a fake ContextKeyService, and look up the keybindings within this context.
+	const executionContextKeyService = contextKeyService.createScoped(document.createElement('div'));
+	InputFocusedContext.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.editorTextFocus.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.focus.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.textInputFocus.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_CELL_EXECUTION_STATE.bindTo(executionContextKeyService).set('idle');
+	NOTEBOOK_CELL_LIST_FOCUSED.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_EDITOR_FOCUSED.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_CELL_TYPE.bindTo(executionContextKeyService).set('code');
+
+	return executionContextKeyService;
 }
 
 export class TimerRenderer {
