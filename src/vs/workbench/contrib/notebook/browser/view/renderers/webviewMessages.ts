@@ -162,7 +162,7 @@ export interface IOutputRequestDto {
 export interface ICreationRequestMessage {
 	readonly type: 'html';
 	readonly content: { type: RenderOutputType.Html; htmlContent: string; } |
-	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; metadata2: unknown; mimeType: string; };
+	{ type: RenderOutputType.Extension; outputId: string; valueBytes: Uint8Array; metadata: unknown; mimeType: string; };
 	readonly cellId: string;
 	readonly outputId: string;
 	cellTop: number;
@@ -222,11 +222,15 @@ export interface IFocusOutputMessage {
 	readonly cellId: string;
 }
 
-export interface IAckOutputHeightMessage {
-	readonly type: 'ack-dimension';
+export interface IAckOutputHeight {
 	readonly cellId: string;
 	readonly outputId: string;
 	readonly height: number;
+}
+
+export interface IAckOutputHeightMessage {
+	readonly type: 'ack-dimension';
+	readonly updates: readonly IAckOutputHeight[];
 }
 
 export interface IControllerPreload {

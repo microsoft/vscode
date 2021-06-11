@@ -8,7 +8,7 @@ import { TestRPCProtocol } from 'vs/workbench/test/browser/api/testRPCProtocol';
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { mock } from 'vs/workbench/test/common/workbenchTestServices';
-import { INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
+import { CellExecuteEditDto, INotebookKernelDto2, MainContext, MainThreadCommandsShape, MainThreadNotebookDocumentsShape, MainThreadNotebookKernelsShape, MainThreadNotebookShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostNotebookKernels } from 'vs/workbench/api/common/extHostNotebookKernels';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -17,12 +17,14 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocum
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
-import { CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, CellUri, NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
+import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
+import { timeout } from 'vs/base/common/async';
 
 suite('NotebookKernel', function () {
 
@@ -38,11 +40,13 @@ suite('NotebookKernel', function () {
 	const kernelData = new Map<number, INotebookKernelDto2>();
 	const disposables = new DisposableStore();
 
+	const cellExecuteEdits: CellExecuteEditDto[] = [];
+
 	teardown(function () {
 		disposables.clear();
 	});
 	setup(async function () {
-
+		cellExecuteEdits.length = 0;
 		kernelData.clear();
 
 		rpcProtocol = new TestRPCProtocol();
@@ -60,8 +64,13 @@ suite('NotebookKernel', function () {
 				assert.strictEqual(kernelData.has(handle), true);
 				kernelData.set(handle, { ...kernelData.get(handle)!, ...data, });
 			}
+			override async $applyExecutionEdits(resource: UriComponents, _edits: CellExecuteEditDto[]) {
+				cellExecuteEdits.push(..._edits);
+			}
 		});
+		rpcProtocol.set(MainContext.MainThreadNotebookDocuments, new class extends mock<MainThreadNotebookDocumentsShape>() {
 
+		});
 		rpcProtocol.set(MainContext.MainThreadNotebook, new class extends mock<MainThreadNotebookShape>() {
 			override async $registerNotebookProvider() { }
 			override async $unregisterNotebookProvider() { }
@@ -232,5 +241,73 @@ suite('NotebookKernel', function () {
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 		assert.strictEqual(interruptCallCount, 2);
 		assert.strictEqual(tokenCancelCount, 0);
+	});
+
+	test('set outputs on cancel', async function () {
+
+		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+
+		const cell1 = notebook.apiNotebook.cellAt(0);
+		const task = kernel.createNotebookCellExecution(cell1);
+		task.start();
+
+		task.token.onCancellationRequested(async () => {
+			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('canceled')]));
+			task.end(true);
+		});
+
+		cellExecuteEdits.length = 0;
+		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+
+		await timeout(50);
+
+		assert.strictEqual(cellExecuteEdits.length > 0, true);
+
+		let found = false;
+		for (let edit of cellExecuteEdits) {
+			if (edit.editType === CellEditType.Output) {
+				assert.strictEqual(edit.append, false);
+				assert.strictEqual(edit.outputs.length, 1);
+				assert.strictEqual(edit.outputs[0].items.length, 1);
+				assert.deepStrictEqual(edit.outputs[0].items[0].valueBytes, Array.from(new TextEncoder().encode('canceled')));
+				found = true;
+			}
+		}
+		assert.ok(found);
+	});
+
+	test('set outputs on interrupt', async function () {
+
+		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
+		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
+
+
+		const cell1 = notebook.apiNotebook.cellAt(0);
+		const task = kernel.createNotebookCellExecution(cell1);
+		task.start();
+
+		kernel.interruptHandler = async _notebook => {
+			assert.ok(notebook.apiNotebook === _notebook);
+			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('interrupted')]));
+			task.end(true);
+		};
+
+		cellExecuteEdits.length = 0;
+		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
+
+		assert.strictEqual(cellExecuteEdits.length > 0, true);
+
+		let found = false;
+		for (let edit of cellExecuteEdits) {
+			if (edit.editType === CellEditType.Output) {
+				assert.strictEqual(edit.append, false);
+				assert.strictEqual(edit.outputs.length, 1);
+				assert.strictEqual(edit.outputs[0].items.length, 1);
+				assert.deepStrictEqual(edit.outputs[0].items[0].valueBytes, Array.from(new TextEncoder().encode('interrupted')));
+				found = true;
+			}
+		}
+		assert.ok(found);
 	});
 });

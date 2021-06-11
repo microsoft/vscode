@@ -25,7 +25,7 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, ITerminalTypeContribution, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -34,7 +34,6 @@ import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/brow
 import { equals } from 'vs/base/common/objects';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
@@ -58,7 +57,7 @@ export class TerminalService implements ITerminalService {
 	private _findState: FindReplaceState;
 	private _activeGroupIndex: number;
 	private _activeInstanceIndex: number;
-	private readonly _profileProviders: Map<string, ITerminalProfileProvider> = new Map();
+	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
 	private _processSupportContextKey: IContextKey<boolean>;
@@ -148,7 +147,6 @@ export class TerminalService implements ITerminalService {
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -813,8 +811,13 @@ export class TerminalService implements ITerminalService {
 		};
 	}
 
-	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable {
-		this._profileProviders.set(id, profileProvider);
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable {
+		let extMap = this._profileProviders.get(extensionIdenfifier);
+		if (!extMap) {
+			extMap = new Map();
+			this._profileProviders.set(extensionIdenfifier, extMap);
+		}
+		extMap.set(id, profileProvider);
 		return toDisposable(() => this._profileProviders.delete(id));
 	}
 
@@ -955,26 +958,12 @@ export class TerminalService implements ITerminalService {
 
 		// Add contributed profiles
 		if (type === 'createInstance') {
-			if (this._terminalContributionService.terminalProfiles.length > 0 || this._terminalContributionService.terminalTypes.length > 0) {
-				quickPickItems.push({ type: 'separator', label: nls.localize('terminalProfiles.contributed', "contributed") });
-			}
 			for (const contributed of this._terminalContributionService.terminalProfiles) {
 				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
 				quickPickItems.push({
 					label: `$(${icon.id}) ${contributed.title}`,
 					profile: contributed
 				});
-			}
-
-			// Add contributed types (legacy), these cannot be defaults
-			if (type === 'createInstance') {
-				for (const contributed of this._terminalContributionService.terminalTypes) {
-					const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-					quickPickItems.push({
-						label: `$(${icon.id}) ${contributed.title}`,
-						profile: contributed
-					});
-				}
 			}
 		}
 
@@ -988,16 +977,11 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			// Legacy implementation - remove when js-debug adopts new
-			if ('command' in value.profile) {
-				return this._commandService.executeCommand(value.profile.command);
-			}
-
 			const activeInstance = this.getActiveInstance();
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.id, !!(keyMods?.alt && activeInstance));
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, !!(keyMods?.alt && activeInstance));
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
@@ -1038,16 +1022,21 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	async createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void> {
+	async createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void> {
 		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
-		const profileProvider = this._profileProviders.get(id);
+		const extMap = this._profileProviders.get(extensionIdentifier);
+		const profileProvider = extMap?.get(id);
 		if (!profileProvider) {
 			this._notificationService.error(`No terminal profile provider registered for id "${id}"`);
 			return;
 		}
-		await profileProvider.createContributedTerminalProfile(isSplitTerminal);
-		this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
-		await this.getActiveInstance()?.focusWhenReady();
+		try {
+			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+			this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+			await this.getActiveInstance()?.focusWhenReady();
+		} catch (e) {
+			this._notificationService.error(e.message);
+		}
 	}
 
 	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
@@ -1224,7 +1213,7 @@ export class TerminalService implements ITerminalService {
 }
 
 interface IProfileQuickPickItem extends IQuickPickItem {
-	profile: ITerminalProfile | ITerminalTypeContribution | ITerminalProfileContribution;
+	profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string });
 }
 
 interface IInstanceLocation {

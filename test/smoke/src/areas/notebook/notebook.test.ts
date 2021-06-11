@@ -8,13 +8,8 @@ import minimist = require('minimist');
 import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
-// function wait(ms: number): Promise<void> {
-// 	return new Promise(r => setTimeout(r, ms));
-// }
-
-
 export function setup(opts: minimist.ParsedArgs) {
-	describe('Notebooks', () => {
+	describe.skip('Notebooks', () => {
 		beforeSuite(opts);
 
 		afterEach(async function () {

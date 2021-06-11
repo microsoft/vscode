@@ -573,15 +573,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 ];
 
 export interface ITerminalContributions {
-	/** @deprecated */
-	types?: ITerminalTypeContribution[];
 	profiles?: ITerminalProfileContribution[];
-}
-
-export interface ITerminalTypeContribution {
-	title: string;
-	command: string;
-	icon?: string;
 }
 
 export interface ITerminalProfileContribution {

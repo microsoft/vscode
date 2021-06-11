@@ -902,7 +902,7 @@ export class SearchView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		if (!env.isIOS && (this.lastFocusState === 'input' || !this.hasSearchResults())) {
+		if (this.lastFocusState === 'input' || !this.hasSearchResults()) {
 			const updatedText = this.searchConfig.seedOnFocus ? this.updateTextFromSelection({ allowSearchOnType: false }) : false;
 			this.searchWidget.focus(undefined, undefined, updatedText);
 		} else {

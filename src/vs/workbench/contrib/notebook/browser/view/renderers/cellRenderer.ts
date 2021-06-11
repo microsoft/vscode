@@ -30,6 +30,7 @@ import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionV
 import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -38,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { syncing } from 'vs/platform/theme/common/iconRegistry';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { DeleteCellAction, INotebookActionContext, INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
-import { BaseCellRenderTemplate, CellEditState, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { BaseCellRenderTemplate, CellEditState, CodeCellLayoutInfo, CodeCellRenderTemplate, EXPAND_CELL_INPUT_COMMAND_ID, ICellViewModel, INotebookEditor, isCodeCellRenderTemplate, MarkdownCellRenderTemplate, NOTEBOOK_CELL_EXECUTION_STATE, NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_CELL_TYPE, NOTEBOOK_EDITOR_FOCUSED } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { errorStateIcon, successStateIcon, unfoldIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
@@ -49,7 +50,7 @@ import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellEditType, CellKind, NotebookCellExecutionState, NotebookCellInternalMetadata, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
@@ -78,7 +79,7 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 
 	getTemplateId(element: CellViewModel): string {
 		if (element.cellKind === CellKind.Markup) {
-			return MarkdownCellRenderer.TEMPLATE_ID;
+			return MarkupCellRenderer.TEMPLATE_ID;
 		} else {
 			return CodeCellRenderer.TEMPLATE_ID;
 		}
@@ -143,7 +144,7 @@ abstract class AbstractCellRenderer {
 		return toolbar;
 	}
 
-	protected setBetweenCellToolbarContext(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkdownCellViewModel, context: INotebookCellActionContext): void {
+	protected setBetweenCellToolbarContext(templateData: BaseCellRenderTemplate, element: CodeCellViewModel | MarkupCellViewModel, context: INotebookCellActionContext): void {
 		templateData.betweenCellToolbar.context = context;
 
 		const container = templateData.bottomCellContainer;
@@ -300,7 +301,7 @@ abstract class AbstractCellRenderer {
 	}
 }
 
-export class MarkdownCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkdownCellViewModel, MarkdownCellRenderTemplate> {
+export class MarkupCellRenderer extends AbstractCellRenderer implements IListRenderer<MarkupCellViewModel, MarkdownCellRenderTemplate> {
 	static readonly TEMPLATE_ID = 'markdown_cell';
 
 	private readonly useRenderer: boolean;
@@ -322,7 +323,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 	}
 
 	get templateId() {
-		return MarkdownCellRenderer.TEMPLATE_ID;
+		return MarkupCellRenderer.TEMPLATE_ID;
 	}
 
 	renderTemplate(rootContainer: HTMLElement): MarkdownCellRenderTemplate {
@@ -421,7 +422,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		return new CodeCellDragImageRenderer().getDragImage(templateData, templateData.currentEditor!, 'markdown');
 	}
 
-	renderElement(element: MarkdownCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
+	renderElement(element: MarkupCellViewModel, index: number, templateData: MarkdownCellRenderTemplate, height: number | undefined): void {
 		if (!this.notebookEditor.hasModel()) {
 			throw new Error('The notebook editor is not attached with view model yet.');
 		}
@@ -476,7 +477,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		}));
 
 		this.updateForHover(element, templateData);
-		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, 'markdown');
+		const cellEditorOptions = new CellEditorOptions(this.notebookEditor, this.notebookEditor.notebookOptions, this.configurationService, element.language);
 		cellEditorOptions.setLineNumbers(element.lineNumbers);
 		elementDisposables.add(cellEditorOptions);
 
@@ -516,7 +517,7 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.statusBar.update(toolbarContext);
 	}
 
-	private updateForLayout(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+	private updateForLayout(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, this.notebookEditor.viewModel?.viewType);
 		templateData.focusIndicatorBottom.style.top = `${indicatorPostion.bottomIndicatorTop}px`;
 		templateData.focusIndicatorLeft.style.height = `${indicatorPostion.verticalIndicatorHeight}px`;
@@ -525,15 +526,15 @@ export class MarkdownCellRenderer extends AbstractCellRenderer implements IListR
 		templateData.container.classList.toggle('cell-statusbar-hidden', this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(element.internalMetadata) === 0);
 	}
 
-	private updateForHover(element: MarkdownCellViewModel, templateData: MarkdownCellRenderTemplate): void {
+	private updateForHover(element: MarkupCellViewModel, templateData: MarkdownCellRenderTemplate): void {
 		templateData.container.classList.toggle('markdown-cell-hover', element.cellIsHovered);
 	}
 
-	private updateCollapsedState(element: MarkdownCellViewModel) {
+	private updateCollapsedState(element: MarkupCellViewModel) {
 		if (element.metadata.inputCollapsed) {
-			this.notebookEditor.hideMarkdownPreviews([element]);
+			this.notebookEditor.hideMarkupPreviews([element]);
 		} else {
-			this.notebookEditor.unhideMarkdownPreviews([element]);
+			this.notebookEditor.unhideMarkupPreviews([element]);
 		}
 	}
 
@@ -835,8 +836,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const actionViewItemDisposables = disposables.add(new DisposableStore());
 		const dropdownAction = disposables.add(new Action('notebook.moreRunActions', localize('notebook.moreRunActionsLabel', "More..."), 'codicon-chevron-down', true));
 
+		const executionContextKeyService = disposables.add(getCodeCellExecutionContextKeyService(contextKeyService));
 		const toolbar = disposables.add(new ToolBar(container, this.contextMenuService, {
-			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id, executionContextKeyService),
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
@@ -1059,6 +1061,21 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		templateData.elementDisposables.clear();
 		this.renderedEditors.delete(element);
 	}
+}
+
+export function getCodeCellExecutionContextKeyService(contextKeyService: IContextKeyService): IContextKeyService {
+	// Create a fake ContextKeyService, and look up the keybindings within this context.
+	const executionContextKeyService = contextKeyService.createScoped(document.createElement('div'));
+	InputFocusedContext.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.editorTextFocus.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.focus.bindTo(executionContextKeyService).set(true);
+	EditorContextKeys.textInputFocus.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_CELL_EXECUTION_STATE.bindTo(executionContextKeyService).set('idle');
+	NOTEBOOK_CELL_LIST_FOCUSED.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_EDITOR_FOCUSED.bindTo(executionContextKeyService).set(true);
+	NOTEBOOK_CELL_TYPE.bindTo(executionContextKeyService).set('code');
+
+	return executionContextKeyService;
 }
 
 export class TimerRenderer {

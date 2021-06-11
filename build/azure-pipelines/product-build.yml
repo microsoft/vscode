@@ -176,6 +176,7 @@ stages:
             variables:
               VSCODE_ARCH: x64
               NPM_ARCH: x64
+              DISPLAY: ":10"
             steps:
               - template: linux/product-build-linux.yml
 

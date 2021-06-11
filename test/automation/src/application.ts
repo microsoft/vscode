@@ -123,17 +123,8 @@ export class Application {
 
 	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
-			codePath: this.options.codePath,
-			workspacePath: this.workspacePathOrFolder,
-			userDataDir: this.userDataPath,
-			extensionsPath: this.options.extensionsPath,
-			logger: this.options.logger,
-			verbose: this.options.verbose,
-			log: this.options.log,
-			extraArgs,
-			remote: this.options.remote,
-			web: this.options.web,
-			browser: this.options.browser
+			...this.options,
+			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
