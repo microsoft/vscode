@@ -47,7 +47,8 @@ const opts = minimist(args, {
 		'wait-time',
 		'test-repo',
 		'screenshots',
-		'log'
+		'log',
+		'electronArgs'
 	],
 	boolean: [
 		'verbose',
@@ -236,6 +237,7 @@ function createOptions(): ApplicationOptions {
 		loggers.push(new FileLogger(opts.log));
 		log = 'trace';
 	}
+
 	return {
 		quality,
 		codePath: opts.build,
@@ -249,7 +251,8 @@ function createOptions(): ApplicationOptions {
 		screenshotsPath,
 		remote: opts.remote,
 		web: opts.web,
-		browser: opts.browser
+		browser: opts.browser,
+		extraArgs: (opts.electronArgs || '').split(' ').map(a => a.trim()).filter(a => !!a)
 	};
 }
 

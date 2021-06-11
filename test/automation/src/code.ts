@@ -128,7 +128,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		return connect(connectDriver, child, '', handle, options.logger);
 	}
 
-	const env = process.env;
+	const env = { ...process.env };
 	const codePath = options.codePath;
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
@@ -236,7 +236,7 @@ async function poll<T>(
 			} else {
 				lastError = 'Did not pass accept function';
 			}
-		} catch (e) {
+		} catch (e: any) {
 			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 

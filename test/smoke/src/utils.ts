@@ -19,10 +19,15 @@ export function itRepeat(n: number, description: string, callback: (this: Contex
 	}
 }
 
-export function beforeSuite(opts: minimist.ParsedArgs) {
+export function beforeSuite(opts: minimist.ParsedArgs, optionsTransform?: (opts: ApplicationOptions) => Promise<ApplicationOptions>) {
 	before(async function () {
+		let options: ApplicationOptions = { ...this.defaultOptions };
+
+		if (optionsTransform) {
+			options = await optionsTransform(options);
+		}
+
 		// https://github.com/microsoft/vscode/issues/34988
-		const options = this.defaultOptions as ApplicationOptions;
 		const userDataPathSuffix = [...Array(8)].map(() => Math.random().toString(36)[3]).join('');
 		const userDataDir = options.userDataDir.concat(`-${userDataPathSuffix}`);
 
