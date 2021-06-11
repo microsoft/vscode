@@ -5821,12 +5821,13 @@ declare module 'vscode' {
 		/**
 		 * Provide the terminal profile.
 		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @returns The terminal profile.
 		 */
 		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
 	}
 
 	/**
-	 * A terminal profile defines how a termianl will be launched.
+	 * A terminal profile defines how a terminal will be launched.
 	 */
 	export class TerminalProfile {
 		/**
