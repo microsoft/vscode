@@ -84,7 +84,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private readonly _onDidChangeTrustedFolders = this._register(new Emitter<void>());
 	readonly onDidChangeTrustedFolders = this._onDidChangeTrustedFolders.event;
 
-	private _canonicalOpenFiles: URI[] = [];
+	private _canonicalStartupFiles: URI[] = [];
 	private _canonicalWorkspace: IWorkspace;
 	private _canonicalUrisResolved: boolean;
 
@@ -92,7 +92,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private _trustStateInfo: IWorkspaceTrustInfo;
 	private _remoteAuthority: ResolverResult | undefined;
 
-	private readonly _trustState: WorkspaceTrustState;
+	private readonly _storedTrustState: WorkspaceTrustState;
 	private readonly _trustTransitionManager: WorkspaceTrustTransitionManager;
 
 	constructor(
@@ -115,7 +115,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			this._workspaceTrustInitializedPromiseResolve = resolve;
 		});
 
-		this._trustState = new WorkspaceTrustState(this.storageService);
+		this._storedTrustState = new WorkspaceTrustState(this.storageService);
 		this._trustTransitionManager = this._register(new WorkspaceTrustTransitionManager());
 
 		this._trustStateInfo = this.loadTrustInfo();
@@ -192,7 +192,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			const filesToOpenOrCreateUris = filesToOpenOrCreate.filter(f => f.fileUri && f.fileUri.scheme === Schemas.file).map(f => f.fileUri!);
 			const canonicalFilesToOpen = await Promise.all(filesToOpenOrCreateUris.map(uri => this.getCanonicalUri(uri)));
 
-			this._canonicalOpenFiles.push(...canonicalFilesToOpen);
+			this._canonicalStartupFiles.push(...canonicalFilesToOpen);
 		}
 
 		// Workspace
@@ -274,13 +274,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		// Empty workspace - use memento, open ediors, or user setting
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			// Use memento if present
-			if (this._trustState.isEmptyWorkspaceTrusted !== undefined) {
-				return this._trustState.isEmptyWorkspaceTrusted;
+			if (this._storedTrustState.isEmptyWorkspaceTrusted !== undefined) {
+				return this._storedTrustState.isEmptyWorkspaceTrusted;
 			}
 
-			// Open editors
-			if (this._canonicalOpenFiles.length) {
-				return this.getUrisTrust(this._canonicalOpenFiles);
+			// Startup files
+			if (this._canonicalStartupFiles.length) {
+				return this.getUrisTrust(this._canonicalStartupFiles);
 			}
 
 			// User setting
@@ -392,12 +392,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 		// Reset acceptsOutOfWorkspaceFiles
 		if (!value) {
-			this._trustState.acceptsOutOfWorkspaceFiles = false;
+			this._storedTrustState.acceptsOutOfWorkspaceFiles = false;
 		}
 
 		// Empty workspace - save memento
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this._trustState.isEmptyWorkspaceTrusted = value;
+			this._storedTrustState.isEmptyWorkspaceTrusted = value;
 		}
 	}
 
@@ -422,11 +422,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	get acceptsOutOfWorkspaceFiles(): boolean {
-		return this._trustState.acceptsOutOfWorkspaceFiles;
+		return this._storedTrustState.acceptsOutOfWorkspaceFiles;
 	}
 
 	set acceptsOutOfWorkspaceFiles(value: boolean) {
-		this._trustState.acceptsOutOfWorkspaceFiles = value;
+		this._storedTrustState.acceptsOutOfWorkspaceFiles = value;
 	}
 
 	isWorkpaceTrusted(): boolean {
