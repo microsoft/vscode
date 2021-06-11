@@ -532,13 +532,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		let xtermRendererType: RendererType;
+		let xtermRendererType: RendererType = 'canvas';
 		if (config.gpuAcceleration === 'auto') {
-			// Set the builtin renderer to canvas, even when webgl is being used since it's an addon
 			const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : 'canvas';
-		} else {
-			xtermRendererType = config.gpuAcceleration === 'on' ? 'canvas' : 'dom';
+			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : xtermRendererType;
+		} else if (config.gpuAcceleration === 'off') {
+			xtermRendererType = 'dom';
 		}
 
 		const xterm = new Terminal({
@@ -1447,7 +1446,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') ? 'dom' : (config.gpuAcceleration === 'off' ? 'dom' : 'canvas'));
+			let rendererType = 'canvas';
+			if ((config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') || config.gpuAcceleration === 'off') {
+				rendererType = 'dom';
+			}
+			this._safeSetOption('rendererType', rendererType);
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
 	}
