@@ -103,10 +103,13 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() =>
-			this._disassembledInstructions?.reveal(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, 0.5)
-		);
+		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 0.5;
+		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => {
+			// on load, set the target instruction in the middle of the page.
+			if (this._disassembledInstructions!.length > 0) {
+				this._disassembledInstructions?.reveal(this._disassembledInstructions!.length * 0.5, 0.5);
+			}
+		});
 
 		this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
@@ -116,7 +119,7 @@ export class DisassemblyView extends EditorPane {
 					this._disassembledInstructions!.reveal(topElement, 0)
 				);
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.loadDisassembledInstructions(this._disassembledInstructions!.length, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+				this.loadDisassembledInstructions(this._disassembledInstructions!.length + this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
 		});
 	}
@@ -128,13 +131,6 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(offset: number, instructionCount: number): Promise<void> {
-		/* if (!this._currentAddress) {
-			const frame = this._debugService.getViewModel().focusedStackFrame;
-			this._currentAddress = frame?.instructionPointerReference!;
-		} */
-
-		// const session = this._debugService.getViewModel().focusedSession;
-		// session?.disassemble(this._currentAddress, offset, 0, instructionCount)
 		const resultEntries = await this._debugService.getDisassemble('0x12345678', offset, 0, instructionCount);
 		if (resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
@@ -143,9 +139,9 @@ export class DisassemblyView extends EditorPane {
 				newEntries.push({ allowBreakpoint: true, isBreakpointSet: false, instruction: resultEntries[i] });
 			}
 
-			// request is either at the end or start
+			// request is either at the start or end
 			if (offset >= 0) {
-				this._disassembledInstructions.splice(offset, 0, newEntries);
+				this._disassembledInstructions.splice(this._disassembledInstructions.length, 0, newEntries);
 			}
 			else {
 				this._disassembledInstructions.splice(0, 0, newEntries);
