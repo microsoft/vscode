@@ -8,7 +8,7 @@ import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/edit
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -483,6 +483,7 @@ suite('EditorService', () => {
 			originalInput: { resource: toResource.call(this, '/primary.html') },
 			modifiedInput: { resource: toResource.call(this, '/secondary.html') }
 		};
+		assert.strictEqual(isResourceDiffEditorInput(resourceDiffInput), true);
 		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
 		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
@@ -1130,7 +1131,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},
@@ -1138,7 +1138,7 @@ suite('EditorService', () => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
@@ -1166,7 +1166,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},
@@ -1174,7 +1173,7 @@ suite('EditorService', () => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
@@ -1198,7 +1197,6 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
 				priority: ContributedEditorPriority.builtin
 			},
 			{},
@@ -1206,7 +1204,7 @@ suite('EditorService', () => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);

@@ -81,7 +81,6 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				id: SearchEditorInput.ID,
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: (editor) => editor instanceof SearchEditorInput,
 				priority: ContributedEditorPriority.default,
 			},
 			{
@@ -507,7 +506,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.openNewEditorFromView',
-			title: localize('search.openNewEditor', "Open New Search Editor from View"),
+			title: localize('search.openNewEditor', "Open New Search Editor"),
 			category,
 			icon: searchNewEditorIcon,
 			menu: [{

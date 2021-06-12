@@ -28,13 +28,14 @@ import { asWebviewUri } from 'vs/workbench/api/common/shared/webview';
 import { CellEditState, ICellOutputViewModel, ICommonCellInfo, ICommonNotebookEditor, IDisplayOutputLayoutUpdateRequest, IDisplayOutputViewModel, IGenericCellViewModel, IInsetRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { preloadsScriptStr, RendererMetadata } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewPreloads';
 import { transformWebviewThemeVars } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewThemeMapping';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
-import { INotebookKernel, INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
+import { INotebookRendererInfo, RendererMessagingSpec } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IScopedRendererMessaging } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWebviewService, WebviewContentPurpose, WebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage } from './webviewMessages';
+import { ICreationRequestMessage, IMarkupCellInitialization, FromWebviewMessage, IClickedDataUrlMessage, IContentWidgetTopRequest, IControllerPreload, ToWebviewMessage, IAckOutputHeight } from './webviewMessages';
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -63,7 +64,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	element: HTMLElement;
 	webview: WebviewElement | undefined = undefined;
 	insetMapping: Map<IDisplayOutputViewModel, ICachedInset<T>> = new Map();
-	readonly markdownPreviewMapping = new Map<string, IMarkupCellInitialization>();
+	readonly markupPreviewMapping = new Map<string, IMarkupCellInitialization>();
 	hiddenInsetMapping: Set<IDisplayOutputViewModel> = new Set();
 	reversedInsetMapping: Map<string, IDisplayOutputViewModel> = new Map();
 	localResourceRootsCache: URI[] | undefined = undefined;
@@ -261,12 +262,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 						border-collapse: collapse;
 					}
 
-					table {
-						width: 100%;
-					}
-
 					table, th, tr {
-						text-align: left !important;
+						vertical-align: top;
+						text-align: right;
 					}
 
 					thead {
@@ -458,7 +456,7 @@ var requirejs = (function() {
 									this.notebookEditor.scheduleOutputHeightAck(cellInfo, update.id, height);
 								}
 							} else {
-								this.notebookEditor.updateMarkdownCellHeight(update.id, height, !!update.init);
+								this.notebookEditor.updateMarkupCellHeight(update.id, height, !!update.init);
 							}
 						}
 						break;
@@ -525,17 +523,12 @@ var requirejs = (function() {
 					}
 				case 'focus-editor':
 					{
-						const resolvedResult = this.resolveOutputId(data.id);
-						if (resolvedResult) {
-							const latestCell = this.notebookEditor.getCellByInfo(resolvedResult.cellInfo);
-							if (!latestCell) {
-								return;
-							}
-
+						const cell = this.notebookEditor.getCellById(data.cellId);
+						if (cell) {
 							if (data.focusNext) {
-								this.notebookEditor.focusNextNotebookCell(latestCell, 'editor');
+								this.notebookEditor.focusNextNotebookCell(cell, 'editor');
 							} else {
-								this.notebookEditor.focusNotebookCell(latestCell, 'editor');
+								this.notebookEditor.focusNotebookCell(cell, 'editor');
 							}
 						}
 						break;
@@ -598,7 +591,7 @@ var requirejs = (function() {
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
 						if (cell) {
-							this.notebookEditor.setMarkdownCellEditState(data.cellId, CellEditState.Editing);
+							this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
 							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
 						}
 						break;
@@ -606,7 +599,7 @@ var requirejs = (function() {
 				case 'mouseEnterMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell instanceof MarkdownCellViewModel) {
+						if (cell instanceof MarkupCellViewModel) {
 							cell.cellIsHovered = true;
 						}
 						break;
@@ -614,24 +607,24 @@ var requirejs = (function() {
 				case 'mouseLeaveMarkupCell':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell instanceof MarkdownCellViewModel) {
+						if (cell instanceof MarkupCellViewModel) {
 							cell.cellIsHovered = false;
 						}
 						break;
 					}
 				case 'cell-drag-start':
 					{
-						this.notebookEditor.markdownCellDragStart(data.cellId, data);
+						this.notebookEditor.didStartDragMarkupCell(data.cellId, data);
 						break;
 					}
 				case 'cell-drag':
 					{
-						this.notebookEditor.markdownCellDrag(data.cellId, data);
+						this.notebookEditor.didDragMarkupCell(data.cellId, data);
 						break;
 					}
 				case 'cell-drop':
 					{
-						this.notebookEditor.markdownCellDrop(data.cellId, {
+						this.notebookEditor.didDropMarkupCell(data.cellId, {
 							dragOffsetY: data.dragOffsetY,
 							ctrlKey: data.ctrlKey,
 							altKey: data.altKey,
@@ -640,7 +633,7 @@ var requirejs = (function() {
 					}
 				case 'cell-drag-end':
 					{
-						this.notebookEditor.markdownCellDragEnd(data.cellId);
+						this.notebookEditor.didEndDragMarkupCell(data.cellId);
 						break;
 					}
 
@@ -750,8 +743,8 @@ var requirejs = (function() {
 			this._sendMessageToWebview({ ...inset.cachedCreation, initiallyHidden: this.hiddenInsetMapping.has(output) });
 		}
 
-		const mdCells = [...this.markdownPreviewMapping.values()];
-		this.markdownPreviewMapping.clear();
+		const mdCells = [...this.markupPreviewMapping.values()];
+		this.markupPreviewMapping.clear();
 		this.initializeMarkup(mdCells);
 		this._updateStyles();
 		this._updateOptions();
@@ -782,16 +775,14 @@ var requirejs = (function() {
 		return true;
 	}
 
-	ackHeight(cellId: string, id: string, height: number): void {
+	ackHeight(updates: readonly IAckOutputHeight[]): void {
 		this._sendMessageToWebview({
 			type: 'ack-dimension',
-			cellId: cellId,
-			outputId: id,
-			height: height
+			updates
 		});
 	}
 
-	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markdownPreviews: { id: string, top: number }[]) {
+	updateScrollTops(outputRequests: IDisplayOutputLayoutUpdateRequest[], markupPreviews: { id: string, top: number }[]) {
 		if (this._disposed) {
 			return;
 		}
@@ -812,6 +803,7 @@ var requirejs = (function() {
 			this.hiddenInsetMapping.delete(request.output);
 
 			return {
+				cellId: request.cell.id,
 				outputId: id,
 				cellTop: request.cellTop,
 				outputOffset: request.outputOffset,
@@ -819,42 +811,42 @@ var requirejs = (function() {
 			};
 		}));
 
-		if (!widgets.length && !markdownPreviews.length) {
+		if (!widgets.length && !markupPreviews.length) {
 			return;
 		}
 
 		this._sendMessageToWebview({
 			type: 'view-scroll',
 			widgets: widgets,
-			markdownPreviews,
+			markupCells: markupPreviews,
 		});
 	}
 
-	private async createMarkdownPreview(initialization: IMarkupCellInitialization) {
+	private async createMarkupPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		if (this.markdownPreviewMapping.has(initialization.cellId)) {
-			console.error('Trying to create markdown preview that already exists');
+		if (this.markupPreviewMapping.has(initialization.cellId)) {
+			console.error('Trying to create markup preview that already exists');
 			return;
 		}
 
-		this.markdownPreviewMapping.set(initialization.cellId, initialization);
+		this.markupPreviewMapping.set(initialization.cellId, initialization);
 		this._sendMessageToWebview({
 			type: 'createMarkupCell',
 			cell: initialization
 		});
 	}
 
-	async showMarkdownPreview(initialization: IMarkupCellInitialization) {
+	async showMarkupPreview(initialization: IMarkupCellInitialization) {
 		if (this._disposed) {
 			return;
 		}
 
-		const entry = this.markdownPreviewMapping.get(initialization.cellId);
+		const entry = this.markupPreviewMapping.get(initialization.cellId);
 		if (!entry) {
-			return this.createMarkdownPreview(initialization);
+			return this.createMarkupPreview(initialization);
 		}
 
 		const sameContent = initialization.content === entry.content;
@@ -875,14 +867,14 @@ var requirejs = (function() {
 		entry.visible = true;
 	}
 
-	async hideMarkdownPreviews(cellIds: readonly string[]) {
+	async hideMarkupPreviews(cellIds: readonly string[]) {
 		if (this._disposed) {
 			return;
 		}
 
 		const cellsToHide: string[] = [];
 		for (const cellId of cellIds) {
-			const entry = this.markdownPreviewMapping.get(cellId);
+			const entry = this.markupPreviewMapping.get(cellId);
 			if (entry) {
 				if (entry.visible) {
 					cellsToHide.push(cellId);
@@ -899,14 +891,14 @@ var requirejs = (function() {
 		}
 	}
 
-	async unhideMarkdownPreviews(cellIds: readonly string[]) {
+	async unhideMarkupPreviews(cellIds: readonly string[]) {
 		if (this._disposed) {
 			return;
 		}
 
 		const toUnhide: string[] = [];
 		for (const cellId of cellIds) {
-			const entry = this.markdownPreviewMapping.get(cellId);
+			const entry = this.markupPreviewMapping.get(cellId);
 			if (entry) {
 				if (!entry.visible) {
 					entry.visible = true;
@@ -923,16 +915,16 @@ var requirejs = (function() {
 		});
 	}
 
-	async deleteMarkdownPreviews(cellIds: readonly string[]) {
+	async deleteMarkupPreviews(cellIds: readonly string[]) {
 		if (this._disposed) {
 			return;
 		}
 
 		for (const id of cellIds) {
-			if (!this.markdownPreviewMapping.has(id)) {
+			if (!this.markupPreviewMapping.has(id)) {
 				console.error(`Trying to delete a preview that does not exist: ${id}`);
 			}
-			this.markdownPreviewMapping.delete(id);
+			this.markupPreviewMapping.delete(id);
 		}
 
 		if (cellIds.length) {
@@ -943,14 +935,14 @@ var requirejs = (function() {
 		}
 	}
 
-	async updateMarkdownPreviewSelections(selectedCellsIds: string[]) {
+	async updateMarkupPreviewSelections(selectedCellsIds: string[]) {
 		if (this._disposed) {
 			return;
 		}
 
 		this._sendMessageToWebview({
 			type: 'updateSelectedMarkupCells',
-			selectedCellIds: selectedCellsIds.filter(id => this.markdownPreviewMapping.has(id)),
+			selectedCellIds: selectedCellsIds.filter(id => this.markupPreviewMapping.has(id)),
 		});
 	}
 
@@ -969,7 +961,7 @@ var requirejs = (function() {
 		});
 
 		for (const cell of cells) {
-			this.markdownPreviewMapping.set(cell.cellId, { ...cell, visible: false });
+			this.markupPreviewMapping.set(cell.cellId, { ...cell, visible: false });
 		}
 
 		this._sendMessageToWebview({
@@ -1015,9 +1007,9 @@ var requirejs = (function() {
 		if (content.type === RenderOutputType.Extension) {
 			const output = content.source.model;
 			renderer = content.renderer;
-			const outputDto = output.outputs.find(op => op.mime === content.mimeType);
+			const first = output.outputs.find(op => op.mime === content.mimeType)!;
 
-			// TODO@notebook - the message can contain "bytes" and those are transferable
+			// TODO@jrieken - the message can contain "bytes" and those are transferable
 			// which improves IPC performance and therefore should be used. However, it does
 			// means that the bytes cannot be used here anymore
 			message = {
@@ -1027,10 +1019,9 @@ var requirejs = (function() {
 				content: {
 					type: RenderOutputType.Extension,
 					outputId: output.outputId,
-					mimeType: content.mimeType,
-					valueBytes: new Uint8Array(outputDto?.valueBytes ?? []),
+					mimeType: first.mime,
+					valueBytes: first.data,
 					metadata: output.metadata,
-					metadata2: output.metadata
 				},
 			};
 		} else {

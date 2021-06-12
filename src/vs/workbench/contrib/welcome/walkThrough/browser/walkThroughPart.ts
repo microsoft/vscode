@@ -34,10 +34,9 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { domEvent } from 'vs/base/browser/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
@@ -417,7 +416,7 @@ export class WalkThroughPart extends EditorPane {
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
 				this.contentDisposables.push(Gesture.addTarget(innerContent));
-				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(e => this.onTouchChange(e as GestureEvent), this, this.disposables));
+				this.contentDisposables.push(addDisposableListener(innerContent, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 			});
 	}
 

@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
+import { Mimes } from 'vs/base/common/mime';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -683,7 +684,7 @@ suite('ExtHostTypes', function () {
 		// --- text
 
 		item = types.NotebookCellOutputItem.text('Hęłlö');
-		assert.strictEqual(item.mime, 'text/plain');
+		assert.strictEqual(item.mime, Mimes.text);
 		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 
 		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');

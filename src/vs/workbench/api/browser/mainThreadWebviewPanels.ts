@@ -171,10 +171,14 @@ export class MainThreadWebviewPanels extends Disposable implements extHostProtoc
 
 		/* __GDPR__
 			"webviews:createWebviewPanel" : {
-				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"extensionId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+				"viewType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 			}
 		*/
-		this._telemetryService.publicLog('webviews:createWebviewPanel', { extensionId: extension.id.value });
+		this._telemetryService.publicLog('webviews:createWebviewPanel', {
+			extensionId: extension.id.value,
+			viewType
+		});
 	}
 
 	public $disposeWebview(handle: extHostProtocol.WebviewHandle): void {

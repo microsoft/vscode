@@ -72,9 +72,11 @@ export class TextFileEditor extends BaseTextEditor {
 	}
 
 	private onDidFilesChange(e: FileChangesEvent): void {
-		const deleted = e.getDeleted();
-		if (deleted?.length) {
-			this.clearTextEditorViewState(deleted.map(({ resource }) => resource));
+		const deleted = e.rawDeleted;
+		if (deleted) {
+			for (const [resource] of deleted) {
+				this.clearTextEditorViewState(resource);
+			}
 		}
 	}
 
@@ -278,7 +280,7 @@ export class TextFileEditor extends BaseTextEditor {
 		// If the user configured to not restore view state, we clear the view
 		// state unless the editor is still opened in the group.
 		if (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input))) {
-			this.clearTextEditorViewState([input.resource], this.group);
+			this.clearTextEditorViewState(input.resource, this.group);
 		}
 
 		// Otherwise we save the view state to restore it later

@@ -200,7 +200,7 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.getModelIndex2(0), 0);
 				assert.strictEqual(cellList.getModelIndex2(1), 2);
 
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, false);
 				viewModel.updateFoldingRanges(foldingModel.regions);
@@ -210,7 +210,7 @@ suite('NotebookCellList focus/selection', () => {
 				assert.strictEqual(cellList.getModelIndex2(1), 3);
 
 				// mimic undo
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 0, count: 0, cells: [
 						new TestCell(viewModel.viewType, 7, '# header f', 'markdown', CellKind.Code, [], modeService),
 						new TestCell(viewModel.viewType, 8, 'var g = 5;', 'javascript', CellKind.Code, [], modeService)
@@ -314,7 +314,7 @@ suite('NotebookCellList focus/selection', () => {
 			async (editor) => {
 				const viewModel = editor.viewModel;
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				viewModel.notebookDocument.applyEdits([{
+				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace,
 					index: 1,
 					count: 1,

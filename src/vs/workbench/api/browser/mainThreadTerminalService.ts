@@ -211,10 +211,12 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._terminalService.registerProcessSupport(isSupported);
 	}
 
-	public $registerProfileProvider(id: string): void {
+	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
 		// Proxy profile provider requests through the extension host
-		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(id, {
-			createContributedTerminalProfile: async (isSplitTerminal) => this._proxy.$createContributedProfileTerminal(id, isSplitTerminal)
+		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
+			createContributedTerminalProfile: async (isSplitTerminal) => {
+				return this._proxy.$createContributedProfileTerminal(id, isSplitTerminal);
+			}
 		}));
 	}
 

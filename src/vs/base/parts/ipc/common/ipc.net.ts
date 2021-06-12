@@ -10,9 +10,54 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import * as platform from 'vs/base/common/platform';
 import * as process from 'vs/base/common/process';
 
+export const enum SocketCloseEventType {
+	NodeSocketCloseEvent = 0,
+	WebSocketCloseEvent = 1
+}
+
+export interface NodeSocketCloseEvent {
+	/**
+	 * The type of the event
+	 */
+	readonly type: SocketCloseEventType.NodeSocketCloseEvent;
+	/**
+	 * `true` if the socket had a transmission error.
+	 */
+	readonly hadError: boolean;
+	/**
+	 * Underlying error.
+	 */
+	readonly error: Error | undefined
+}
+
+export interface WebSocketCloseEvent {
+	/**
+	 * The type of the event
+	 */
+	readonly type: SocketCloseEventType.WebSocketCloseEvent;
+	/**
+	 * Returns the WebSocket connection close code provided by the server.
+	 */
+	readonly code: number;
+	/**
+	 * Returns the WebSocket connection close reason provided by the server.
+	 */
+	readonly reason: string;
+	/**
+	 * Returns true if the connection closed cleanly; false otherwise.
+	 */
+	readonly wasClean: boolean;
+	/**
+	 * Underlying event.
+	 */
+	readonly event: any | undefined;
+}
+
+export type SocketCloseEvent = NodeSocketCloseEvent | WebSocketCloseEvent | undefined;
+
 export interface ISocket extends IDisposable {
 	onData(listener: (e: VSBuffer) => void): IDisposable;
-	onClose(listener: () => void): IDisposable;
+	onClose(listener: (e: SocketCloseEvent) => void): IDisposable;
 	onEnd(listener: () => void): IDisposable;
 	write(buffer: VSBuffer): void;
 	end(): void;
@@ -624,8 +669,8 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 	private readonly _onDidDispose = new BufferedEmitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
 
-	private readonly _onSocketClose = new BufferedEmitter<void>();
-	readonly onSocketClose: Event<void> = this._onSocketClose.event;
+	private readonly _onSocketClose = new BufferedEmitter<SocketCloseEvent>();
+	readonly onSocketClose: Event<SocketCloseEvent> = this._onSocketClose.event;
 
 	private readonly _onSocketTimeout = new BufferedEmitter<void>();
 	readonly onSocketTimeout: Event<void> = this._onSocketTimeout.event;
@@ -658,7 +703,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		if (initialChunk) {
 			this._socketReader.acceptChunk(initialChunk);
 		}
@@ -768,7 +813,7 @@ export class PersistentProtocol implements IMessagePassingProtocol {
 		this._socketReader = new ProtocolReader(this._socket);
 		this._socketDisposables.push(this._socketReader);
 		this._socketDisposables.push(this._socketReader.onMessage(msg => this._receiveMessage(msg)));
-		this._socketDisposables.push(this._socket.onClose(() => this._onSocketClose.fire()));
+		this._socketDisposables.push(this._socket.onClose((e) => this._onSocketClose.fire(e)));
 		this._socketReader.acceptChunk(initialDataChunk);
 	}
 

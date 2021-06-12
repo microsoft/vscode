@@ -13,7 +13,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyFalseExpr, ContextKeyGreaterExpr, ContextKeyTrueExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -59,13 +59,14 @@ const enum ActionOrder {
 	Refresh,
 }
 
+const hasAnyTestProvider = ContextKeyGreaterExpr.create(TestingContextKeys.providerCount.key, 0);
+
 export class HideTestAction extends Action2 {
 	public static readonly ID = 'testing.hideTest';
 	constructor() {
 		super({
 			id: HideTestAction.ID,
 			title: localize('hideTest', 'Hide Test'),
-			f1: false,
 			menu: {
 				id: MenuId.TestItem,
 				when: TestingContextKeys.testItemIsHidden.isEqualTo(false)
@@ -90,7 +91,6 @@ export class UnhideTestAction extends Action2 {
 		super({
 			id: UnhideTestAction.ID,
 			title: localize('unhideTest', 'Unhide Test'),
-			f1: false,
 			menu: {
 				id: MenuId.TestItem,
 				when: TestingContextKeys.testItemIsHidden.isEqualTo(true)
@@ -116,7 +116,6 @@ export class DebugAction extends Action2 {
 			id: DebugAction.ID,
 			title: localize('debug test', 'Debug Test'),
 			icon: icons.testingDebugIcon,
-			f1: false,
 			menu: {
 				id: MenuId.TestItem,
 				group: 'inline',
@@ -142,7 +141,6 @@ export class RunAction extends Action2 {
 			id: RunAction.ID,
 			title: localize('run test', 'Run Test'),
 			icon: icons.testingRunIcon,
-			f1: false,
 			menu: {
 				id: MenuId.TestItem,
 				group: 'inline',
@@ -268,10 +266,9 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 			id,
 			title,
 			icon,
-			f1: true,
 			category,
 			keybinding,
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				order: debug ? ActionOrder.Debug : ActionOrder.Run,
 				group: 'navigation',
@@ -282,7 +279,10 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 						? TestingContextKeys.hasDebuggableTests.isEqualTo(true)
 						: TestingContextKeys.hasRunnableTests.isEqualTo(true),
 				])
-			}
+			}, {
+				id: MenuId.CommandPalette,
+				when: hasAnyTestProvider,
+			}]
 		});
 	}
 
@@ -394,7 +394,6 @@ export class TestingViewAsListAction extends ViewAction<TestingExplorerView> {
 			id: TestingViewAsListAction.ID,
 			viewId: Testing.ExplorerViewId,
 			title: localize('testing.viewAsList', "View as List"),
-			f1: false,
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -420,7 +419,6 @@ export class TestingViewAsTreeAction extends ViewAction<TestingExplorerView> {
 			id: TestingViewAsTreeAction.ID,
 			viewId: Testing.ExplorerViewId,
 			title: localize('testing.viewAsTree', "View as Tree"),
-			f1: false,
 			toggled: TestingContextKeys.viewMode.isEqualTo(TestExplorerViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -447,7 +445,6 @@ export class TestingSortByNameAction extends ViewAction<TestingExplorerView> {
 			id: TestingSortByNameAction.ID,
 			viewId: Testing.ExplorerViewId,
 			title: localize('testing.sortByName', "Sort by Name"),
-			f1: false,
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByName),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -473,7 +470,6 @@ export class TestingSortByLocationAction extends ViewAction<TestingExplorerView>
 			id: TestingSortByLocationAction.ID,
 			viewId: Testing.ExplorerViewId,
 			title: localize('testing.sortByLocation', "Sort by Location"),
-			f1: false,
 			toggled: TestingContextKeys.viewSorting.isEqualTo(TestExplorerViewSorting.ByLocation),
 			menu: {
 				id: MenuId.ViewTitle,
@@ -498,19 +494,22 @@ export class ShowMostRecentOutputAction extends Action2 {
 		super({
 			id: ShowMostRecentOutputAction.ID,
 			title: localize('testing.showMostRecentOutput', "Show Output"),
-			f1: true,
 			category,
 			icon: Codicon.terminal,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_O),
 			},
-			menu: {
+			precondition: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			menu: [{
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Collapse,
 				group: 'navigation',
-				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
-			}
+				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true)
+			}]
 		});
 	}
 
@@ -527,7 +526,6 @@ export class CollapseAllAction extends ViewAction<TestingExplorerView> {
 			id: CollapseAllAction.ID,
 			viewId: Testing.ExplorerViewId,
 			title: localize('testing.collapseAll', "Collapse All Tests"),
-			f1: false,
 			icon: Codicon.collapseAll,
 			menu: {
 				id: MenuId.ViewTitle,
@@ -553,13 +551,15 @@ export class RefreshTestsAction extends Action2 {
 			id: RefreshTestsAction.ID,
 			title: localize('testing.refresh', "Refresh Tests"),
 			category,
-			f1: true,
-			menu: {
+			menu: [{
 				id: MenuId.ViewTitle,
 				order: ActionOrder.Refresh,
 				group: 'refresh',
 				when: ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId)
-			}
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.providerCount.isEqualTo(true),
+			}],
 		});
 	}
 
@@ -578,11 +578,13 @@ export class ClearTestResultsAction extends Action2 {
 			id: ClearTestResultsAction.ID,
 			title: localize('testing.clearResults', "Clear All Results"),
 			category,
-			f1: true,
 			icon: Codicon.trash,
-			menu: {
+			menu: [{
 				id: MenuId.TestPeekTitle,
-			},
+			}, {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
+			},],
 		});
 	}
 
@@ -600,7 +602,6 @@ export class GoToTest extends Action2 {
 		super({
 			id: GoToTest.ID,
 			title: localize('testing.editFocusedTest', "Go to Test"),
-			f1: false,
 			menu: {
 				id: MenuId.TestItem,
 				when: TestingContextKeys.testItemHasUri.isEqualTo(true),
@@ -709,7 +710,6 @@ abstract class ToggleAutoRun extends Action2 {
 		super({
 			id: ToggleAutoRun.ID,
 			title,
-			f1: true,
 			icon: icons.testingAutorunIcon,
 			toggled: whenToggleIs === true ? ContextKeyTrueExpr.INSTANCE : ContextKeyFalseExpr.INSTANCE,
 			menu: {
@@ -746,6 +746,16 @@ export class AutoRunOffAction extends ToggleAutoRun {
 
 
 abstract class RunOrDebugAtCursor extends Action2 {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: hasAnyTestProvider,
+			},
+		});
+	}
+
 	/**
 	 * @override
 	 */
@@ -801,7 +811,6 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 		super({
 			id: RunAtCursor.ID,
 			title: localize('testing.runAtCursor', "Run Test at Cursor"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -829,7 +838,6 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 		super({
 			id: DebugAtCursor.ID,
 			title: localize('testing.debugAtCursor', "Debug Test at Cursor"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -852,6 +860,16 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 }
 
 abstract class RunOrDebugCurrentFile extends Action2 {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: hasAnyTestProvider,
+			},
+		});
+	}
+
 	/**
 	 * @override
 	 */
@@ -893,12 +911,15 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 		super({
 			id: RunCurrentFile.ID,
 			title: localize('testing.runCurrentFile', "Run Tests in Current File"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: hasAnyTestProvider,
 			},
 		});
 	}
@@ -921,7 +942,6 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 		super({
 			id: DebugCurrentFile.ID,
 			title: localize('testing.debugCurrentFile', "Debug Tests in Current File"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -984,6 +1004,15 @@ abstract class RunOrDebugExtsByPath extends Action2 {
 }
 
 abstract class RunOrDebugFailedTests extends RunOrDebugExtsByPath {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: hasAnyTestProvider,
+			},
+		});
+	}
 	/**
 	 * @inheritdoc
 	 */
@@ -1008,6 +1037,19 @@ abstract class RunOrDebugFailedTests extends RunOrDebugExtsByPath {
 }
 
 abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
+	constructor(options: IAction2Options) {
+		super({
+			...options,
+			menu: {
+				id: MenuId.CommandPalette,
+				when: ContextKeyAndExpr.create([
+					hasAnyTestProvider,
+					TestingContextKeys.hasAnyResults.isEqualTo(true),
+				]),
+			},
+		});
+	}
+
 	/**
 	 * @inheritdoc
 	 */
@@ -1032,7 +1074,6 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 		super({
 			id: ReRunFailedTests.ID,
 			title: localize('testing.reRunFailTests', "Rerun Failed Tests"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1059,7 +1100,6 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 		super({
 			id: DebugFailedTests.ID,
 			title: localize('testing.debugFailTests', "Debug Failed Tests"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1086,7 +1126,6 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 		super({
 			id: ReRunLastRun.ID,
 			title: localize('testing.reRunLastRun', "Rerun Last Run"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1113,7 +1152,6 @@ export class DebugLastRun extends RunOrDebugLastRun {
 		super({
 			id: DebugLastRun.ID,
 			title: localize('testing.debugLastRun', "Debug Last Run"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -1140,7 +1178,6 @@ export class SearchForTestExtension extends Action2 {
 		super({
 			id: SearchForTestExtension.ID,
 			title: localize('testing.searchForTestExtension', "Search for Test Extension"),
-			f1: false,
 		});
 	}
 
@@ -1158,11 +1195,14 @@ export class OpenOutputPeek extends Action2 {
 		super({
 			id: OpenOutputPeek.ID,
 			title: localize('testing.openOutputPeek', "Peek Output"),
-			f1: true,
 			category,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_M),
+			},
+			menu: {
+				id: MenuId.CommandPalette,
+				when: TestingContextKeys.hasAnyResults.isEqualTo(true),
 			},
 		});
 	}

@@ -23,6 +23,11 @@ const isSafari = navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
 	navigator.userAgent.indexOf('CriOS') === -1 &&
 	navigator.userAgent.indexOf('FxiOS') === -1;
 
+const isFirefox = (
+	navigator.userAgent &&
+	navigator.userAgent.indexOf('Firefox') >= 0
+);
+
 const searchParams = new URL(location.toString()).searchParams;
 const ID = searchParams.get('id');
 const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
@@ -674,7 +679,9 @@ export async function createWebviewManager(host) {
 			newFrame.setAttribute('id', 'pending-frame');
 			newFrame.setAttribute('frameborder', '0');
 			newFrame.setAttribute('sandbox', options.allowScripts ? 'allow-scripts allow-forms allow-same-origin allow-pointer-lock allow-downloads' : 'allow-same-origin allow-pointer-lock');
-			newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+			if (!isFirefox) {
+				newFrame.setAttribute('allow', options.allowScripts ? 'clipboard-read; clipboard-write;' : '');
+			}
 			// We should just be able to use srcdoc, but I wasn't
 			// seeing the service worker applying properly.
 			// Fake load an empty on the correct origin and then write real html

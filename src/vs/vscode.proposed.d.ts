@@ -874,30 +874,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
-
-	export interface Pseudoterminal {
-		/**
-		 * An event that when fired allows changing the name of the terminal.
-		 *
-		 * **Example:** Change the terminal name to "My new terminal".
-		 * ```typescript
-		 * const writeEmitter = new vscode.EventEmitter<string>();
-		 * const changeNameEmitter = new vscode.EventEmitter<string>();
-		 * const pty: vscode.Pseudoterminal = {
-		 *   onDidWrite: writeEmitter.event,
-		 *   onDidChangeName: changeNameEmitter.event,
-		 *   open: () => changeNameEmitter.fire('My new terminal'),
-		 *   close: () => {}
-		 * };
-		 * vscode.window.createTerminal({ name: 'My terminal', pty });
-		 * ```
-		 */
-		onDidChangeName?: Event<string>;
-	}
-
-	//#endregion
-
 	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
 
 	export interface TerminalOptions {
@@ -912,27 +888,6 @@ declare module 'vscode' {
 		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
 		 */
 		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	//#endregion
-
-	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
-
-	export namespace window {
-		/**
-		 * Registers a provider for a contributed terminal profile.
-		 * @param id The ID of the contributed terminal profile.
-		 * @param provider The terminal profile provider.
-		 */
-		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
-	}
-
-	export interface TerminalProfileProvider {
-		/**
-		 * Provide terminal profile options for the requested terminal.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 */
-		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
 	}
 
 	//#endregion

@@ -11,7 +11,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { CompletionItemInsertTextRule } from 'vs/editor/common/modes';
-import { BaseGhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
+import { BaseGhostTextWidgetModel, GhostText } from 'vs/editor/contrib/inlineCompletions/ghostText';
 import { inlineCompletionToGhostText, NormalizedInlineCompletion } from 'vs/editor/contrib/inlineCompletions/inlineCompletionsModel';
 import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
@@ -124,14 +124,11 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 			? (
 				inlineCompletionToGhostText(completion, this.editor.getModel()) ||
 				// Show an invisible ghost text to reserve space
-				{
-					lines: [],
-					position: completion.range.getEndPosition(),
-				}
+				new GhostText(completion.range.endLineNumber, [], [], this.minReservedLineCount)
 			) : undefined;
 
 		if (this.currentGhostText && this.expanded) {
-			this.minReservedLineCount = Math.max(this.minReservedLineCount, this.currentGhostText.lines.length - 1);
+			this.minReservedLineCount = Math.max(this.minReservedLineCount, this.currentGhostText.additionalLines.length);
 		}
 
 		const suggestController = SuggestController.get(this.editor);

@@ -5,17 +5,16 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
-import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/statusBar/notebookVisibleCellObserver';
-import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution, NOTEBOOK_CELL_EXECUTION_STATE, QUIT_EDIT_CELL_COMMAND_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellVisibilityChangeEvent, NotebookVisibleCellObserver } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/notebookVisibleCellObserver';
+import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEditorContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { getCodeCellExecutionContextKeyService } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -232,7 +231,7 @@ class TimerCellStatusBarHelper extends Disposable {
  */
 class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	private _currentItemIds: string[] = [];
-	private readonly _contextKeyService: IContextKeyService;
+	private readonly _codeContextKeyService: IContextKeyService;
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,
@@ -242,14 +241,7 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 	) {
 		super();
 
-		// Create a fake ContextKeyService, and look up the keybindings within this context.
-		this._contextKeyService = this._register(_contextKeyService.createScoped(document.createElement('div')));
-		InputFocusedContext.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.editorTextFocus.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.focus.bindTo(this._contextKeyService).set(true);
-		EditorContextKeys.textInputFocus.bindTo(this._contextKeyService).set(true);
-		NOTEBOOK_CELL_EXECUTION_STATE.bindTo(this._contextKeyService).set('idle');
-
+		this._codeContextKeyService = this._register(getCodeCellExecutionContextKeyService(_contextKeyService));
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}
@@ -268,19 +260,14 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 
 		let text: string;
 		if (cell.cellKind === CellKind.Code) {
-			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID, this._contextKeyService)?.getLabel();
+			const keybinding = this._keybindingService.lookupKeybinding(EXECUTE_CELL_COMMAND_ID, this._codeContextKeyService)?.getLabel();
 			if (!keybinding) {
 				return [];
 			}
 
 			text = localize('notebook.cell.status.codeExecuteTip', "Press {0} to execute cell", keybinding);
 		} else {
-			const keybinding = this._keybindingService.lookupKeybinding(QUIT_EDIT_CELL_COMMAND_ID, this._contextKeyService)?.getLabel();
-			if (!keybinding) {
-				return [];
-			}
-
-			text = localize('notebook.cell.status.markdownExecuteTip', "Press {0} to stop editing", keybinding);
+			text = localize('notebook.cell.status.markdownExecuteTip', "Press Esc to stop editing");
 		}
 
 		const item = <INotebookCellStatusBarItem>{

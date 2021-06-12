@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ICellEditOperationDto, MainThreadNotebookEditorsShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import * as extHostConverter from 'vs/workbench/api/common/extHostTypeConverters';
-import { CellEditType, ICellEditOperation, ICellReplaceEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import * as vscode from 'vscode';
 import { ExtHostNotebookDocument } from './extHostNotebookDocument';
 import { illegalArgument } from 'vs/base/common/errors';
 
 interface INotebookEditData {
 	documentVersionId: number;
-	cellEdits: ICellEditOperation[];
+	cellEdits: ICellEditOperationDto[];
 }
 
 class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
@@ -21,7 +21,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 	private readonly _documentVersionId: number;
 
 	private _finalized: boolean = false;
-	private _collectedEdits: ICellEditOperation[] = [];
+	private _collectedEdits: ICellEditOperationDto[] = [];
 
 	constructor(documentVersionId: number) {
 		this._documentVersionId = documentVersionId;
@@ -52,7 +52,7 @@ class NotebookEditorCellEditBuilder implements vscode.NotebookEditorEdit {
 	replaceCellMetadata(index: number, metadata: Record<string, any>): void {
 		this._throwIfFinalized();
 		this._collectedEdits.push({
-			editType: CellEditType.Metadata,
+			editType: CellEditType.PartialMetadata,
 			index,
 			metadata
 		});
@@ -174,7 +174,7 @@ export class ExtHostNotebookEditor {
 			return Promise.resolve(true);
 		}
 
-		const compressedEdits: ICellEditOperation[] = [];
+		const compressedEdits: ICellEditOperationDto[] = [];
 		let compressedEditsIndex = -1;
 
 		for (let i = 0; i < editData.cellEdits.length; i++) {
@@ -190,8 +190,8 @@ export class ExtHostNotebookEditor {
 			const edit = editData.cellEdits[i];
 			if (prev.editType === CellEditType.Replace && edit.editType === CellEditType.Replace) {
 				if (prev.index === edit.index) {
-					prev.cells.push(...(editData.cellEdits[i] as ICellReplaceEdit).cells);
-					prev.count += (editData.cellEdits[i] as ICellReplaceEdit).count;
+					prev.cells.push(...(editData.cellEdits[i] as any).cells);
+					prev.count += (editData.cellEdits[i] as any).count;
 					continue;
 				}
 			}

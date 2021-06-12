@@ -155,7 +155,7 @@ export interface ITerminalConfiguration {
 	altClickMovesCursor: boolean;
 	macOptionIsMeta: boolean;
 	macOptionClickForcesSelection: boolean;
-	gpuAcceleration: 'auto' | 'on' | 'off';
+	gpuAcceleration: 'auto' | 'on' | 'canvas' | 'off';
 	rightClickBehavior: 'default' | 'copyPaste' | 'paste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -573,15 +573,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 ];
 
 export interface ITerminalContributions {
-	/** @deprecated */
-	types?: ITerminalTypeContribution[];
 	profiles?: ITerminalProfileContribution[];
-}
-
-export interface ITerminalTypeContribution {
-	title: string;
-	command: string;
-	icon?: string;
 }
 
 export interface ITerminalProfileContribution {

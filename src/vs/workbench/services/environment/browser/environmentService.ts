@@ -245,6 +245,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 	get logExtensionHostCommunication(): boolean { return this.payload?.get('logExtensionHostCommunication') === 'true'; }
 
 	get skipReleaseNotes(): boolean { return false; }
+	get skipWelcome(): boolean { return false; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return true; }

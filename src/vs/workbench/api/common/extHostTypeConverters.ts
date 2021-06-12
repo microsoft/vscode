@@ -548,33 +548,6 @@ export namespace WorkspaceEdit {
 						notebookVersionId: extHostNotebooks?.getNotebookDocument(entry.uri, true)?.apiNotebook.version
 					});
 
-				} else if (entry._type === types.FileEditType.CellOutput) {
-					if (entry.newOutputs) {
-						result.edits.push({
-							_type: extHostProtocol.WorkspaceEditType.Cell,
-							metadata: entry.metadata,
-							resource: entry.uri,
-							edit: {
-								editType: notebooks.CellEditType.Output,
-								index: entry.index,
-								append: entry.append,
-								outputs: entry.newOutputs.map(NotebookCellOutput.from)
-							}
-						});
-					}
-					// todo@joh merge metadata and output edit?
-					if (entry.newMetadata) {
-						result.edits.push({
-							_type: extHostProtocol.WorkspaceEditType.Cell,
-							metadata: entry.metadata,
-							resource: entry.uri,
-							edit: {
-								editType: notebooks.CellEditType.PartialMetadata,
-								index: entry.index,
-								metadata: entry.newMetadata
-							}
-						});
-					}
 				} else if (entry._type === types.FileEditType.CellReplace) {
 					result.edits.push({
 						_type: extHostProtocol.WorkspaceEditType.Cell,
@@ -586,18 +559,6 @@ export namespace WorkspaceEdit {
 							index: entry.index,
 							count: entry.count,
 							cells: entry.cells.map(NotebookCellData.from)
-						}
-					});
-				} else if (entry._type === types.FileEditType.CellOutputItem) {
-					result.edits.push({
-						_type: extHostProtocol.WorkspaceEditType.Cell,
-						metadata: entry.metadata,
-						resource: entry.uri,
-						edit: {
-							editType: notebooks.CellEditType.OutputItems,
-							outputId: entry.outputId,
-							items: entry.newOutputItems?.map(NotebookCellOutputItem.from) || [],
-							append: entry.append
 						}
 					});
 				}
@@ -1458,8 +1419,8 @@ export namespace NotebookCellKind {
 
 export namespace NotebookData {
 
-	export function from(data: vscode.NotebookData): notebooks.NotebookDataDto {
-		const res: notebooks.NotebookDataDto = {
+	export function from(data: vscode.NotebookData): extHostProtocol.NotebookDataDto {
+		const res: extHostProtocol.NotebookDataDto = {
 			metadata: data.metadata ?? Object.create(null),
 			cells: [],
 		};
@@ -1470,7 +1431,7 @@ export namespace NotebookData {
 		return res;
 	}
 
-	export function to(data: notebooks.NotebookDataDto): vscode.NotebookData {
+	export function to(data: extHostProtocol.NotebookDataDto): vscode.NotebookData {
 		const res = new types.NotebookData(
 			data.cells.map(NotebookCellData.to),
 		);
@@ -1483,7 +1444,7 @@ export namespace NotebookData {
 
 export namespace NotebookCellData {
 
-	export function from(data: vscode.NotebookCellData): notebooks.ICellDto2 {
+	export function from(data: vscode.NotebookCellData): extHostProtocol.NotebookCellDataDto {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.languageId,
@@ -1494,7 +1455,7 @@ export namespace NotebookCellData {
 		};
 	}
 
-	export function to(data: notebooks.ICellDto2): vscode.NotebookCellData {
+	export function to(data: extHostProtocol.NotebookCellDataDto): vscode.NotebookCellData {
 		return new types.NotebookCellData(
 			NotebookCellKind.to(data.cellKind),
 			data.source,
@@ -1507,29 +1468,29 @@ export namespace NotebookCellData {
 }
 
 export namespace NotebookCellOutputItem {
-	export function from(item: types.NotebookCellOutputItem): notebooks.IOutputItemDto {
+	export function from(item: types.NotebookCellOutputItem): extHostProtocol.NotebookOutputItemDto {
 		return {
 			mime: item.mime,
 			valueBytes: Array.from(item.data), //todo@jrieken this HACKY and SLOW... hoist VSBuffer instead
 		};
 	}
 
-	export function to(item: notebooks.IOutputItemDto): types.NotebookCellOutputItem {
+	export function to(item: extHostProtocol.NotebookOutputItemDto): types.NotebookCellOutputItem {
 		return new types.NotebookCellOutputItem(new Uint8Array(item.valueBytes), item.mime);
 	}
 }
 
 export namespace NotebookCellOutput {
-	export function from(output: vscode.NotebookCellOutput): notebooks.IOutputDto {
+	export function from(output: vscode.NotebookCellOutput): extHostProtocol.NotebookOutputDto {
 		return {
 			outputId: output.id,
-			outputs: output.items.map(NotebookCellOutputItem.from),
+			items: output.items.map(NotebookCellOutputItem.from),
 			metadata: output.metadata
 		};
 	}
 
-	export function to(output: notebooks.IOutputDto): vscode.NotebookCellOutput {
-		const items = output.outputs.map(NotebookCellOutputItem.to);
+	export function to(output: extHostProtocol.NotebookOutputDto): vscode.NotebookCellOutput {
+		const items = output.items.map(NotebookCellOutputItem.to);
 		return new types.NotebookCellOutput(items, output.outputId, output.metadata);
 	}
 }

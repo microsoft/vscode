@@ -11,7 +11,6 @@ export function activate() {
 	});
 
 	const style = document.createElement('style');
-	style.classList.add('markdown-style');
 	style.textContent = `
 		.emptyMarkdownCell::before {
 			content: "${document.documentElement.style.getPropertyValue('--notebook-cell-markup-empty-content')}";
@@ -134,7 +133,10 @@ export function activate() {
 			white-space: pre-wrap;
 		}
 	`;
-	document.head.append(style);
+	const template = document.createElement('template');
+	template.classList.add('markdown-style');
+	template.content.appendChild(style);
+	document.head.appendChild(template);
 
 	return {
 		renderOutputItem: (outputInfo: { text(): string }, element: HTMLElement) => {
@@ -148,8 +150,12 @@ export function activate() {
 				previewRoot.appendChild(defaultStyles.cloneNode(true));
 
 				// And then contributed styles
-				for (const markdownStyleNode of document.getElementsByClassName('markdown-style')) {
-					previewRoot.appendChild(markdownStyleNode.cloneNode(true));
+				for (const element of document.getElementsByClassName('markdown-style')) {
+					if (element instanceof HTMLTemplateElement) {
+						previewRoot.appendChild(element.content.cloneNode(true));
+					} else {
+						previewRoot.appendChild(element.cloneNode(true));
+					}
 				}
 
 				previewNode = document.createElement('div');
