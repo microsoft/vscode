@@ -157,7 +157,7 @@ export class MockDebugService implements IDebugService {
 		throw new Error('not implemented');
 	}
 
-	getDisassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
+	getDisassemble(offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
 		throw new Error('not implemented');
 	}
 

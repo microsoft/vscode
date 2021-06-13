@@ -991,19 +991,24 @@ export class DebugService implements IDebugService {
 		await this.sendExceptionBreakpoints(session);
 	}
 
-	async getDisassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
+	async getDisassemble(offset: number, instructionOffset: number, instructionCount: number): Promise<any> {
+		const session = this.getViewModel().focusedSession;
+		if (session) {
+			const frame = this.getViewModel().focusedStackFrame;
+			if (frame?.instructionPointerReference) {
+				return session.disassemble(frame?.instructionPointerReference, offset, instructionOffset, instructionCount);
+			}
+		}
+
 		return new Promise((resolve, reject) => {
 			const result: DebugProtocol.DisassembledInstruction[] = [];
 
 			for (let i = 0; i < instructionCount; i++) {
-				result.push({ address: `${memoryReference}+${i + offset}`, instruction: `instruction1, instruction2, instruction3` });
+				result.push({ address: `${i + offset}`, instruction: `debugger is not availible.` });
 			}
 
 			resolve(result);
 		});
-
-		// const session = this.getViewModel().focusedStackFrame
-		// session.disassemble(memoryReference, offset, instructionOffset, instructionCount);
 	}
 
 	private async sendBreakpoints(modelUri: uri, sourceModified = false, session?: IDebugSession): Promise<void> {

@@ -961,7 +961,7 @@ export interface IDebugService {
 	 */
 	sourceIsNotAvailable(uri: uri): void;
 
-	getDisassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<any>;
+	getDisassemble(offset: number, instructionOffset: number, instructionCount: number): Promise<any>;
 
 	/**
 	 * Gets the current debug model.

@@ -56,6 +56,8 @@ export class DisassemblyView extends EditorPane {
 		});
 
 		this._disassembledInstructions = null;
+
+
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -131,7 +133,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(offset: number, instructionCount: number): Promise<void> {
-		const resultEntries = await this._debugService.getDisassemble('0x12345678', offset, 0, instructionCount);
+		const resultEntries = await this._debugService.getDisassemble(offset, 0, instructionCount);
 		if (resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
