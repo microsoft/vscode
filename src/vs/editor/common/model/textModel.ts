@@ -18,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import * as model from 'vs/editor/common/model';
 import { EditStack } from 'vs/editor/common/model/editStack';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
-import { IntervalNode, IntervalTree, getNodeIsInOverviewRuler, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
+import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
@@ -510,7 +510,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _onBeforeEOLChange(): void {
 		// Ensure all decorations get their `range` set.
 		const versionId = this.getVersionId();
-		const allDecorations = this._decorationsTree.search(0, false, false, versionId);
+		const allDecorations = this._decorationsTree.search(0, false, false, false, versionId);
 		this._ensureNodesHaveRanges(allDecorations);
 	}
 
@@ -1676,13 +1676,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
-		const result = this._decorationsTree.search(ownerId, filterOutValidation, true, versionId);
+		const result = this._decorationsTree.search(ownerId, filterOutValidation, true, false, versionId);
+		return this._ensureNodesHaveRanges(result);
+	}
+
+	public getInjectedTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
+		const versionId = this.getVersionId();
+		const result = this._decorationsTree.search(ownerId, false, false, true, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
-		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, versionId);
+		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, false, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
@@ -3056,6 +3062,15 @@ function indentOfLine(line: string): number {
 
 //#region Decorations
 
+function isNodeInOverviewRuler(node: IntervalNode): boolean {
+	return (node.options.overviewRuler && node.options.overviewRuler.color ? true : false);
+}
+
+function isNodeInjectedText(node: IntervalNode): boolean {
+	// TODO: handle beforeContent
+	return (node.options.afterContent ? true : false);
+}
+
 class DecorationsTrees {
 
 	/**
@@ -3068,41 +3083,55 @@ class DecorationsTrees {
 	 */
 	private readonly _decorationsTree1: IntervalTree;
 
+	/**
+	 * This tree holds decorations that contain injected text.
+	 */
+	private readonly _injectedTextDecorationsTree: IntervalTree;
+
 	constructor() {
 		this._decorationsTree0 = new IntervalTree();
 		this._decorationsTree1 = new IntervalTree();
+		this._injectedTextDecorationsTree = new IntervalTree();
 	}
 
 	public intervalSearch(start: number, end: number, filterOwnerId: number, filterOutValidation: boolean, cachedVersionId: number): IntervalNode[] {
 		const r0 = this._decorationsTree0.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
 		const r1 = this._decorationsTree1.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
-		return r0.concat(r1);
+		const r2 = this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, filterOutValidation, cachedVersionId);
+		return r0.concat(r1).concat(r2);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
-		if (overviewRulerOnly) {
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, injectedTextOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		if (injectedTextOnly) {
+			return this._injectedTextDecorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
+		} else if (overviewRulerOnly) {
 			return this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
 		} else {
 			const r0 = this._decorationsTree0.search(filterOwnerId, filterOutValidation, cachedVersionId);
 			const r1 = this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
-			return r0.concat(r1);
+			const r2 = this._injectedTextDecorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
+			return r0.concat(r1).concat(r2);
 		}
 	}
 
 	public collectNodesFromOwner(ownerId: number): IntervalNode[] {
 		const r0 = this._decorationsTree0.collectNodesFromOwner(ownerId);
 		const r1 = this._decorationsTree1.collectNodesFromOwner(ownerId);
-		return r0.concat(r1);
+		const r2 = this._injectedTextDecorationsTree.collectNodesFromOwner(ownerId);
+		return r0.concat(r1).concat(r2);
 	}
 
 	public collectNodesPostOrder(): IntervalNode[] {
 		const r0 = this._decorationsTree0.collectNodesPostOrder();
 		const r1 = this._decorationsTree1.collectNodesPostOrder();
-		return r0.concat(r1);
+		const r2 = this._injectedTextDecorationsTree.collectNodesPostOrder();
+		return r0.concat(r1).concat(r2);
 	}
 
 	public insert(node: IntervalNode): void {
-		if (getNodeIsInOverviewRuler(node)) {
+		if (isNodeInjectedText(node)) {
+			this._injectedTextDecorationsTree.insert(node);
+		} else if (isNodeInOverviewRuler(node)) {
 			this._decorationsTree1.insert(node);
 		} else {
 			this._decorationsTree0.insert(node);
@@ -3110,7 +3139,9 @@ class DecorationsTrees {
 	}
 
 	public delete(node: IntervalNode): void {
-		if (getNodeIsInOverviewRuler(node)) {
+		if (isNodeInjectedText(node)) {
+			this._injectedTextDecorationsTree.delete(node);
+		} else if (isNodeInOverviewRuler(node)) {
 			this._decorationsTree1.delete(node);
 		} else {
 			this._decorationsTree0.delete(node);
@@ -3118,7 +3149,9 @@ class DecorationsTrees {
 	}
 
 	public resolveNode(node: IntervalNode, cachedVersionId: number): void {
-		if (getNodeIsInOverviewRuler(node)) {
+		if (isNodeInjectedText(node)) {
+			this._injectedTextDecorationsTree.resolveNode(node, cachedVersionId);
+		} else if (isNodeInOverviewRuler(node)) {
 			this._decorationsTree1.resolveNode(node, cachedVersionId);
 		} else {
 			this._decorationsTree0.resolveNode(node, cachedVersionId);
@@ -3128,6 +3161,7 @@ class DecorationsTrees {
 	public acceptReplace(offset: number, length: number, textLength: number, forceMoveMarkers: boolean): void {
 		this._decorationsTree0.acceptReplace(offset, length, textLength, forceMoveMarkers);
 		this._decorationsTree1.acceptReplace(offset, length, textLength, forceMoveMarkers);
+		this._injectedTextDecorationsTree.acceptReplace(offset, length, textLength, forceMoveMarkers);
 	}
 }
 
@@ -3248,6 +3282,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
 	readonly beforeContentClassName: string | null;
 	readonly afterContentClassName: string | null;
+	readonly afterContent: string | null;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -3269,6 +3304,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : null;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
+		this.afterContent = options.afterContent || null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

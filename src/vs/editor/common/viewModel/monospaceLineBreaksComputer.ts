@@ -9,7 +9,7 @@ import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, LineBreakData, LineInjectedText } from 'vs/editor/common/viewModel/viewModel';
 
 const enum CharacterClass {
 	NONE = 0,
@@ -75,22 +75,25 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 		tabSize = tabSize | 0; //@perf
 		wrappingColumn = +wrappingColumn; //@perf
 
-		let requests: string[] = [];
-		let previousBreakingData: (LineBreakData | null)[] = [];
+		const requests: string[] = [];
+		const injectedTexts: (LineInjectedText[] | null)[] = [];
+		const previousBreakingData: (LineBreakData | null)[] = [];
 		return {
-			addRequest: (lineText: string, previousLineBreakData: LineBreakData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
 				requests.push(lineText);
+				injectedTexts.push(injectedText);
 				previousBreakingData.push(previousLineBreakData);
 			},
 			finalize: () => {
 				const columnsForFullWidthChar = fontInfo.typicalFullwidthCharacterWidth / fontInfo.typicalHalfwidthCharacterWidth; //@perf
 				let result: (LineBreakData | null)[] = [];
 				for (let i = 0, len = requests.length; i < len; i++) {
+					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData) {
+					if (previousLineBreakData && !injectedText) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					} else {
-						result[i] = createLineBreaks(this.classifier, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
+						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					}
 				}
 				arrPool1.length = 0;
@@ -353,7 +356,10 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: string, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: string, injectedText: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+	if (injectedText) {
+		console.log(`TODO: `, injectedText);
+	}
 	if (firstLineBreakColumn === -1) {
 		return null;
 	}

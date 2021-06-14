@@ -10,7 +10,7 @@ import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/strin
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, LineBreakData, LineInjectedText } from 'vs/editor/common/viewModel/viewModel';
 
 const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
 
@@ -29,7 +29,8 @@ export class DOMLineBreaksComputerFactory implements ILineBreaksComputerFactory 
 
 		let requests: string[] = [];
 		return {
-			addRequest: (lineText: string, previousLineBreakData: LineBreakData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
+				// TODO: handle injectedText
 				requests.push(lineText);
 			},
 			finalize: () => {

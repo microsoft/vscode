@@ -12,7 +12,7 @@ import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDe
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, LineInjectedText, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
@@ -276,11 +276,48 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 			this.hiddenAreasIds = [];
 		}
 
-		let linesContent = this.model.getLinesContent();
+		const linesContent = this.model.getLinesContent();
+		const injectedTextDecorations = this.model.getInjectedTextDecorations();
+		const injectedText: LineInjectedText[] = [];
+		for (const injectedTextDecoration of injectedTextDecorations) {
+			// TODO: user order 0 for before
+			if (injectedTextDecoration.options.afterContent) {
+				injectedText.push(new LineInjectedText(
+					injectedTextDecoration.range.endLineNumber,
+					injectedTextDecoration.range.endColumn,
+					1,
+					injectedTextDecoration.options.afterContent
+				));
+			}
+		}
+		injectedText.sort((a, b) => {
+			if (a.lineNumber === b.lineNumber) {
+				if (a.column === b.column) {
+					return a.order - b.order;
+				}
+				return a.column - b.column;
+			}
+			return a.lineNumber - b.lineNumber;
+		});
+
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
+		const injectedTextLength = injectedText.length;
+		let injectedTextIndex = 0;
+		let nextLineNumberWithInjectedText = (injectedTextIndex < injectedTextLength ? injectedText[injectedTextIndex].lineNumber : lineCount + 1);
 		for (let i = 0; i < lineCount; i++) {
-			lineBreaksComputer.addRequest(linesContent[i], previousLineBreaks ? previousLineBreaks[i] : null);
+			let lineInjectedText: LineInjectedText[] | null = null;
+			if (i + 1 === nextLineNumberWithInjectedText) {
+				// There is some injected text on this line
+				lineInjectedText = [];
+				while (i + 1 === nextLineNumberWithInjectedText && injectedTextIndex < injectedTextLength) {
+					lineInjectedText.push(injectedText[injectedTextIndex]);
+					injectedTextIndex++;
+					nextLineNumberWithInjectedText = (injectedTextIndex < injectedTextLength ? injectedText[injectedTextIndex].lineNumber : lineCount + 1);
+				}
+			}
+
+			lineBreaksComputer.addRequest(linesContent[i], lineInjectedText, previousLineBreaks ? previousLineBreaks[i] : null);
 		}
 		const linesBreaks = lineBreaksComputer.finalize();
 
@@ -1477,7 +1514,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public createLineBreaksComputer(): ILineBreaksComputer {
 		let result: null[] = [];
 		return {
-			addRequest: (lineText: string, previousLineBreakData: LineBreakData | null) => {
+			addRequest: (lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null) => {
 				result.push(null);
 			},
 			finalize: () => {

@@ -97,6 +97,18 @@ export class OutputPosition {
 	}
 }
 
+/**
+ * Represents text injected on a line
+ */
+export class LineInjectedText {
+	constructor(
+		public readonly lineNumber: number,
+		public readonly column: number,
+		public readonly order: number,
+		public readonly text: string
+	) { }
+}
+
 export class LineBreakData {
 	constructor(
 		public breakOffsets: number[],
@@ -141,7 +153,7 @@ export interface ILineBreaksComputer {
 	/**
 	 * Pass in `previousLineBreakData` if the only difference is in breaking columns!!!
 	 */
-	addRequest(lineText: string, previousLineBreakData: LineBreakData | null): void;
+	addRequest(lineText: string, injectedText: LineInjectedText[] | null, previousLineBreakData: LineBreakData | null): void;
 	finalize(): (LineBreakData | null)[];
 }
 

@@ -156,6 +156,10 @@ export interface IModelDecorationOptions {
 	 * If set, the decoration will be rendered after the text with this CSS class name.
 	 */
 	afterContentClassName?: string | null;
+	/**
+	 * If set, the content will be injected in the text after the range.
+	 */
+	afterContent?: string | null;
 }
 
 /**
@@ -1067,6 +1071,12 @@ export interface ITextModel {
 	 * @param filterOutValidation If set, it will ignore decorations specific to validation (i.e. warnings, errors).
 	 */
 	getOverviewRulerDecorations(ownerId?: number, filterOutValidation?: boolean): IModelDecoration[];
+
+	/**
+	 * Gets all the decorations that contain injected text.
+	 * @param ownerId If set, it will ignore decorations belonging to other owners.
+	 */
+	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
 	/**
 	 * @internal

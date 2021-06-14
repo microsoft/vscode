@@ -251,6 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private _registerModelEvents(): void {
 
 		this._register(this.model.onDidChangeRawContentFast((e) => {
+			// TODO: Add an event for injected text
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -265,13 +266,15 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
+							// TODO: enrich this event with injected text decorations
 							for (const line of change.detail) {
-								lineBreaksComputer.addRequest(line, null);
+								lineBreaksComputer.addRequest(line, null, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							lineBreaksComputer.addRequest(change.detail, null);
+							// TODO: enrich this event with injected text decorations
+							lineBreaksComputer.addRequest(change.detail, null, null);
 							break;
 						}
 					}
