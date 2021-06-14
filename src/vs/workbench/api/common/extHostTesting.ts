@@ -386,7 +386,6 @@ class TestRunQueue {
 		}
 
 		const dto = TestRunDto.fromPublic(request);
-		const task = new TestRunTask(name, dto, new Set(), this.proxy);
 		this.proxy.$startedExtensionTestRun({
 			debug: request.debug,
 			exclude: request.exclude?.map(t => t.id) ?? [],
@@ -394,6 +393,7 @@ class TestRunQueue {
 			tests: request.tests.map(t => t.id),
 			persist: persist
 		});
+		const task = new TestRunTask(name, dto, new Set(), this.proxy);
 		task.onEnd.wait().then(() => this.proxy.$finishedExtensionTestRun(dto.id));
 		return task;
 	}
