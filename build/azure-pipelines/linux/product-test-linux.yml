@@ -80,9 +80,9 @@ steps:
 
   - script: |
       set -e
-      cd $(Pipeline.Workspace)
-      for archive in *.tar.gz; do tar -xzf $archive; done
-      ls # TODO@joao: remove
+      tar -xzf $(Pipeline.Workspace)/vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned/*.tar.gz
+      tar -xzf $(Pipeline.Workspace)/vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned/*.tar.gz
+      tar -xzf $(Pipeline.Workspace)/vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned/*.tar.gz
     displayName: Extract archives
 
   - script: |
