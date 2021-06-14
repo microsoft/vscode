@@ -1967,10 +1967,13 @@ declare module 'vscode' {
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
-		 * @param options Options for this test run
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @param request Request information for the test run
+		 * @param cancellationToken Token that signals the used asked to abort the
+		 * test run. If cancellation is requested on this token, all {@link TestRun}
+		 * instances associated with the request will be
+		 * automatically cancelled as well.
 		 */
-		runTests(options: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+		runTests(request: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -2007,6 +2010,12 @@ declare module 'vscode' {
 		 * tests are run across multiple platforms, for example.
 		 */
 		readonly name?: string;
+
+		/**
+		 * A cancellation token which will be triggered when the test run is
+		 * canceled from the UI.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * Updates the state of the test in the run. Calling with method with nodes
