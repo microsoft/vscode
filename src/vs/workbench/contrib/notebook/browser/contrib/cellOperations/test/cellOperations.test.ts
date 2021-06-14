@@ -23,8 +23,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
@@ -40,8 +39,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.cellAt(0)?.getText(), '# header b');
@@ -59,8 +57,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -86,8 +83,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.length, 6);
@@ -105,8 +101,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)!, ui: true }, 'down');
 				assert.strictEqual(viewModel.length, 6);
@@ -124,8 +119,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 0, end: 2 }] });
 				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
 				assert.strictEqual(viewModel.length, 7);
@@ -145,8 +139,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				const foldingModel = new FoldingModel();
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
@@ -276,8 +269,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -292,8 +284,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 0, end: 2 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -309,8 +300,7 @@ suite('CellOperations', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 2, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -325,8 +315,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 0, end: 1 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
@@ -345,8 +334,7 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);
@@ -365,8 +353,7 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -385,8 +372,7 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 2, end: 3 });
 				editor.setSelections([{ start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -404,8 +390,7 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 2, end: 3 });
 				editor.setSelections([{ start: 2, end: 3 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(2)!);
@@ -422,8 +407,7 @@ suite('CellOperations', () => {
 				['var c = 3;', 'javascript', CellKind.Code, [], {}],
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 0, end: 1 });
 				editor.setSelections([{ start: 0, end: 1 }, { start: 3, end: 4 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(0)!);
@@ -441,8 +425,7 @@ suite('CellOperations', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}],
 				['var e = 5;', 'javascript', CellKind.Code, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.setFocus({ start: 1, end: 2 });
 				editor.setSelections([{ start: 1, end: 2 }, { start: 3, end: 5 }]);
 				runDeleteAction(viewModel, viewModel.cellAt(1)!);

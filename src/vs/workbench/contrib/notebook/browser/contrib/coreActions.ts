@@ -1635,8 +1635,8 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
 		} else {
-			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
-			context.notebookEditor.viewModel.notebookDocument.applyEdits(
+			const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
+			context.notebookEditor.textModel.applyEdits(
 				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
 				true, undefined, () => undefined, undefined
 			);

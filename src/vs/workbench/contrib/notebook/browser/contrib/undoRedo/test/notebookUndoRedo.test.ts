@@ -82,8 +82,7 @@ suite('Notebook Undo/Redo', () => {
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
 				['body', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor) => {
-				const viewModel = editor.viewModel;
+			async (editor, viewModel) => {
 				editor.textModel.applyEdits([{
 					editType: CellEditType.Replace, index: 1, count: 2, cells: []
 				}], true, undefined, () => undefined, undefined, true);
