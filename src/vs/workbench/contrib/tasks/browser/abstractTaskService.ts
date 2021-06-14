@@ -518,7 +518,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	protected showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
-		if ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange)) {
+		if (!VirtualWorkspaceContext.getValue(this.contextKeyService) && ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange))) {
 			this.notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
 				[{
 					label: nls.localize('showOutput', "Show output"),
