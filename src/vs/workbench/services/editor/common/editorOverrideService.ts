@@ -15,8 +15,9 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
@@ -149,7 +150,7 @@ export interface IEditorOverrideService {
 	 * @param group The current group
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
+	resolveEditorOverride(editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
