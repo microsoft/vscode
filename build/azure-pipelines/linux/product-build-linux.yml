@@ -170,7 +170,6 @@ steps:
       VSCODE_ARCH="$(VSCODE_ARCH)" \
       ./build/azure-pipelines/linux/prepare-publish.sh
     displayName: Prepare for Publish
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(DEB_PATH)
     artifact: vscode_client_linux_$(VSCODE_ARCH)_deb-package
