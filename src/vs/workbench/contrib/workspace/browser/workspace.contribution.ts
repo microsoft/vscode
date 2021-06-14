@@ -46,6 +46,9 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -528,9 +531,42 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
  * Actions
  */
 
-const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+// Configure Workspace Trust
+
+const CONFIGURE_TRUST_COMMAND_ID = 'workbench.trust.configure';
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: CONFIGURE_TRUST_COMMAND_ID,
+			title: {
+				original: 'Configure Workspace Trust',
+				value: localize('configureWorkspaceTrust', "Configure Workspace Trust")
+			},
+			category: localize('workspacesCategory', "Workspaces"),
+			menu: {
+				id: MenuId.GlobalActivity,
+				group: '6_workspace_trust',
+				order: 30,
+				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
+			},
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const editorPane = accessor.get(IEditorService).activeEditorPane;
+		if (editorPane instanceof SettingsEditor2) {
+			editorPane.focusSearch(`@tag:${WORKSPACE_TRUST_SETTING_TAG}`);
+		} else {
+			accessor.get(IPreferencesService).openSettings(false, `@tag:${WORKSPACE_TRUST_SETTING_TAG}`);
+		}
+	}
+});
 
 // Manage Workspace Trust
+
+const MANAGE_TRUST_COMMAND_ID = 'workbench.trust.manage';
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -576,6 +612,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				included: !isWeb,
 				description: localize('workspace.trust.description', "Controls whether or not workspace trust is enabled within VS Code."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[WORKSPACE_TRUST_STARTUP_PROMPT]: {
@@ -583,6 +620,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'once',
 				included: !isWeb,
 				description: localize('workspace.trust.startupPrompt.description', "Controls when the startup prompt to trust a workspace is shown."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['always', 'once', 'never'],
 				enumDescriptions: [
@@ -596,6 +634,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: 'prompt',
 				included: !isWeb,
 				markdownDescription: localize('workspace.trust.untrustedFiles.description', "Controls how to handle opening untrusted files in a trusted workspace. This setting also applies to opening files in an empty window which is trusted via `#{0}#`.", WORKSPACE_TRUST_EMPTY_WINDOW),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION,
 				enum: ['prompt', 'open', 'newWindow'],
 				enumDescriptions: [
@@ -609,6 +648,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				default: true,
 				included: !isWeb,
 				markdownDescription: localize('workspace.trust.emptyWindow.description', "Controls whether or not the empty window is trusted by default within VS Code. When used with `#{0}#`, you can enable the full functionality of VS Code without prompting in an empty window.", WORKSPACE_TRUST_UNTRUSTED_FILES),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
 				scope: ConfigurationScope.APPLICATION
 			}
 		}

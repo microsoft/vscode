@@ -263,6 +263,26 @@ class DuplicateWorkspaceInNewWindowAction extends Action2 {
 	}
 }
 
+class WorkspaceTrustConfigureAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.configureTrust',
+			title: { value: localize('configureTrustAction', "Configure Workspace Trust"), original: 'Configure Workspace Trust' },
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
+			category: localize('workspacesCategory', "Workspaces"),
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor) {
+		const commandService = accessor.get(ICommandService);
+		await commandService.executeCommand('workbench.trust.configure');
+	}
+}
+
+registerAction2(WorkspaceTrustConfigureAction);
+
 class WorkspaceTrustManageAction extends Action2 {
 
 	constructor() {
