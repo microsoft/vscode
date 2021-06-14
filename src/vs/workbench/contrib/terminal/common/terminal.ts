@@ -447,7 +447,8 @@ export const enum TerminalCommandId {
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
-	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession'
+	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession',
+	DetachProcess = 'workbench.action.terminal.detachProcess'
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
