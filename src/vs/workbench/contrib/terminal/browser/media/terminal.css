@@ -63,7 +63,6 @@
 	margin-right: -20px;
 }
 
-.monaco-workbench .editor-instance canvas,
 .monaco-workbench .pane-body.integrated-terminal canvas {
 	/* Align the viewport and canvases to the bottom of the panel */
 	position: absolute;
@@ -78,7 +77,6 @@
 	font-variant-ligatures: none;
 }
 
-.monaco-workbench .editor-instance .split-view-view,
 .monaco-workbench .pane-body.integrated-terminal .split-view-view {
 	box-sizing: border-box;
 	overflow: hidden;
