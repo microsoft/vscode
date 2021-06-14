@@ -37,10 +37,11 @@ import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { TerminalEditor, TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { TerminalInputSerializer, TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -71,7 +72,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TerminalEditor,
 		TerminalEditor.ID,
-		nls.localize('terminal.editor.label', "Terminal")
+		terminalStrings.terminalEditor.value
 	),
 	[
 		new SyncDescriptor(TerminalEditorInput)

@@ -38,5 +38,9 @@ export const terminalStrings = {
 	terminalEditorInput: {
 		value: localize('terminal.editor.input', "Terminal"),
 		original: 'Terminal'
+	},
+	terminalEditor: {
+		value: localize('terminal.editor.label', "Terminal"),
+		original: 'Terminal Editor'
 	}
 };

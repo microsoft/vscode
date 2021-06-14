@@ -204,10 +204,11 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
 			const editorService = accessor.get(IEditorService);
 			const instantiationService = accessor.get(IInstantiationService);
-			const input: TerminalEditorInput = instantiationService.createInstance(TerminalEditorInput);
-			await editorService.openEditor(input, { pinned: true });
+			const input = TerminalEditorInput.copy(terminalService, instantiationService);
+			await editorService.openEditor(input, { pinned: true, forceReload: true });
 		}
 	});
 
