@@ -37,6 +37,10 @@ import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { TerminalEditor, TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
@@ -61,6 +65,18 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 // Register configurations
 registerTerminalPlatformConfiguration();
 registerTerminalConfiguration();
+
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		TerminalEditor,
+		TerminalEditor.ID,
+		nls.localize('terminal.editor.label', "Terminal")
+	),
+	[
+		new SyncDescriptor(TerminalEditorInput)
+	]
+);
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
