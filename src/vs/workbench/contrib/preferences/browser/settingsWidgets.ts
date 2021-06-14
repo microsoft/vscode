@@ -506,8 +506,8 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 }
 
 interface IListSetValueOptions {
-	keySuggester: IObjectKeySuggester;
 	showAddButton: boolean;
+	keySuggester?: IObjectKeySuggester;
 }
 
 export interface IListDataItem {
