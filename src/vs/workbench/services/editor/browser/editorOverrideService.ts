@@ -13,7 +13,7 @@ import { EditorActivation, EditorOverride, IEditorOptions } from 'vs/platform/ed
 import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isResourceDiffEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
-import { ContributedEditorInfo, ContributedEditorPriority, RegisteredEditorOptions, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank, ReturnedOverride, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank, ReturnedOverride, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IKeyMods, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { localize } from 'vs/nls';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -23,13 +23,13 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
-interface IContributedEditorInput extends IEditorInput {
+interface IRegisteredEditorInput extends IEditorInput {
 	viewType?: string;
 }
 
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
-	editorInfo: ContributedEditorInfo,
+	editorInfo: RegisteredEditorInfo,
 	options?: RegisteredEditorOptions,
 	createEditorInput: EditorInputFactoryFunction
 	createDiffEditorInput?: DiffEditorInputFactoryFunction
@@ -127,7 +127,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		let currentViewType = undefined;
 		if (currentEditor) {
-			currentViewType = (currentEditor as IContributedEditorInput).viewType;
+			currentViewType = (currentEditor as IRegisteredEditorInput).viewType;
 		}
 		if (currentViewType && selectedEditor.editorInfo.id === currentViewType) {
 			return OverrideStatus.ABORT;
@@ -148,7 +148,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: ContributedEditorInfo,
+		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
@@ -273,9 +273,9 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		const associationsFromSetting = this.getAssociationsForResource(resource);
 		// We only want built-in+ if no user defined setting is found, else we won't override
-		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(ContributedEditorPriority.builtin) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(RegisteredEditorPriority.builtin) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		// If the editor is exclusive we use that, else use the user setting, else use the built-in+ editor
-		const selectedViewType = possibleEditors[0]?.editorInfo.priority === ContributedEditorPriority.exclusive ?
+		const selectedViewType = possibleEditors[0]?.editorInfo.priority === RegisteredEditorPriority.exclusive ?
 			possibleEditors[0]?.editorInfo.id :
 			associationsFromSetting[0]?.viewType || possibleEditors[0]?.editorInfo.id;
 
@@ -362,7 +362,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		for (const group of orderedGroups) {
 			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && (editor as IContributedEditorInput).viewType === viewType) {
+				if (isEqual(editor.resource, resource) && (editor as IRegisteredEditorInput).viewType === viewType) {
 					out.push({ editor, group });
 				}
 			}
@@ -370,7 +370,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(resource: URI, editorName: string, currentEditor: IContributedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+	private async doHandleConflictingDefaults(resource: URI, editorName: string, currentEditor: IRegisteredEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		type StoredChoice = {
 			[key: string]: string[];
 		};
@@ -448,7 +448,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const currentDefaultAndActiveLabel = localize('promptOpenWith.currentDefaultAndActive', "Active and Default");
 		// Default order = setting -> highest priority -> text
 		let defaultViewType = defaultSetting;
-		if (!defaultViewType && registeredEditors.length > 2 && registeredEditors[1]?.editorInfo.priority !== ContributedEditorPriority.option) {
+		if (!defaultViewType && registeredEditors.length > 2 && registeredEditors[1]?.editorInfo.priority !== RegisteredEditorPriority.option) {
 			defaultViewType = registeredEditors[1]?.editorInfo.id;
 		}
 		if (!defaultViewType) {
@@ -456,7 +456,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Map the editors to quickpick entries
 		registeredEditors.forEach(editor => {
-			const currentViewType = (currentEditor as IContributedEditorInput).viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
+			const currentViewType = (currentEditor as IRegisteredEditorInput).viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
 			const isActive = currentEditor ? editor.editorInfo.id === currentViewType : false;
 			const isDefault = editor.editorInfo.id === defaultViewType;
 			const quickPickEntry: IQuickPickItem = {
@@ -578,7 +578,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return undefined;
 	}
 
-	private sendOverrideTelemetry(chosenInput: IContributedEditorInput): void {
+	private sendOverrideTelemetry(chosenInput: IRegisteredEditorInput): void {
 		type editorOverrideClassification = {
 			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 		};
@@ -596,7 +596,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		// Store just the relative pattern pieces without any path info
 		for (const [globPattern, contribPoint] of this._editors) {
-			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== ContributedEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
+			const nonOptional = !!contribPoint.find(c => c.editorInfo.priority !== RegisteredEditorPriority.option && c.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 			// Don't keep a cache of the optional ones as those wouldn't be opened on start anyways
 			if (!nonOptional) {
 				continue;
