@@ -91,11 +91,11 @@ const defaultConfigConstants = {
 
 const compactConfigConstants = {
 	codeCellLeftMargin: 8,
-	cellRunGutter: 32,
+	cellRunGutter: 36,
 	markdownCellTopMargin: 6,
 	markdownCellBottomMargin: 6,
 	markdownCellLeftMargin: 8,
-	markdownCellGutter: 32,
+	markdownCellGutter: 36,
 	focusIndicatorLeftMargin: 4
 };
 
@@ -129,7 +129,7 @@ export class NotebookOptions {
 			cellBottomMargin: 6,
 			cellRightMargin: 16,
 			cellStatusBarHeight: 22,
-			cellOutputPadding: 14,
+			cellOutputPadding: 12,
 			markdownPreviewPadding: 8,
 			// bottomToolbarHeight: bottomToolbarHeight,
 			// bottomToolbarGap: bottomToolbarGap,
