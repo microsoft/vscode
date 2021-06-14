@@ -185,17 +185,14 @@ steps:
   - publish: $(TARBALL_PATH)
     artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish client archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH).tar.gz
     artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(Agent.BuildDirectory)/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz
     artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
     displayName: Publish web server archive
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - task: PublishPipelineArtifact@0
     displayName: "Publish Pipeline Artifact"
