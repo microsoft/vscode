@@ -68,22 +68,19 @@ steps:
 
   - download: current
     artifact: vscode_client_linux_$(VSCODE_ARCH)_archive-unsigned
-    path: $(Build.ArtifactStagingDirectory)
     displayName: Download client archive
 
   - download: current
     artifact: vscode_server_linux_$(VSCODE_ARCH)_archive-unsigned
-    path: $(Build.ArtifactStagingDirectory)
     displayName: Download server archive
 
   - download: current
     artifact: vscode_web_linux_$(VSCODE_ARCH)_archive-unsigned
-    path: $(Build.ArtifactStagingDirectory)
     displayName: Download web server archive
 
   - script: |
       set -e
-      cd $(Build.ArtifactStagingDirectory)
+      cd $(Pipeline.Workspace)
       for archive in *.tar.gz; do tar -xzf $archive; done
       ls # TODO@joao: remove
     displayName: Extract archives
@@ -114,11 +111,11 @@ steps:
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
       set -e
-      APP_ROOT=$(Build.ArtifactStagingDirectory)/VSCode-linux-$(VSCODE_ARCH)
+      APP_ROOT=$(Pipeline.Workspace)/VSCode-linux-$(VSCODE_ARCH)
       APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
       INTEGRATION_TEST_APP_NAME="$APP_NAME" \
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-      VSCODE_REMOTE_SERVER_PATH="$(Build.ArtifactStagingDirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+      VSCODE_REMOTE_SERVER_PATH="$(Pipeline.Workspace)/vscode-reh-linux-$(VSCODE_ARCH)" \
       ./scripts/test-integration.sh --build --tfs "Integration Tests"
     displayName: Run integration tests (Electron)
     timeoutInMinutes: 10
@@ -126,7 +123,7 @@ steps:
 
   - script: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(Build.ArtifactStagingDirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
+      VSCODE_REMOTE_SERVER_PATH="$(Pipeline.Workspace)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       ./resources/server/test/test-web-integration.sh --browser chromium
     displayName: Run integration tests (Browser)
     timeoutInMinutes: 10
@@ -134,11 +131,11 @@ steps:
 
   - script: |
       set -e
-      APP_ROOT=$(Build.ArtifactStagingDirectory)/VSCode-linux-$(VSCODE_ARCH)
+      APP_ROOT=$(Pipeline.Workspace)/VSCode-linux-$(VSCODE_ARCH)
       APP_NAME=$(node -p "require(\"$APP_ROOT/resources/app/product.json\").applicationName")
       INTEGRATION_TEST_APP_NAME="$APP_NAME" \
       INTEGRATION_TEST_ELECTRON_PATH="$APP_ROOT/$APP_NAME" \
-      VSCODE_REMOTE_SERVER_PATH="$(Build.ArtifactStagingDirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+      VSCODE_REMOTE_SERVER_PATH="$(Pipeline.Workspace)/vscode-reh-linux-$(VSCODE_ARCH)" \
       ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
     timeoutInMinutes: 7
@@ -146,7 +143,7 @@ steps:
 
   - script: |
       set -e
-      APP_PATH=$(Build.ArtifactStagingDirectory)/VSCode-linux-$(VSCODE_ARCH)
+      APP_PATH=$(Pipeline.Workspace)/VSCode-linux-$(VSCODE_ARCH)
       yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
@@ -154,8 +151,8 @@ steps:
 
   - script: |
       set -e
-      APP_PATH=$(Build.ArtifactStagingDirectory)/VSCode-linux-$(VSCODE_ARCH)
-      VSCODE_REMOTE_SERVER_PATH="$(Build.ArtifactStagingDirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
+      APP_PATH=$(Pipeline.Workspace)/VSCode-linux-$(VSCODE_ARCH)
+      VSCODE_REMOTE_SERVER_PATH="$(Pipeline.Workspace)/vscode-reh-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
@@ -163,7 +160,7 @@ steps:
 
   - script: |
       set -e
-      VSCODE_REMOTE_SERVER_PATH="$(Build.ArtifactStagingDirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
+      VSCODE_REMOTE_SERVER_PATH="$(Pipeline.Workspace)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
       yarn smoketest-no-compile --web --headless --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Browser)
