@@ -5,14 +5,14 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
 export const terminalInputId = 'workbench.editors.terminal';
 export class TerminalEditorInput extends EditorInput {
 
 	static readonly ID = terminalInputId;
-	static readonly RESOURCE = URI.from({ scheme: Schemas.vscodeTerminal, authority: 'vscode_editor_terminal' });
+	static readonly RESOURCE = URI.from({ scheme: Schemas.vscodeTerminal });
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
@@ -28,6 +28,6 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override getName() {
-		return localize('terminal.editor.input', "Terminal");
+		return terminalStrings.terminalEditorInput.value;
 	}
 }

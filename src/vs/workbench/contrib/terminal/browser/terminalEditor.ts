@@ -62,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 
 export class TerminalInputSerializer implements IEditorInputSerializer {
 	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return true;
+		return false;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string {

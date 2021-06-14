@@ -34,5 +34,9 @@ export const terminalStrings = {
 	unsplit: {
 		value: localize('unsplitTerminal', "Unsplit Terminal"),
 		original: 'Unsplit Terminal'
+	},
+	terminalEditorInput: {
+		value: localize('terminal.editor.input', "Terminal"),
+		original: 'Terminal'
 	}
 };
