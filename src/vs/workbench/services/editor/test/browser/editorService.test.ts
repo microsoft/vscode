@@ -30,7 +30,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -1131,7 +1131,7 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {
@@ -1166,7 +1166,7 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {
@@ -1197,7 +1197,7 @@ suite('EditorService', () => {
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {

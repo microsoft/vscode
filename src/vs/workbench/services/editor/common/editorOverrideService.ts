@@ -64,7 +64,7 @@ configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode)
 //#endregion
 
 //#region EditorOverrideService types
-export enum ContributedEditorPriority {
+export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
@@ -100,11 +100,11 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type ContributedEditorInfo = {
+export type RegisteredEditorInfo = {
 	id: string;
 	label: string;
 	detail?: string;
-	priority: ContributedEditorPriority;
+	priority: RegisteredEditorPriority;
 };
 
 export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
@@ -136,7 +136,7 @@ export interface IEditorOverrideService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: ContributedEditorInfo,
+		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
@@ -162,16 +162,16 @@ export interface IEditorOverrideService {
 //#endregion
 
 //#region Util functions
-export function priorityToRank(priority: ContributedEditorPriority): number {
+export function priorityToRank(priority: RegisteredEditorPriority): number {
 	switch (priority) {
-		case ContributedEditorPriority.exclusive:
+		case RegisteredEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.default:
+		case RegisteredEditorPriority.default:
 			return 4;
-		case ContributedEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			return 3;
 		// Text editor is priority 2
-		case ContributedEditorPriority.option:
+		case RegisteredEditorPriority.option:
 		default:
 			return 1;
 	}

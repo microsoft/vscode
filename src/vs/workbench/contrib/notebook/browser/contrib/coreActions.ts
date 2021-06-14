@@ -925,7 +925,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markup, context);
+		await changeCellToKind(CellKind.Markup, context, 'markdown');
 	}
 });
 
