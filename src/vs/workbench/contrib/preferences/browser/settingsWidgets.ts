@@ -598,7 +598,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				valueInput = this.renderDropdown(item.value, rowElement);
 				currentEnumOptions = item.value.options;
 				if (item.value.options.length) {
-					currentDisplayValue = item.value.data;
+					currentDisplayValue = this.isItemNew(item) ?
+						currentEnumOptions[0].value : item.value.data;
 				}
 				break;
 		}
