@@ -139,7 +139,7 @@ function convertLinkTags(
 								fragment: `L${currentLink.target.start.line},${currentLink.target.start.offset}`
 							});
 
-						out.push(`[${text}](${link.toString(true)})`);
+						out.push(`[${text}](${link.toString()})`);
 					} else {
 						if (text) {
 							out.push(text);
