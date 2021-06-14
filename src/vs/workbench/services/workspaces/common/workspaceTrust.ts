@@ -126,15 +126,17 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	private registerListeners(): void {
 
 		// Resolve the workspace uris and resolve the initialization promise
-		this.resolveCanonicalWorkspaceUris().then(async () => {
-			this._initialized = true;
-			await this.updateWorkspaceTrust();
-
-			this._workspaceResolvedPromiseResolve();
-			if (!this.environmentService.remoteAuthority) {
-				this._workspaceTrustInitializedPromiseResolve();
-			}
-		});
+		this.resolveCanonicalWorkspaceUris()
+			.then(async () => {
+				this._initialized = true;
+				await this.updateWorkspaceTrust();
+			})
+			.finally(() => {
+				this._workspaceResolvedPromiseResolve();
+				if (!this.environmentService.remoteAuthority) {
+					this._workspaceTrustInitializedPromiseResolve();
+				}
+			});
 
 		// Remote - resolve remote authority
 		if (this.environmentService.remoteAuthority) {
@@ -142,7 +144,8 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				.then(async result => {
 					this._remoteAuthority = result;
 					await this.updateWorkspaceTrust();
-
+				})
+				.finally(() => {
 					this._workspaceTrustInitializedPromiseResolve();
 				});
 		}
