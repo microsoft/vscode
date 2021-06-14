@@ -159,7 +159,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 		const notebookLayoutConfiguration = this.viewContext.notebookOptions.getLayoutConfiguration();
 		const bottomToolbarDimensions = this.viewContext.notebookOptions.computeBottomToolbarDimensions();
 		const outputShowMoreContainerHeight = state.outputShowMoreContainerHeight ? state.outputShowMoreContainerHeight : this._layoutInfo.outputShowMoreContainerHeight;
-		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalValue());
+		let outputTotalHeight = Math.max(this._outputMinHeight, this.metadata.outputCollapsed ? notebookLayoutConfiguration.collapsedIndicatorHeight : this._outputsTop!.getTotalSum());
 
 		const originalLayout = this.layoutInfo;
 		if (!this.metadata.inputCollapsed) {
@@ -368,7 +368,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			throw new Error('Output index out of range!');
 		}
 
-		return this._outputsTop!.getAccumulatedValue(index - 1);
+		return this._outputsTop!.getPrefixSum(index - 1);
 	}
 
 	getOutputOffset(index: number): number {
