@@ -142,7 +142,16 @@ function convertLinkTags(
 						out.push(`[${text}](${link.toString()})`);
 					} else {
 						if (text) {
-							out.push(text);
+							if (/^https?:/.test(text)) {
+								const parts = text.split(' ');
+								if (parts.length === 1) {
+									out.push(parts[0]);
+								} else if (parts.length > 1) {
+									out.push(`[${parts.slice(1).join(' ')}](${parts[0]})`);
+								}
+							} else {
+								out.push(text);
+							}
 						}
 					}
 					currentLink = undefined;
