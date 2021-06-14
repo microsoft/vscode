@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Codicon } from 'vs/base/common/codicons';
 import { Emitter } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { splitName } from 'vs/base/common/labels';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { Schemas } from 'vs/base/common/network';
-import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
@@ -577,20 +573,25 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 	_serviceBrand: undefined;
 
 	private _trusted!: boolean;
-	private _modalTrustRequestPromise?: Promise<boolean | undefined>;
-	private _modalTrustRequestResolver?: (trusted: boolean | undefined) => void;
-	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
-	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
+
+	private _openFilesTrustRequestPromise?: Promise<WorkspaceTrustUriResponse>;
+	private _openFilesTrustRequestResolver?: (response: WorkspaceTrustUriResponse) => void;
+
+	private _workspaceTrustRequestPromise?: Promise<boolean | undefined>;
+	private _workspaceTrustRequestResolver?: (trusted: boolean | undefined) => void;
+
+	private readonly _onDidInitiateOpenFilesTrustRequest = this._register(new Emitter<void>());
+	readonly onDidInitiateOpenFilesTrustRequest = this._onDidInitiateOpenFilesTrustRequest.event;
 
 	private readonly _onDidInitiateWorkspaceTrustRequest = this._register(new Emitter<WorkspaceTrustRequestOptions | undefined>());
 	readonly onDidInitiateWorkspaceTrustRequest = this._onDidInitiateWorkspaceTrustRequest.event;
 
+	private readonly _ctxWorkspaceTrustEnabled: IContextKey<boolean>;
+	private readonly _ctxWorkspaceTrustState: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IDialogService private readonly dialogService: IDialogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService
 	) {
 		super();
@@ -613,6 +614,8 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this._ctxWorkspaceTrustState.set(trusted);
 	}
 
+	//#region Open file(s) trust request
+
 	private get untrustedFilesSetting(): 'prompt' | 'open' | 'newWindow' {
 		return this.configurationService.getValue(WORKSPACE_TRUST_UNTRUSTED_FILES);
 	}
@@ -621,36 +624,35 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		this.configurationService.updateValue(WORKSPACE_TRUST_UNTRUSTED_FILES, value);
 	}
 
-	private resolveRequest(trusted?: boolean): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(trusted ?? this.trusted);
-
-			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestPromise = undefined;
-		}
-	}
-
-	cancelRequest(): void {
-		if (this._modalTrustRequestResolver) {
-			this._modalTrustRequestResolver(undefined);
-
-			this._modalTrustRequestResolver = undefined;
-			this._modalTrustRequestPromise = undefined;
-		}
-	}
-
-	async completeRequest(trusted?: boolean): Promise<void> {
-		if (trusted === undefined || trusted === this.trusted) {
-			this.resolveRequest(trusted);
+	async completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void> {
+		if (!this._openFilesTrustRequestResolver) {
 			return;
 		}
 
-		// Update storage, transition workspace, and resolve the promise
-		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
-		this.resolveRequest(trusted);
+		// Set acceptsOutOfWorkspaceFiles
+		if (result === WorkspaceTrustUriResponse.Open) {
+			this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles = true;
+		}
+
+		// Save response
+		if (saveResponse) {
+			if (result === WorkspaceTrustUriResponse.Open) {
+				this.untrustedFilesSetting = 'open';
+			}
+
+			if (result === WorkspaceTrustUriResponse.OpenInNewWindow) {
+				this.untrustedFilesSetting = 'newWindow';
+			}
+		}
+
+		// Resolve promise
+		this._openFilesTrustRequestResolver(result);
+
+		this._openFilesTrustRequestResolver = undefined;
+		this._openFilesTrustRequestPromise = undefined;
 	}
 
-	async requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
+	async requestOpenFilesTrust(uris: URI[]): Promise<WorkspaceTrustUriResponse> {
 		// If workspace is untrusted, there is no conflict
 		if (!this.trusted) {
 			return WorkspaceTrustUriResponse.Open;
@@ -679,48 +681,50 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 			return WorkspaceTrustUriResponse.Open;
 		}
 
-		const markdownDetails = [
-			this.workspaceService.getWorkbenchState() !== WorkbenchState.EMPTY ?
-				localize('openLooseFileWorkspaceDetails', "You are trying to open untrusted files in a workspace which is trusted.") :
-				localize('openLooseFileWindowDetails', "You are trying to open untrusted files in a window which is trusted."),
-			localize('openLooseFileLearnMore', "If you don't trust the authors of these files, we recommend to open them in Restricted Mode in a new window as the files may be malicious. See [our docs](https://aka.ms/vscode-workspace-trust) to learn more.")
-		];
-
-		const result = await this.dialogService.show(Severity.Info, localize('openLooseFileMesssage', "Do you trust the authors of these files?"), [localize('open', "Open"), localize('newWindow', "Open in Restricted Mode"), localize('cancel', "Cancel")], {
-			cancelId: 2,
-			checkbox: {
-				label: localize('openLooseFileWorkspaceCheckbox', "Remember my decision for all workspaces"),
-				checked: false
-			},
-			custom: {
-				icon: Codicon.shield,
-				markdownDetails: markdownDetails.map(md => { return { markdown: new MarkdownString(md) }; })
-			}
-		});
-
-		const saveResponseIfChecked = (response: WorkspaceTrustUriResponse, checked: boolean) => {
-			if (checked) {
-				if (response === WorkspaceTrustUriResponse.Open) {
-					this.untrustedFilesSetting = 'open';
-				}
-
-				if (response === WorkspaceTrustUriResponse.OpenInNewWindow) {
-					this.untrustedFilesSetting = 'newWindow';
-				}
-			}
-
-			return response;
-		};
-
-		switch (result.choice) {
-			case 0:
-				this.workspaceTrustManagementService.acceptsOutOfWorkspaceFiles = true;
-				return saveResponseIfChecked(WorkspaceTrustUriResponse.Open, !!result.checkboxChecked);
-			case 1:
-				return saveResponseIfChecked(WorkspaceTrustUriResponse.OpenInNewWindow, !!result.checkboxChecked);
-			default:
-				return WorkspaceTrustUriResponse.Cancel;
+		// Create/return a promise
+		if (!this._openFilesTrustRequestPromise) {
+			this._openFilesTrustRequestPromise = new Promise<WorkspaceTrustUriResponse>(resolve => {
+				this._openFilesTrustRequestResolver = resolve;
+			});
+		} else {
+			return this._openFilesTrustRequestPromise;
 		}
+
+		this._onDidInitiateOpenFilesTrustRequest.fire();
+		return this._openFilesTrustRequestPromise;
+	}
+
+	//#endregion
+
+	//#region Workspace trust request
+
+	private resolveWorkspaceTrustRequest(trusted?: boolean): void {
+		if (this._workspaceTrustRequestResolver) {
+			this._workspaceTrustRequestResolver(trusted ?? this.trusted);
+
+			this._workspaceTrustRequestResolver = undefined;
+			this._workspaceTrustRequestPromise = undefined;
+		}
+	}
+
+	cancelWorkspaceTrustRequest(): void {
+		if (this._workspaceTrustRequestResolver) {
+			this._workspaceTrustRequestResolver(undefined);
+
+			this._workspaceTrustRequestResolver = undefined;
+			this._workspaceTrustRequestPromise = undefined;
+		}
+	}
+
+	async completeWorkspaceTrustRequest(trusted?: boolean): Promise<void> {
+		if (trusted === undefined || trusted === this.trusted) {
+			this.resolveWorkspaceTrustRequest(trusted);
+			return;
+		}
+
+		// Update storage, transition workspace, and resolve the promise
+		await this.workspaceTrustManagementService.setWorkspaceTrust(trusted);
+		this.resolveWorkspaceTrustRequest(trusted);
 	}
 
 	async requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
@@ -730,19 +734,21 @@ export class WorkspaceTrustRequestService extends Disposable implements IWorkspa
 		}
 
 		// Modal request
-		if (!this._modalTrustRequestPromise) {
+		if (!this._workspaceTrustRequestPromise) {
 			// Create promise
-			this._modalTrustRequestPromise = new Promise(resolve => {
-				this._modalTrustRequestResolver = resolve;
+			this._workspaceTrustRequestPromise = new Promise(resolve => {
+				this._workspaceTrustRequestResolver = resolve;
 			});
 		} else {
 			// Return existing promise
-			return this._modalTrustRequestPromise;
+			return this._workspaceTrustRequestPromise;
 		}
 
 		this._onDidInitiateWorkspaceTrustRequest.fire(options);
-		return this._modalTrustRequestPromise;
+		return this._workspaceTrustRequestPromise;
 	}
+
+	//#endregion
 }
 
 class WorkspaceTrustTransitionManager extends Disposable {
