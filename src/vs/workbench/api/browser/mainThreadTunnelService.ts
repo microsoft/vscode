@@ -57,6 +57,9 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
 		}));
+		this._register(this.tunnelService.onAddedTunnelProvider(() => {
+			return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
+		}));
 	}
 
 	private _alreadyRegistered: boolean = false;
