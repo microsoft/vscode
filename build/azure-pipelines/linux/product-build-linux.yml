@@ -205,11 +205,19 @@ steps:
 
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: "crash-dump-linux-$(VSCODE_ARCH)"
+      artifactName: crash-dump-linux-$(VSCODE_ARCH)
       targetPath: .build/crashes
     displayName: "Publish Crash Reports"
     continueOnError: true
     condition: failed()
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-linux-$(VSCODE_ARCH)
+      targetPath: .build/logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: succeededOrFailed()
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
