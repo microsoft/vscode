@@ -874,20 +874,26 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
+	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
 
-	export interface TerminalOptions {
+	export interface Pseudoterminal {
 		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
 		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface ExtensionTerminalOptions {
-		/**
-		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
+		onDidChangeName?: Event<string>;
 	}
 
 	//#endregion
