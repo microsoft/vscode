@@ -17,7 +17,7 @@ export function formatMessageForTerminal(message: string, excludeLeadingNewLine:
  * An object holding strings shared by multiple parts of the terminal
  */
 export const terminalStrings = {
-	terminal: localize('terminal.editor.input', "Terminal"),
+	terminal: localize('terminal', "Terminal"),
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
