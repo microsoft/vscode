@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -19,6 +19,7 @@ import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 interface NotebookEditorInputOptions {
 	startDirty?: boolean;
@@ -217,13 +218,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
 			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
+		} else {
+			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.viewType === editorId;
 		}
-		return false;
 	}
 }

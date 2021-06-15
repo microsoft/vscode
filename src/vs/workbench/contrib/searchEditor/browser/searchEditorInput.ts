@@ -31,6 +31,7 @@ import { ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/se
 import { bufferToReadable, VSBuffer } from 'vs/base/common/buffer';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export type SearchConfiguration = {
 	query: string,
@@ -215,8 +216,10 @@ export class SearchEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	override matches(other: unknown) {
-		if (super.matches(other)) { return true; }
+	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+		if (super.matches(other, editorId)) {
+			return true;
+		}
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment) || !!(other.backingUri && isEqual(other.backingUri, this.backingUri));

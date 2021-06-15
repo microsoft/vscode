@@ -1562,7 +1562,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Filter: except
 		else if (filter.except) {
-			editorsToClose = editorsToClose.filter(editor => !editor.matches(filter.except));
+			editorsToClose = editorsToClose.filter(editor => filter.except && !editor.matches(filter.except));
 		}
 
 		return editorsToClose;

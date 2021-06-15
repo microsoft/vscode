@@ -6,11 +6,12 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { join } from 'vs/base/common/path';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export class ExtensionsInput extends EditorInput {
 
@@ -41,8 +42,8 @@ export class ExtensionsInput extends EditorInput {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	override matches(other: unknown): boolean {
-		if (super.matches(other)) {
+	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+		if (super.matches(other, editorId)) {
 			return true;
 		}
 

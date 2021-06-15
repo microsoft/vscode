@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -18,6 +18,7 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -149,8 +150,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (!super.matches(otherInput)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+		if (!super.matches(otherInput, editorId)) {
 			return false;
 		}
 
