@@ -49,8 +49,32 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 			logService.trace('resolveShellEnv(): running (macOS/Linux)');
 		}
 
+		// Call this only once and cache the promise for
+		// subsequent calls since this operation can be
+		// expensive (spawns a process).
 		if (!unixShellEnvPromise) {
-			unixShellEnvPromise = doResolveUnixShellEnv(logService);
+			unixShellEnvPromise = new Promise(async resolve => {
+
+				// Give up resolving shell env after 10 seconds
+				const timeout = setTimeout(() => {
+					logService.error(`[resolve shell env] Could not resolve shell environment within 10 seconds. Proceeding without shell environment...`);
+
+					resolve({});
+				}, 10000);
+
+				// Resolve shell env and handle errors
+				try {
+					const shellEnv = await doResolveUnixShellEnv(logService);
+
+					resolve(shellEnv);
+				} catch (error) {
+					logService.error(`[resolve shell env] Unable to resolve shell environment (${error}). Proceeding without shell environment...`);
+
+					resolve({});
+				} finally {
+					clearTimeout(timeout);
+				}
+			});
 		}
 
 		return unixShellEnvPromise;
