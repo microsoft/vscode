@@ -119,7 +119,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		const handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
-		if (handlesDiff === false) {
+		if (handlesDiff === false && isResourceDiffEditorInput(editor)) {
 			return OverrideStatus.NONE;
 		}
 

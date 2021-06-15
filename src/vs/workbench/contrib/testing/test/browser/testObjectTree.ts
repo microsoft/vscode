@@ -12,7 +12,7 @@ import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } fro
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
-type SerializedTree = { e: string; children?: SerializedTree[] };
+type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
 
 const element = document.createElement('div');
 element.style.height = '1000px';
@@ -31,6 +31,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 				{
 					disposeTemplate: () => undefined,
 					renderElement: (node, _index, container: HTMLElement) => {
+						Object.assign(container.dataset, node.element);
 						container.textContent = `${node.depth}:${serializer(node.element)}`;
 					},
 					renderTemplate: c => c,
@@ -50,15 +51,18 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 		return this.model;
 	}
 
-	public getRendered() {
-		const elements = element.querySelectorAll('.monaco-tl-contents');
+	public getRendered(getProperty?: string) {
+		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
 		let chain: SerializedTree[] = [{ e: '', children: [] }];
 		for (const element of sorted) {
 			const [depthStr, label] = element.textContent!.split(':');
 			const depth = Number(depthStr);
 			const parent = chain[depth - 1];
-			const child = { e: label };
+			const child: SerializedTree = { e: label };
+			if (getProperty) {
+				child.data = element.dataset[getProperty];
+			}
 			parent.children = parent.children?.concat(child) ?? [child];
 			chain[depth] = child;
 		}

@@ -375,6 +375,7 @@ class CodeMain {
 			buttons: [mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
 			message,
 			detail,
+			defaultId: 0,
 			noLink: true
 		});
 	}

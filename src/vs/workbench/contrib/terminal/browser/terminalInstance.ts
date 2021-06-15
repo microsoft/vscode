@@ -984,6 +984,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	detachFromProcess(): void {
 		this._processManager.detachFromProcess();
+		this.dispose();
 	}
 
 	forceRedraw(): void {

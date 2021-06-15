@@ -29,6 +29,8 @@ export namespace NotebookDto {
 			cellKind: cell.cellKind,
 			language: cell.language,
 			source: cell.source,
+			internalMetadata: cell.internalMetadata,
+			metadata: cell.metadata,
 			outputs: cell.outputs.map(toNotebookOutputDto)
 		};
 	}

@@ -213,11 +213,11 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			data.root.classList.add('string-label');
 			data.root.title = '';
 		} else {
-			data.parametersLabel.textContent = stripNewLines(completion.label.parameters || '');
+			data.parametersLabel.textContent = stripNewLines(completion.label.signature || '');
 			data.qualifierLabel.textContent = stripNewLines(completion.label.qualifier || '');
 			data.detailsLabel.textContent = stripNewLines(completion.label.type || '');
 			data.root.classList.remove('string-label');
-			data.root.title = `${element.textLabel}${completion.label.parameters ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
+			data.root.title = `${element.textLabel}${completion.label.signature ?? ''}  ${completion.label.qualifier ?? ''}  ${completion.label.type ?? ''}`;
 		}
 
 		if (this._editor.getOption(EditorOption.suggest).showInlineDetails) {

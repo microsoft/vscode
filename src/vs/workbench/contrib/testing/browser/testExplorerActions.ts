@@ -380,9 +380,12 @@ export class CancelTestRunAction extends Action2 {
 	 * @override
 	 */
 	public async run(accessor: ServicesAccessor) {
+		const resultService = accessor.get(ITestResultService);
 		const testService = accessor.get(ITestService);
-		for (const run of testService.testRuns) {
-			testService.cancelTestRun(run);
+		for (const run of resultService.results) {
+			if (!run.completedAt) {
+				testService.cancelTestRun(run.id);
+			}
 		}
 	}
 }

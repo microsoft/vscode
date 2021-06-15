@@ -237,7 +237,7 @@ export class MainThreadNotebooksAndEditors {
 
 		return {
 			id: add.getId(),
-			documentUri: add.viewModel.uri,
+			documentUri: add.textModel.uri,
 			selections: add.getSelections(),
 			visibleRanges: add.visibleRanges,
 			viewColumn: pane && editorGroupToViewColumn(this._editorGroupService, pane.group)
