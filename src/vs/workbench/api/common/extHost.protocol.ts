@@ -1930,6 +1930,7 @@ export interface NotebookOutputDto {
 export interface NotebookCellDataDto {
 	source: string;
 	language: string;
+	mime: string | undefined;
 	cellKind: notebookCommon.CellKind;
 	outputs: NotebookOutputDto[];
 	metadata?: notebookCommon.NotebookCellMetadata;
@@ -1947,6 +1948,7 @@ export interface NotebookCellDto {
 	eol: string;
 	source: string[];
 	language: string;
+	mime?: string;
 	cellKind: notebookCommon.CellKind;
 	outputs: NotebookOutputDto[];
 	metadata?: notebookCommon.NotebookCellMetadata;
@@ -2000,6 +2002,7 @@ export type NotebookRawContentEventDto =
 		readonly append: boolean;
 	}
 	| notebookCommon.NotebookCellsChangeLanguageEvent
+	| notebookCommon.NotebookCellsChangeMimeEvent
 	| notebookCommon.NotebookCellsChangeMetadataEvent
 	| notebookCommon.NotebookCellsChangeInternalMetadataEvent
 	// | notebookCommon.NotebookDocumentChangeMetadataEvent

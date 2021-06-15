@@ -1448,6 +1448,7 @@ export namespace NotebookCellData {
 		return {
 			cellKind: NotebookCellKind.from(data.kind),
 			language: data.languageId,
+			mime: data.mime,
 			source: data.value,
 			metadata: data.metadata,
 			internalMetadata: NotebookCellExecutionSummary.from(data.executionSummary ?? {}),
@@ -1460,6 +1461,7 @@ export namespace NotebookCellData {
 			NotebookCellKind.to(data.cellKind),
 			data.source,
 			data.language,
+			data.mime,
 			data.outputs ? data.outputs.map(NotebookCellOutput.to) : undefined,
 			data.metadata,
 			data.internalMetadata ? NotebookCellExecutionSummary.to(data.internalMetadata) : undefined
