@@ -72,7 +72,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		TerminalEditor,
 		TerminalEditor.ID,
-		terminalStrings.terminalEditor.value
+		terminalStrings.terminal
 	),
 	[
 		new SyncDescriptor(TerminalEditorInput)
