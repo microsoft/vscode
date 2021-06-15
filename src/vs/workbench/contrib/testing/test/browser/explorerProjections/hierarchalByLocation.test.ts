@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { Emitter } from 'vs/base/common/event';
 import { HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
+import { TestResultState, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { makeTestWorkspaceFolder, TestTreeTestHarness } from 'vs/workbench/contrib/testing/test/browser/testObjectTree';
 
 class TestHierarchicalByLocationProjection extends HierarchicalByLocationProjection {
@@ -18,12 +21,18 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 	let harness: TestTreeTestHarness<TestHierarchicalByLocationProjection>;
 	const folder1 = makeTestWorkspaceFolder('f1');
 	const folder2 = makeTestWorkspaceFolder('f2');
+	let onTestChanged: Emitter<TestResultItemChange>;
+	let resultsService: any;
+
 	setup(() => {
-		harness = new TestTreeTestHarness([folder1, folder2], l => new TestHierarchicalByLocationProjection(l, {
+		onTestChanged = new Emitter();
+		resultsService = {
 			onResultsChanged: () => undefined,
-			onTestChanged: () => undefined,
+			onTestChanged: onTestChanged.event,
 			getStateById: () => ({ state: { state: 0 }, computedState: 0 }),
-		} as any));
+		};
+
+		harness = new TestTreeTestHarness([folder1, folder2], l => new TestHierarchicalByLocationProjection(l, resultsService as any));
 	});
 
 	teardown(() => {
@@ -115,6 +124,50 @@ suite('Workbench - Testing Explorer Hierarchal by Location Projection', () => {
 		assert.deepStrictEqual(harness.flush(folder1), [
 			{ e: 'a', children: [{ e: 'aa' }] },
 			{ e: 'b' }
+		]);
+	});
+
+	test('applies state changes', async () => {
+		const tests = testStubs.nested();
+		harness.c.addRoot(tests, 'a');
+		harness.flush(folder1);
+		resultsService.getStateById = () => [undefined, resultInState(TestResultState.Failed)];
+
+		const resultInState = (state: TestResultState): TestResultItem => ({
+			item: harness.c.itemToInternal.get(tests.children.get('id-a')!)!.item,
+			parent: 'id-root',
+			tasks: [],
+			retired: false,
+			ownComputedState: state,
+			computedState: state,
+		});
+
+		// Applies the change:
+		onTestChanged.fire({
+			reason: TestResultItemChangeReason.OwnStateChange,
+			result: null as any,
+			previous: TestResultState.Unset,
+			item: resultInState(TestResultState.Queued),
+		});
+		harness.projection.applyTo(harness.tree);
+
+		assert.deepStrictEqual(harness.tree.getRendered('state'), [
+			{ e: 'a', data: String(TestResultState.Queued) },
+			{ e: 'b', data: String(TestResultState.Unset) }
+		]);
+
+		// Falls back if moved into unset state:
+		onTestChanged.fire({
+			reason: TestResultItemChangeReason.OwnStateChange,
+			result: null as any,
+			previous: TestResultState.Queued,
+			item: resultInState(TestResultState.Unset),
+		});
+		harness.projection.applyTo(harness.tree);
+
+		assert.deepStrictEqual(harness.tree.getRendered('state'), [
+			{ e: 'a', data: String(TestResultState.Failed) },
+			{ e: 'b', data: String(TestResultState.Unset) }
 		]);
 	});
 });

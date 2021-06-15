@@ -14,6 +14,7 @@ fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
 VSCODECRASHDIR=$ROOT/.build/crashes
+VSCODELOGSDIR=$ROOT/.build/logs/integration-tests
 cd $ROOT
 
 # Figure out which Electron to use for running tests
@@ -23,6 +24,7 @@ then
 	INTEGRATION_TEST_ELECTRON_PATH="./scripts/code.sh"
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
+	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests out of sources."
 else
 	# Run from a built: need to compile all test extensions
@@ -47,6 +49,7 @@ else
 	export ELECTRON_ENABLE_LOGGING=1
 
 	echo "Storing crash reports into '$VSCODECRASHDIR'."
+	echo "Storing log files into '$VSCODELOGSDIR'."
 	echo "Running integration tests with '$INTEGRATION_TEST_ELECTRON_PATH' as build."
 fi
 
@@ -62,7 +65,7 @@ after_suite
 
 # Tests in the extension host
 
-ALL_PLATFORMS_API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --crash-reporter-directory=$VSCODECRASHDIR --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
+ALL_PLATFORMS_API_TESTS_EXTRA_ARGS="--disable-telemetry --skip-welcome --crash-reporter-directory=$VSCODECRASHDIR --logsPath=$VSCODELOGSDIR --no-cached-data --disable-updates --disable-keytar --disable-extensions --disable-workspace-trust --user-data-dir=$VSCODEUSERDATADIR"
 
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-api-tests/testWorkspace --enable-proposed-api=vscode.vscode-api-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-api-tests --extensionTestsPath=$ROOT/extensions/vscode-api-tests/out/singlefolder-tests $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
 after_suite

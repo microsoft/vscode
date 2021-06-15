@@ -119,17 +119,14 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		const handlesDiff = typeof selectedEditor.options?.canHandleDiff === 'function' ? selectedEditor.options.canHandleDiff() : selectedEditor.options?.canHandleDiff;
-		if (handlesDiff === false) {
+		if (handlesDiff === false && isResourceDiffEditorInput(editor)) {
 			return OverrideStatus.NONE;
 		}
 
 		// If it's the currently active editor we shouldn't do anything
-		const currentEditor = firstOrDefault(group.findEditors(resource));
-		let currentViewType = undefined;
-		if (currentEditor) {
-			currentViewType = (currentEditor as IRegisteredEditorInput).viewType;
-		}
-		if (currentViewType && selectedEditor.editorInfo.id === currentViewType) {
+		const currentEditors = group.findEditors(resource);
+		const isActive = currentEditors.find(editor => (editor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id);
+		if (isActive) {
 			return OverrideStatus.ABORT;
 		}
 		const input = await this.doOverrideEditorInput(resource, editor, options, group, selectedEditor);

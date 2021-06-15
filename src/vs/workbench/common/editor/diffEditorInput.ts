@@ -25,7 +25,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static override readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID: string = 'workbench.editors.diffEditorInput';
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;

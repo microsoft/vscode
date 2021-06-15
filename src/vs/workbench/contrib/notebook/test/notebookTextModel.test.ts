@@ -24,11 +24,10 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -48,11 +47,10 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 6, 'var f = 6;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 6);
@@ -93,11 +91,10 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 3, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 				assert.strictEqual(textModel.cells.length, 4);
 
@@ -116,11 +113,10 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -140,10 +136,9 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				textModel.applyEdits([
-					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => undefined, undefined);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -345,7 +340,6 @@ suite('NotebookTextModel', () => {
 				['var d = 4;', 'javascript', CellKind.Code, [], {}]
 			],
 			(editor) => {
-				const viewModel = editor.viewModel;
 				const textModel = editor.textModel;
 				let changeEvent: NotebookTextModelChangedEvent | undefined = undefined;
 				const eventListener = textModel.onDidChangeContent(e => {
@@ -355,7 +349,7 @@ suite('NotebookTextModel', () => {
 
 				textModel.applyEdits([
 					{ editType: CellEditType.Replace, index: 1, count: 1, cells: [] },
-					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(viewModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
+					{ editType: CellEditType.Replace, index: 1, count: 0, cells: [new TestCell(textModel.viewType, 5, 'var e = 5;', 'javascript', CellKind.Code, [], modeService)] },
 				], true, undefined, () => ({ kind: SelectionStateType.Index, focus: { start: 0, end: 1 }, selections: [{ start: 0, end: 1 }] }), undefined);
 
 				assert.strictEqual(textModel.cells.length, 4);
@@ -516,10 +510,10 @@ suite('NotebookTextModel', () => {
 		await withTestNotebook([
 			['var a = 1;', 'javascript', CellKind.Code, [], {}],
 			['var b = 2;', 'javascript', CellKind.Code, [], {}]
-		], async (editor) => {
-			assert.strictEqual(editor.viewModel.getVersionId(), 0);
+		], async (editor, viewModel) => {
+			assert.strictEqual(editor.textModel.versionId, 0);
 			const firstAltVersion = '0_0,1;1,1';
-			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			assert.strictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
 			editor.textModel.applyEdits([
 				{
 					index: 0,
@@ -529,19 +523,19 @@ suite('NotebookTextModel', () => {
 					}
 				}
 			], true, undefined, () => undefined, undefined, true);
-			assert.strictEqual(editor.viewModel.getVersionId(), 1);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			assert.strictEqual(editor.textModel.versionId, 1);
+			assert.notStrictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
 			const secondAltVersion = '1_0,1;1,1';
-			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
+			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
 
-			await editor.viewModel.undo();
-			assert.strictEqual(editor.viewModel.getVersionId(), 2);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
+			await viewModel.undo();
+			assert.strictEqual(editor.textModel.versionId, 2);
+			assert.strictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
 
-			await editor.viewModel.redo();
-			assert.strictEqual(editor.viewModel.getVersionId(), 3);
-			assert.notStrictEqual(editor.viewModel.getAlternativeId(), firstAltVersion);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
+			await viewModel.redo();
+			assert.strictEqual(editor.textModel.versionId, 3);
+			assert.notStrictEqual(editor.textModel.alternativeVersionId, firstAltVersion);
+			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
 
 			editor.textModel.applyEdits([
 				{
@@ -552,12 +546,12 @@ suite('NotebookTextModel', () => {
 					}
 				}
 			], true, undefined, () => undefined, undefined, true);
-			assert.strictEqual(editor.viewModel.getVersionId(), 4);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), '4_0,1;1,1');
+			assert.strictEqual(editor.textModel.versionId, 4);
+			assert.strictEqual(editor.textModel.alternativeVersionId, '4_0,1;1,1');
 
-			await editor.viewModel.undo();
-			assert.strictEqual(editor.viewModel.getVersionId(), 5);
-			assert.strictEqual(editor.viewModel.getAlternativeId(), secondAltVersion);
+			await viewModel.undo();
+			assert.strictEqual(editor.textModel.versionId, 5);
+			assert.strictEqual(editor.textModel.alternativeVersionId, secondAltVersion);
 
 		});
 	});

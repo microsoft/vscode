@@ -760,7 +760,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
 		const { resources, diffMode } = this.extractEditorResources(editors);
 
-		const trustResult = await this.workspaceTrustRequestService.requestOpenUris(resources);
+		const trustResult = await this.workspaceTrustRequestService.requestOpenFilesTrust(resources);
 		switch (trustResult) {
 			case WorkspaceTrustUriResponse.Open:
 				return true;

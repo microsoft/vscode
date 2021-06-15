@@ -2063,6 +2063,7 @@ export const enum ExtHostTestingResource {
 
 export interface ExtHostTestingShape {
 	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
+	$cancelExtensionTestRun(runId: string | undefined): void;
 	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
 	$lookupTest(test: TestIdWithSrc): Promise<InternalTestItem | undefined>;

@@ -74,11 +74,14 @@ export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequ
 export interface IWorkspaceTrustRequestService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
-	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse>;
-	cancelRequest(): void;
-	completeRequest(trusted?: boolean): Promise<void>;
+	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
+	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+
+	cancelWorkspaceTrustRequest(): void;
+	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 }
 

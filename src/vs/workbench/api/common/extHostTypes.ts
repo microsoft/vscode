@@ -3382,6 +3382,7 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 		}
 
 		api.children.set(child.id, child);
+		getPrivateApiFor(child).parent = this;
 		api.bus.fire([ExtHostTestItemEventType.NewChild, child]);
 	}
 }

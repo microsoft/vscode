@@ -370,7 +370,6 @@ export class SingleUseTestCollection implements IDisposable {
 		this.pushDiff([TestDiffOpType.Add, { parent: parentId, src, expand, item: internal.item }]);
 
 		const api = getPrivateApiFor(actual);
-		api.parent = parent?.actual;
 		api.bus.event(this.onTestItemEvent.bind(this, internal));
 
 		// important that this comes after binding the event bus otherwise we
