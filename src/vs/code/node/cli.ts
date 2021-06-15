@@ -6,7 +6,7 @@
 import { homedir } from 'os';
 import { existsSync, statSync, unlinkSync, chmodSync, truncateSync, readFileSync } from 'fs';
 import { spawn, ChildProcess, SpawnOptions } from 'child_process';
-import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/platform/environment/node/argv';
+import { buildHelpMessage, buildVersionMessage, OPTIONS } from 'vs/utils/message';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { parseCLIProcessArgv, addArg } from 'vs/platform/environment/node/argvHelper';
 import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
@@ -15,19 +15,11 @@ import { isAbsolute, join } from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
 import { findFreePort } from 'vs/base/node/ports';
 import { randomPort } from 'vs/base/common/ports';
-import { isWindows, IProcessEnvironment } from 'vs/base/common/platform';
+import { isWindows, IProcessEnvironment } from 'vs/utils/isPlatform';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
 import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
-
-function shouldSpawnCliProcess(argv: NativeParsedArgs): boolean {
-	return !!argv['install-source']
-		|| !!argv['list-extensions']
-		|| !!argv['install-extension']
-		|| !!argv['uninstall-extension']
-		|| !!argv['locate-extension']
-		|| !!argv['telemetry'];
-}
+import shouldSpawnCliProcess from 'vs/utils/spawnCliProcess'
 
 interface IMainCli {
 	main: (argv: NativeParsedArgs) => Promise<void>;
@@ -39,7 +31,7 @@ export async function main(argv: string[]): Promise<any> {
 	try {
 		args = parseCLIProcessArgv(argv);
 	} catch (err) {
-		console.error(err.message);
+		console.error(`Error : ${err.message}`);
 		return;
 	}
 
