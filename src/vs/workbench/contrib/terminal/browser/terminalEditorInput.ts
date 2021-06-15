@@ -32,10 +32,6 @@ export class TerminalEditorInput extends EditorInput {
 		this._terminalInstance = terminalInstance;
 	}
 
-	// static copy(instantiationService: IInstantiationService): TerminalEditorInput {
-	// 	return instantiationService.createInstance(TerminalEditorInput);
-	// }
-
 	override getName() {
 		return this.terminalInstance.title;
 	}

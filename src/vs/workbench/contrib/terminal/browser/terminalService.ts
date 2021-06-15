@@ -42,6 +42,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TerminalEditorIconManager } from 'vs/workbench/contrib/terminal/browser/terminalEditorIconManager';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -72,6 +73,8 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
+
+	private _iconManager: TerminalEditorIconManager;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -163,6 +166,10 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+		this._iconManager = this._instantiationService.createInstance(TerminalEditorIconManager);
+		this.onInstanceIconChanged(() => this._iconManager.updateStyleSheet());
+		this.onInstanceCreated(() => this._iconManager.updateStyleSheet());
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,

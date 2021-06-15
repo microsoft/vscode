@@ -5,27 +5,22 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TerminalIcon, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class TerminalEditorIconManager implements IDisposable {
-
-	private readonly _icons = new Map<string, TerminalIcon>();
 
 	private _styleElement: HTMLStyleElement | undefined;
 
 	constructor(
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ITerminalService terminalService: ITerminalService
+		@IConfigurationService _configurationService: IConfigurationService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		_configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + terminalService.getPlatformKey()) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + terminalService.getPlatformKey())) {
-				this._updateStyleSheet();
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + _terminalService.getPlatformKey()) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + _terminalService.getPlatformKey())) {
+				this.updateStyleSheet();
 			}
 		});
 	}
@@ -39,47 +34,43 @@ export class TerminalEditorIconManager implements IDisposable {
 	private get styleElement(): HTMLStyleElement {
 		if (!this._styleElement) {
 			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'terminal-icons';
+			this._styleElement.className = 'terminal-editor-icon';
 		}
 		return this._styleElement;
 	}
 
-	public setIcons(
-		webviewId: string,
-		iconPath?: TerminalIcon
-	) {
-		if (iconPath) {
-			this._icons.set(webviewId, iconPath);
-		} else {
-			this._icons.delete(webviewId);
-		}
-
-		this._updateStyleSheet();
-	}
-
-	private async _updateStyleSheet() {
-		await this._lifecycleService.when(LifecyclePhase.Starting);
-
-		const cssRules: string[] = [];
-		if (this._configurationService.getValue('workbench.iconTheme') !== null) {
-			for (const [key, value] of this._icons) {
-				const webviewSelector = `.show-file-icons .terminal-${key}-name-file-icon::before`;
-				try {
-					if (typeof value === 'object' && 'light' in value && 'dark' in value) {
-						cssRules.push(
-							`.monaco-workbench.vs ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.light)}; }`,
-							`.monaco-workbench.vs-dark ${webviewSelector}, .monaco-workbench.hc-black ${webviewSelector} { content: ""; background-image: ${dom.asCSSUrl(value.dark)}; }`
-						);
-					} else if (URI.isUri(value)) {
-
-					} else {
-
-					}
-				} catch {
-					// noop
-				}
+	async updateStyleSheet() {
+		// const cssRules: string[] = [];
+		// await this._lifecycleService.when(LifecyclePhase.Starting);
+		for (const instance of this._terminalService.terminalInstances) {
+			const icon = instance.icon;
+			if (!icon) {
+				continue;
 			}
+
+			// const cssRules: string[] = [];
+			// if (icon instanceof Codicon) {
+			// 	const terminalSelector = dom.$(`.tab .${instance.title}-name-file-icon`);
+			// console.log(`${terminalSelector}`);
+			// cssRules.push(`.monaco-workbench ${terminalSelector} ${icon.classNames} { content: ""; }`);
 		}
-		this.styleElement.textContent = cssRules.join('\n');
+		// const iconClasses = getUriClasses(instance, this._themeService.getColorTheme().type);
+		// let uri = undefined;
+		// if (icon instanceof URI) {
+		// 	uri = icon;
+		// } else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+		// 	uri = this._themeService.getColorTheme().type === ColorScheme.LIGHT ? icon.light : icon.dark;
+		// }
+		// if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
+		// 	const terminalSelector = `.${instance.title}-name-file-icon::before`;
+		// 	console.log(terminalSelector);
+		// 	try {
+		// 		cssRules.push(`.monaco-workbench .${iconClasses[0]} ${terminalSelector} { content: ""; background-image: ${dom.asCSSUrl(uri)}; }`);
+		// 	} catch {
+		// 		// noop
+		// 	}
+		// }
 	}
+	// this.styleElement.textContent = cssRules.join('\n');
+	// }
 }
