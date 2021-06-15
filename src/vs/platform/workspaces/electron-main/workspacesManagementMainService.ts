@@ -26,6 +26,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { IBackupMainService } from 'vs/platform/backup/electron-main/backup';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export const IWorkspacesManagementMainService = createDecorator<IWorkspacesManagementMainService>('workspacesManagementMainService');
 
@@ -273,10 +274,11 @@ export class WorkspacesManagementMainService extends Disposable implements IWork
 			const options: MessageBoxOptions = {
 				title: this.productService.nameLong,
 				type: 'info',
-				buttons: [localize('ok', "OK")],
+				buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
 				message: localize('workspaceOpenedMessage', "Unable to save workspace '{0}'", basename(workspacePath)),
 				detail: localize('workspaceOpenedDetail', "The workspace is already opened in another window. Please close that window first and then try again."),
-				noLink: true
+				noLink: true,
+				defaultId: 0
 			};
 
 			await this.dialogMainService.showMessageBox(options, withNullAsUndefined(BrowserWindow.getFocusedWindow()));
