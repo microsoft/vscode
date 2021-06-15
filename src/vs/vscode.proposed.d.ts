@@ -1382,12 +1382,15 @@ declare module 'vscode' {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The function or variable. Rendered leftmost.
+		 * The name of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
 		 */
 		name: string;
 
 		/**
-		 * The parameters without the return type. Render after `name`.
+		 * The signature of this completion item. Will be rendered right after the
+		 * {@link CompletionItemLabel.name name}.
 		 */
 		signature?: string;
 
