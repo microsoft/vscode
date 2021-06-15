@@ -14,7 +14,7 @@ import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extpath';
 import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/platform/files/node/watcher/unix/watcher';
+import { IWatcherService, IWatcherRequest, IWatcherOptions } from "../../../files/utils/createIWatcherService";
 import { Emitter } from 'vs/base/common/event';
 import { equals } from 'vs/base/common/arrays';
 import { Disposable } from 'vs/base/common/lifecycle';

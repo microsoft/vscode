@@ -7,7 +7,7 @@ import { ProxyChannel, getNextTickChannel } from 'vs/base/parts/ipc/common/ipc';
 import { Client } from 'vs/base/parts/ipc/node/ipc.cp';
 import { IDiskFileChange, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IWatcherRequest, IWatcherService } from 'vs/platform/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest } from "../../../files/utils/createIWatcherService";
 import { FileAccess } from 'vs/base/common/network';
 
 export class FileWatcher extends Disposable {

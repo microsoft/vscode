@@ -9,7 +9,7 @@ import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
 import { isEqualOrParent } from 'vs/base/common/extpath';
 import { IDiskFileChange, normalizeFileChanges, ILogMessage } from 'vs/platform/files/node/watcher/watcher';
-import { IWatcherService, IWatcherRequest } from 'vs/platform/files/node/watcher/nsfw/watcher';
+import { IWatcherService, IWatcherRequest } from "../../../files/utils/createIWatcherService";
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
