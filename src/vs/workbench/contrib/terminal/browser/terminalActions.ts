@@ -207,10 +207,6 @@ export function registerTerminalActions() {
 			terminalService.createTerminal({
 				target: TerminalTarget.Editor
 			});
-			// const editorService = accessor.get(IEditorService);
-			// const instantiationService = accessor.get(IInstantiationService);
-			// const input = TerminalEditorInput.copy(terminalService, instantiationService);
-			// await editorService.openEditor(input, { pinned: true, forceReload: true });
 		}
 	});
 

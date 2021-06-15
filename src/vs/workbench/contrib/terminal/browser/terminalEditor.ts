@@ -75,6 +75,7 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TerminalEditorInput {
-		throw new Error('not implemented');
+		throw new Error('NYI');
+		// return TerminalEditorInput.copy(instantiationService);
 	}
 }
