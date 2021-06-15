@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -131,6 +131,10 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 	}
 
 	isOrphaned(): boolean {
+		return false;
+	}
+
+	hasAssociatedFilePath(): boolean {
 		return false;
 	}
 
@@ -466,6 +470,10 @@ export class SimpleNotebookEditorModel extends EditorModel implements INotebookE
 		return SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && this._workingCopy.hasState(StoredFileWorkingCopyState.ORPHAN);
 	}
 
+	hasAssociatedFilePath(): boolean {
+		return !SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy) && !!this._workingCopy?.hasAssociatedFilePath;
+	}
+
 	isReadonly(): boolean {
 		if (SimpleNotebookEditorModel._isStoredFileWorkingCopy(this._workingCopy)) {
 			return this._workingCopy.isReadonly();
@@ -570,7 +578,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 
-		const data: NotebookDataDto = {
+		const data: NotebookData = {
 			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};

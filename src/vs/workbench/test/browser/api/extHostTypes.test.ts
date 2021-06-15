@@ -8,6 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isWindows } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
+import { Mimes } from 'vs/base/common/mime';
 
 function assertToJSON(a: any, expected: any) {
 	const raw = JSON.stringify(a);
@@ -648,41 +649,6 @@ suite('ExtHostTypes', function () {
 		assert.deepStrictEqual(md.value, '\n```html\n<img src=0 onerror="alert(1)">\n```\n');
 	});
 
-	test('NotebookMetadata - with custom', function () {
-		const obj = new types.NotebookDocumentMetadata();
-		const newObj = obj.with({ mycustom: { display: 'hello' } });
-		assert.ok(obj !== newObj);
-		assert.deepStrictEqual(newObj.mycustom, { display: 'hello' });
-	});
-
-	test('NotebookCellMetadata - with', function () {
-		const obj = new types.NotebookCellMetadata(true, true);
-
-		const newObj = obj.with({ inputCollapsed: false });
-		assert.ok(obj !== newObj);
-		assert.strictEqual(obj.inputCollapsed, true);
-		assert.strictEqual(obj.custom, undefined);
-
-		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.strictEqual(newObj.custom, undefined);
-	});
-
-	test('NotebookCellMetadata - with custom', function () {
-		const obj = new types.NotebookCellMetadata(true, true);
-		const newObj = obj.with({ inputCollapsed: false, custom: { display: 'hello' } });
-		assert.ok(obj !== newObj);
-		const sameObj = newObj.with({ inputCollapsed: false });
-		assert.ok(newObj === sameObj);
-		assert.strictEqual(obj.inputCollapsed, true);
-		assert.strictEqual(newObj.inputCollapsed, false);
-		assert.deepStrictEqual(newObj.custom, { display: 'hello' });
-
-		const newCustom = newObj.with({ anotherCustom: { display: 'hello2' } });
-		assert.strictEqual(newCustom.inputCollapsed, false);
-		assert.deepStrictEqual(newCustom.mycustom, undefined);
-		assert.deepStrictEqual(newCustom.anotherCustom, { display: 'hello2' });
-	});
-
 	test('NotebookCellOutputItem - factories', function () {
 
 		assert.throws(() => {
@@ -718,7 +684,7 @@ suite('ExtHostTypes', function () {
 		// --- text
 
 		item = types.NotebookCellOutputItem.text('Hęłlö');
-		assert.strictEqual(item.mime, 'text/plain');
+		assert.strictEqual(item.mime, Mimes.text);
 		assert.deepStrictEqual(item.data, new TextEncoder().encode('Hęłlö'));
 
 		item = types.NotebookCellOutputItem.text('Hęłlö', 'foo/bar');

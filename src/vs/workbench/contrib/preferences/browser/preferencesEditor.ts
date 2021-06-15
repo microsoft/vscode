@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -11,8 +12,10 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { IStringDictionary } from 'vs/base/common/collections';
 import { getErrorMessage, isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { ArrayNavigator } from 'vs/base/common/navigator';
+import Severity from 'vs/base/common/severity';
 import { assertIsDefined, withNullAsUndefined, withUndefinedAsNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -30,8 +33,10 @@ import { ConfigurationTarget } from 'vs/platform/configuration/common/configurat
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IConstructorSignature1, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
+import { SeverityIcon } from 'vs/platform/severityIcon/common/severityIcon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
@@ -92,7 +97,8 @@ export class PreferencesEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
+		@IOpenerService private readonly openerService: IOpenerService
 	) {
 		super(PreferencesEditor.ID, telemetryService, themeService, storageService);
 		this.defaultSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(this.contextKeyService);
@@ -119,6 +125,8 @@ export class PreferencesEditor extends EditorPane {
 		this._register(this.searchWidget.onFocus(() => this.lastFocusedWidget = this.searchWidget));
 		this.lastFocusedWidget = this.searchWidget;
 
+		this.createDeprecationWarning();
+
 		const editorsContainer = DOM.append(parent, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
 		this._onDidCreateWidget.fire(undefined);
@@ -128,6 +136,29 @@ export class PreferencesEditor extends EditorPane {
 		this.preferencesRenderers = this._register(this.instantiationService.createInstance(PreferencesRenderersController));
 
 		this._register(this.preferencesRenderers.onDidFilterResultsCountChange(count => this.showSearchResultsMessage(count)));
+	}
+
+	private createDeprecationWarning(): void {
+		const warningIcon = DOM.$('span');
+		warningIcon.className = SeverityIcon.className(Severity.Warning) + ' icon';
+		const warningText = DOM.$('span', undefined, nls.localize('splitJsonRemoveWarning', "Note - this split JSON settings editor will be simplified after July."));
+		const learnMore = DOM.$('span.learnMore-button.pointer', undefined, nls.localize('learnMore', "Learn More"));
+		const clickHandler = (e: DOM.EventLike) => {
+			DOM.EventHelper.stop(e, false);
+			this.openerService.open('https://aka.ms/AAcwpin');
+		};
+
+		this._register(DOM.addDisposableListener(learnMore, DOM.EventType.CLICK, clickHandler));
+		this._register(DOM.addDisposableListener(learnMore, DOM.EventType.KEY_DOWN, e => {
+			const event = new StandardKeyboardEvent(e);
+			if (event.equals(KeyCode.Space) || event.equals(KeyCode.Enter)) {
+				clickHandler(e);
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		}));
+		const deprecationWarning = DOM.$('div.deprecation-warning', undefined, warningIcon, warningText, learnMore);
+		DOM.append(this.headerContainer, deprecationWarning);
 	}
 
 	clearSearchResults(): void {

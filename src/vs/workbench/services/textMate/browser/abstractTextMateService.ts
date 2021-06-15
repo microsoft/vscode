@@ -18,8 +18,7 @@ import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITMSyntaxExtensionPoint, grammarsExtPoint } from 'vs/workbench/services/textMate/common/TMGrammars';
 import { ITextMateService } from 'vs/workbench/services/textMate/common/textMateService';
@@ -58,7 +57,6 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService,
 		@IProgressService private readonly _progressService: IProgressService
 	) {
 		super();
@@ -283,7 +281,7 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 						this._onDidEncounterLanguage.fire(languageId);
 					}
 				});
-				return new TMTokenizationSupport(r.languageId, tokenization, this._notificationService, this._configurationService, this._storageService);
+				return new TMTokenizationSupport(r.languageId, tokenization, this._configurationService);
 			} catch (err) {
 				onUnexpectedError(err);
 				return null;
@@ -415,24 +413,18 @@ export abstract class AbstractTextMateService extends Disposable implements ITex
 	protected abstract _loadVSCodeOnigurumWASM(): Promise<Response | ArrayBuffer>;
 }
 
-const donotAskUpdateKey = 'editor.maxTokenizationLineLength.donotask';
-
 class TMTokenizationSupport implements ITokenizationSupport {
 	private readonly _languageId: LanguageId;
 	private readonly _actual: TMTokenization;
-	private _tokenizationWarningAlreadyShown: boolean;
 	private _maxTokenizationLineLength: number;
 
 	constructor(
 		languageId: LanguageId,
 		actual: TMTokenization,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._languageId = languageId;
 		this._actual = actual;
-		this._tokenizationWarningAlreadyShown = !!(this._storageService.getBoolean(donotAskUpdateKey, StorageScope.GLOBAL));
 		this._maxTokenizationLineLength = this._configurationService.getValue<number>('editor.maxTokenizationLineLength');
 		this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor.maxTokenizationLineLength')) {
@@ -456,19 +448,6 @@ class TMTokenizationSupport implements ITokenizationSupport {
 
 		// Do not attempt to tokenize if a line is too long
 		if (line.length >= this._maxTokenizationLineLength) {
-			if (!this._tokenizationWarningAlreadyShown) {
-				this._tokenizationWarningAlreadyShown = true;
-				this._notificationService.prompt(
-					Severity.Warning,
-					nls.localize('too many characters', "Tokenization is skipped for long lines for performance reasons. The length of a long line can be configured via `editor.maxTokenizationLineLength`."),
-					[{
-						label: nls.localize('neverAgain', "Don't Show Again"),
-						isSecondary: true,
-						run: () => this._storageService.store(donotAskUpdateKey, true, StorageScope.GLOBAL, StorageTarget.USER)
-					}]
-				);
-			}
-			console.log(`Line (${line.substr(0, 15)}...): longer than ${this._maxTokenizationLineLength} characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}
 

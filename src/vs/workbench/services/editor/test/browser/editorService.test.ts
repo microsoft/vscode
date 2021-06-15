@@ -8,7 +8,7 @@ import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/edit
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorsOrder, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
@@ -30,7 +30,7 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
@@ -254,7 +254,7 @@ suite('EditorService', () => {
 				return WorkspaceTrustUriResponse.Cancel;
 			};
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 4);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input1.resource.toString()), true);
@@ -265,11 +265,35 @@ suite('EditorService', () => {
 			// Trust: open in new window
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.OpenInNewWindow;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 
 			// Trust: allow
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Open;
+
+			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			assert.strictEqual(part.activeGroup.count, 3);
+		} finally {
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
+		}
+	});
+
+	test('openEditors() ignores trust when `validateTrust: false', async () => {
+		const [part, service, accessor] = await createEditorService();
+
+		const input1 = new TestFileEditorInput(URI.parse('my://resource1-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input2 = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
+
+		const input3 = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
+		const input4 = new TestFileEditorInput(URI.parse('my://resource4-openEditors'), TEST_EDITOR_INPUT_ID);
+		const sideBySideInput = new SideBySideEditorInput('side by side', undefined, input3, input4);
+
+		const oldHandler = accessor.workspaceTrustRequestService.requestOpenUrisHandler;
+
+		try {
+
+			// Trust: cancel
+			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Cancel;
 
 			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
 			assert.strictEqual(part.activeGroup.count, 3);
@@ -296,7 +320,7 @@ suite('EditorService', () => {
 				return oldHandler(uris);
 			};
 
-			await service.openEditors([input, otherInput]);
+			await service.openEditors([input, otherInput], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 3);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input.resource.toString()), true);
@@ -459,6 +483,7 @@ suite('EditorService', () => {
 			originalInput: { resource: toResource.call(this, '/primary.html') },
 			modifiedInput: { resource: toResource.call(this, '/secondary.html') }
 		};
+		assert.strictEqual(isResourceDiffEditorInput(resourceDiffInput), true);
 		input = service.createEditorInput(resourceDiffInput);
 		assert(input instanceof DiffEditorInput);
 		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
@@ -1100,21 +1125,20 @@ suite('EditorService', () => {
 		const [, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
@@ -1136,21 +1160,20 @@ suite('EditorService', () => {
 		const [, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
@@ -1168,21 +1191,20 @@ suite('EditorService', () => {
 		const [part, service, accessor] = await createEditorService();
 		const editorOverrideService = accessor.editorOverrideService;
 		let overrideCount = 0;
-		const registrationDisposable = editorOverrideService.registerContributionPoint(
+		const registrationDisposable = editorOverrideService.registerEditor(
 			'*.md',
 			{
 				id: 'TestEditor',
 				label: 'Test Editor',
 				detail: 'Test Editor Provider',
-				describes: () => false,
-				priority: ContributedEditorPriority.builtin
+				priority: RegisteredEditorPriority.builtin
 			},
 			{},
 			(resource) => {
 				overrideCount++;
 				return ({ editor: service.createEditorInput({ resource }) });
 			},
-			diffEditor => ({ editor: diffEditor })
+			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
 		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);

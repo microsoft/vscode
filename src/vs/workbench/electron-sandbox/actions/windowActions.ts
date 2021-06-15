@@ -27,9 +27,11 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 
 export class CloseWindowAction extends Action2 {
 
+	static readonly ID = 'workbench.action.closeWindow';
+
 	constructor() {
 		super({
-			id: 'workbench.action.closeWindow',
+			id: CloseWindowAction.ID,
 			title: {
 				value: localize('closeWindow', "Close Window"),
 				mnemonicTitle: localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window"),

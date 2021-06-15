@@ -47,7 +47,8 @@ registerThemingParticipant((theme, collector) => {
 			.monaco-editor .zone-widget ${warningCodiconSelector},
 			.markers-panel .marker-icon${warningCodiconSelector},
 			.extensions-viewlet > .extensions ${warningCodiconSelector},
-			.extension-editor ${warningCodiconSelector} {
+			.extension-editor ${warningCodiconSelector},
+			.preferences-editor ${warningCodiconSelector} {
 				color: ${warningIconForeground};
 			}
 		`);

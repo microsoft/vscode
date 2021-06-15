@@ -32,29 +32,35 @@ export interface WorkspaceTrustRequestOptions {
 	readonly message?: string;
 }
 
-export type WorkspaceTrustChangeEvent = Event<boolean>;
 export const IWorkspaceTrustManagementService = createDecorator<IWorkspaceTrustManagementService>('workspaceTrustManagementService');
 
 export interface IWorkspaceTrustManagementService {
 	readonly _serviceBrand: undefined;
 
-	onDidChangeTrust: WorkspaceTrustChangeEvent;
+	onDidChangeTrust: Event<boolean>;
 	onDidChangeTrustedFolders: Event<void>;
-	onDidInitiateWorkspaceTrustRequestOnStartup: Event<void>;
-	get acceptsOutOfWorkspaceFiles(): boolean;
-	set acceptsOutOfWorkspaceFiles(value: boolean);
-	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
-	initializeWorkspaceTrust(): Promise<void>;
+
+	readonly workspaceTrustEnabled: boolean;
+	readonly workspaceResolved: Promise<void>;
+	readonly workspaceTrustInitialized: Promise<void>;
+	acceptsOutOfWorkspaceFiles: boolean;
+
 	isWorkpaceTrusted(): boolean;
+	isWorkspaceTrustForced(): boolean;
+
 	canSetParentFolderTrust(): boolean;
 	setParentFolderTrust(trusted: boolean): Promise<void>;
-	canSetWorkspaceTrust(): Promise<boolean>;
-	recalculateWorkspaceTrust(): Promise<void>;
+
+	canSetWorkspaceTrust(): boolean;
 	setWorkspaceTrust(trusted: boolean): Promise<void>;
-	getUriTrustInfo(folder: URI): Promise<IWorkspaceTrustUriInfo>;
-	setUrisTrust(folders: URI[], trusted: boolean): Promise<void>;
-	getTrustedFolders(): URI[];
-	setTrustedFolders(folders: URI[]): Promise<void>;
+
+	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo>;
+	setUrisTrust(uri: URI[], trusted: boolean): Promise<void>;
+
+	getTrustedUris(): URI[];
+	setTrustedUris(uris: URI[]): Promise<void>;
+
+	addWorkspaceTrustTransitionParticipant(participant: IWorkspaceTrustTransitionParticipant): IDisposable;
 }
 
 export const enum WorkspaceTrustUriResponse {
@@ -68,11 +74,14 @@ export const IWorkspaceTrustRequestService = createDecorator<IWorkspaceTrustRequ
 export interface IWorkspaceTrustRequestService {
 	readonly _serviceBrand: undefined;
 
+	readonly onDidInitiateOpenFilesTrustRequest: Event<void>;
 	readonly onDidInitiateWorkspaceTrustRequest: Event<WorkspaceTrustRequestOptions | undefined>;
 
-	requestOpenUris(uris: URI[]): Promise<WorkspaceTrustUriResponse>;
-	cancelRequest(): void;
-	completeRequest(trusted?: boolean): Promise<void>;
+	completeOpenFilesTrustRequest(result: WorkspaceTrustUriResponse, saveResponse?: boolean): Promise<void>;
+	requestOpenFilesTrust(openFiles: URI[]): Promise<WorkspaceTrustUriResponse>;
+
+	cancelWorkspaceTrustRequest(): void;
+	completeWorkspaceTrustRequest(trusted?: boolean): Promise<void>;
 	requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined>;
 }
 

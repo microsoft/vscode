@@ -141,7 +141,7 @@ export interface ITerminalService {
 	 */
 	createTerminal(profile: ITerminalProfile): ITerminalInstance;
 
-	createContributedTerminalProfile(id: string, isSplitTerminal: boolean): Promise<void>;
+	createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -162,7 +162,7 @@ export interface ITerminalService {
 	 * Moves a terminal instance's group to the target instance group's position.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'left' | 'right'): void;
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -201,7 +201,7 @@ export interface ITerminalService {
 	 */
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable;
 
-	registerTerminalProfileProvider(id: string, profileProvider: ITerminalProfileProvider): IDisposable;
+	registerTerminalProfileProvider(extensionIdenfifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
@@ -211,8 +211,10 @@ export interface ITerminalService {
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
-	getEditableData(stat: ITerminalInstance): IEditableData | undefined;
-	setEditable(stat: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
+	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
+	instanceIsSplit(instance: ITerminalInstance): boolean;
+	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
@@ -629,7 +631,7 @@ export interface ITerminalInstance {
 
 export interface IRequestAddInstanceToGroupEvent {
 	uri: URI;
-	side: 'left' | 'right'
+	side: 'before' | 'after'
 }
 
 export const enum LinuxDistro {

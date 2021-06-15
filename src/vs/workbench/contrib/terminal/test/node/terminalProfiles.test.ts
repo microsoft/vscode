@@ -45,16 +45,17 @@ suite('Workbench - TerminalProfiles', () => {
 					useWslProfiles: false
 				};
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(false, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, undefined);
 				const expected = [
 					{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: ['--login'], isDefault: true }
 				];
 				profilesEqual(profiles, expected);
 			});
 			test('should allow source to have args', async () => {
-				const fsProvider = createFsProvider([
+				const pwshSourcePaths = [
 					'C:\\Program Files\\PowerShell\\7\\pwsh.exe'
-				]);
+				];
+				const fsProvider = createFsProvider(pwshSourcePaths);
 				const config: ITestTerminalConfig = {
 					profiles: {
 						windows: {
@@ -66,7 +67,7 @@ suite('Workbench - TerminalProfiles', () => {
 					useWslProfiles: false
 				};
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(false, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, pwshSourcePaths);
 				const expected = [
 					{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', overrideName: true, args: ['-NoProfile'], isDefault: true }
 				];
@@ -87,7 +88,7 @@ suite('Workbench - TerminalProfiles', () => {
 					useWslProfiles: false
 				};
 				const configurationService = new TestConfigurationService({ terminal: { integrated: config } });
-				const profiles = await detectAvailableProfiles(false, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, undefined);
 				const expected = [{ profileName: 'Git Bash', path: 'C:\\Program Files\\Git\\bin\\bash.exe', args: [], isAutoDetected: undefined, overrideName: undefined, isDefault: true }];
 				profilesEqual(profiles, expected);
 			});
@@ -104,39 +105,42 @@ suite('Workbench - TerminalProfiles', () => {
 				} as ITestTerminalConfig) as ITerminalConfiguration;
 
 				test('should prefer pwsh 7 to Windows PowerShell', async () => {
-					const expectedPaths = [
+					const pwshSourcePaths = [
 						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
 						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 					];
+					const fsProvider = createFsProvider(pwshSourcePaths);
 					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(false, configurationService, undefined, undefined, undefined, expectedPaths);
+					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, pwshSourcePaths);
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
 					];
 					profilesEqual(profiles, expected);
 				});
 				test('should prefer pwsh 7 to pwsh 6', async () => {
-					const expectedPaths = [
+					const pwshSourcePaths = [
 						'C:\\Program Files\\PowerShell\\7\\pwsh.exe',
 						'C:\\Program Files\\PowerShell\\6\\pwsh.exe',
 						'C:\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 					];
+					const fsProvider = createFsProvider(pwshSourcePaths);
 					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(false, configurationService, undefined, undefined, undefined, expectedPaths);
+					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, pwshSourcePaths);
 					const expected = [
 						{ profileName: 'PowerShell', path: 'C:\\Program Files\\PowerShell\\7\\pwsh.exe', isDefault: true }
 					];
 					profilesEqual(profiles, expected);
 				});
 				test('should fallback to Windows PowerShell', async () => {
-					const expectedPaths = [
+					const pwshSourcePaths = [
 						'C:\\Windows\\Sysnative\\WindowsPowerShell\\v1.0\\powershell.exe',
 						'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 					];
+					const fsProvider = createFsProvider(pwshSourcePaths);
 					const configurationService = new TestConfigurationService({ terminal: { integrated: pwshSourceConfig } });
-					const profiles = await detectAvailableProfiles(false, configurationService, undefined, undefined, undefined, expectedPaths);
+					const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, pwshSourcePaths);
 					strictEqual(profiles.length, 1);
 					strictEqual(profiles[0].profileName, 'PowerShell');
 				});
@@ -181,7 +185,7 @@ suite('Workbench - TerminalProfiles', () => {
 					'/bin/fakeshell3'
 				]);
 				const configurationService = new TestConfigurationService({ terminal: { integrated: absoluteConfig } });
-				const profiles = await detectAvailableProfiles(false, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, false, configurationService, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
 					{ profileName: 'fakeshell1', path: '/bin/fakeshell1', isDefault: true },
 					{ profileName: 'fakeshell3', path: '/bin/fakeshell3', isDefault: true }
@@ -194,7 +198,7 @@ suite('Workbench - TerminalProfiles', () => {
 					'/bin/fakeshell3'
 				], '/bin/fakeshell1\n/bin/fakeshell3');
 				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
-				const profiles = await detectAvailableProfiles(true, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
 					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true },
 					{ profileName: 'fakeshell3', path: 'fakeshell3', isDefault: true }
@@ -207,7 +211,7 @@ suite('Workbench - TerminalProfiles', () => {
 					'/bin/fakeshell1'
 				], '/bin/fakeshell1\n/bin/fakeshell3');
 				const configurationService = new TestConfigurationService({ terminal: { integrated: onPathConfig } });
-				const profiles = await detectAvailableProfiles(true, configurationService, fsProvider, undefined, undefined, undefined);
+				const profiles = await detectAvailableProfiles(undefined, undefined, true, configurationService, fsProvider, undefined, undefined, undefined);
 				const expected: ITerminalProfile[] = [
 					{ profileName: 'fakeshell1', path: 'fakeshell1', isDefault: true }
 				];

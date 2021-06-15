@@ -100,7 +100,9 @@ class RequestStore {
 
 /**
  * Map of requested paths to responses.
- * @typedef {{ type: 'response', body: any, mime: string, etag: string | undefined, } | { type: 'not-modified', mime: string } | undefined} ResourceResponse
+ * @typedef {{ type: 'response', body: Uint8Array, mime: string, etag: string | undefined, mtime: number | undefined } |
+ *           { type: 'not-modified', mime: string, mtime: number | undefined } |
+ *           undefined} ResourceResponse
  * @type {RequestStore<ResourceResponse>}
  */
 const resourceRequestStore = new RequestStore();
@@ -114,6 +116,9 @@ const localhostRequestStore = new RequestStore();
 
 const notFound = () =>
 	new Response('Not Found', { status: 404, });
+
+const methodNotAllowed = () =>
+	new Response('Method Not Allowed', { status: 405, });
 
 sw.addEventListener('message', async (event) => {
 	switch (event.data.channel) {
@@ -139,12 +144,12 @@ sw.addEventListener('message', async (event) => {
 				switch (data.status) {
 					case 200:
 						{
-							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag };
+							response = { type: 'response', body: data.data, mime: data.mime, etag: data.etag, mtime: data.mtime };
 							break;
 						}
 					case 304:
 						{
-							response = { type: 'not-modified', mime: data.mime };
+							response = { type: 'not-modified', mime: data.mime, mtime: data.mtime };
 							break;
 						}
 				}
@@ -170,7 +175,14 @@ sw.addEventListener('message', async (event) => {
 sw.addEventListener('fetch', (event) => {
 	const requestUrl = new URL(event.request.url);
 	if (requestUrl.protocol === 'https:' && requestUrl.hostname.endsWith('.' + resourceBaseAuthority)) {
-		return event.respondWith(processResourceRequest(event, requestUrl));
+		switch (event.request.method) {
+			case 'GET':
+			case 'HEAD':
+				return event.respondWith(processResourceRequest(event, requestUrl));
+
+			default:
+				return event.respondWith(methodNotAllowed());
+		}
 	}
 
 	// See if it's a localhost request
@@ -204,6 +216,8 @@ async function processResourceRequest(event, requestUrl) {
 		return notFound();
 	}
 
+	const shouldTryCaching = (event.request.method === 'GET');
+
 	/**
 	 * @param {ResourceResponse} entry
 	 * @param {Response | undefined} cachedResponse
@@ -221,21 +235,25 @@ async function processResourceRequest(event, requestUrl) {
 			}
 		}
 
-		/** @type {Record<String, string>} */
+		/** @type {Record<string, string>} */
 		const headers = {
 			'Content-Type': entry.mime,
+			'Content-Length': entry.body.byteLength.toString(),
 			'Access-Control-Allow-Origin': '*',
 		};
 		if (entry.etag) {
 			headers['ETag'] = entry.etag;
 			headers['Cache-Control'] = 'no-cache';
 		}
+		if (entry.mtime) {
+			headers['Last-Modified'] = new Date(entry.mtime).toUTCString();
+		}
 		const response = new Response(entry.body, {
 			status: 200,
 			headers
 		});
 
-		if (entry.etag) {
+		if (shouldTryCaching && entry.etag) {
 			caches.open(resourceCacheName).then(cache => {
 				return cache.put(event.request, response);
 			});
@@ -249,8 +267,12 @@ async function processResourceRequest(event, requestUrl) {
 		return notFound();
 	}
 
-	const cache = await caches.open(resourceCacheName);
-	const cached = await cache.match(event.request);
+	/** @type {Response | undefined} */
+	let cached;
+	if (shouldTryCaching) {
+		const cache = await caches.open(resourceCacheName);
+		cached = await cache.match(event.request);
+	}
 
 	const { requestId, promise } = resourceRequestStore.create();
 

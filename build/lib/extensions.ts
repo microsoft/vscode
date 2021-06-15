@@ -417,7 +417,7 @@ const webpackMediaConfigFiles = [
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
 	'markdown-language-features/esbuild.js',
-	'notebook-markdown-extensions/esbuild.js',
+	'markdown-math/esbuild.js',
 ];
 
 export async function webpackExtensions(taskName: string, isWatch: boolean, webpackConfigLocations: { configPath: string, outputRoot?: string }[]) {

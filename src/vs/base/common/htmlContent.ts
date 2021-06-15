@@ -89,6 +89,16 @@ export function isMarkdownString(thing: any): thing is IMarkdownString {
 	return false;
 }
 
+export function markdownStringEqual(a: IMarkdownString, b: IMarkdownString): boolean {
+	if (a === b) {
+		return true;
+	} else if (!a || !b) {
+		return false;
+	} else {
+		return a.value === b.value && a.isTrusted === b.isTrusted && a.supportThemeIcons === b.supportThemeIcons;
+	}
+}
+
 export function escapeMarkdownSyntaxTokens(text: string): string {
 	// escape markdown syntax tokens: http://daringfireball.net/projects/markdown/syntax#backslash
 	return text.replace(/[\\`*_{}[\]()#+\-.!]/g, '\\$&');

@@ -7,39 +7,52 @@ import { CancelablePromise, createCancelablePromise, RunOnceScheduler } from 'vs
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { InlineCompletion, InlineCompletionContext, InlineCompletions, InlineCompletionsProvider, InlineCompletionsProviderRegistry, InlineCompletionTriggerKind } from 'vs/editor/common/modes';
-import { BaseGhostTextWidgetModel, GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineCompletions/ghostTextWidget';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { MutableDisposable } from 'vs/editor/contrib/inlineCompletions/utils';
+import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { stringDiff } from 'vs/base/common/diff/diff';
+import { GhostTextWidgetModel, GhostText, BaseGhostTextWidgetModel, GhostTextPart } from 'vs/editor/contrib/inlineCompletions/ghostText';
 
 export class InlineCompletionsModel extends Disposable implements GhostTextWidgetModel {
 	protected readonly onDidChangeEmitter = new Emitter<void>();
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
-	private readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
+	public readonly completionSession = this._register(new MutableDisposable<InlineCompletionsSession>());
 
 	private active: boolean = false;
 
 	constructor(
 		private readonly editor: IActiveCodeEditor,
-		private readonly commandService: ICommandService
+		@ICommandService private readonly commandService: ICommandService
 	) {
 		super();
 
-		this._register(this.editor.onDidChangeModelContent((e) => {
-			if (this.session && !this.session.isValid) {
-				this.hide();
+		this._register(commandService.onDidExecuteCommand(e => {
+			// These commands don't trigger onDidType.
+			const commands = new Set([
+				UndoCommand.id,
+				RedoCommand.id,
+				CoreEditingCommands.Tab.id,
+				CoreEditingCommands.DeleteLeft.id,
+				CoreEditingCommands.DeleteRight.id
+			]);
+			if (commands.has(e.commandId) && editor.hasTextFocus()) {
+				this.handleUserInput();
 			}
-			setTimeout(() => {
-				// Wait for the cursor update that happens in the same iteration loop iteration
-				this.startSessionIfTriggered();
-			}, 0);
+		}));
+
+		this._register(this.editor.onDidType((e) => {
+			this.handleUserInput();
 		}));
 
 		this._register(this.editor.onDidChangeCursorPosition((e) => {
@@ -47,6 +60,16 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 				this.hide();
 			}
 		}));
+	}
+
+	private handleUserInput() {
+		if (this.session && !this.session.isValid) {
+			this.hide();
+		}
+		setTimeout(() => {
+			// Wait for the cursor update that happens in the same iteration loop iteration
+			this.startSessionIfTriggered();
+		}, 0);
 	}
 
 	private get session(): InlineCompletionsSession | undefined {
@@ -77,14 +100,19 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	private startSessionIfTriggered(): void {
+		const suggestOptions = this.editor.getOption(EditorOption.inlineSuggest);
+		if (!suggestOptions.enabled) {
+			return;
+		}
+
 		if (this.session && this.session.isValid) {
 			return;
 		}
 
-		this.startSession();
+		this.trigger();
 	}
 
-	public startSession(): void {
+	public trigger(): void {
 		if (this.completionSession.value) {
 			return;
 		}
@@ -102,25 +130,31 @@ export class InlineCompletionsModel extends Disposable implements GhostTextWidge
 	}
 
 	public commitCurrentSuggestion(): void {
+		// Don't dispose the session, so that after committing, more suggestions are shown.
 		this.session?.commitCurrentCompletion();
 	}
 
-	public showNextInlineCompletion(): void {
+	public showNext(): void {
 		this.session?.showNextInlineCompletion();
 	}
 
-	public showPreviousInlineCompletion(): void {
+	public showPrevious(): void {
 		this.session?.showPreviousInlineCompletion();
+	}
+
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		const result = await this.session?.hasMultipleInlineCompletions();
+		return result !== undefined ? result : false;
 	}
 }
 
-class InlineCompletionsSession extends BaseGhostTextWidgetModel {
+export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	public readonly minReservedLineCount = 0;
 
 	private readonly updateOperation = this._register(new MutableDisposable<UpdateOperation>());
 	private readonly cache = this._register(new MutableDisposable<SynchronizedInlineCompletionsCache>());
 
-	private updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
+	private readonly updateSoon = this._register(new RunOnceScheduler(() => this.update(InlineCompletionTriggerKind.Automatic), 50));
 	private readonly textModel = this.editor.getModel();
 
 	constructor(
@@ -239,6 +273,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 		}
 	}
 
+	public async hasMultipleInlineCompletions(): Promise<boolean> {
+		await this.ensureUpdateWithExplicitContext();
+		return (this.cache.value?.completions.length || 0) > 1;
+	}
+
 	//#endregion
 
 	public get ghostText(): GhostText | undefined {
@@ -266,6 +305,9 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public scheduleAutomaticUpdate(): void {
+		// Since updateSoon debounces, starvation can happen.
+		// To prevent stale cache, we clear the current update operation.
+		this.updateOperation.clear();
 		this.updateSoon.schedule();
 	}
 
@@ -314,6 +356,11 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commitCurrentCompletion(): void {
+		if (!this.ghostText) {
+			// No ghost text was shown for this completion.
+			// Thus, we don't want to commit anything.
+			return;
+		}
 		const completion = this.currentCompletion;
 		if (completion) {
 			this.commit(completion);
@@ -321,15 +368,25 @@ class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 	}
 
 	public commit(completion: LiveInlineCompletion): void {
-		this.cache.clear();
+		// Mark the cache as stale, but don't dispose it yet,
+		// otherwise command args might get disposed.
+		const cache = this.cache.replace(undefined);
+
 		this.editor.executeEdits(
-			'inlineCompletions.accept',
+			'inlineSuggestion.accept',
 			[
 				EditOperation.replaceMove(completion.range, completion.text)
 			]
 		);
 		if (completion.command) {
-			this.commandService.executeCommand(completion.command.id, ...(completion.command.arguments || [])).then(undefined, onUnexpectedExternalError);
+			this.commandService
+				.executeCommand(completion.command.id, ...(completion.command.arguments || []))
+				.finally(() => {
+					cache?.dispose();
+				})
+				.then(undefined, onUnexpectedExternalError);
+		} else {
+			cache?.dispose();
 		}
 
 		this.onDidChangeEmitter.fire();
@@ -423,21 +480,55 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 }
 
 export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
-	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
-	if (!inlineCompletion.text.startsWith(valueToBeReplaced)) {
+	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
+		// Only single line replacements are supported.
 		return undefined;
 	}
 
-	const lines = strings.splitLines(inlineCompletion.text.substr(valueToBeReplaced.length));
+	// This is a single line string
+	const valueToBeReplaced = textModel.getValueInRange(inlineCompletion.range);
 
-	return {
-		lines,
-		position: inlineCompletion.range.getEndPosition()
-	};
+	const changes = stringDiff(valueToBeReplaced, inlineCompletion.text, false);
+
+	const lineNumber = inlineCompletion.range.startLineNumber;
+
+	const parts = new Array<GhostTextPart>();
+	let additionalLines = new Array<string>();
+
+	for (const c of changes) {
+		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
+
+		if (c.originalLength > 0) {
+			const originalText = valueToBeReplaced.substr(c.originalStart, c.originalLength);
+			const firstNonWsCol = textModel.getLineFirstNonWhitespaceColumn(lineNumber);
+			if (!(/^(\t| )*$/.test(originalText) && (firstNonWsCol === 0 || insertColumn <= firstNonWsCol))) {
+				return undefined;
+			}
+		}
+
+		if (c.modifiedLength === 0) {
+			continue;
+		}
+
+		const text = inlineCompletion.text.substr(c.modifiedStart, c.modifiedLength);
+		const isEndOfLine = insertColumn === textModel.getLineMaxColumn(lineNumber);
+		if (!isEndOfLine) {
+			if (text.indexOf('\n') !== -1) {
+				// no line breaks inside the text
+				return undefined;
+			}
+			parts.push({ column: insertColumn, text });
+		} else {
+			const lines = strings.splitLines(text);
+			additionalLines = lines.slice(1);
+			parts.push({ column: insertColumn, text: lines[0] });
+		}
+	}
+
+	return new GhostText(lineNumber, parts, additionalLines, 0);
 }
 
-export interface LiveInlineCompletion extends InlineCompletion {
-	range: Range;
+export interface LiveInlineCompletion extends NormalizedInlineCompletion {
 	sourceProvider: InlineCompletionsProvider;
 	sourceInlineCompletion: InlineCompletion;
 	sourceInlineCompletions: InlineCompletions;
@@ -498,6 +589,10 @@ async function provideInlineCompletions(
 				sourceInlineCompletions: completions,
 				sourceInlineCompletion: item
 			}))) {
+				if (item.range.startLineNumber !== item.range.endLineNumber) {
+					// Ignore invalid ranges.
+					continue;
+				}
 				itemsByHash.set(JSON.stringify({ text: item.text, range: item.range }), item);
 			}
 		}

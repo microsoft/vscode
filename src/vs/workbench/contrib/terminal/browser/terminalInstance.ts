@@ -46,7 +46,7 @@ import { TypeAheadAddon } from 'vs/workbench/contrib/terminal/browser/terminalTy
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { IProcessDataEvent, IShellLaunchConfig, ITerminalDimensionsOverride, ITerminalLaunchError, TerminalShellType, TerminalSettingId, TitleEventSource, TerminalIcon, TerminalSettingPrefix, ITerminalProfileObject } from 'vs/platform/terminal/common/terminal';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { AutoOpenBarrier } from 'vs/base/common/async';
@@ -58,8 +58,10 @@ import { isMacintosh, isWindows, OperatingSystem, OS } from 'vs/base/common/plat
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
+import { containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } from 'vs/workbench/browser/dnd';
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -67,6 +69,8 @@ const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 const SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY = 'terminals.integrated.profile-migration';
+
+let migrationMessageShown = false;
 
 const enum Constants {
 	/**
@@ -279,9 +283,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._terminalProfileResolverService.resolveIcon(this._shellLaunchConfig, OS);
 		}
 
+		// When a custom pty is used set the name immediately so it gets passed over to the exthost
+		// and is available when Pseudoterminal.open fires.
+		if (this.shellLaunchConfig.customPtyImplementation) {
+			this.setTitle(this._shellLaunchConfig.name, TitleEventSource.Api);
+		}
+
 		this._initDimensions();
 		this._createProcessManager();
-
 
 		this._register(toDisposable(() => this._dndObserver?.dispose()));
 
@@ -361,7 +370,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const shouldMigrateToProfile = (!!this._configurationService.getValue(TerminalSettingPrefix.Shell + platform) ||
 			!!this._configurationService.inspect(TerminalSettingPrefix.ShellArgs + platform).userValue) &&
 			!!this._configurationService.getValue(TerminalSettingPrefix.DefaultProfile + platform);
-		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true)) {
+		if (shouldMigrateToProfile && this._storageService.getBoolean(SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, StorageScope.WORKSPACE, true) && !migrationMessageShown) {
 			this._notificationService.prompt(
 				Severity.Info,
 				nls.localize('terminalProfileMigration', "The terminal is using deprecated shell/shellArgs settings, do you want to migrate it to a profile?"),
@@ -372,14 +381,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 							const shell = this._configurationService.getValue(TerminalSettingPrefix.Shell + platform);
 							const shellArgs = this._configurationService.getValue(TerminalSettingPrefix.ShellArgs + platform);
 							const profile = await this._terminalProfileResolverService.createProfileFromShellAndShellArgs(shell, shellArgs);
-							if (profile) {
-								this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
-								this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
-								this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
-								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
+							if (typeof profile === 'string') {
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile);
+								this._logService.trace(`migrated from shell/shellArgs, using existing profile ${profile}`);
 							} else {
-								this._logService.trace('migration from shell/shellArgs to profile did not occur bc created profile was an exact match for existing one', shell, shellArgs);
+								const profiles = { ...this._configurationService.inspect<Readonly<{ [key: string]: ITerminalProfileObject }>>(TerminalSettingPrefix.Profiles + platform).userValue } || {};
+								const profileConfig: ITerminalProfileObject = { path: profile.path };
+								if (profile.args) {
+									profileConfig.args = profile.args;
+								}
+								profiles[profile.profileName] = profileConfig;
+								await this._configurationService.updateValue(TerminalSettingPrefix.Profiles + platform, profiles);
+								await this._configurationService.updateValue(TerminalSettingPrefix.DefaultProfile + platform, profile.profileName);
+								this._logService.trace(`migrated from shell/shellArgs, ${shell} ${shellArgs} to profile ${JSON.stringify(profile)}`);
 							}
+							await this._configurationService.updateValue(TerminalSettingPrefix.Shell + platform, undefined);
+							await this._configurationService.updateValue(TerminalSettingPrefix.ShellArgs + platform, undefined);
 						}
 					} as IPromptChoice,
 				],
@@ -387,6 +404,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 					neverShowAgain: { id: SHOULD_PROMPT_FOR_PROFILE_MIGRATION_KEY, scope: NeverShowAgainScope.WORKSPACE }
 				}
 			);
+			migrationMessageShown = true;
 		}
 	}
 
@@ -514,14 +532,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const font = this._configHelper.getFont(undefined, true);
 		const config = this._configHelper.config;
 		const editorOptions = this._configurationService.getValue<IEditorOptions>('editor');
-		let xtermRendererType: RendererType;
-		if (config.gpuAcceleration === 'auto') {
-			// Set the builtin renderer to canvas, even when webgl is being used since it's an addon
-			const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-			xtermRendererType = suggestedRendererType === 'dom' ? 'dom' : 'canvas';
-		} else {
-			xtermRendererType = config.gpuAcceleration === 'on' ? 'canvas' : 'dom';
-		}
 
 		const xterm = new Terminal({
 			// TODO: Replace null with undefined when https://github.com/xtermjs/xterm.js/issues/3329 is resolved
@@ -545,7 +555,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			fastScrollModifier: 'alt',
 			fastScrollSensitivity: editorOptions.fastScrollSensitivity,
 			scrollSensitivity: editorOptions.mouseWheelScrollSensitivity,
-			rendererType: xtermRendererType,
+			rendererType: this._getBuiltInXtermRenderer(config.gpuAcceleration, this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL)),
 			wordSeparator: config.wordSeparators
 		});
 		this._xterm = xterm;
@@ -816,14 +826,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _initDragAndDrop(container: HTMLElement) {
 		this._dndObserver?.dispose();
-		const dndController = new TerminalInstanceDragAndDropController(container);
+		const dndController = this._instantiationService.createInstance(TerminalInstanceDragAndDropController, container);
 		dndController.onDropTerminal(e => this._onRequestAddInstanceToGroup.fire(e));
 		dndController.onDropFile(async path => {
 			const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, this.shellLaunchConfig.executable, this.title, this.shellType, this.isRemote);
 			this.sendText(preparedPath, false);
 			this.focus();
 		});
-		this._dndObserver = new DragAndDropObserver(container.parentElement!, dndController);
+		this._dndObserver = new DragAndDropObserver(container, dndController);
 	}
 
 	private async _measureRenderTime(): Promise<void> {
@@ -974,6 +984,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	detachFromProcess(): void {
 		this._processManager.detachFromProcess();
+		this.dispose();
 	}
 
 	forceRedraw(): void {
@@ -1424,14 +1435,23 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._safeSetOption('macOptionClickForcesSelection', config.macOptionClickForcesSelection);
 		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 		this._safeSetOption('wordSeparator', config.wordSeparators);
+
 		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
 		if ((config.gpuAcceleration === 'auto' && suggestedRendererType === undefined) || config.gpuAcceleration === 'on') {
 			this._enableWebglRenderer();
 		} else {
 			this._disposeOfWebglRenderer();
-			this._safeSetOption('rendererType', (config.gpuAcceleration === 'auto' && suggestedRendererType === 'dom') ? 'dom' : (config.gpuAcceleration === 'off' ? 'dom' : 'canvas'));
+			this._safeSetOption('rendererType', this._getBuiltInXtermRenderer(config.gpuAcceleration, suggestedRendererType));
 		}
 		this._refreshEnvironmentVariableInfoWidgetState(this._processManager.environmentVariableInfo);
+	}
+
+	private _getBuiltInXtermRenderer(gpuAcceleration: string, suggestedRendererType?: string): RendererType {
+		let rendererType: RendererType = 'canvas';
+		if (gpuAcceleration === 'off' || (gpuAcceleration === 'auto' && suggestedRendererType === 'dom')) {
+			rendererType = 'dom';
+		}
+		return rendererType;
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
@@ -1848,7 +1868,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			items.push({ label: `$(${icon.id})`, description: `${icon.id}` });
 		}
 		const result = await this._quickInputService.pick(items, {
-			title: nls.localize('changeTerminalIcon', "Change Icon"),
 			matchOnDescription: true
 		});
 		if (result && result.description) {
@@ -1894,7 +1913,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
 		quickPick.matchOnDescription = true;
-		quickPick.title = nls.localize('changeTerminalColor', "Change Color");
 		quickPick.show();
 		const disposables: IDisposable[] = [];
 		const result = await new Promise<IQuickPickItem | undefined>(r => {
@@ -1922,7 +1940,9 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	get onDropTerminal(): Event<IRequestAddInstanceToGroupEvent> { return this._onDropTerminal.event; }
 
 	constructor(
-		private readonly _container: HTMLElement
+		private readonly _container: HTMLElement,
+		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
 	) {
 		super();
 		this._register(toDisposable(() => this._clearDropOverlay()));
@@ -1936,6 +1956,10 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	onDragEnter(e: DragEvent) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, 'terminals')) {
+			return;
+		}
+
 		if (!this._dropOverlay) {
 			this._dropOverlay = document.createElement('div');
 			this._dropOverlay.classList.add('terminal-drop-overlay');
@@ -1946,8 +1970,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		// Dragging terminals
 		if (types.includes('terminals')) {
 			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-left', side === 'left');
-			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+			this._dropOverlay.classList.toggle('drop-before', side === 'before');
+			this._dropOverlay.classList.toggle('drop-after', side === 'after');
 		}
 
 		if (!this._dropOverlay.parentElement) {
@@ -1972,8 +1996,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		// Dragging terminals
 		if (types.includes('terminals')) {
 			const side = this._getDropSide(e);
-			this._dropOverlay.classList.toggle('drop-left', side === 'left');
-			this._dropOverlay.classList.toggle('drop-right', side === 'right');
+			this._dropOverlay.classList.toggle('drop-before', side === 'before');
+			this._dropOverlay.classList.toggle('drop-after', side === 'after');
 		}
 
 		this._dropOverlay.style.opacity = '1';
@@ -2012,13 +2036,24 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 		this._onDropFile.fire(path);
 	}
 
-	private _getDropSide(e: DragEvent): 'left' | 'right' {
+	private _getDropSide(e: DragEvent): 'before' | 'after' {
 		const target = this._container;
 		if (!target) {
-			return 'right';
+			return 'after';
 		}
+
 		const rect = target.getBoundingClientRect();
-		return e.clientX - rect.left < rect.width / 2 ? 'left' : 'right';
+		return this._getViewOrientation() === Orientation.HORIZONTAL
+			? (e.clientX - rect.left < rect.width / 2 ? 'before' : 'after')
+			: (e.clientY - rect.top < rect.height / 2 ? 'before' : 'after');
+	}
+
+	private _getViewOrientation(): Orientation {
+		const panelPosition = this._layoutService.getPanelPosition();
+		const terminalLocation = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
+		return terminalLocation === ViewContainerLocation.Panel && panelPosition === Position.BOTTOM
+			? Orientation.HORIZONTAL
+			: Orientation.VERTICAL;
 	}
 }
 

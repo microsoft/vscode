@@ -176,6 +176,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 
 	detachFromProcess(): void {
 		this._process?.detach?.();
+		this._process = null;
 	}
 
 	async createProcess(
@@ -366,8 +367,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		const env = terminalEnvironment.createTerminalEnvironment(shellLaunchConfig, envFromConfigValue, variableResolver, this._productService.version, this._configHelper.config.detectLocale, baseEnv);
-
-		if (!shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
+		if (!this._isDisposed && !shellLaunchConfig.strictEnv && !shellLaunchConfig.hideFromUser) {
 			this._extEnvironmentVariableCollection = this._environmentVariableService.mergedCollection;
 			this._register(this._environmentVariableService.onDidChangeCollections(newCollection => this._onEnvironmentVariableCollectionChange(newCollection)));
 			// For remote terminals, this is a copy of the mergedEnvironmentCollection created on

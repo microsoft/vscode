@@ -34,7 +34,9 @@ export class RunAutomaticTasks extends Disposable implements IWorkbenchContribut
 
 	private async tryRunTasks() {
 		// Wait until we have task system info (the extension host and workspace folders are available).
-		await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
+		if (!this.taskService.hasTaskSystemInfo) {
+			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
+		}
 		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
 		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.

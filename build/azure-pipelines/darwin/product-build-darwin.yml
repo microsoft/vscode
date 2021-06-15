@@ -186,12 +186,6 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
-      set -e
-      yarn --cwd test/integration/browser compile
-    displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
       # Figure out the full absolute path of the product we just built
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
@@ -222,12 +216,6 @@ steps:
       ./resources/server/test/test-remote-integration.sh
     displayName: Run remote integration tests (Electron)
     timeoutInMinutes: 7
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
-      set -e
-      yarn --cwd test/smoke compile
-    displayName: Compile smoke tests
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
