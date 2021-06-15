@@ -81,7 +81,6 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
@@ -998,14 +997,7 @@ export class CodeApplication extends Disposable {
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
-		// We also print a warning if the resolution takes longer than 10s.
-		(async () => {
-			const slowResolveShellEnvWarning = this._register(new RunOnceScheduler(() => this.logService.warn('Resolving your shell environment is taking more than 10s. Please review your shell configuration. Learn more at https://go.microsoft.com/fwlink/?linkid=2149667.'), 10000));
-			slowResolveShellEnvWarning.schedule();
-
-			await resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
-			slowResolveShellEnvWarning.dispose();
-		})();
+		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which
