@@ -167,7 +167,7 @@ export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromi
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
-		const payloadParam = `[["enableProposedApi",""]]`;
+		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },
