@@ -1439,8 +1439,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):hover,
-			.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:hover { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {
