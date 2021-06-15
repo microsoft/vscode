@@ -510,7 +510,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private _onBeforeEOLChange(): void {
 		// Ensure all decorations get their `range` set.
 		const versionId = this.getVersionId();
-		const allDecorations = this._decorationsTree.search(0, false, false, false, versionId);
+		const allDecorations = this._decorationsTree.search(0, false, false, versionId);
 		this._ensureNodesHaveRanges(allDecorations);
 	}
 
@@ -1676,19 +1676,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	public getOverviewRulerDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
-		const result = this._decorationsTree.search(ownerId, filterOutValidation, true, false, versionId);
+		const result = this._decorationsTree.search(ownerId, filterOutValidation, true, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
 	public getInjectedTextDecorations(ownerId: number = 0): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
-		const result = this._decorationsTree.search(ownerId, false, false, true, versionId);
+		const result = this._decorationsTree.getInjectedText(ownerId, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
-		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, false, versionId);
+		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, versionId);
 		return this._ensureNodesHaveRanges(result);
 	}
 
@@ -3101,10 +3101,16 @@ class DecorationsTrees {
 		return r0.concat(r1).concat(r2);
 	}
 
-	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, injectedTextOnly: boolean, cachedVersionId: number): IntervalNode[] {
-		if (injectedTextOnly) {
-			return this._injectedTextDecorationsTree.search(filterOwnerId, filterOutValidation, cachedVersionId);
-		} else if (overviewRulerOnly) {
+	public getInjectedTextInInterval(start: number, end: number, filterOwnerId: number, cachedVersionId: number): IntervalNode[] {
+		return this._injectedTextDecorationsTree.intervalSearch(start, end, filterOwnerId, false, cachedVersionId);
+	}
+
+	public getInjectedText(filterOwnerId: number, cachedVersionId: number): IntervalNode[] {
+		return this._injectedTextDecorationsTree.search(filterOwnerId, false, cachedVersionId);
+	}
+
+	public search(filterOwnerId: number, filterOutValidation: boolean, overviewRulerOnly: boolean, cachedVersionId: number): IntervalNode[] {
+		if (overviewRulerOnly) {
 			return this._decorationsTree1.search(filterOwnerId, filterOutValidation, cachedVersionId);
 		} else {
 			const r0 = this._decorationsTree0.search(filterOwnerId, filterOutValidation, cachedVersionId);
