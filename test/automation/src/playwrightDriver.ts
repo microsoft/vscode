@@ -145,7 +145,12 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 
 async function teardown(): Promise<void> {
 	if (server) {
-		await new Promise((c, e) => kill(server!.pid, error => error ? e(error) : c(null)));
+		try {
+			await new Promise<void>((c, e) => kill(server!.pid, err => err ? e(err) : c()));
+		} catch (err) {
+			console.warn('Failed to kill server:', err);
+		}
+
 		server = undefined;
 	}
 }
