@@ -30,6 +30,7 @@ export class TerminalEditorInput extends EditorInput {
 	) {
 		super();
 		this._terminalInstance = terminalInstance;
+		this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire());
 	}
 
 	override getName() {

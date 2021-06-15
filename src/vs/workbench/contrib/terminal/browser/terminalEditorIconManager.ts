@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as dom from 'vs/base/browser/dom';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
@@ -31,13 +30,13 @@ export class TerminalEditorIconManager implements IDisposable {
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
-	private get styleElement(): HTMLStyleElement {
-		if (!this._styleElement) {
-			this._styleElement = dom.createStyleSheet();
-			this._styleElement.className = 'terminal-editor-icon';
-		}
-		return this._styleElement;
-	}
+	// private get styleElement(): HTMLStyleElement {
+	// 	if (!this._styleElement) {
+	// 		this._styleElement = dom.createStyleSheet();
+	// 		this._styleElement.className = 'terminal-editor-icon';
+	// 	}
+	// 	return this._styleElement;
+	// }
 
 	async updateStyleSheet() {
 		// const cssRules: string[] = [];

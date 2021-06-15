@@ -639,6 +639,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._container.appendChild(this._wrapperElement);
 	}
 
+	detachFromElement(): void {
+		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
+		this._wrapperElement = undefined;
+		this._container = undefined;
+	}
+
 	attachToElement(container: HTMLElement): Promise<void> | void {
 		// The container did not change, do nothing
 		if (this._container === container) {
@@ -686,7 +692,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!xterm.element || !xterm.textarea) {
 			throw new Error('xterm elements not set after open');
 		}
-
+		console.log('attaching instance', this._instanceId);
 		this._setAriaLabel(xterm, this._instanceId, this._title);
 
 		xterm.textarea.addEventListener('focus', () => this._onFocus.fire(this));

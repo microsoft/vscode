@@ -22,24 +22,19 @@ export class TerminalEditor extends EditorPane {
 	public static readonly ID = 'terminalEditor';
 
 	private _parentElement: HTMLElement | undefined;
-	private _isAttached: boolean = false;
-	private _editorInput!: TerminalEditorInput;
+	private _editorInput?: TerminalEditorInput = undefined;
 
+	private _lastDimension?: Dimension;
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		super.clearInput();
+		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
-		if (!this._editorInput?.terminalInstance) {
-			return;
-		}
-
-		if (!this._isAttached) {
-			this._editorInput.terminalInstance.attachToElement(this._parentElement!);
-			this._isAttached = true;
-		}
-
-		this._editorInput.terminalInstance.setVisible(true);
 		await super.setInput(newInput, options, context, token);
+		this._editorInput.terminalInstance.attachToElement(this._parentElement!);
+		if (this._lastDimension) {
+			this.layout(this._lastDimension);
+		}
+		this._editorInput.terminalInstance.setVisible(true);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -51,22 +46,18 @@ export class TerminalEditor extends EditorPane {
 		if (this._editorInput?.terminalInstance) {
 			this._editorInput.terminalInstance.layout(dimension);
 		}
+		this._lastDimension = dimension;
 	}
 
-	// override setVisible(visible: boolean, group?: IEditorGroup): void {
-	// 	// super.setVisible(visible, group);
+	override setVisible(visible: boolean, group?: IEditorGroup): void {
+		super.setVisible(visible, group);
 
-	// 	if (!this._editorInput?.terminalInstance) {
-	// 		return;
-	// 	}
+		if (!this._editorInput?.terminalInstance) {
+			return;
+		}
 
-	// 	if (!this._isAttached) {
-	// 		this._editorInput.terminalInstance.attachToElement(this._parentElement!);
-	// 		this._isAttached = true;
-	// 	}
-
-	// 	this._editorInput.terminalInstance.setVisible(visible);
-	// }
+		this._editorInput.terminalInstance.setVisible(visible);
+	}
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,

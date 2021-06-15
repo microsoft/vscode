@@ -599,6 +599,8 @@ export interface ITerminalInstance {
 	 */
 	attachToElement(container: HTMLElement): Promise<void> | void;
 
+	detachFromElement(): void;
+
 	/**
 	 * Configure the dimensions of the terminal instance.
 	 *
