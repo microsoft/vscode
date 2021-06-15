@@ -234,8 +234,6 @@ export interface ITerminalService {
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	instanceIsSplit(instance: ITerminalInstance): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
-
-	getPlatformKey(): Promise<string>;
 }
 
 /**

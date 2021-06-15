@@ -59,7 +59,7 @@
 	box-sizing: border-box;
 	margin-right: -10px;
 }
-.monaco-workbench .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
+.monaco-workbench .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
 }
 

@@ -42,7 +42,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TerminalEditorIconManager } from 'vs/workbench/contrib/terminal/browser/terminalEditorIconManager';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -73,8 +72,6 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
-
-	private _iconManager: TerminalEditorIconManager;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -167,10 +164,6 @@ export class TerminalService implements ITerminalService {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
-		this._iconManager = this._instantiationService.createInstance(TerminalEditorIconManager);
-		this.onInstanceIconChanged(() => this._iconManager.updateStyleSheet());
-		this.onInstanceCreated(() => this._iconManager.updateStyleSheet());
-
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
@@ -188,8 +181,8 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this.getPlatformKey()) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this.getPlatformKey()) ||
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._getPlatformKey()) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._getPlatformKey()) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
@@ -387,7 +380,7 @@ export class TerminalService implements ITerminalService {
 		if (!this._primaryOffProcessTerminalService) {
 			return this._availableProfiles || [];
 		}
-		const platform = await this.getPlatformKey();
+		const platform = await this._getPlatformKey();
 		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
@@ -916,9 +909,7 @@ export class TerminalService implements ITerminalService {
 		return !res.confirmed;
 	}
 
-
-
-	async getPlatformKey(): Promise<string> {
+	private async _getPlatformKey(): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env) {
 			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
@@ -929,7 +920,7 @@ export class TerminalService implements ITerminalService {
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(true);
-		const platformKey = await this.getPlatformKey();
+		const platformKey = await this._getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -1119,9 +1110,6 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
-	// createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	// createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
-	// createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config);
 
