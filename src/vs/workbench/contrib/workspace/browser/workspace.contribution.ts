@@ -670,6 +670,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -685,10 +686,6 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
-		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
-			return;
-		}
-
 		type WorkspaceTrustInfoEventClassification = {
 			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
@@ -697,9 +694,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			trustedFoldersCount: number,
 		};
 
-		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
-			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedUris().length,
-		});
+		const isWorkspaceTrustEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
+		const trustedFoldersCount = isWorkspaceTrustEnabled ? this.workspaceTrustManagementService.getTrustedUris().length : -1;
+		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', { trustedFoldersCount });
 	}
 
 	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
