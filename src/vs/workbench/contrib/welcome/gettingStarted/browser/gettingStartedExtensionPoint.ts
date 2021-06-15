@@ -142,7 +142,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 										},
 										{
 											label: 'onLink',
-											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a Getting Started step.'),
+											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a walkthrough step.'),
 											body: 'onLink:${2:linkId}'
 										},
 										{

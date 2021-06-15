@@ -445,7 +445,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				if (step.media.image) {
 					const altText = (step.media as any).altText;
 					if (altText === undefined) {
-						console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+						console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
 					}
 					media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(step.media.image) };
 				}
@@ -472,7 +472,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					else {
 						const altText = legacyMedia.altText;
 						if (altText === undefined) {
-							console.error('Getting Started: item', fullyQualifiedID, 'is missing altText for its media element.');
+							console.error('Walkthrough item:', fullyQualifiedID, 'is missing altText for its media element.');
 						}
 						media = { type: 'image', altText, path: convertExtensionRelativePathsToBrowserURIs(legacyMedia.path) };
 					}
@@ -567,7 +567,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						expression.keys().forEach(key => this.stepCompletionContextKeys.add(key));
 						event = eventType + ':' + expression.serialize();
 					} else {
-						console.error('Unable to parse context key expression:', expression, 'in getting started step', step.id);
+						console.error('Unable to parse context key expression:', expression, 'in walkthrough step', step.id);
 					}
 					break;
 				}
@@ -676,7 +676,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private registerStartEntry(categoryDescriptor: IGettingStartedStartEntryDescriptor): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor})`);
+			console.error(`Skipping attempt to overwrite walkthrough. (${categoryDescriptor})`);
 			return;
 		}
 
@@ -689,7 +689,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	registerWalkthrough(categoryDescriptor: IGettingStartedWalkthroughDescriptor, steps: IGettingStartedStep[]): void {
 		const oldCategory = this.gettingStartedContributions.get(categoryDescriptor.id);
 		if (oldCategory) {
-			console.error(`Skipping attempt to overwrite getting started category. (${categoryDescriptor.id})`);
+			console.error(`Skipping attempt to overwrite walkthrough. (${categoryDescriptor.id})`);
 			return;
 		}
 
@@ -759,8 +759,8 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'resetGettingStartedProgress',
-			category: 'Getting Started',
-			title: 'Reset Progress',
+			category: 'Developer',
+			title: 'Reset Welcome Page Walkthrough Progress',
 			f1: true
 		});
 	}
