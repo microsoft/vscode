@@ -762,6 +762,15 @@ export class TerminalService implements ITerminalService {
 		targetGroup.moveInstance(source, index);
 	}
 
+	moveToEditor(source: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		if (!sourceGroup) {
+			return;
+		}
+		sourceGroup.removeInstance(source);
+		this._terminalEditorService.createEditor(source);
+	}
+
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));

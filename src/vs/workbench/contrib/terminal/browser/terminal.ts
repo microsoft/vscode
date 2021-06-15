@@ -181,6 +181,7 @@ export interface ITerminalService {
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
+	moveToEditor(source: ITerminalInstance): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
