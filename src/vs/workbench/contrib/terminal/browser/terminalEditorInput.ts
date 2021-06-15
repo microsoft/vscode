@@ -8,10 +8,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 
-export const terminalInputId = 'workbench.editors.terminal';
 export class TerminalEditorInput extends EditorInput {
 
-	static readonly ID = terminalInputId;
+	static readonly ID = 'workbench.editors.terminal';
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
