@@ -599,6 +599,9 @@ export interface ITerminalInstance {
 	 */
 	attachToElement(container: HTMLElement): Promise<void> | void;
 
+	/**
+	 * Detaches the terminal instance from the terminal editor DOM element.
+	 */
 	detachFromElement(): void;
 
 	/**

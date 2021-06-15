@@ -36,4 +36,9 @@ export class TerminalEditorInput extends EditorInput {
 	override getName() {
 		return this.terminalInstance.title;
 	}
+
+	override dispose() {
+		this.terminalInstance.dispose();
+		super.dispose();
+	}
 }

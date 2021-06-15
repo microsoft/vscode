@@ -12,10 +12,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-
 
 export class TerminalEditor extends EditorPane {
 
@@ -63,10 +61,7 @@ export class TerminalEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ITerminalService terminalService: ITerminalService
 	) {
-
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 	}
 }
@@ -78,7 +73,6 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
 		return undefined;
-		// return editorInput.terminalInstance.instanceId.toString();
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TerminalEditorInput {
