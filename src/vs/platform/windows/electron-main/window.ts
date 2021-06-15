@@ -609,7 +609,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 					mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
 					mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
 				],
-				message: localize('appStalled', "The window is no longer responding"),
+				message: localize('appStalled', "The window is not responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
 				noLink: true,
 				defaultId: 0,
