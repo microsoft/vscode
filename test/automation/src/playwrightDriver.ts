@@ -94,7 +94,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string): Promise<void> {
+export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
 	workspacePath = _workspacePath;
 
 	const agentFolder = userDataDir;
@@ -131,8 +131,10 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		{ env }
 	);
 
-	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-	server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+	if (verbose) {
+		server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
+		server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+	}
 
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);

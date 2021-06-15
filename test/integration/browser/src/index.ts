@@ -119,9 +119,8 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		{ env }
 	);
 
-	serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-
 	if (optimist.argv.debug) {
+		serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess?.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	}
 
