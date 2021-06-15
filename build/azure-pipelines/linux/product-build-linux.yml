@@ -133,6 +133,18 @@ steps:
 
   - script: |
       set -e
+      APP_ROOT=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
+      ELECTRON_ROOT=.build/electron
+      sudo chown root $APP_ROOT/chrome-sandbox
+      sudo chown root $ELECTRON_ROOT/chrome-sandbox
+      sudo chmod 4755 $APP_ROOT/chrome-sandbox
+      sudo chmod 4755 $ELECTRON_ROOT/chrome-sandbox
+      stat $APP_ROOT/chrome-sandbox
+      stat $ELECTRON_ROOT/chrome-sandbox
+    displayName: Change setuid helper binary permission
+
+  - script: |
+      set -e
       ./scripts/test.sh --build --tfs "Unit Tests"
     displayName: Run unit tests (Electron)
     timeoutInMinutes: 7
@@ -183,7 +195,7 @@ steps:
   - script: |
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
-      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Electron)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -192,7 +204,7 @@ steps:
       set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --build "$APP_PATH" --remote --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Remote)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
@@ -200,7 +212,7 @@ steps:
   - script: |
       set -e
       VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-reh-web-linux-$(VSCODE_ARCH)" \
-      yarn smoketest-no-compile --web --headless --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+      yarn smoketest-no-compile --web --headless --electronArgs="--disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
     displayName: Run smoke tests (Browser)
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
