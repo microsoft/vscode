@@ -182,6 +182,7 @@ export interface ITerminalService {
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	moveToEditor(source: ITerminalInstance): void;
+	moveToTerminalView(source?: ITerminalInstance): Promise<void>;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -246,6 +247,7 @@ export interface ITerminalEditorService {
 	readonly terminalEditorInstances: ITerminalInstance[];
 
 	createEditor(instance: ITerminalInstance): Promise<void>;
+	detachActiveEditorInstance(): ITerminalInstance;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

@@ -450,7 +450,8 @@ export const enum TerminalCommandId {
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession',
 	DetachProcess = 'workbench.action.terminal.detachProcess',
-	MoveToEditor = 'workbench.action.terminal.moveToEditor'
+	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	MoveToTerminalView = 'workbench.action.terminal.moveToTerminalView',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
