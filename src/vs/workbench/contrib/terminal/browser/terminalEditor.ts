@@ -47,11 +47,6 @@ export class TerminalEditor extends EditorPane {
 		if (!this._editorInput?.terminalInstance) {
 			return;
 		}
-
-		if (!this._isAttached) {
-			this._editorInput.terminalInstance.attachToElement(this._parentElement!);
-			this._isAttached = true;
-		}
 		this._editorInput.terminalInstance.setVisible(visible);
 	}
 

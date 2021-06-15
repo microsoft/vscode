@@ -181,8 +181,8 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._getPlatformKey()) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._getPlatformKey()) ||
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this.getPlatformKey()) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this.getPlatformKey()) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
@@ -380,7 +380,7 @@ export class TerminalService implements ITerminalService {
 		if (!this._primaryOffProcessTerminalService) {
 			return this._availableProfiles || [];
 		}
-		const platform = await this._getPlatformKey();
+		const platform = await this.getPlatformKey();
 		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
@@ -911,7 +911,7 @@ export class TerminalService implements ITerminalService {
 
 
 
-	private async _getPlatformKey(): Promise<string> {
+	async getPlatformKey(): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env) {
 			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
@@ -922,7 +922,7 @@ export class TerminalService implements ITerminalService {
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(true);
-		const platformKey = await this._getPlatformKey();
+		const platformKey = await this.getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
