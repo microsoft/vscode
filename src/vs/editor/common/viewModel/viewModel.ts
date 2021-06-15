@@ -113,28 +113,64 @@ export class LineBreakData {
 	constructor(
 		public breakOffsets: number[],
 		public breakOffsetsVisibleColumn: number[],
-		public wrappedTextIndentLength: number
+		public wrappedTextIndentLength: number,
+		/**
+		 * Is null if there are no injections.
+		*/
+		//public textWithInjections: string | null,
+		public injectionTexts: string[] | null,
+		public injectionOffsets: number[] | null,
+		public injectionWidth: number[] | null,
 	) { }
 
-	public static getInputOffsetOfOutputPosition(breakOffsets: number[], outputLineIndex: number, outputOffset: number): number {
+	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
+		let inputOffset = 0;
 		if (outputLineIndex === 0) {
-			return outputOffset;
+			inputOffset = outputOffset;
 		} else {
-			return breakOffsets[outputLineIndex - 1] + outputOffset;
+			inputOffset = this.breakOffsets[outputLineIndex - 1] + outputOffset;
 		}
+
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset > this.injectionOffsets[i]) {
+					inputOffset -= Math.min(inputOffset - this.injectionOffsets[i], this.injectionTexts![i].length);
+				} else {
+					break;
+				}
+			}
+		}
+
+		// 0   1   2   3                   4   5           6   7   8   9
+		// 0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
+		// x   x   x   x                   x   x           x   x   x   x
+		//                       4                   2
+
+		return inputOffset;
 	}
 
-	public static getOutputPositionOfInputOffset(breakOffsets: number[], inputOffset: number): OutputPosition {
+	public getOutputPositionOfInputOffset(inputOffset: number): OutputPosition {
+		let delta = 0;
+		if (this.injectionOffsets !== null) {
+			for (let i = 0; i < this.injectionOffsets.length; i++) {
+				if (inputOffset < this.injectionOffsets[i]) {
+					break;
+				}
+				delta += this.injectionTexts![i].length;
+			}
+		}
+		inputOffset += delta;
+
 		let low = 0;
-		let high = breakOffsets.length - 1;
+		let high = this.breakOffsets.length - 1;
 		let mid = 0;
 		let midStart = 0;
 
 		while (low <= high) {
 			mid = low + ((high - low) / 2) | 0;
 
-			const midStop = breakOffsets[mid];
-			midStart = mid > 0 ? breakOffsets[mid - 1] : 0;
+			const midStop = this.breakOffsets[mid];
+			midStart = mid > 0 ? this.breakOffsets[mid - 1] : 0;
 
 			if (inputOffset < midStart) {
 				high = mid - 1;
@@ -144,6 +180,7 @@ export class LineBreakData {
 				break;
 			}
 		}
+
 
 		return new OutputPosition(mid, inputOffset - midStart);
 	}

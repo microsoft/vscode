@@ -148,7 +148,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 			}
 		}
 
-		result[i] = new LineBreakData(breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
+		result[i] = new LineBreakData(breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength, null, null, null);
 	}
 
 	document.body.removeChild(containerDomNode);

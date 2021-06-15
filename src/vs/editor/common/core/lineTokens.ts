@@ -22,12 +22,14 @@ export class LineTokens implements IViewLineTokens {
 	private readonly _tokensCount: number;
 	private readonly _text: string;
 
+	public static defaultTokenMetadata = (
+		(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
+		| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
+		| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
+	) >>> 0;
+
 	public static createEmpty(lineContent: string): LineTokens {
-		const defaultMetadata = (
-			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-		) >>> 0;
+		const defaultMetadata = LineTokens.defaultTokenMetadata;
 
 		const tokens = new Uint32Array(2);
 		tokens[0] = lineContent.length;
@@ -164,6 +166,57 @@ export class LineTokens implements IViewLineTokens {
 		}
 
 		return low;
+	}
+
+	/**
+	 * @pure
+	*/
+	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
+		if (insertTokens.length === 0) {
+			return this;
+		}
+
+		insertTokens.sort((t1, t2) => t1.offset - t2.offset);
+
+		let nextOriginalTokenIdx = 0;
+		let nextInsertTokenIdx = 0;
+
+		let text = '';
+		const newTokens = new Array<number>();
+		let delta = 0;
+
+		let originalEndOffset = 0;
+		while (true) {
+			let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : null;
+			let nextInsertToken = nextInsertTokenIdx < insertTokens.length ? insertTokens[nextInsertTokenIdx] : null;
+
+			if (nextOriginalTokenEndOffset !== null && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
+				// original token ends before next insert token
+				text += this._text.substring(originalEndOffset, nextOriginalTokenEndOffset);
+				const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+				newTokens.push(nextOriginalTokenEndOffset + delta, metadata);
+				nextOriginalTokenIdx++;
+				originalEndOffset = nextOriginalTokenEndOffset;
+
+			} else if (nextInsertToken) {
+				if (nextInsertToken.offset > originalEndOffset) {
+					// insert token is in the middle of the next token.
+					text += this._text.substring(originalEndOffset, nextInsertToken.offset);
+					const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
+					newTokens.push(nextInsertToken.offset + delta, metadata);
+					originalEndOffset = nextInsertToken.offset;
+				}
+
+				text += nextInsertToken.text;
+				newTokens.push(nextInsertToken.offset + delta + nextInsertToken.text.length, nextInsertToken.tokenMetadata);
+				delta += nextInsertToken.text.length;
+				nextInsertTokenIdx++;
+			} else {
+				break;
+			}
+		}
+
+		return new LineTokens(new Uint32Array(newTokens), text);
 	}
 }
 

@@ -357,9 +357,6 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 }
 
 function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: string, injectedText: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
-	if (injectedText) {
-		console.log(`TODO: `, injectedText);
-	}
 	if (firstLineBreakColumn === -1) {
 		return null;
 	}
@@ -444,7 +441,20 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: str
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
 
-	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength);
+	let injectionTexts: string[] | null;
+	let injectionOffsets: number[] | null;
+	let injectionWidths: number[] | null;
+	if (injectedText) {
+		injectionTexts = injectedText.map(t => t.text);
+		injectionOffsets = injectedText.map(text => text.column - 1);
+		injectionWidths = injectedText.map(text => text.text.length);
+	} else {
+		injectionTexts = null;
+		injectionOffsets = null;
+		injectionWidths = null;
+	}
+
+	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets, injectionWidths);
 }
 
 function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
