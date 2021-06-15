@@ -581,17 +581,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: CONFIGURE_TRUST_COMMAND_ID,
-			title: {
-				original: 'Configure Workspace Trust',
-				value: localize('configureWorkspaceTrust', "Configure Workspace Trust")
-			},
+			title: { original: 'Configure Workspace Trust', value: localize('configureWorkspaceTrust', "Configure Workspace Trust") },
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: localize('workspacesCategory', "Workspaces"),
-			menu: {
-				id: MenuId.GlobalActivity,
-				group: '6_workspace_trust',
-				order: 30,
-				when: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true))
-			},
+			f1: true
 		});
 	}
 
@@ -600,7 +593,7 @@ registerAction2(class extends Action2 {
 		if (editorPane instanceof SettingsEditor2) {
 			editorPane.focusSearch(`@tag:${WORKSPACE_TRUST_SETTING_TAG}`);
 		} else {
-			accessor.get(IPreferencesService).openSettings(false, `@tag:${WORKSPACE_TRUST_SETTING_TAG}`);
+			accessor.get(IPreferencesService).openGlobalSettings(false, { query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
 		}
 	}
 });
@@ -613,11 +606,10 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: MANAGE_TRUST_COMMAND_ID,
-			title: {
-				original: 'Manage Workspace Trust',
-				value: localize('manageWorkspaceTrust', "Manage Workspace Trust")
-			},
+			title: { original: 'Manage Workspace Trust', value: localize('manageWorkspaceTrust', "Manage Workspace Trust") },
+			precondition: ContextKeyExpr.and(WorkspaceTrustContext.IsEnabled, IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
 			category: localize('workspacesCategory', "Workspaces"),
+			f1: true,
 			menu: {
 				id: MenuId.GlobalActivity,
 				group: '6_workspace_trust',
