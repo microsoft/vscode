@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -31,14 +32,10 @@ export class TerminalEditorInput extends EditorInput {
 		super();
 		this._terminalInstance = terminalInstance;
 		this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire());
+		this._register(toDisposable(() => this.terminalInstance.dispose()));
 	}
 
 	override getName() {
 		return this.terminalInstance.title;
-	}
-
-	override dispose() {
-		this.terminalInstance.dispose();
-		super.dispose();
 	}
 }

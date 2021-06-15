@@ -20,9 +20,18 @@ export class TerminalEditor extends EditorPane {
 	public static readonly ID = 'terminalEditor';
 
 	private _parentElement: HTMLElement | undefined;
+
 	private _editorInput?: TerminalEditorInput = undefined;
 
 	private _lastDimension?: Dimension;
+
+	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IStorageService storageService: IStorageService,
+	) {
+		super(TerminalEditor.ID, telemetryService, themeService, storageService);
+	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
 		this._editorInput?.terminalInstance?.detachFromElement();
@@ -49,21 +58,9 @@ export class TerminalEditor extends EditorPane {
 
 	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible, group);
-
-		if (!this._editorInput?.terminalInstance) {
-			return;
-		}
-
-		this._editorInput.terminalInstance.setVisible(visible);
+		return this._editorInput?.terminalInstance?.setVisible(visible);
 	}
 
-	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService,
-	) {
-		super(TerminalEditor.ID, telemetryService, themeService, storageService);
-	}
 }
 
 export class TerminalInputSerializer implements IEditorInputSerializer {

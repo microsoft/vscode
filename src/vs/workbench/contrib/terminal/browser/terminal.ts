@@ -102,7 +102,6 @@ export interface ICreateTerminalOptions {
 	 * profile will be used.
 	 */
 	config?: IShellLaunchConfig | ITerminalProfile;
-	// TODO: Ensure this is supported for profiles
 	/**
 	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
 	 * specified.
