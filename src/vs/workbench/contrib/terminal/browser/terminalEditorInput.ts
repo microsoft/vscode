@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -25,7 +24,7 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	get resource(): URI {
-		return URI.from({ scheme: Schemas.vscodeTerminal, path: this._terminalInstance!.instanceId.toString() });
+		return this.terminalInstance.resource;
 	}
 
 	constructor(
