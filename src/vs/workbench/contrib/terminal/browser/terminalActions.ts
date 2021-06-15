@@ -852,7 +852,8 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.DetachProcess,
 				title: { value: localize('workbench.action.terminal.detachProcess', "Detach Process"), original: 'Detach Process' },
 				f1: true,
-				category
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -865,7 +866,8 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.AttachToRemoteTerminal,
 				title: { value: localize('workbench.action.terminal.attachToRemote', "Attach to Session"), original: 'Attach to Session' },
 				f1: true,
-				category
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
