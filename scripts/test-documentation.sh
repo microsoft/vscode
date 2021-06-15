@@ -1,14 +1,16 @@
-#!/usr/bin/env bash
+#!/usr/bin/env fish
 set -e
 
-if [[ "$OSTYPE" == "darwin"* ]]; then
+if "$OSTYPE" == "darwin"
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
-	ROOT=$(dirname $(dirname $(realpath "$0")))
+	# ROOT=$(dirname $(dirname $(realpath "$0")))
+	set ROOT $(dirname $(dirname $(realpath "$0")))
 	VSCODEUSERDATADIR=`mktemp -d -t 'myuserdatadir'`
 else
-	ROOT=$(dirname $(dirname $(readlink -f $0)))
+	# ROOT=$(dirname $(dirname $(readlink -f $0)))
+	set ROOT $(dirname $(dirname $(readlink -f $0)))
 	VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
-fi
+end
 
 cd $ROOT
 

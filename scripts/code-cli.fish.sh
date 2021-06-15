@@ -1,11 +1,11 @@
-#!/usr/bin/env bash
+#!/usr/bin/env fish
 
 if [[ "$OSTYPE" == "darwin"* ]]
 	realpath() { [[ $1 = /* ]] && echo "$1" || echo "$PWD/${1#./}"; }
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-fi
+end
 
 function code() {
 	cd $ROOT
@@ -16,18 +16,18 @@ function code() {
 	else
 		NAME=`node -p "require('./product.json').applicationName"`
 		CODE=".build/electron/$NAME"
-	fi
+	end
 
 	# Get electron, compile, built-in extensions
-	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]; then
+	if [[ -z "${VSCODE_SKIP_PRELAUNCH}" ]]
 		node build/lib/preLaunch.js
-	fi
+	end
 
 	# Manage built-in extensions
-	if [[ "$1" == "--builtin" ]]; then
+	if [[ "$1" == "--builtin" ]]
 		exec "$CODE" build/builtin
 		return
-	fi
+	end
 
 	ELECTRON_RUN_AS_NODE=1 \
 	NODE_ENV=development \
