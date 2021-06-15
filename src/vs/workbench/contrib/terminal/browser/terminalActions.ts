@@ -180,7 +180,7 @@ export function registerTerminalActions() {
 				}
 
 				if (profile) {
-					instance = terminalService.createTerminal(profile, cwd);
+					instance = terminalService.createTerminal({ config: profile, cwd });
 				} else {
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
@@ -918,7 +918,9 @@ export function registerTerminalActions() {
 			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
-				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
+				const instance = terminalService.createTerminal({
+					config: { attachPersistentProcess: selected.term }
+				});
 				terminalService.setActiveInstance(instance);
 				terminalService.showPanel(true);
 			}
@@ -1799,7 +1801,7 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const instance = terminalService.createTerminal(profile);
+					const instance = terminalService.createTerminal({ config: profile });
 					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);

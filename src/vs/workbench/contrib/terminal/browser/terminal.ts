@@ -90,6 +90,29 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
+export const enum TerminalTarget {
+	TerminalView = 'view',
+	Editor = 'editor'
+}
+
+export interface ICreateTerminalOptions {
+	/**
+	 * The shell launch config or profile to launch with, when not specified the default terminal
+	 * profile will be used.
+	 */
+	config?: IShellLaunchConfig | ITerminalProfile;
+	// TODO: Ensure this is supported for profiles
+	/**
+	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * specified.
+	 */
+	cwd?: string | URI;
+	/**
+	 * Where to create the terminal, when not specified the default target will be used.
+	 */
+	target?: TerminalTarget;
+}
+
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
@@ -131,16 +154,10 @@ export interface ITerminalService {
 
 	/**
 	 * Creates a terminal.
-	 * @param shell The shell launch configuration to use.
+	 * @param options The options to create the terminal with, when not specified the default
+	 * profile will be used at the default target.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance;
-
-	/**
-	 * Creates a terminal.
-	 * @param profile The profile to launch the terminal with.
-	 */
-	createTerminal(profile: ITerminalProfile): ITerminalInstance;
-
+	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance;
 	createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void>;
 
 	/**

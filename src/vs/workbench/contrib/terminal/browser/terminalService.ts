@@ -19,7 +19,7 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -277,7 +277,9 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create group and terminal
-							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({
+								config: { attachPersistentProcess: terminalLayout.terminal! }
+							});
 							group = this.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
@@ -988,7 +990,7 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
-					instance = this.createTerminal(value.profile, cwd);
+					instance = this.createTerminal({ config: value.profile, cwd });
 				}
 			}
 
@@ -1100,13 +1102,14 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
-	createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
-	createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+	// createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	// createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
+	// createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
+	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config);
 
-		if (cwd) {
-			shellLaunchConfig.cwd = cwd;
+		if (options?.cwd) {
+			shellLaunchConfig.cwd = options.cwd;
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
