@@ -151,7 +151,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			}
 		}
 		if (!terminal) {
-			terminal = this._terminalService.createTerminal(shellLaunchConfig);
+			terminal = this._terminalService.createTerminal({ config: shellLaunchConfig });
 		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}

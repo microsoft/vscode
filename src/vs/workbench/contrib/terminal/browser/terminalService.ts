@@ -278,9 +278,10 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create group and terminal
-							terminalInstance = this.createTerminal({
-								config: { attachPersistentProcess: terminalLayout.terminal! }
-							});
+							const config = { attachPersistentProcess: terminalLayout.terminal! } as IShellLaunchConfig;
+							terminalInstance = this.createTerminal(
+								config
+							);
 							group = this.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
@@ -327,7 +328,7 @@ export class TerminalService implements ITerminalService {
 
 	getActiveOrCreateInstance(): ITerminalInstance {
 		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createTerminal(undefined);
+		return activeInstance ? activeInstance : this.createTerminal();
 	}
 
 	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
