@@ -195,6 +195,14 @@ steps:
     continueOnError: true
     condition: failed()
 
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-windows-$(VSCODE_ARCH)
+      targetPath: .build\logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: succeededOrFailed()
+
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
