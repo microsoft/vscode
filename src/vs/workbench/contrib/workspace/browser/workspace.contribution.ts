@@ -46,6 +46,7 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
@@ -696,6 +697,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -712,6 +714,19 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 
 	private logInitialWorkspaceTrustInfo(): void {
 		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
+
+			type WorkspaceTrustDisabledEventClassification = {
+				reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			type WorkspaceTrustDisabledEvent = {
+				reason: 'setting' | 'cli',
+			};
+
+			this.telemetryService.publicLog2<WorkspaceTrustDisabledEvent, WorkspaceTrustDisabledEventClassification>('workspaceTrustDisabled', {
+				reason: disabledByCliFlag ? 'cli' : 'setting'
+			});
 			return;
 		}
 
