@@ -488,7 +488,15 @@ class ProcAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
-		this._register(configurationService.onDidChangeConfiguration(async (e) => {
+		this.initialize();
+	}
+
+	private async initialize() {
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				await this.startStopCandidateListener();
 			}
@@ -522,10 +530,6 @@ class ProcAutomaticPortForwarding extends Disposable {
 		}
 		if (this.portsFeatures) {
 			this.portsFeatures.dispose();
-		}
-
-		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
-			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
 		}
 
 		// Capture list of starting candidates so we don't auto forward them later.
