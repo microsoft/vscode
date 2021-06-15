@@ -1713,10 +1713,10 @@ export class TerminalLink implements vscode.TerminalLink {
 		public length: number,
 		public tooltip?: string
 	) {
-		if (typeof startIndex !== 'number') {
+		if (typeof startIndex !== 'number' || startIndex < 0) {
 			throw illegalArgument('startIndex');
 		}
-		if (typeof length !== 'number') {
+		if (typeof length !== 'number' || length < 1) {
 			throw illegalArgument('length');
 		}
 		if (tooltip !== undefined && typeof tooltip !== 'string') {
