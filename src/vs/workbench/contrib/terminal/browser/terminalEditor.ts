@@ -70,12 +70,13 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 		return false;
 	}
 
-	public serialize(editorInput: TerminalEditorInput): string {
-		return '';
+	public serialize(editorInput: TerminalEditorInput): string | undefined {
+		return undefined;
+		// return editorInput.terminalInstance.instanceId.toString();
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TerminalEditorInput {
+		// TODO: Attach to instanceId via pty service
 		throw new Error('NYI');
-		// return TerminalEditorInput.copy(instantiationService);
 	}
 }
