@@ -20,6 +20,7 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
@@ -232,6 +233,18 @@ export interface ITerminalService {
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	instanceIsSplit(instance: ITerminalInstance): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+}
+
+/**
+ * This service is responsible for integrating with the editor service and managing terminal
+ * editors.
+ */
+export interface ITerminalEditorService {
+	readonly _serviceBrand: undefined;
+
+	readonly terminalEditorInstances: ITerminalInstance[];
+
+	createEditor(instance: ITerminalInstance): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

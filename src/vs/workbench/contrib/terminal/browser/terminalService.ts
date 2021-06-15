@@ -19,7 +19,7 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, TerminalTarget, ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -42,8 +42,6 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -136,7 +134,6 @@ export class TerminalService implements ITerminalService {
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
-		@IEditorService private readonly _editorService: IEditorService,
 		@ILabelService labelService: ILabelService,
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IDialogService private _dialogService: IDialogService,
@@ -150,6 +147,7 @@ export class TerminalService implements ITerminalService {
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -1139,15 +1137,8 @@ export class TerminalService implements ITerminalService {
 
 		let instance: ITerminalInstance;
 		if (options?.target === TerminalTarget.Editor) {
-			const input = TerminalEditorInput.copy(this, this._instantiationService);
-			instance = input.terminalInstance;
-			instance.target = TerminalTarget.Editor;
-			// TODO: This is a promise - handle errors
-			this._editorService.openEditor(input, {
-				pinned: true,
-				forceReload: true
-			});
-			// TODO: Push to terminal editors
+			instance = this.createInstance(shellLaunchConfig);
+			this._terminalEditorService.createEditor(instance);
 			this._initInstanceListeners(instance);
 			this._onInstancesChanged.fire();
 		} else {
@@ -1163,6 +1154,7 @@ export class TerminalService implements ITerminalService {
 			this._onInstancesChanged.fire();
 			this._onGroupsChanged.fire();
 		}
+
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire
 			// after onInstancesChanged so consumers can react to the instance being added first
