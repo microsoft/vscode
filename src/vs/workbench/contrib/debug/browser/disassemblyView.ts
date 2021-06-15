@@ -19,6 +19,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DISASSEMBLY_VIEW_ID, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -30,7 +31,9 @@ export class DisassemblyView extends EditorPane {
 
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
 
-	private _fontInfo: BareFontInfo;
+	// Used in instruction renderer
+	fontInfo: BareFontInfo;
+
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _debugService: IDebugService;
 	// private _currentAddress: string | undefined;
@@ -47,10 +50,10 @@ export class DisassemblyView extends EditorPane {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
 		this._debugService = debugService;
 
-		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+		this.fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this.fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 				this._disassembledInstructions?.rerender();
 			}
 		}));
@@ -59,7 +62,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		const lineHeight = this._fontInfo.lineHeight;
+		const lineHeight = this.fontInfo.lineHeight;
 		const delegate = new class implements ITableVirtualDelegate<IDisassembledInstructionEntry>{
 			headerRowHeight: number = 0; // No header
 			getHeight(row: IDisassembledInstructionEntry): number {
@@ -74,8 +77,8 @@ export class DisassemblyView extends EditorPane {
 					label: '',
 					tooltip: '',
 					weight: 0,
-					minimumWidth: 40,
-					maximumWidth: 40,
+					minimumWidth: this.fontInfo.lineHeight,
+					maximumWidth: this.fontInfo.lineHeight,
 					templateId: BreakpointRenderer.TEMPLATE_ID,
 					project(row: IDisassembledInstructionEntry): IDisassembledInstructionEntry { return row; }
 				},
@@ -89,11 +92,11 @@ export class DisassemblyView extends EditorPane {
 			],
 			[
 				this._instantiationService.createInstance(BreakpointRenderer),
-				this._instantiationService.createInstance(InstructionRenderer),
+				this._instantiationService.createInstance(InstructionRenderer, this),
 			],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
-				horizontalScrolling: false,
+				horizontalScrolling: true,
 				overrideStyles: {
 					listBackground: editorBackground
 				},
@@ -114,7 +117,7 @@ export class DisassemblyView extends EditorPane {
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
-				const topElement = Math.floor(e.scrollTop / this._fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
+				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this._lastOffset -= DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() =>
 					this._disassembledInstructions!.reveal(topElement, 0)
@@ -165,6 +168,11 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
 		const icon = append(container, $('.disassembly-view'));
 		icon.classList.add('codicon');
+
+		icon.style.display = 'flex';
+		icon.style.alignItems = 'center';
+		icon.style.justifyContent = 'center';
+
 		return { container, icon };
 	}
 
@@ -218,21 +226,62 @@ interface IInstructionColumnTemplateData {
 
 class InstructionRenderer implements ITableRenderer<IDisassembledInstructionEntry, IInstructionColumnTemplateData> {
 
+	private static readonly INSTRUCTION_ADDR_MIN_LENGTH = 25;
+	private static readonly INSTRUCTION_BYTES_MIN_LENGTH = 30;
+
 	static readonly TEMPLATE_ID = 'instruction';
 
 	templateId: string = InstructionRenderer.TEMPLATE_ID;
 
+	constructor(private readonly disassemblyView: DisassemblyView) {
+	}
+
 	renderTemplate(container: HTMLElement): IInstructionColumnTemplateData {
-		const instruction = append(container, $('instruction'));
+		const instruction = append(container, $('.instruction'));
+		this.applyFontInfo(instruction);
 		return { instruction };
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
 		const instruction = element.instruction;
-		templateData.instruction.innerText = `${instruction.address}\t${instruction.instructionBytes}\t${instruction.instruction}`;
+		const sb = createStringBuilder(10000);
+
+		sb.appendASCIIString(instruction.address);
+		let spacesToAppend = 10;
+		if (instruction.address.length < InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH) {
+			spacesToAppend = InstructionRenderer.INSTRUCTION_ADDR_MIN_LENGTH - instruction.address.length;
+		}
+		for (let i = 0; i < spacesToAppend; i++) {
+			sb.appendASCII(0x00A0);
+		}
+
+		if (instruction.instructionBytes) {
+			sb.appendASCIIString(instruction.instructionBytes);
+			spacesToAppend = 10;
+			if (instruction.instructionBytes.length < InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH) {
+				spacesToAppend = InstructionRenderer.INSTRUCTION_BYTES_MIN_LENGTH - instruction.instructionBytes.length;
+			}
+			for (let i = 0; i < spacesToAppend; i++) {
+				sb.appendASCII(0x00A0);
+			}
+		}
+
+		sb.appendASCIIString(instruction.instruction);
+
+		const innerText = sb.build();
+		templateData.instruction.innerText = innerText;
 	}
 
 	disposeTemplate(templateData: IInstructionColumnTemplateData): void { }
+
+	private applyFontInfo(element: HTMLElement) {
+		const fontInfo = this.disassemblyView.fontInfo;
+		element.style.fontFamily = fontInfo.getMassagedFontFamily();
+		element.style.fontWeight = fontInfo.fontWeight;
+		element.style.fontSize = fontInfo.fontSize + 'px';
+		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
+		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
+	}
 
 }
 
