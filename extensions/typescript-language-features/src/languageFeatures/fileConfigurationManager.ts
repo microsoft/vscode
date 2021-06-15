@@ -22,7 +22,6 @@ namespace ExperimentalProto {
 		includeInlayVariableTypeHints?: boolean;
 		includeInlayNonLiteralParameterNameHints?: boolean;
 		includeInlayDuplicatedParameterNameHints?: boolean;
-		includeInlayRequireAssignedVariableTypeHints?: boolean;
 		includeInlayPropertyDeclarationTypeHints?: boolean;
 		includeInlayFunctionLikeReturnTypeHints?: boolean;
 		includeInlayEnumMemberValueHints?: boolean;
@@ -224,7 +223,6 @@ export function getInlayHintsPreferences(config: vscode.WorkspaceConfiguration) 
 		includeInlayVariableTypeHints: config.get<boolean>('inlayHints.includeInlayVariableTypeHints', false),
 		includeInlayNonLiteralParameterNameHints: config.get<boolean>('inlayHints.includeInlayNonLiteralParameterNameHints', false),
 		includeInlayDuplicatedParameterNameHints: config.get<boolean>('inlayHints.includeInlayDuplicatedParameterNameHints', false),
-		includeInlayRequireAssignedVariableTypeHints: config.get<boolean>('inlayHints.includeInlayRequireAssignedVariableTypeHints', false),
 		includeInlayPropertyDeclarationTypeHints: config.get<boolean>('inlayHints.includeInlayPropertyDeclarationTypeHints', false),
 		includeInlayFunctionLikeReturnTypeHints: config.get<boolean>('inlayHints.includeInlayFunctionLikeReturnTypeHints', false),
 		includeInlayEnumMemberValueHints: config.get<boolean>('inlayHints.includeInlayEnumMemberValueHints', false),

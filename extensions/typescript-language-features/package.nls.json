@@ -79,7 +79,6 @@
 	"configuration.inlayHints.includeInlayVariableTypeHints": "Enable/disable inlay hints of variable type.",
 	"configuration.inlayHints.includeInlayNonLiteralParameterNameHints": "Enable/disable inlay hints of non literal argument.",
 	"configuration.inlayHints.includeInlayDuplicatedParameterNameHints": "Enable/disable inlay hints of duplicated argument.",
-	"configuration.inlayHints.includeInlayRequireAssignedVariableTypeHints": "Enable/disable inlay hints of require assigned variable.",
 	"configuration.inlayHints.includeInlayPropertyDeclarationTypeHints": "Enable/disable inlay hints of property declaration.",
 	"configuration.inlayHints.includeInlayFunctionLikeReturnTypeHints": "Enable/disable inlay hints of return type for function like.",
 	"configuration.inlayHints.includeInlayEnumMemberValueHints": "Enable/disable inlay hints of enum member.",

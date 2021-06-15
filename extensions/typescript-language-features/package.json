@@ -300,12 +300,6 @@
           "description": "%configuration.inlayHints.includeInlayDuplicatedParameterNameHints%",
           "scope": "resource"
         },
-        "typescript.inlayHints.includeInlayRequireAssignedVariableTypeHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayRequireAssignedVariableTypeHints%",
-          "scope": "resource"
-        },
         "typescript.inlayHints.includeInlayPropertyDeclarationTypeHints": {
           "type": "boolean",
           "default": false,
@@ -352,12 +346,6 @@
           "type": "boolean",
           "default": false,
           "description": "%configuration.inlayHints.includeInlayDuplicatedParameterNameHints%",
-          "scope": "resource"
-        },
-        "javascript.inlayHints.includeInlayRequireAssignedVariableTypeHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayRequireAssignedVariableTypeHints%",
           "scope": "resource"
         },
         "javascript.inlayHints.includeInlayPropertyDeclarationTypeHints": {
