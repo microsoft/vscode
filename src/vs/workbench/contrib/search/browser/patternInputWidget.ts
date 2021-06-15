@@ -22,6 +22,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IOptions {
 	placeholder?: string;
+	showPlaceholderOnFocus?: boolean;
 	tooltip?: string;
 	width?: number;
 	ariaLabel?: string;
@@ -144,6 +145,7 @@ export class PatternInputWidget extends Widget implements IThemable {
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: options.placeholder,
+			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
 			tooltip: options.tooltip,
 			ariaLabel: options.ariaLabel,
 			validationOptions: {
