@@ -1169,7 +1169,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let options = await this.resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
+		let waitOnExit: boolean | string = (presentationOptions?.close !== undefined) ? !presentationOptions.close : true;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
