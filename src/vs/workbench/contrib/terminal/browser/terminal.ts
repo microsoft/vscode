@@ -312,6 +312,8 @@ export interface ITerminalInstance {
 	 */
 	processId: number | undefined;
 
+	target?: TerminalTarget;
+
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
 	 * that supports reconnection.
