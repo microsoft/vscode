@@ -46,6 +46,7 @@ import { IBannerItem, IBannerService } from 'vs/workbench/services/banner/browse
 import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
 const STARTUP_PROMPT_SHOWN_KEY = 'workspace.trust.startupPrompt.shown';
@@ -670,7 +671,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
  */
 class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkbenchContribution {
 	constructor(
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
@@ -686,6 +687,23 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
+		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+			const disabledByCliFlag = this.environmentService.disableWorkspaceTrust;
+
+			type WorkspaceTrustDisabledEventClassification = {
+				reason: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+			};
+
+			type WorkspaceTrustDisabledEvent = {
+				reason: 'setting' | 'cli',
+			};
+
+			this.telemetryService.publicLog2<WorkspaceTrustDisabledEvent, WorkspaceTrustDisabledEventClassification>('workspaceTrustDisabled', {
+				reason: disabledByCliFlag ? 'cli' : 'setting'
+			});
+			return;
+		}
+
 		type WorkspaceTrustInfoEventClassification = {
 			trustedFoldersCount: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
 		};
@@ -694,9 +712,9 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 			trustedFoldersCount: number,
 		};
 
-		const isWorkspaceTrustEnabled = this.configurationService.getValue<boolean>(WORKSPACE_TRUST_ENABLED) ?? false;
-		const trustedFoldersCount = isWorkspaceTrustEnabled ? this.workspaceTrustManagementService.getTrustedUris().length : -1;
-		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', { trustedFoldersCount });
+		this.telemetryService.publicLog2<WorkspaceTrustInfoEvent, WorkspaceTrustInfoEventClassification>('workspaceTrustFolderCounts', {
+			trustedFoldersCount: this.workspaceTrustManagementService.getTrustedUris().length,
+		});
 	}
 
 	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
