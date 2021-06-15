@@ -134,19 +134,17 @@ class LogPointAction extends EditorAction2 {
 	}
 }
 
-class GoToDisassemblyAction extends EditorAction {
+class OpenDisassemblyViewAction extends EditorAction {
 
-	public static readonly ID = 'editor.debug.action.goToDisassembly';
-	public static readonly LABEL = nls.localize('goToDisassembly', "Go to Disassembly");
+	public static readonly ID = 'editor.debug.action.openDisassemblyView';
+	public static readonly LABEL = nls.localize('openDisassemblyView', "Open Disassembly View");
 
 	constructor() {
 		super({
-			id: GoToDisassemblyAction.ID,
-			label: GoToDisassemblyAction.LABEL,
+			id: OpenDisassemblyViewAction.ID,
+			label: OpenDisassemblyViewAction.LABEL,
 			alias: 'Debug: Go to Disassembly',
-			// precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
-			precondition: ContextKeyExpr.and(PanelFocusContext.toNegated(), EditorContextKeys.editorTextFocus),
-
+			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, PanelFocusContext.toNegated(), CONTEXT_DEBUG_STATE.isEqualTo('stopped'), EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
 				group: 'debug',
 				order: 5
@@ -534,7 +532,7 @@ class CloseExceptionWidgetAction extends EditorAction {
 registerAction2(ToggleBreakpointAction);
 registerAction2(ConditionalBreakpointAction);
 registerAction2(LogPointAction);
-registerEditorAction(GoToDisassemblyAction);
+registerEditorAction(OpenDisassemblyViewAction);
 registerEditorAction(RunToCursorAction);
 registerEditorAction(StepIntoTargetsAction);
 registerEditorAction(SelectionToReplAction);

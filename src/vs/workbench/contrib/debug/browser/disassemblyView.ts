@@ -31,7 +31,7 @@ export class DisassemblyView extends EditorPane {
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
 
 	private _fontInfo: BareFontInfo;
-	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | null;
+	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _debugService: IDebugService;
 	// private _currentAddress: string | undefined;
 	private _lastOffset: number = 0;
@@ -48,16 +48,14 @@ export class DisassemblyView extends EditorPane {
 		this._debugService = debugService;
 
 		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
-		configurationService.onDidChangeConfiguration(e => {
+		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
 				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 				this._disassembledInstructions?.rerender();
 			}
-		});
+		}));
 
-		this._disassembledInstructions = null;
-
-
+		this._disassembledInstructions = undefined;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -102,18 +100,19 @@ export class DisassemblyView extends EditorPane {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
+				// TODO: accessibilityProvider
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 0.5;
-		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() => {
+		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
+		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 			// on load, set the target instruction in the middle of the page.
 			if (this._disassembledInstructions!.length > 0) {
-				this._disassembledInstructions?.reveal(this._disassembledInstructions!.length * 0.5, 0.5);
+				this._disassembledInstructions?.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
 			}
 		});
 
-		this._disassembledInstructions.onDidScroll(e => {
+		this._register(this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				const topElement = Math.floor(e.scrollTop / this._fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this._lastOffset -= DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
@@ -123,7 +122,7 @@ export class DisassemblyView extends EditorPane {
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this.loadDisassembledInstructions(this._disassembledInstructions!.length + this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
-		});
+		}));
 	}
 
 	layout(dimension: Dimension): void {
@@ -133,7 +132,7 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async loadDisassembledInstructions(offset: number, instructionCount: number): Promise<void> {
-		const resultEntries = await this._debugService.getDisassemble(offset, 0, instructionCount);
+		const resultEntries = await this._debugService.getDisassemble(0, offset, instructionCount);
 		if (resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
@@ -170,6 +169,10 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
+		// TODO: stepping
+		// const debugStackframe = 'codicon-' + icons.debugStackframe.id;
+		// const debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
+
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
 		if (element.allowBreakpoint) {
