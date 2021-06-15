@@ -45,6 +45,12 @@ export class TextAreaEditor extends EditorPane {
 			input.setQueryString(this.extractQueryFromModel(model));
 			this._register(model.onDidChangeContent(() => {
 				input.setQueryString(this.extractQueryFromModel(model));
+				if (model.getValue().endsWith('run')) {
+					// Emulate running the search -- the dirty state should be cleared
+					input.setResultsChanged(false);
+				} else {
+					input.setResultsChanged(true);
+				}
 			}));
 		}
 		this.editorControl?.setModel(model);

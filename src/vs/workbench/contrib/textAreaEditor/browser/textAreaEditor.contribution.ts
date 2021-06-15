@@ -24,6 +24,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { bufferToStream, VSBuffer } from 'vs/base/common/buffer';
 
 // --- TextArea Editor Pane
 
@@ -117,7 +118,7 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const instantiationService = accessor.get(IInstantiationService);
 
-		const untitledTextAreaEditorWorkingCopy = await textAreaEditorService.manager.resolve();
+		const untitledTextAreaEditorWorkingCopy = await textAreaEditorService.manager.resolve({ contents: bufferToStream(VSBuffer.fromString('Initial Contents')) });
 
 		const untitledTextAreaEditorInput = instantiationService.createInstance(TextAreaEditorInput, untitledTextAreaEditorWorkingCopy.resource);
 		return editorService.openEditor(untitledTextAreaEditorInput);

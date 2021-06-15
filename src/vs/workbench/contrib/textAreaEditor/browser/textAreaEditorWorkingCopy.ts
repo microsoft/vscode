@@ -105,6 +105,7 @@ export class TextAreaEditorUntitledFileWorkingCopyModel extends TextAreaEditorFi
 	onDidChangeContent = this._onDidChangeContent.event;
 
 	protected fireDidChangeContentEvent(): void {
-		this._onDidChangeContent.fire({ isEmpty: this.getValue().length === 0 });
+		// any change should be considered dirtying
+		this._onDidChangeContent.fire({ isEmpty: false });
 	}
 }

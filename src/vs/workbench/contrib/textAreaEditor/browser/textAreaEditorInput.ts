@@ -122,6 +122,7 @@ export class TextAreaEditorInput extends AbstractResourceEditorInput {
 
 	setQueryString(query: string) {
 		this.queryString = query.replace(/\s/g, ' ');
+		this._onDidChangeLabel.fire();
 	}
 
 	override getName() {
@@ -153,6 +154,7 @@ export class TextAreaEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override async revert(group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
+		this._dirty = false;
 		return this.workingCopy?.revert(options);
 	}
 
@@ -163,9 +165,20 @@ export class TextAreaEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override isDirty(): boolean {
-		return !!(this.workingCopy?.isDirty());
+	private _dirty = false;
+	setResultsChanged(dirty: boolean) {
+		this._dirty = dirty;
+		this._onDidChangeDirty.fire();
 	}
+
+	override isDirty(): boolean {
+		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
+			return this._dirty;
+		} else {
+			return !!this.workingCopy?.isDirty();
+		}
+	}
+
 
 	override isOrphaned(): boolean {
 		if (this.workingCopy instanceof StoredFileWorkingCopy) {
