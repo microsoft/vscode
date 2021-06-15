@@ -20,6 +20,7 @@ import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -68,10 +69,14 @@ export class InteractiveEditor extends EditorPane {
 	override async setInput(input: InteractiveEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const group = this.group!;
 		const notebookInput = input.notebookEditorInput;
+
+		// there currently is a widget which we still own so
+		// we need to hide it before getting a new widget
+		if (this.#notebookWidget.value) {
+			this.#notebookWidget.value.onWillHide();
+		}
+
 		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput);
-		this.#notebookWidget.value?.setOptions({
-			isReadOnly: true
-		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
 		if (this.#dimension) {
@@ -119,8 +124,35 @@ export class InteractiveEditor extends EditorPane {
 			return;
 		}
 
-		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
-		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
+		this.#notebookEditorContainer.style.height = `${this.#dimension.height - 19}px`;
 		this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
+
+		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
+		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
+	}
+
+	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
+		super.setEditorVisible(visible, group);
+
+		if (!visible) {
+			if (this.input && this.#notebookWidget.value) {
+				this.#notebookWidget.value.onWillHide();
+			}
+		}
+	}
+
+	override clearInput() {
+		if (this.#notebookWidget.value) {
+			this.#notebookWidget.value.onWillHide();
+		}
+
+		super.clearInput();
+	}
+
+	override getControl(): { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } {
+		return {
+			notebookEditor: this.#notebookWidget.value,
+			codeEditor: this.#codeEditorWidget
+		};
 	}
 }

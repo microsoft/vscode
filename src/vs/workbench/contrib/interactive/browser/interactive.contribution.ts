@@ -3,12 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -20,10 +24,13 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { EditorExtensions } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
-import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -121,7 +128,63 @@ registerAction2(class extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		// await editorService.openEditor({ options: { override: 'interactive', pinned: true } }, group);
 		// const editorInput = NotebookEditorInput.create(accessor.get(IInstantiationService), URI.parse('inmem://test/test.interactive'), 'interactive', {});
-		const editorInput = new InteractiveEditorInput(URI.parse('inmem://test.interactive'), undefined, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
+		const editorInput = new InteractiveEditorInput(URI.parse('interactive://test.interactive'), undefined, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
 		await editorService.openEditor(editorInput);
+	}
+});
+
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.execute',
+			title: { value: localize('interactive.execute', "Execute Code"), original: 'Execute Code' },
+			category: 'Interactive',
+			keybinding: {
+				// when: NOTEBOOK_CELL_LIST_FOCUSED,
+				when: ContextKeyExpr.equals('resourceScheme', 'interactive'),
+				primary: KeyMod.Shift | KeyCode.Enter,
+				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
+			},
+			f1: false
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const bulkEditService = accessor.get(IBulkEditService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+			const activeKernel = editorControl.notebookEditor.activeKernel;
+			const language = activeKernel?.supportedLanguages[0] ?? 'plaintext';
+
+			if (notebookDocument && textModel) {
+				const index = notebookDocument.length;
+				const value = textModel.getValue();
+
+				textModel.setValue('');
+				await bulkEditService.apply([
+					new ResourceNotebookCellEdit(notebookDocument.uri,
+						{
+							editType: CellEditType.Replace,
+							index: index,
+							count: 0,
+							cells: [{
+								cellKind: CellKind.Code,
+								language,
+								source: value,
+								outputs: [],
+								metadata: {}
+							}]
+						}
+					)
+				]);
+
+				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.viewModel!.getCells({ start: index, end: index + 1 }));
+			}
+		}
 	}
 });
