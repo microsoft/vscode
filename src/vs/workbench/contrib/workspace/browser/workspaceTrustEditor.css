@@ -49,6 +49,8 @@
 	cursor: default;
 	user-select: text;
 	max-width: 600px;
+	text-align: center;
+	padding: 14px 0;
 }
 
 .workspace-trust-editor .workspace-trust-section-title {

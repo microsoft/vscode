@@ -67,7 +67,7 @@ const configurationKey = 'workbench.startupEditor';
 
 const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
-export const inGettingStartedContext = new RawContextKey('inGettingStarted', false);
+export const inWelcomeContext = new RawContextKey('inWelcome', false);
 
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -150,13 +150,13 @@ export class GettingStartedPage extends EditorPane {
 			{
 				role: 'document',
 				tabindex: 0,
-				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
 
 		this.contextService = this._register(contextService.createScoped(this.container));
-		inGettingStartedContext.bindTo(this.contextService).set(true);
+		inWelcomeContext.bindTo(this.contextService).set(true);
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);

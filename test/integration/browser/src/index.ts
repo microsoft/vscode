@@ -12,6 +12,7 @@ import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
+import { StdioOptions } from 'node:child_process';
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
@@ -113,15 +114,17 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		console.log(`Storing log files into '${logsPath}'`);
 	}
 
+	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+
 	let serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env }
+		{ env, stdio }
 	);
 
 	if (optimist.argv.debug) {
-		serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-		serverProcess?.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
+		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
 	}
 
 	process.on('exit', () => serverProcess.kill());
@@ -129,7 +132,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	process.on('SIGTERM', () => serverProcess.kill());
 
 	return new Promise(c => {
-		serverProcess?.stdout?.on('data', data => {
+		serverProcess.stdout!.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				c({ endpoint: url.parse(matches[1]), server: serverProcess });

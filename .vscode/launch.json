@@ -71,7 +71,7 @@
 			"name": "VS Code Emmet Tests",
 			"runtimeExecutable": "${execPath}",
 			"args": [
-				"${workspaceFolder}/extensions/emmet/test-fixtures",
+				"${workspaceFolder}/extensions/emmet/test-workspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/emmet",
 				"--extensionTestsPath=${workspaceFolder}/extensions/emmet/out/test"
 			],

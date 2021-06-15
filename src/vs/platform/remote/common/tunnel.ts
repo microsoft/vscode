@@ -87,6 +87,7 @@ export interface ITunnelService {
 	readonly onTunnelClosed: Event<{ host: string, port: number; }>;
 	readonly canElevate: boolean;
 	readonly hasTunnelProvider: boolean;
+	readonly onAddedTunnelProvider: Event<void>;
 
 	canTunnel(uri: URI): boolean;
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number, elevateIfNeeded?: boolean, isPublic?: boolean): Promise<RemoteTunnel | undefined> | undefined;
@@ -133,6 +134,8 @@ export abstract class AbstractTunnelService implements ITunnelService {
 	public onTunnelOpened: Event<RemoteTunnel> = this._onTunnelOpened.event;
 	private _onTunnelClosed: Emitter<{ host: string, port: number; }> = new Emitter();
 	public onTunnelClosed: Event<{ host: string, port: number; }> = this._onTunnelClosed.event;
+	private _onAddedTunnelProvider: Emitter<void> = new Emitter();
+	public onAddedTunnelProvider: Event<void> = this._onAddedTunnelProvider.event;
 	protected readonly _tunnels = new Map</*host*/ string, Map</* port */ number, { refcount: number, readonly value: Promise<RemoteTunnel | undefined>; }>>();
 	protected _tunnelProvider: ITunnelProvider | undefined;
 	protected _canElevate: boolean = false;
@@ -152,12 +155,14 @@ export abstract class AbstractTunnelService implements ITunnelService {
 			// clear features
 			this._canElevate = false;
 			this._canMakePublic = false;
+			this._onAddedTunnelProvider.fire();
 			return {
 				dispose: () => { }
 			};
 		}
 		this._canElevate = features.elevation;
 		this._canMakePublic = features.public;
+		this._onAddedTunnelProvider.fire();
 		return {
 			dispose: () => {
 				this._tunnelProvider = undefined;

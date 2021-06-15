@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { GettingStartedInputSerializer, GettingStartedPage, inGettingStartedContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
+import { GettingStartedInputSerializer, GettingStartedPage, inWelcomeContext } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStarted';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
@@ -33,13 +33,13 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.openWalkthrough',
-			title: localize('Getting Started', "Getting Started"),
+			title: localize('Welcome', "Welcome"),
 			category: localize('help', "Help"),
 			f1: true,
 			menu: {
 				id: MenuId.MenubarHelpMenu,
 				group: '1_welcome',
-				order: 2,
+				order: 1,
 			}
 		});
 	}
@@ -52,7 +52,7 @@ registerAction2(class extends Action2 {
 		if (walkthroughID) {
 			const selectedCategory = typeof walkthroughID === 'string' ? walkthroughID : walkthroughID.category;
 			const selectedStep = typeof walkthroughID === 'string' ? undefined : walkthroughID.step;
-			// Try first to select the walkthrough on an active getting started page with no selected walkthrough
+			// Try first to select the walkthrough on an active welcome page with no selected walkthrough
 			for (const group of editorGroupsService.groups) {
 				if (group.activeEditor instanceof GettingStartedInput) {
 					if (!group.activeEditor.selectedCategory) {
@@ -62,7 +62,7 @@ registerAction2(class extends Action2 {
 				}
 			}
 
-			// Otherwise, try to find a getting started input somewhere with no selected walkthrough, and open it to this one.
+			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
 			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, resource: GettingStartedInput.RESOURCE });
 			for (const { editor, groupId } of result) {
 				if (editor instanceof GettingStartedInput) {
@@ -88,25 +88,25 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 	EditorDescriptor.create(
 		GettingStartedPage,
 		GettingStartedPage.ID,
-		localize('gettingStarted', "Getting Started")
+		localize('welcome', "Welcome")
 	),
 	[
 		new SyncDescriptor(GettingStartedInput)
 	]
 );
 
-const category = localize('gettingStarted', "Getting Started");
+const category = localize('welcome', "Welcome");
 
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.goBack',
-			title: localize('gettingStarted.goBack', "Go Back"),
+			id: 'welcome.goBack',
+			title: localize('welcome.goBack', "Go Back"),
 			category,
 			keybinding: {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.Escape,
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -145,7 +145,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.DownArrow,
 				secondary: [KeyCode.RightArrow],
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -171,7 +171,7 @@ registerAction2(class extends Action2 {
 				weight: KeybindingWeight.EditorContrib,
 				primary: KeyCode.UpArrow,
 				secondary: [KeyCode.LeftArrow],
-				when: inGettingStartedContext
+				when: inWelcomeContext
 			},
 			precondition: ContextKeyEqualsExpr.create('activeEditor', 'gettingStartedPage'),
 			f1: true
@@ -190,8 +190,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markStepComplete',
-			title: localize('gettingStarted.markStepComplete', "Mark Step Complete"),
+			id: 'welcome.markStepComplete',
+			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,
 		});
 	}
@@ -206,8 +206,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'gettingStarted.markStepIncomplete',
-			title: localize('gettingStarted.markStepInomplete', "Mark Step Incomplete"),
+			id: 'welcome.markStepIncomplete',
+			title: localize('welcome.markStepInomplete', "Mark Step Incomplete"),
 			category,
 		});
 	}
