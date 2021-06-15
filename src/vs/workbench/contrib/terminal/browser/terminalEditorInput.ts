@@ -20,7 +20,7 @@ export class TerminalEditorInput extends EditorInput {
 	private readonly _terminalInstance: ITerminalInstance;
 
 	get terminalInstance(): ITerminalInstance {
-		return this._terminalInstance!;
+		return this._terminalInstance;
 	}
 
 	get resource(): URI {
