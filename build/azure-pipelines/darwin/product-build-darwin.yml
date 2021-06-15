@@ -54,7 +54,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -97,6 +97,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
