@@ -19,7 +19,7 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, TerminalTarget, ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
@@ -42,6 +42,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TerminalEditorIconManager } from 'vs/workbench/contrib/terminal/browser/terminalEditorIconManager';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -72,6 +73,8 @@ export class TerminalService implements ITerminalService {
 	private _connectionState: TerminalConnectionState;
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
+
+	private _iconManager: TerminalEditorIconManager;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
@@ -147,6 +150,7 @@ export class TerminalService implements ITerminalService {
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -162,6 +166,10 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+		this._iconManager = this._instantiationService.createInstance(TerminalEditorIconManager);
+		this.onInstanceIconChanged(() => this._iconManager.updateStyleSheet());
+		this.onInstanceCreated(() => this._iconManager.updateStyleSheet());
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -180,8 +188,8 @@ export class TerminalService implements ITerminalService {
 		lifecycleService.onWillShutdown(e => this._onWillShutdown(e));
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this._getPlatformKey()) ||
-				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this._getPlatformKey()) ||
+			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + this.getPlatformKey()) ||
+				e.affectsConfiguration(TerminalSettingPrefix.Profiles + this.getPlatformKey()) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				this._refreshAvailableProfiles();
 			}
@@ -277,7 +285,9 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create group and terminal
-							terminalInstance = this.createTerminal({ attachPersistentProcess: terminalLayout.terminal! });
+							terminalInstance = this.createTerminal({
+								config: { attachPersistentProcess: terminalLayout.terminal! }
+							});
 							group = this.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
@@ -377,7 +387,7 @@ export class TerminalService implements ITerminalService {
 		if (!this._primaryOffProcessTerminalService) {
 			return this._availableProfiles || [];
 		}
-		const platform = await this._getPlatformKey();
+		const platform = await this.getPlatformKey();
 		return this._primaryOffProcessTerminalService?.getProfiles(this._configurationService.getValue(`${TerminalSettingPrefix.Profiles}${platform}`), this._configurationService.getValue(`${TerminalSettingPrefix.DefaultProfile}${platform}`), includeDetectedProfiles);
 	}
 
@@ -759,6 +769,15 @@ export class TerminalService implements ITerminalService {
 		targetGroup.moveInstance(source, index);
 	}
 
+	moveToEditor(source: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		if (!sourceGroup) {
+			return;
+		}
+		sourceGroup.removeInstance(source);
+		this._terminalEditorService.createEditor(source);
+	}
+
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
 		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
@@ -899,7 +918,7 @@ export class TerminalService implements ITerminalService {
 
 
 
-	private async _getPlatformKey(): Promise<string> {
+	async getPlatformKey(): Promise<string> {
 		const env = await this._remoteAgentService.getEnvironment();
 		if (env) {
 			return env.os === OperatingSystem.Windows ? 'windows' : (env.os === OperatingSystem.Macintosh ? 'osx' : 'linux');
@@ -910,7 +929,7 @@ export class TerminalService implements ITerminalService {
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
 		let keyMods: IKeyMods | undefined;
 		const profiles = await this._detectProfiles(true);
-		const platformKey = await this._getPlatformKey();
+		const platformKey = await this.getPlatformKey();
 
 		const options: IPickOptions<IProfileQuickPickItem> = {
 			placeHolder: type === 'createInstance' ? nls.localize('terminal.integrated.selectProfileToCreate', "Select the terminal profile to create") : nls.localize('terminal.integrated.chooseDefaultProfile', "Select your default terminal profile"),
@@ -988,7 +1007,7 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
-					instance = this.createTerminal(value.profile, cwd);
+					instance = this.createTerminal({ config: value.profile, cwd });
 				}
 			}
 
@@ -1100,13 +1119,14 @@ export class TerminalService implements ITerminalService {
 		return {};
 	}
 
-	createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
-	createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
-	createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile);
+	// createTerminal(shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	// createTerminal(profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance;
+	// createTerminal(shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile, cwd?: string | URI): ITerminalInstance {
+	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config);
 
-		if (cwd) {
-			shellLaunchConfig.cwd = cwd;
+		if (options?.cwd) {
+			shellLaunchConfig.cwd = options.cwd;
 		}
 
 		if (!shellLaunchConfig.customPtyImplementation && !this.isProcessSupportRegistered) {
@@ -1131,17 +1151,26 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 
-		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
-		this._terminalGroups.push(terminalGroup);
-		terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		let instance: ITerminalInstance;
+		if (options?.target === TerminalTarget.Editor) {
+			instance = this.createInstance(shellLaunchConfig);
+			this._terminalEditorService.createEditor(instance);
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
+		} else {
+			const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
+			this._terminalGroups.push(terminalGroup);
+			terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 
-		const instance = terminalGroup.terminalInstances[0];
+			instance = terminalGroup.terminalInstances[0];
 
-		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-		this._initInstanceListeners(instance);
-		this._onInstancesChanged.fire();
-		this._onGroupsChanged.fire();
+			terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+			this._initInstanceListeners(instance);
+			this._onInstancesChanged.fire();
+			this._onGroupsChanged.fire();
+		}
+
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire
 			// after onInstancesChanged so consumers can react to the instance being added first

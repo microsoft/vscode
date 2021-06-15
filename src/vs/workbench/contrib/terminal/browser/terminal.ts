@@ -20,6 +20,7 @@ import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
+export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
@@ -90,6 +91,29 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
+export const enum TerminalTarget {
+	TerminalView = 'view',
+	Editor = 'editor'
+}
+
+export interface ICreateTerminalOptions {
+	/**
+	 * The shell launch config or profile to launch with, when not specified the default terminal
+	 * profile will be used.
+	 */
+	config?: IShellLaunchConfig | ITerminalProfile;
+	// TODO: Ensure this is supported for profiles
+	/**
+	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
+	 * specified.
+	 */
+	cwd?: string | URI;
+	/**
+	 * Where to create the terminal, when not specified the default target will be used.
+	 */
+	target?: TerminalTarget;
+}
+
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
@@ -131,16 +155,10 @@ export interface ITerminalService {
 
 	/**
 	 * Creates a terminal.
-	 * @param shell The shell launch configuration to use.
+	 * @param options The options to create the terminal with, when not specified the default
+	 * profile will be used at the default target.
 	 */
-	createTerminal(shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance;
-
-	/**
-	 * Creates a terminal.
-	 * @param profile The profile to launch the terminal with.
-	 */
-	createTerminal(profile: ITerminalProfile): ITerminalInstance;
-
+	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance;
 	createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void>;
 
 	/**
@@ -163,6 +181,7 @@ export interface ITerminalService {
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
+	moveToEditor(source: ITerminalInstance): void;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -215,6 +234,20 @@ export interface ITerminalService {
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	instanceIsSplit(instance: ITerminalInstance): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+
+	getPlatformKey(): Promise<string>;
+}
+
+/**
+ * This service is responsible for integrating with the editor service and managing terminal
+ * editors.
+ */
+export interface ITerminalEditorService {
+	readonly _serviceBrand: undefined;
+
+	readonly terminalEditorInstances: ITerminalInstance[];
+
+	createEditor(instance: ITerminalInstance): Promise<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
@@ -294,6 +327,8 @@ export interface ITerminalInstance {
 	 * with this terminal.
 	 */
 	processId: number | undefined;
+
+	target?: TerminalTarget;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
@@ -563,6 +598,11 @@ export interface ITerminalInstance {
 	 * @param container The element to attach the terminal instance to.
 	 */
 	attachToElement(container: HTMLElement): Promise<void> | void;
+
+	/**
+	 * Detaches the terminal instance from the terminal editor DOM element.
+	 */
+	detachFromElement(): void;
 
 	/**
 	 * Configure the dimensions of the terminal instance.

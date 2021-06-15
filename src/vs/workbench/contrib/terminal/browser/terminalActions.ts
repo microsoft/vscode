@@ -8,7 +8,7 @@ import { Action } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isLinux, isWindows } from 'vs/base/common/platform';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -30,9 +30,9 @@ import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventS
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService, ITerminalService, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_ACTION_CATEGORY, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -178,7 +178,7 @@ export function registerTerminalActions() {
 				}
 
 				if (profile) {
-					instance = terminalService.createTerminal(profile, cwd);
+					instance = terminalService.createTerminal({ config: profile, cwd });
 				} else {
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
@@ -191,6 +191,39 @@ export function registerTerminalActions() {
 		}
 	});
 
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.CreateTerminalEditor,
+				title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create Terminal Editor"), original: 'Create Terminal Editor' },
+				f1: true,
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			// TODO: Await openEditor
+			terminalService.createTerminal({
+				target: TerminalTarget.Editor
+			});
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.MoveToEditor,
+				title: { value: localize('workbench.action.terminal.moveToEditor', "Move From Terminal View to Editor"), original: 'Move From Terminal View to Editor' },
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const terminalService = accessor.get(ITerminalService);
+			terminalService.doWithActiveInstance(instance => terminalService.moveToEditor(instance));
+		}
+	});
 
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -898,7 +931,9 @@ export function registerTerminalActions() {
 			}
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
-				const instance = terminalService.createTerminal({ attachPersistentProcess: selected.term });
+				const instance = terminalService.createTerminal({
+					config: { attachPersistentProcess: selected.term }
+				});
 				terminalService.setActiveInstance(instance);
 				terminalService.showPanel(true);
 			}
@@ -1779,7 +1814,7 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const instance = terminalService.createTerminal(profile);
+					const instance = terminalService.createTerminal({ config: profile });
 					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
