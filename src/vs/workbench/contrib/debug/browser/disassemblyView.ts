@@ -108,7 +108,7 @@ export class DisassemblyView extends EditorPane {
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
 		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-		this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
+		this.loadDisassembledInstructions(undefined, this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 			// on load, set the target instruction in the middle of the page.
 			if (this._disassembledInstructions!.length > 0) {
 				this._disassembledInstructions?.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
@@ -119,11 +119,13 @@ export class DisassemblyView extends EditorPane {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this._lastOffset -= DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this.loadDisassembledInstructions(this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then(() =>
-					this._disassembledInstructions!.reveal(topElement, 0)
-				);
+				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
+					if (success) {
+						this._disassembledInstructions!.reveal(topElement, 0);
+					}
+				});
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
-				this.loadDisassembledInstructions(this._disassembledInstructions!.length + this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
+				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
 		}));
 	}
@@ -134,9 +136,28 @@ export class DisassemblyView extends EditorPane {
 		}
 	}
 
-	private async loadDisassembledInstructions(offset: number, instructionCount: number): Promise<void> {
-		const resultEntries = await this._debugService.getDisassemble(0, offset, instructionCount);
-		if (resultEntries && this._disassembledInstructions) {
+	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
+		const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
+		return this.loadDisassembledInstructions(address, instructionCount, instructionCount - 1);
+	}
+
+	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
+		const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
+		return this.loadDisassembledInstructions(address, 1, instructionCount);
+	}
+
+	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
+		// if address is null, then use current stackframe.
+		if (!address) {
+			const frame = this._debugService.getViewModel().focusedStackFrame;
+			if (frame?.instructionPointerReference) {
+				address = frame.instructionPointerReference;
+			}
+		}
+
+		const session = this._debugService.getViewModel().focusedSession;
+		const resultEntries = await session?.disassemble(address!, 0, instructionOffset, instructionCount);
+		if (session && resultEntries && this._disassembledInstructions) {
 			const newEntries: IDisassembledInstructionEntry[] = [];
 
 			for (let i = 0; i < resultEntries.length; i++) {
@@ -144,13 +165,17 @@ export class DisassemblyView extends EditorPane {
 			}
 
 			// request is either at the start or end
-			if (offset >= 0) {
+			if (instructionOffset >= 0) {
 				this._disassembledInstructions.splice(this._disassembledInstructions.length, 0, newEntries);
 			}
 			else {
 				this._disassembledInstructions.splice(0, 0, newEntries);
 			}
+
+			return true;
 		}
+
+		return false;
 	}
 }
 
