@@ -26,7 +26,7 @@ import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecora
 import { RunOnceScheduler } from 'vs/base/common/async';
 import * as platform from 'vs/base/common/platform';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
-import { Cursor } from 'vs/editor/common/controller/cursor';
+import { CursorsController } from 'vs/editor/common/controller/cursor';
 import { PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IWhitespaceChangeAccessor } from 'vs/editor/common/viewLayout/linesLayout';
@@ -52,7 +52,7 @@ export class ViewModel extends Disposable implements IViewModel {
 	private readonly _lines: IViewModelLinesCollection;
 	public readonly coordinatesConverter: ICoordinatesConverter;
 	public readonly viewLayout: ViewLayout;
-	private readonly _cursor: Cursor;
+	private readonly _cursor: CursorsController;
 	private readonly _decorations: ViewModelDecorations;
 
 	constructor(
@@ -103,7 +103,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 		this.coordinatesConverter = this._lines.createCoordinatesConverter();
 
-		this._cursor = this._register(new Cursor(model, this, this.coordinatesConverter, this.cursorConfig));
+		this._cursor = this._register(new CursorsController(model, this, this.coordinatesConverter, this.cursorConfig));
 
 		this.viewLayout = this._register(new ViewLayout(this._configuration, this.getLineCount(), scheduleAtNextAnimationFrame));
 

@@ -382,7 +382,7 @@ export class StatefulMarkdownCell extends Disposable {
 	}
 
 	private focusEditorIfNeeded() {
-		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
+		if (this.viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
 			this.editor?.focus();
 		}
 	}

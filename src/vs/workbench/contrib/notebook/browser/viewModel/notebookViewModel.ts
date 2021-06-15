@@ -377,7 +377,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._selectionCollection.selections;
 	}
 
-	setFocus(focused: boolean) {
+	setEditorFocus(focused: boolean) {
 		this._focused = focused;
 	}
 
@@ -401,10 +401,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		} else {
 			return { start: end, end: start };
 		}
-	}
-
-	setSelections(focus: ICellRange, selections: ICellRange[]) {
-		this.updateSelectionsState({ kind: SelectionStateType.Index, focus, selections }, 'model');
 	}
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction

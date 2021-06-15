@@ -80,6 +80,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo'
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
+import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -121,10 +122,10 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		assertType(input instanceof NotebookDiffEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			originalResource: input.originalResource,
-			name: input.name,
-			originalName: input.originalName,
-			textDiffName: input.textDiffName,
+			originalResource: input.originalInput.resource,
+			name: input.getName(),
+			originalName: input.originalInput.getName(),
+			textDiffName: input.getName(),
 			viewType: input.viewType,
 		});
 	}
@@ -135,14 +136,12 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+		const { resource, originalResource, name, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
-			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
-			viewType);
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
 		return input;
 	}
 

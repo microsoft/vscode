@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
-import { createDefaultDocumentTestRoot, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
+import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { createDefaultDocumentTestRoot, TestItemFilteredWrapper, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestMessage } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { stubTest, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestItem, TextDocument } from 'vscode';
+import type { TestItem, TestRunRequest, TextDocument } from 'vscode';
 
 const simplify = (item: TestItem<unknown>) => ({
 	id: item.id,
@@ -403,24 +408,116 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(invisibleWrapper.children.size, 1);
 				assert.strictEqual(wrapper.children.get('id-b'), invisibleWrapper);
 			});
+		});
+	});
 
-			// test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
-			// 	const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+	suite('TestRunTracker', () => {
+		let proxy: MockObject<MainThreadTestingShape>;
+		let c: TestRunCoordinator;
+		let cts: CancellationTokenSource;
 
-			// 	const invisibleParent = testsWithLocation.children.get('id-b')!;
-			// 	const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
-			// 	const invisible = invisibleParent.children.get('id-bb')!;
-			// 	const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+		const req: TestRunRequest<unknown> = { tests: [], debug: false };
+		const dto = TestRunDto.fromInternal({
+			debug: false,
+			excludeExtIds: [],
+			runId: 'run-id',
+			tests: [],
+		});
 
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisible.location = location1 as any;
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisibleWrapper.reset();
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
+		setup(() => {
+			proxy = mockObject();
+			cts = new CancellationTokenSource();
+			c = new TestRunCoordinator(proxy);
+		});
 
-			// 	// the root should be undefined due to the reset.
-			// 	assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
-			// });
+		test('tracks a run started from a main thread request', () => {
+			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			assert.strictEqual(tracker.isRunning, false);
+
+			const task1 = c.createTestRun(req, 'run1', true);
+			const task2 = c.createTestRun(req, 'run2', true);
+			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task1.appendOutput('hello');
+			assert.deepStrictEqual([['run-id', (task1 as any).taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			task1.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, false);
+		});
+
+		test('tracks a run started from an extension request', () => {
+			const task1 = c.createTestRun(req, 'hello world', false);
+
+			const tracker = Iterable.first(c.trackers)!;
+			assert.strictEqual(tracker.isRunning, true);
+			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
+				[{
+					id: tracker.id,
+					tests: [],
+					exclude: [],
+					debug: false,
+					persist: false,
+				}]
+			]);
+
+			const task2 = c.createTestRun(req, 'run2', true);
+			const task3Detached = c.createTestRun({ ...req }, 'task3Detached', true);
+
+			task1.end();
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			assert.strictEqual(tracker.isRunning, false);
+
+			task3Detached.end();
+		});
+
+		test('adds tests to run smartly', () => {
+			const task1 = c.createTestRun(req, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+			const tests = testStubs.nested();
+			const expectedArgs: unknown[][] = [];
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-aa']).pop()!, TestResultState.Passed);
+			expectedArgs.push([
+				tracker.id,
+				testStubsChain(tests, ['id-a', 'id-aa']).map(convert.TestItem.from)
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-ab']).pop()!, TestResultState.Queued);
+			expectedArgs.push([
+				tracker.id,
+				testStubsChain(tests, ['id-a', 'id-ab']).slice(1).map(convert.TestItem.from)
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-ab']).pop()!, TestResultState.Passed);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+		});
+
+		test('guards calls after runs are ended', () => {
+			const task = c.createTestRun(req, 'hello world', false);
+			task.end();
+
+			task.setState(testStubs.nested(), TestResultState.Passed);
+			task.appendMessage(testStubs.nested(), new TestMessage('some message'));
+			task.appendOutput('output');
+
+			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$appendOutputToRun.called, false);
+			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
 		});
 	});
 });

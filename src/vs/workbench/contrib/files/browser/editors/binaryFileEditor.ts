@@ -13,7 +13,7 @@ import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorOverrideService, OverrideStatus, ReturnedOverride } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * An implementation of editor for binary files that cannot be displayed.
@@ -47,7 +47,12 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 			input.setForceOpenAsText();
 
 			// Try to let the user pick an override if there is one availabe
-			const overridenInput = await this.editorOverrideService.resolveEditorOverride(input, { ...options, override: EditorOverride.PICK, }, this.group);
+			let overridenInput: ReturnedOverride | undefined = await this.editorOverrideService.resolveEditorOverride(input, { ...options, override: EditorOverride.PICK, }, this.group);
+			if (overridenInput === OverrideStatus.NONE) {
+				overridenInput = undefined;
+			} else if (overridenInput === OverrideStatus.ABORT) {
+				return;
+			}
 
 			// Replace the overrriden input, with the text based input
 			await this.editorService.replaceEditors([{

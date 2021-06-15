@@ -9,10 +9,6 @@ import { Mimes } from 'vs/base/common/mime';
 import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -50,64 +46,6 @@ class JavaScriptRendererContrib extends Disposable implements IOutputRendererCon
 			source: output,
 			htmlContent: scriptVal
 		};
-	}
-}
-
-class CodeRendererContrib extends Disposable implements IOutputRendererContribution {
-	getType() {
-		return RenderOutputType.Mainframe;
-	}
-
-	getMimetypes() {
-		return ['text/x-javascript'];
-	}
-
-	constructor(
-		public notebookEditor: ICommonNotebookEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-	) {
-		super();
-	}
-
-	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-		const value = getStringValue(item);
-		return this._render(output, container, value, 'javascript');
-	}
-
-	protected _render(output: ICellOutputViewModel, container: HTMLElement, value: string, modeId: string): IRenderOutput {
-		const disposable = new DisposableStore();
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, getOutputSimpleEditorOptions(), { isSimpleWidget: true });
-
-		const mode = this.modeService.create(modeId);
-		const textModel = this.modelService.createModel(value, mode, undefined, false);
-		editor.setModel(textModel);
-
-		const width = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).width;
-		const fontInfo = this.notebookEditor.getCellOutputLayoutInfo(output.cellViewModel).fontInfo;
-		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
-
-		editor.layout({ height, width });
-
-		disposable.add(editor);
-		disposable.add(textModel);
-
-		container.style.height = `${height + 8}px`;
-
-		return { type: RenderOutputType.Mainframe, initHeight: height, disposable };
-	}
-}
-
-class JSONRendererContrib extends CodeRendererContrib {
-
-	override getMimetypes() {
-		return ['application/json'];
-	}
-
-	override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement): IRenderOutput {
-		const str = getStringValue(item);
-		return this._render(output, container, str, 'jsonc');
 	}
 }
 
@@ -326,44 +264,18 @@ class ImgRendererContrib extends Disposable implements IOutputRendererContributi
 	}
 }
 
-OutputRendererRegistry.registerOutputTransform(JSONRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
 OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
 OutputRendererRegistry.registerOutputTransform(MdRendererContrib);
 OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
 OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
-OutputRendererRegistry.registerOutputTransform(CodeRendererContrib);
 OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
 OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 
+
 // --- utils ---
-function getStringValue(item: IOutputItemDto): string {
+export function getStringValue(item: IOutputItemDto): string {
 	// todo@jrieken NOT proper, should be VSBuffer
 	return new TextDecoder().decode(item.data);
-}
-
-function getOutputSimpleEditorOptions(): IEditorConstructionOptions {
-	return {
-		dimension: { height: 0, width: 0 },
-		readOnly: true,
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
-		minimap: {
-			enabled: false
-		},
-		lineNumbers: 'off',
-		scrollbar: {
-			alwaysConsumeMouseWheel: false
-		},
-		automaticLayout: true,
-	};
 }

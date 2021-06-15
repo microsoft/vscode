@@ -1700,6 +1700,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -1726,6 +1727,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 	}
@@ -1858,6 +1860,12 @@ declare module 'vscode' {
 		 * Indicates that this message should be modal.
 		 */
 		modal?: boolean;
+
+		/**
+		 * Human-readable detail message that is rendered less prominent. _Note_ that detail
+		 * is only shown for {@link MessageOptions.modal modal} messages.
+		 */
+		detail?: string;
 	}
 
 	/**
@@ -1900,6 +1908,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -5792,7 +5801,7 @@ declare module 'vscode' {
 	/**
 	 * A link on a terminal line.
 	 */
-	export interface TerminalLink {
+	export class TerminalLink {
 		/**
 		 * The start index of the link on {@link TerminalLinkContext.line}.
 		 */
@@ -5811,6 +5820,47 @@ declare module 'vscode' {
 		 * depending on OS, user settings, and localization.
 		 */
 		tooltip?: string;
+
+		/**
+		 * Creates a new terminal link.
+		 * @param startIndex The start index of the link on {@link TerminalLinkContext.line}.
+		 * @param length The length of the link on {@link TerminalLinkContext.line}.
+		 * @param tooltip The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		constructor(startIndex: number, length: number, tooltip?: string);
+	}
+
+	/**
+	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * command.
+	 */
+	export interface TerminalProfileProvider {
+		/**
+		 * Provide the terminal profile.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @returns The terminal profile.
+		 */
+		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+	}
+
+	/**
+	 * A terminal profile defines how a terminal will be launched.
+	 */
+	export class TerminalProfile {
+		/**
+		 * The options that the terminal will launch with.
+		 */
+		options: TerminalOptions | ExtensionTerminalOptions;
+
+		/**
+		 * Creates a new terminal profile.
+		 * @param options The options that the terminal will launch with.
+		 */
+		constructor(options: TerminalOptions | ExtensionTerminalOptions);
 	}
 
 	/**
@@ -8995,6 +9045,12 @@ declare module 'vscode' {
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
+		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
+		 */
+		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
+		/**
 		 * Register a file decoration provider.
 		 *
 		 * @param provider A {@link FileDecorationProvider}.
@@ -9385,6 +9441,11 @@ declare module 'vscode' {
 		 * a setting text style.
 		 */
 		message?: string;
+
+		/**
+		 * The icon path or {@link ThemeIcon} for the terminal.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
@@ -9401,6 +9462,11 @@ declare module 'vscode' {
 		 * control a terminal.
 		 */
 		pty: Pseudoterminal;
+
+		/**
+		 * The icon path or {@link ThemeIcon} for the terminal.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
@@ -9798,6 +9864,7 @@ declare module 'vscode' {
 
 		/**
 		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut: boolean;
 

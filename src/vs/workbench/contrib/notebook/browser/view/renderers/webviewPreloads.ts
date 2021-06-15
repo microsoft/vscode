@@ -249,7 +249,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								entry.target.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -598,10 +598,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					resizeObserver.observe(outputNode, outputId, true);
 
-					if (content.type === RenderOutputType.Html) {
-						domEval(outputNode);
-					}
-
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
@@ -612,7 +608,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 							init: true,
 						});
 
-						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 					} else {
 						dimensionUpdater.updateHeight(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -925,7 +921,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
 
-		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
@@ -933,6 +929,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 
 			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			cell.element.style.visibility = visible ? 'visible' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
 			await cell.ready;
@@ -943,11 +940,11 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			await Promise.all(update.map(async info => {
 				let cell = this._markupCells.get(info.cellId);
 				if (cell) {
+					cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 					await cell.updateContentAndRender(info.content);
 				} else {
-					cell = await this.createMarkupCell(info, info.offset);
+					cell = await this.createMarkupCell(info, info.offset, info.visible);
 				}
-				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
 			}));
 		}
 

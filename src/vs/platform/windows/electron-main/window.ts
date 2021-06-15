@@ -604,10 +604,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const result = await this.dialogMainService.showMessageBox({
 				title: this.productService.nameLong,
 				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
-				message: localize('appStalled', "The window is no longer responding"),
+				buttons: [
+					mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+					mnemonicButtonLabel(localize({ key: 'wait', comment: ['&& denotes a mnemonic'] }, "&&Keep Waiting")),
+					mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+				],
+				message: localize('appStalled', "The window is not responding"),
 				detail: localize('appStalledDetail', "You can reopen or close the window or keep waiting."),
-				noLink: true
+				noLink: true,
+				defaultId: 0,
+				cancelId: 1
 			}, this._win);
 
 			if (!this._win) {
@@ -634,10 +640,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			const result = await this.dialogMainService.showMessageBox({
 				title: this.productService.nameLong,
 				type: 'warning',
-				buttons: [mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")), mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))],
+				buttons: [
+					mnemonicButtonLabel(localize({ key: 'reopen', comment: ['&& denotes a mnemonic'] }, "&&Reopen")),
+					mnemonicButtonLabel(localize({ key: 'close', comment: ['&& denotes a mnemonic'] }, "&&Close"))
+				],
 				message,
-				detail: localize('appCrashedDetail', "We are sorry for the inconvenience! You can reopen the window to continue where you left off."),
-				noLink: true
+				detail: localize('appCrashedDetail', "We are sorry for the inconvenience. You can reopen the window to continue where you left off."),
+				noLink: true,
+				defaultId: 0
 			}, this._win);
 
 			if (!this._win) {

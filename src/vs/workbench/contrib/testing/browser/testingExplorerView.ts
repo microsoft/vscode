@@ -1068,15 +1068,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	}
 }
 
-const formatDuration = (ms: number) => {
-	if (ms < 10) {
-		return `${ms.toPrecision(2)}ms`;
-	} else if (ms < 1000) {
-		return `${ms.toPrecision(3)}ms`;
-	} else {
-		return `${(ms / 1000).toPrecision(3)}s`;
-	}
-};
+const formatDuration = (ms: number) => ms < 10 ? ms.toFixed(1) : ms.toFixed(0);
 
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';

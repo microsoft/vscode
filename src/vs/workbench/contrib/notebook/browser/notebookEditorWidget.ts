@@ -456,8 +456,34 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getSelections() ?? [];
 	}
 
+	setSelections(selections: ICellRange[]) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const focus = this.viewModel.getFocus();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
+	}
+
 	getFocus() {
 		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
+	}
+
+	setFocus(focus: ICellRange) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const selections = this.viewModel.getSelections();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {
@@ -1600,10 +1626,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// a descendent of the notebook editor root.
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
 		this._editorFocus.set(focused);
-		this.viewModel?.setFocus(focused);
+		this.viewModel?.setEditorFocus(focused);
 	}
 
-	hasFocus() {
+	hasEditorFocus() {
 		return this._editorFocus.get() || false;
 	}
 
@@ -1612,7 +1638,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	hasOutputTextSelection() {
-		if (!this.hasFocus()) {
+		if (!this.hasEditorFocus()) {
 			return false;
 		}
 
@@ -1832,7 +1858,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!this.hasModel()) {
 			return;
 		}
-		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
+		const { selected } = this.notebookKernelService.getMatchingKernel(this.textModel);
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}
@@ -1840,7 +1866,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	get activeKernel() {
-		return this.viewModel && this._kernelManger.getSelectedOrSuggestedKernel(this.viewModel.notebookDocument);
+		return this.textModel && this._kernelManger.getSelectedOrSuggestedKernel(this.textModel);
 	}
 
 	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
@@ -1850,7 +1876,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this._kernelManger.cancelNotebookCells(this.viewModel.notebookDocument, cells);
+		return this._kernelManger.cancelNotebookCells(this.textModel, cells);
 	}
 
 	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
@@ -1860,7 +1886,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this._kernelManger.executeNotebookCells(this.viewModel.notebookDocument, cells);
+		return this._kernelManger.executeNotebookCells(this.textModel, cells);
 	}
 
 	//#endregion

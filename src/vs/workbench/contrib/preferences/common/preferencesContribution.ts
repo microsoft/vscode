@@ -22,7 +22,7 @@ import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuratio
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -65,10 +65,9 @@ export class PreferencesContribution implements IWorkbenchContribution {
 				'**/settings.json',
 				{
 					id: PreferencesEditorInput.ID,
-					describes: editor => editor instanceof PreferencesEditorInput,
 					detail: 'Split Settings Editor (deprecated)',
 					label: 'label',
-					priority: ContributedEditorPriority.builtin,
+					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
 				(resource: URI, options: IEditorOptions | undefined, group: IEditorGroup): IEditorInputWithOptions => {

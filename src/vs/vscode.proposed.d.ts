@@ -874,41 +874,26 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
+	//#region Terminal name change event https://github.com/microsoft/vscode/issues/114898
 
-	export interface TerminalOptions {
+	export interface Pseudoterminal {
 		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
+		 * An event that when fired allows changing the name of the terminal.
+		 *
+		 * **Example:** Change the terminal name to "My new terminal".
+		 * ```typescript
+		 * const writeEmitter = new vscode.EventEmitter<string>();
+		 * const changeNameEmitter = new vscode.EventEmitter<string>();
+		 * const pty: vscode.Pseudoterminal = {
+		 *   onDidWrite: writeEmitter.event,
+		 *   onDidChangeName: changeNameEmitter.event,
+		 *   open: () => changeNameEmitter.fire('My new terminal'),
+		 *   close: () => {}
+		 * };
+		 * vscode.window.createTerminal({ name: 'My terminal', pty });
+		 * ```
 		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface ExtensionTerminalOptions {
-		/**
-		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	//#endregion
-
-	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
-
-	export namespace window {
-		/**
-		 * Registers a provider for a contributed terminal profile.
-		 * @param id The ID of the contributed terminal profile.
-		 * @param provider The terminal profile provider.
-		 */
-		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
-	}
-
-	export interface TerminalProfileProvider {
-		/**
-		 * Provide terminal profile options for the requested terminal.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 */
-		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
+		onDidChangeName?: Event<string>;
 	}
 
 	//#endregion
@@ -1403,15 +1388,17 @@ declare module 'vscode' {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The function or variable. Rendered leftmost.
+		 * The name of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
 		 */
 		name: string;
 
 		/**
-		 * The parameters without the return type. Render after `name`.
+		 * The signature of this completion item. Will be rendered right after the
+		 * {@link CompletionItemLabel.name name}.
 		 */
-		//todo@API rename to signature
-		parameters?: string;
+		signature?: string;
 
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
@@ -1988,10 +1975,13 @@ declare module 'vscode' {
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
-		 * @param options Options for this test run
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @param request Request information for the test run
+		 * @param cancellationToken Token that signals the used asked to abort the
+		 * test run. If cancellation is requested on this token, all {@link TestRun}
+		 * instances associated with the request will be
+		 * automatically cancelled as well.
 		 */
-		runTests(options: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+		runTests(request: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -2028,6 +2018,12 @@ declare module 'vscode' {
 		 * tests are run across multiple platforms, for example.
 		 */
 		readonly name?: string;
+
+		/**
+		 * A cancellation token which will be triggered when the test run is
+		 * canceled from the UI.
+		 */
+		readonly token: CancellationToken;
 
 		/**
 		 * Updates the state of the test in the run. Calling with method with nodes

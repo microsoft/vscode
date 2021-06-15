@@ -170,8 +170,8 @@ export async function formatDocumentRangesWithProvider(
 	}
 
 	const allEdits: TextEdit[] = [];
-	for (let range of ranges) {
-		try {
+	try {
+		for (let range of ranges) {
 			const rawEdits = await provider.provideDocumentRangeFormattingEdits(
 				model,
 				range,
@@ -185,9 +185,9 @@ export async function formatDocumentRangesWithProvider(
 			if (cts.token.isCancellationRequested) {
 				return true;
 			}
-		} finally {
-			cts.dispose();
 		}
+	} finally {
+		cts.dispose();
 	}
 
 	if (allEdits.length === 0) {

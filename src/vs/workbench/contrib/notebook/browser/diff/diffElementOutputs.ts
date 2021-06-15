@@ -262,16 +262,12 @@ export class OutputContainer extends Disposable {
 			});
 		}));
 
-		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splices => {
-			this._updateOutputs(splices);
+		this._register(this._nestedCellViewModel.textModel.onDidChangeOutputs(splice => {
+			this._updateOutputs(splice);
 		}));
 	}
 
-	private _updateOutputs(splices: NotebookCellOutputsSplice[]) {
-		if (!splices.length) {
-			return;
-		}
-
+	private _updateOutputs(splice: NotebookCellOutputsSplice) {
 		const removedKeys: ICellOutputViewModel[] = [];
 
 		this._outputEntries.forEach((value, key) => {

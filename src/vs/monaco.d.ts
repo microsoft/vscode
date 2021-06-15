@@ -3156,7 +3156,7 @@ declare namespace monaco.editor {
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
-		 * Defaults to none.
+		 * Defaults to 'selection'.
 		 */
 		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		/**
@@ -5669,7 +5669,7 @@ declare namespace monaco.languages {
 		/**
 		 * The parameters without the return type. Render after `name`.
 		 */
-		parameters?: string;
+		signature?: string;
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
 		 */

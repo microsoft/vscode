@@ -17,6 +17,12 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { fromNow } from 'vs/base/common/date';
 import { ActivationKind, IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
+interface TrustedExtensionsQuickPickItem {
+	label: string;
+	description: string;
+	extension: AllowedExtension;
+}
+
 export class MainThreadAuthenticationProvider extends Disposable {
 	constructor(
 		private readonly _proxy: ExtHostAuthenticationShape,
@@ -38,7 +44,7 @@ export class MainThreadAuthenticationProvider extends Disposable {
 			return;
 		}
 
-		const quickPick = this.quickInputService.createQuickPick<{ label: string, description: string, extension: AllowedExtension }>();
+		const quickPick = this.quickInputService.createQuickPick<TrustedExtensionsQuickPickItem>();
 		quickPick.canSelectMany = true;
 		quickPick.customButton = true;
 		quickPick.customLabel = nls.localize('manageTrustedExtensions.cancel', 'Cancel');
@@ -60,10 +66,21 @@ export class MainThreadAuthenticationProvider extends Disposable {
 		quickPick.placeholder = nls.localize('manageExensions', "Choose which extensions can access this account");
 
 		quickPick.onDidAccept(() => {
-			const updatedAllowedList = quickPick.selectedItems.map(item => item.extension);
+			const updatedAllowedList = quickPick.items
+				.map(i => (i as TrustedExtensionsQuickPickItem).extension);
 			this.storageService.store(`${this.id}-${accountName}`, JSON.stringify(updatedAllowedList), StorageScope.GLOBAL, StorageTarget.USER);
 
 			quickPick.dispose();
+		});
+
+		quickPick.onDidChangeSelection((changed) => {
+			quickPick.items.forEach(item => {
+				if ((item as TrustedExtensionsQuickPickItem).extension) {
+					(item as TrustedExtensionsQuickPickItem).extension.allowed = false;
+				}
+			});
+
+			changed.forEach((item) => item.extension.allowed = true);
 		});
 
 		quickPick.onDidHide(() => {

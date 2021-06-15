@@ -543,6 +543,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 							mime: result.mimeType,
 							data: buffer,
 							etag: result.etag,
+							mtime: result.mtime
 						});
 					}
 				case WebviewResourceResponse.Type.NotModified:
@@ -552,6 +553,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 							status: 304, // not modified
 							path: uri.path,
 							mime: result.mimeType,
+							mtime: result.mtime
 						});
 					}
 				case WebviewResourceResponse.Type.AccessDenied:

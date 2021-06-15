@@ -38,7 +38,7 @@ steps:
   # using `genericNodeModules` instead of `nodeModules` here to avoid sharing the cache with builds running inside containers
   - task: Cache@2
     inputs:
-      key: 'genericNodeModules | $(Agent.OS) | .build/yarnlockhash'
+      key: "genericNodeModules | $(Agent.OS) | .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -100,6 +100,13 @@ steps:
 
   - script: |
       set -e
+      yarn --cwd test/smoke compile
+      yarn --cwd test/integration/browser compile
+    displayName: Compile test suites
+    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+  - script: |
+      set -e
       AZURE_STORAGE_ACCESS_KEY="$(ticino-storage-key)" \
         node build/azure-pipelines/upload-sourcemaps
     displayName: Upload sourcemaps
@@ -121,7 +128,7 @@ steps:
   # we gotta tarball everything in order to preserve file permissions
   - script: |
       set -e
-      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-*
+      tar -czf $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
     displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1
