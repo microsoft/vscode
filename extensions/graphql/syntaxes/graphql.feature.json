@@ -1,0 +1,35 @@
+{
+    "fileTypes": ["feature"],
+    "scopeName": "text.gherkin.feature.graphql",
+    "injectionSelector": "L:text -comment",
+    "patterns": [{
+            "contentName": "meta.embedded.block.graphql",
+            "begin": "graphql request\\s*$",
+            "end": "(?<=\"\"\")",
+            "patterns": [{
+                "begin": "^\\s*(\"\"\")$",
+                "beginCaptures": {
+                    "1": { "name": "string.quoted.double.graphql.start" }
+                },
+                "end": "^\\s*(\"\"\")",
+                "endCaptures": {
+                    "1": { "name": "string.quoted.double.graphql.end" }
+                },
+                "patterns": [{ "include": "source.graphql" }]
+            }]
+        },
+        {
+            "contentName": "meta.embedded.block.graphql",
+            "begin": "^\\s*(\"\"\")\\s*(#graphql)\\s*$",
+            "beginCaptures": {
+                "1": { "name": "string.quoted.double.graphql.begin" },
+                "2": { "name": "comment.line.graphql.js" }
+            },
+            "end": "^\\s*(\"\"\")$",
+            "endCaptures": {
+                "1": { "name": "string.quoted.double.graphql.end" }
+            },
+            "patterns": [{ "include": "source.graphql" }]
+        }
+    ]
+}

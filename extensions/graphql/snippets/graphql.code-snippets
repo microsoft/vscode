@@ -1,0 +1,35 @@
+{
+	"define mutation": {
+		"prefix": "mutation",
+		"body": [
+			"mutation ${1:mutationName}",
+			"\t${2:name}{",
+			"\t'${1:dependency}'",
+			"\t\t${3}",
+			"\t}",
+			"}"
+		],
+		"description": "Create a mutation"
+	},
+	"Create a query": {
+		"prefix": "query",
+		"body": [
+			"query ${1:queryName}",
+			"\t${2:name}{",
+			"\t'${1:dependency}'",
+			"\t\t${3}",
+			"\t}",
+			"}"
+		],
+		"description": "Create a query"
+	},
+	"Create a Fragment": {
+		"prefix": "fragment",
+		"body": [
+			"fragment ${1:fragmentName} extends ${2:extendedClassName}",
+			"\t'${1:fragment}'",
+			"}"
+		],
+		"description": "Create a fragment"
+	}
+}

@@ -1,0 +1,54 @@
+{
+    "fileTypes": ["js", "jsx", "ts", "tsx", "vue"],
+    "injectionSelector": "L:source -string -comment",
+    "patterns": [{
+            "contentName": "meta.embedded.block.graphql",
+            "begin": "\\s*+(?:(?:(Relay)\\??\\.)(QL)|(gql|graphql|graphql\\.experimental)|(/\\* GraphQL \\*/))\\s*(`)",
+            "beginCaptures": {
+                "1": {
+                    "name": "variable.other.class.js"
+                },
+                "2": {
+                    "name": "entity.name.function.tagged-template.js"
+                },
+                "3": {
+                    "name": "entity.name.function.tagged-template.js"
+                },
+                "4": {
+                    "name": "comment.graphql.js"
+                },
+                "5": {
+                    "name": "punctuation.definition.string.template.begin.js"
+                }
+            },
+            "end": "`",
+            "endCaptures": {
+                "0": {
+                    "name": "punctuation.definition.string.template.end.js"
+                }
+            },
+            "patterns": [{ "include": "source.graphql" }]
+        },
+        {
+            "name": "taggedTemplates",
+            "contentName": "meta.embedded.block.graphql",
+            "begin": "(`)(#graphql)",
+            "beginCaptures": {
+                "1": {
+                    "name": "punctuation.definition.string.template.begin.js"
+                },
+                "2": {
+                    "name": "comment.line.graphql.js"
+                }
+            },
+            "end": "`",
+            "endCaptures": {
+                "0": {
+                    "name": "punctuation.definition.string.template.end.js"
+                }
+            },
+            "patterns": [{ "include": "source.graphql" }]
+        }
+    ],
+    "scopeName": "inline.graphql"
+}

@@ -1,0 +1,111 @@
+{
+    "name": "javascript",
+    "displayName": "%displayName%",
+    "description": "%description%",
+    "version": "1.0.0",
+    "publisher": "vscode",
+    "license": "MIT",
+    "engines": {
+        "vscode": "0.10.x"
+    },
+    "contributes": {
+        "languages": [{
+                "id": "graphql",
+                "extensions": [
+                    ".gql",
+                    ".graphql",
+                    ".graphqls"
+                ],
+                "aliases": [
+                    "GraphQL"
+                ],
+                "configuration": "./syntaxes/language-configuration.json"
+            },
+            {
+                "id": "json5",
+                "extensions": [
+                    ".gqlconfig"
+                ]
+            }
+        ],
+        "grammars": [{
+                "language": "graphql",
+                "scopeName": "source.graphql",
+                "path": "./syntaxes/graphql.json"
+            },
+            {
+                "injectTo": [
+                    "source.js",
+                    "source.ts",
+                    "source.js.jsx",
+                    "source.tsx",
+                    "source.vue"
+                ],
+                "scopeName": "inline.graphql",
+                "path": "./syntaxes/graphql.js.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            },
+            {
+                "injectTo": [
+                    "source.ruby"
+                ],
+                "scopeName": "inline.graphql.rb",
+                "path": "./syntaxes/graphql.rb.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            },
+            {
+                "injectTo": [
+                    "text.gherkin.feature"
+                ],
+                "scopeName": "text.gherkin.feature.graphql",
+                "path": "./syntaxes/graphql.feature.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            },
+            {
+                "injectTo": [
+                    "text.html.markdown"
+                ],
+                "scopeName": "markdown.graphql.codeblock",
+                "path": "./syntaxes/graphql.markdown.codeblock.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            },
+            {
+                "injectTo": [
+                    "source.reason",
+                    "source.ocaml"
+                ],
+                "scopeName": "inline.graphql.re",
+                "path": "./syntaxes/graphql.re.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            },
+            {
+                "injectTo": [
+                    "source.rescript"
+                ],
+                "scopeName": "inline.graphql.res",
+                "path": "./syntaxes/graphql.res.json",
+                "embeddedLanguages": {
+                    "meta.embedded.block.graphql": "graphql"
+                }
+            }
+        ],
+        "snippets": [{
+            "language": "graphql",
+            "path": "./snippets/graphql.code-snippets"
+        }]
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/microsoft/vscode.git"
+    }
+}

@@ -1,0 +1,21 @@
+{
+    "fileTypes": ["rb"],
+    "injectionSelector": "L:source -string -comment",
+    "patterns": [{
+        "contentName": "meta.embedded.block.graphql",
+        "begin": "(?><<[-~](['\"`]?)((?:[_\\w]+_|)GRAPHQL)\\b\\1)",
+        "beginCaptures": {
+            "0": {
+                "name": "punctuation.definition.string.begin.ruby"
+            }
+        },
+        "end": "\\s*\\2$\\n?",
+        "endCaptures": {
+            "0": {
+                "name": "punctuation.definition.string.end.ruby"
+            }
+        },
+        "patterns": [{ "include": "source.graphql" }]
+    }],
+    "scopeName": "inline.graphql.rb"
+}

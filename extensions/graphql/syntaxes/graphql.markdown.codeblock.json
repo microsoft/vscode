@@ -1,0 +1,17 @@
+{
+    "fileTypes": [],
+    "scopeName": "markdown.graphql.codeblock",
+    "injectionSelector": "L:markup.fenced_code.block.markdown",
+    "patterns": [{
+        "contentName": "meta.embedded.block.graphql",
+        "begin": "(graphql|GraphQL)(\\s+[^`~]*)?$",
+        "end": "(^|\\G)(?=\\s*[`~]{3,}\\s*$)",
+        "patterns": [{
+            "begin": "(^|\\G)(\\s*)(.*)",
+            "while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+            "patterns": [{
+                "include": "source.graphql"
+            }]
+        }]
+    }]
+}
