@@ -221,19 +221,64 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		})();
 	}
 
-	private get startupPromptSetting(): 'always' | 'once' | 'never' {
-		return this.configurationService.getValue(WORKSPACE_TRUST_STARTUP_PROMPT);
+	private registerListeners(): void {
+		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
+			if (e.fromCache) {
+				return;
+			}
+			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
+				return;
+			}
+			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
+
+			return e.join(new Promise(async resolve => {
+				// Workspace is trusted and there are added/changed folders
+				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
+					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
+
+					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
+						const result = await this.dialogService.show(
+							Severity.Info,
+							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
+							[localize('yes', 'Yes'), localize('no', 'No')],
+							{
+								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
+								cancelId: 1,
+								custom: { icon: Codicon.shield }
+							}
+						);
+
+						// Mark added/changed folders as trusted
+						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
+
+						resolve();
+					}
+				}
+
+				resolve();
+			}));
+		}));
+
+		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => {
+			this.updateWorkbenchIndicators(trusted);
+		}));
 	}
 
-	private get useWorkspaceLanguage(): boolean {
-		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	private updateWorkbenchIndicators(trusted: boolean): void {
+		const bannerItem = this.getBannerItem(!trusted);
+
+		this.updateStatusbarEntry(trusted);
+
+		if (bannerItem) {
+			if (!trusted) {
+				this.bannerService.show(bannerItem);
+			} else {
+				this.bannerService.hide(BANNER_RESTRICTED_MODE);
+			}
+		}
 	}
 
-	private get modalTitle(): string {
-		return this.useWorkspaceLanguage ?
-			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
-			localize('folderTrust', "Do you trust the authors of the files in this folder?");
-	}
+	//#region Dialog
 
 	private async doShowModal(question: string, trustedOption: { label: string, sublabel: string }, untrustedOption: { label: string, sublabel: string }, markdownStrings: string[], trustParentString?: string): Promise<void> {
 		const result = await this.dialogService.show(
@@ -310,6 +355,10 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			return;
 		}
 
+		const title = this.useWorkspaceLanguage ?
+			localize('workspaceTrust', "Do you trust the authors of the files in this workspace?") :
+			localize('folderTrust', "Do you trust the authors of the files in this folder?");
+
 		let checkboxText: string | undefined;
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceContextService.getWorkspace())!;
 		const isSingleFolderWorkspace = isSingleFolderWorkspaceIdentifier(workspaceIdentifier);
@@ -321,7 +370,7 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 		// Show Workspace Trust Start Dialog
 		this.doShowModal(
-			this.modalTitle,
+			title,
 			{ label: localize('trustOption', "Yes, I trust the authors"), sublabel: isSingleFolderWorkspace ? localize('trustFolderOptionDescription', "Trust folder and enable all features") : localize('trustWorkspaceOptionDescription', "Trust workspace and enable all features") },
 			{ label: localize('dontTrustOption', "No, I don't trust the authors"), sublabel: isSingleFolderWorkspace ? localize('dontTrustFolderOptionDescription', "Browse folder in restricted mode") : localize('dontTrustWorkspaceOptionDescription', "Browse workspace in restricted mode") },
 			[
@@ -334,11 +383,17 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 		);
 	}
 
-	private createStatusbarEntry(): void {
-		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
-		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
-		this.statusbarService.updateEntryVisibility(this.entryId, false);
+	private get startupPromptSetting(): 'always' | 'once' | 'never' {
+		return this.configurationService.getValue(WORKSPACE_TRUST_STARTUP_PROMPT);
 	}
+
+	private get useWorkspaceLanguage(): boolean {
+		return !isSingleFolderWorkspaceIdentifier(toWorkspaceIdentifier(this.workspaceContextService.getWorkspace()));
+	}
+
+	//#endregion
+
+	//#region Banner
 
 	private getBannerItem(restrictedMode: boolean): IBannerItem | undefined {
 
@@ -395,6 +450,16 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			case WorkbenchState.WORKSPACE:
 				return localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.");
 		}
+	}
+
+	//#endregion
+
+	//#region Statusbar
+
+	private createStatusbarEntry(): void {
+		const entry = this.getStatusbarEntry(this.workspaceTrustManagementService.isWorkpaceTrusted());
+		this.statusbarEntryAccessor.value = this.statusbarService.addEntry(entry, this.entryId, StatusbarAlignment.LEFT, 0.99 * Number.MAX_VALUE /* Right of remote indicator */);
+		this.statusbarService.updateEntryVisibility(this.entryId, false);
 	}
 
 	private getStatusbarEntry(trusted: boolean): IStatusbarEntry {
@@ -465,74 +530,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 
 	private updateStatusbarEntry(trusted: boolean): void {
 		this.statusbarEntryAccessor.value?.update(this.getStatusbarEntry(trusted));
-		this.updateStatusbarEntryVisibility(trusted);
-	}
-
-	private updateStatusbarEntryVisibility(trusted: boolean): void {
 		this.statusbarService.updateEntryVisibility(this.entryId, !trusted);
 	}
 
-	private updateWorkbenchIndicators(trusted: boolean): void {
-		const bannerItem = this.getBannerItem(!trusted);
-
-		this.updateStatusbarEntry(trusted);
-
-		if (bannerItem) {
-			if (!trusted) {
-				this.bannerService.show(bannerItem);
-			} else {
-				this.bannerService.hide(BANNER_RESTRICTED_MODE);
-			}
-		}
-	}
-
-	private registerListeners(): void {
-
-		this._register(this.workspaceContextService.onWillChangeWorkspaceFolders(e => {
-			if (e.fromCache) {
-				return;
-			}
-			if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
-				return;
-			}
-			const trusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
-
-			return e.join(new Promise(async resolve => {
-				// Workspace is trusted and there are added/changed folders
-				if (trusted && (e.changes.added.length || e.changes.changed.length)) {
-					const addedFoldersTrustInfo = await Promise.all(e.changes.added.map(folder => this.workspaceTrustManagementService.getUriTrustInfo(folder.uri)));
-
-					if (!addedFoldersTrustInfo.map(info => info.trusted).every(trusted => trusted)) {
-						const result = await this.dialogService.show(
-							Severity.Info,
-							localize('addWorkspaceFolderMessage', "Do you trust the authors of the files in this folder?"),
-							[localize('yes', 'Yes'), localize('no', 'No')],
-							{
-								detail: localize('addWorkspaceFolderDetail', "You are adding files to a trusted workspace that are not currently trusted. Do you trust the authors of these new files?"),
-								cancelId: 1,
-								custom: { icon: Codicon.shield }
-							}
-						);
-
-						// Mark added/changed folders as trusted
-						await this.workspaceTrustManagementService.setUrisTrust(addedFoldersTrustInfo.map(i => i.uri), result.choice === 0);
-
-						resolve();
-					}
-				}
-
-				resolve();
-			}));
-		}));
-
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(trusted => {
-			this.updateWorkbenchIndicators(trusted);
-		}));
-	}
+	//#endregion
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustRequestHandler, LifecyclePhase.Ready);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(WorkspaceTrustUXHandler, LifecyclePhase.Restored);
+
 
 /**
  * Trusted Workspace GUI Editor
@@ -565,6 +571,7 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 		new SyncDescriptor(WorkspaceTrustEditorInput)
 	]
 );
+
 
 /*
  * Actions
@@ -601,6 +608,7 @@ registerAction2(class extends Action2 {
 		return;
 	}
 });
+
 
 /*
  * Configuration
@@ -655,6 +663,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			}
 		}
 	});
+
 
 /**
  * Telemetry

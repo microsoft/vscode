@@ -907,14 +907,7 @@ class StatusbarEntryItem extends Disposable {
 				this.customHover.dispose();
 				this.customHover = undefined;
 			}
-			if (isMarkdownString(entry.tooltip)) {
-				this.container.removeAttribute('title');
-				this.customHover = setupCustomHover(this.customHoverDelegate, this.container, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
-			} else if (entry.tooltip) {
-				this.container.title = entry.tooltip;
-			} else {
-				this.container.title = '';
-			}
+			this.customHover = setupCustomHover(this.customHoverDelegate, this.container, { markdown: entry.tooltip, markdownNotSupportedFallback: undefined });
 		}
 
 		// Update: Command

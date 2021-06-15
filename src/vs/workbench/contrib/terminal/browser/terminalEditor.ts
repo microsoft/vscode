@@ -12,6 +12,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorInputSerializer, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -26,7 +27,18 @@ export class TerminalEditor extends EditorPane {
 
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
+		super.clearInput();
 		this._editorInput = newInput;
+		if (!this._editorInput?.terminalInstance) {
+			return;
+		}
+
+		if (!this._isAttached) {
+			this._editorInput.terminalInstance.attachToElement(this._parentElement!);
+			this._isAttached = true;
+		}
+
+		this._editorInput.terminalInstance.setVisible(true);
 		await super.setInput(newInput, options, context, token);
 	}
 
@@ -41,24 +53,27 @@ export class TerminalEditor extends EditorPane {
 		}
 	}
 
-	override setVisible(visible: boolean, group?: IEditorGroup): void {
-		super.setVisible(visible, group);
+	// override setVisible(visible: boolean, group?: IEditorGroup): void {
+	// 	// super.setVisible(visible, group);
 
-		if (!this._editorInput?.terminalInstance) {
-			return;
-		}
+	// 	if (!this._editorInput?.terminalInstance) {
+	// 		return;
+	// 	}
 
-		if (!this._isAttached) {
-			this._editorInput.terminalInstance.attachToElement(this._parentElement!);
-			this._isAttached = true;
-		}
-		this._editorInput.terminalInstance.setVisible(visible);
-	}
+	// 	if (!this._isAttached) {
+	// 		this._editorInput.terminalInstance.attachToElement(this._parentElement!);
+	// 		this._isAttached = true;
+	// 	}
+
+	// 	this._editorInput.terminalInstance.setVisible(visible);
+	// }
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ITerminalService terminalService: ITerminalService
 	) {
 
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
