@@ -9,7 +9,7 @@ import { Application } from '../../../../automation';
 import { afterSuite, beforeSuite } from '../../utils';
 
 export function setup(opts: minimist.ParsedArgs) {
-	describe('Notebooks', () => {
+	describe.skip('Notebooks', () => {
 		beforeSuite(opts);
 
 		afterEach(async function () {
