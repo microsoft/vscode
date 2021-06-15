@@ -4,9 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -27,15 +26,15 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		@ITerminalService terminalService: ITerminalService
+		terminalInstance: ITerminalInstance
 	) {
 		super();
-		this._terminalInstance = terminalService.createTerminal();
+		this._terminalInstance = terminalInstance;
 	}
 
-	static copy(instantiationService: IInstantiationService): TerminalEditorInput {
-		return instantiationService.createInstance(TerminalEditorInput);
-	}
+	// static copy(instantiationService: IInstantiationService): TerminalEditorInput {
+	// 	return instantiationService.createInstance(TerminalEditorInput);
+	// }
 
 	override getName() {
 		return this.terminalInstance.title;
