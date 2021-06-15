@@ -47,7 +47,6 @@ import { isVirtualWorkspace } from 'vs/platform/remote/common/remoteHosts';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
-import { SettingsEditor2 } from 'vs/workbench/contrib/preferences/browser/settingsEditor2';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const BANNER_RESTRICTED_MODE = 'workbench.banner.restrictedMode';
@@ -589,12 +588,7 @@ registerAction2(class extends Action2 {
 	}
 
 	run(accessor: ServicesAccessor) {
-		const editorPane = accessor.get(IEditorService).activeEditorPane;
-		if (editorPane instanceof SettingsEditor2) {
-			editorPane.focusSearch(`@tag:${WORKSPACE_TRUST_SETTING_TAG}`);
-		} else {
-			accessor.get(IPreferencesService).openGlobalSettings(false, { query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
-		}
+		accessor.get(IPreferencesService).openGlobalSettings(false, { query: `@tag:${WORKSPACE_TRUST_SETTING_TAG}` });
 	}
 });
 
