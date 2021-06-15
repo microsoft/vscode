@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -578,7 +578,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 
-		const data: NotebookDataDto = {
+		const data: NotebookData = {
 			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};

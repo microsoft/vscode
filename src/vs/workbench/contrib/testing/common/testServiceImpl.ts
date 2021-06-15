@@ -44,10 +44,15 @@ export class TestService extends Disposable implements ITestService {
 	private readonly unsubscribeEmitter = new Emitter<TestLocationIdent>();
 	private readonly busyStateChangeEmitter = new Emitter<TestLocationIdent & { busy: boolean }>();
 	private readonly changeProvidersEmitter = new Emitter<{ delta: number }>();
+	private readonly cancelExtensionTestRunEmitter = new Emitter<{ runId: string | undefined }>();
 	private readonly providerCount: IContextKey<number>;
 	private readonly hasRunnable: IContextKey<boolean>;
 	private readonly hasDebuggable: IContextKey<boolean>;
-	private readonly runningTests = new Map<RunTestsRequest, CancellationTokenSource>();
+	/**
+	 * Cancellation for runs requested by the user being managed by the UI.
+	 * Test runs initiated by extensions are not included here.
+	 */
+	private readonly uiRunningTests = new Map<string /* run ID */, CancellationTokenSource>();
 	private readonly rootProviders = new Set<ITestRootProvider>();
 
 	public readonly excludeTests = MutableObservableValue.stored(new StoredValue<ReadonlySet<string>>({
@@ -104,13 +109,6 @@ export class TestService extends Disposable implements ITestService {
 	}
 
 	/**
-	 * Gets currently running tests.
-	 */
-	public get testRuns() {
-		return this.runningTests.keys();
-	}
-
-	/**
 	 * Gets the current provider count.
 	 */
 	public get providers() {
@@ -140,6 +138,11 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
+	public readonly onCancelTestRun = this.cancelExtensionTestRunEmitter.event;
+
+	/**
+	 * @inheritdoc
+	 */
 	public get subscriptions() {
 		return [...this.testSubscriptions].map(([, s]) => s.ident);
 	}
@@ -147,8 +150,16 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public cancelTestRun(req: RunTestsRequest) {
-		this.runningTests.get(req)?.cancel();
+	public cancelTestRun(runId?: string) {
+		this.cancelExtensionTestRunEmitter.fire({ runId });
+
+		if (runId === undefined) {
+			for (const runCts of this.uiRunningTests.values()) {
+				runCts.cancel();
+			}
+		} else {
+			this.uiRunningTests.get(runId)?.cancel();
+		}
 	}
 
 	/**
@@ -222,7 +233,7 @@ export class TestService extends Disposable implements ITestService {
 		try {
 			const tests = groupBy(testsWithIds, (a, b) => a.src.controller === b.src.controller ? 0 : 1);
 			const cancelSource = new CancellationTokenSource(token);
-			this.runningTests.set(req, cancelSource);
+			this.uiRunningTests.set(result.id, cancelSource);
 
 			const requests = tests.map(
 				group => this.testControllers.get(group[0].src.controller)?.runTests(
@@ -241,7 +252,7 @@ export class TestService extends Disposable implements ITestService {
 			await Promise.all(requests);
 			return result;
 		} finally {
-			this.runningTests.delete(req);
+			this.uiRunningTests.delete(result.id);
 			result.markComplete();
 		}
 	}

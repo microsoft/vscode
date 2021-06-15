@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Barrier } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -68,6 +68,69 @@ export const enum ExtensionRunningPreference {
 	Remote
 }
 
+class LockCustomer {
+	public readonly promise: Promise<IDisposable>;
+	private _resolve!: (value: IDisposable) => void;
+
+	constructor(
+		public readonly name: string
+	) {
+		this.promise = new Promise<IDisposable>((resolve, reject) => {
+			this._resolve = resolve;
+		});
+	}
+
+	resolve(value: IDisposable): void {
+		this._resolve(value);
+	}
+}
+
+class Lock {
+	private readonly _pendingCustomers: LockCustomer[] = [];
+	private _isLocked = false;
+
+	public async acquire(customerName: string): Promise<IDisposable> {
+		const customer = new LockCustomer(customerName);
+		this._pendingCustomers.push(customer);
+		this._advance();
+		return customer.promise;
+	}
+
+	private _advance(): void {
+		if (this._isLocked) {
+			// cannot advance yet
+			return;
+		}
+		if (this._pendingCustomers.length === 0) {
+			// no more waiting customers
+			return;
+		}
+
+		const customer = this._pendingCustomers.shift()!;
+
+		this._isLocked = true;
+		let customerHoldsLock = true;
+
+		let logLongRunningCustomerTimeout = setTimeout(() => {
+			if (customerHoldsLock) {
+				console.warn(`The customer named ${customer.name} has been holding on to the lock for 30s. This might be a problem.`);
+			}
+		}, 30 * 1000 /* 30 seconds */);
+
+		const releaseLock = () => {
+			if (!customerHoldsLock) {
+				return;
+			}
+			clearTimeout(logLongRunningCustomerTimeout);
+			customerHoldsLock = false;
+			this._isLocked = false;
+			this._advance();
+		};
+
+		customer.resolve(toDisposable(releaseLock));
+	}
+}
+
 export abstract class AbstractExtensionService extends Disposable implements IExtensionService {
 
 	public _serviceBrand: undefined;
@@ -88,6 +151,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public readonly onDidChangeResponsiveChange: Event<IResponsiveStateChangeEvent> = this._onDidChangeResponsiveChange.event;
 
 	protected readonly _registry: ExtensionDescriptionRegistry;
+	private readonly _registryLock: Lock;
+
 	private readonly _installedExtensionsReady: Barrier;
 	protected readonly _isDev: boolean;
 	private readonly _extensionsMessages: Map<string, IMessage[]>;
@@ -98,7 +163,6 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	private _deltaExtensionsQueue: DeltaExtensionsQueueItem[];
 	private _inHandleDeltaExtensions: boolean;
-	private readonly _onDidFinishHandleDeltaExtensions = this._register(new Emitter<void>());
 
 	protected _runningLocation: Map<string, ExtensionRunningLocation>;
 
@@ -130,6 +194,8 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}));
 
 		this._registry = new ExtensionDescriptionRegistry([]);
+		this._registryLock = new Lock();
+
 		this._installedExtensionsReady = new Barrier();
 		this._isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
 		this._extensionsMessages = new Map<string, IMessage[]>();
@@ -207,17 +273,20 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 			return;
 		}
 
-		while (this._deltaExtensionsQueue.length > 0) {
-			const item = this._deltaExtensionsQueue.shift()!;
-			try {
-				this._inHandleDeltaExtensions = true;
+		let lock: IDisposable | null = null;
+		try {
+			this._inHandleDeltaExtensions = true;
+			lock = await this._registryLock.acquire('handleDeltaExtensions');
+			while (this._deltaExtensionsQueue.length > 0) {
+				const item = this._deltaExtensionsQueue.shift()!;
 				await this._deltaExtensions(item.toAdd, item.toRemove);
-			} finally {
-				this._inHandleDeltaExtensions = false;
+			}
+		} finally {
+			this._inHandleDeltaExtensions = false;
+			if (lock) {
+				lock.dispose();
 			}
 		}
-
-		this._onDidFinishHandleDeltaExtensions.fire();
 	}
 
 	private async _deltaExtensions(_toAdd: IExtension[], _toRemove: string[] | IExtension[]): Promise<void> {
@@ -566,11 +635,17 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	public async startExtensionHosts(): Promise<void> {
 		this.stopExtensionHosts();
 
-		if (this._inHandleDeltaExtensions) {
-			await Event.toPromise(this._onDidFinishHandleDeltaExtensions.event);
-		}
+		const lock = await this._registryLock.acquire('startExtensionHosts');
+		try {
+			this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
 
-		this._startExtensionHosts(false, Array.from(this._allRequestedActivateEvents.keys()));
+			const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
+			if (localProcessExtensionHost) {
+				await localProcessExtensionHost.ready();
+			}
+		} finally {
+			lock.dispose();
+		}
 	}
 
 	public async restartExtensionHost(): Promise<void> {

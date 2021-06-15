@@ -4,14 +4,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.prepareIslFiles = exports.prepareI18nPackFiles = exports.pullI18nPackFiles = exports.prepareI18nFiles = exports.pullSetupXlfFiles = exports.pullCoreAndExtensionsXlfFiles = exports.findObsoleteResources = exports.pushXlfFiles = exports.createXlfFilesForIsl = exports.createXlfFilesForExtensions = exports.createXlfFilesForCoreBundle = exports.getResource = exports.processNlsFiles = exports.Limiter = exports.XLF = exports.Line = exports.externalExtensionsWithTranslations = exports.extraLanguages = exports.defaultLanguages = void 0;
+exports.prepareIslFiles = exports.prepareI18nPackFiles = exports.prepareI18nFiles = exports.pullSetupXlfFiles = exports.findObsoleteResources = exports.pushXlfFiles = exports.createXlfFilesForIsl = exports.createXlfFilesForExtensions = exports.createXlfFilesForCoreBundle = exports.getResource = exports.processNlsFiles = exports.Limiter = exports.XLF = exports.Line = exports.externalExtensionsWithTranslations = exports.extraLanguages = exports.defaultLanguages = void 0;
 const path = require("path");
 const fs = require("fs");
 const event_stream_1 = require("event-stream");
 const File = require("vinyl");
 const Is = require("is");
 const xml2js = require("xml2js");
-const glob = require("glob");
 const https = require("https");
 const gulp = require("gulp");
 const fancyLog = require("fancy-log");
@@ -902,31 +901,6 @@ function updateResource(project, slug, xlfFile, apiHostname, credentials) {
         request.end();
     });
 }
-// cache resources
-let _coreAndExtensionResources;
-function pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, externalExtensions) {
-    if (!_coreAndExtensionResources) {
-        _coreAndExtensionResources = [];
-        // editor and workbench
-        const json = JSON.parse(fs.readFileSync('./build/lib/i18n.resources.json', 'utf8'));
-        _coreAndExtensionResources.push(...json.editor);
-        _coreAndExtensionResources.push(...json.workbench);
-        // extensions
-        let extensionsToLocalize = Object.create(null);
-        glob.sync('.build/extensions/**/*.nls.json').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-        glob.sync('.build/extensions/*/node_modules/vscode-nls').forEach(extension => extensionsToLocalize[extension.split('/')[2]] = true);
-        Object.keys(extensionsToLocalize).forEach(extension => {
-            _coreAndExtensionResources.push({ name: extension, project: extensionsProject });
-        });
-        if (externalExtensions) {
-            for (let resourceName in externalExtensions) {
-                _coreAndExtensionResources.push({ name: resourceName, project: extensionsProject });
-            }
-        }
-    }
-    return pullXlfFiles(apiHostname, username, password, language, _coreAndExtensionResources);
-}
-exports.pullCoreAndExtensionsXlfFiles = pullCoreAndExtensionsXlfFiles;
 function pullSetupXlfFiles(apiHostname, username, password, language, includeDefault) {
     let setupResources = [{ name: 'setup_messages', project: workbenchProject }];
     if (includeDefault) {
@@ -1036,20 +1010,16 @@ function createI18nFile(originalFilePath, messages) {
     });
 }
 const i18nPackVersion = '1.0.0';
-function pullI18nPackFiles(apiHostname, username, password, language, resultingTranslationPaths) {
-    return pullCoreAndExtensionsXlfFiles(apiHostname, username, password, language, exports.externalExtensionsWithTranslations)
-        .pipe(prepareI18nPackFiles(exports.externalExtensionsWithTranslations, resultingTranslationPaths, language.id === 'ps'));
-}
-exports.pullI18nPackFiles = pullI18nPackFiles;
 function prepareI18nPackFiles(externalExtensions, resultingTranslationPaths, pseudo = false) {
     let parsePromises = [];
     let mainPack = { version: i18nPackVersion, contents: {} };
     let extensionsPacks = {};
     let errors = [];
     return event_stream_1.through(function (xlf) {
-        let project = path.basename(path.dirname(xlf.relative));
+        let project = path.basename(path.dirname(path.dirname(xlf.relative)));
         let resource = path.basename(xlf.relative, '.xlf');
         let contents = xlf.contents.toString();
+        log(`Found ${project}: ${resource}`);
         let parsePromise = pseudo ? XLF.parsePseudo(contents) : XLF.parse(contents);
         parsePromises.push(parsePromise);
         parsePromise.then(resolvedFiles => {

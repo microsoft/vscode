@@ -54,7 +54,7 @@ suite('Notebook Find', () => {
 				['paragraph 1', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
 				const model = new FindModel(editor, state, accessor.get(IConfigurationService));
@@ -91,7 +91,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
@@ -134,7 +134,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();
@@ -170,7 +170,7 @@ suite('Notebook Find', () => {
 				['paragraph 1.3', 'markdown', CellKind.Markup, [], {}],
 				['paragraph 2', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, accessor) => {
+			async (editor, viewModel, accessor) => {
 				setupEditorForTest(editor);
 				accessor.stub(IConfigurationService, configurationService);
 				const state = new FindReplaceState();

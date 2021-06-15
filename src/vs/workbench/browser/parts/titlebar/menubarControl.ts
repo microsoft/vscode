@@ -7,14 +7,14 @@ import { localize } from 'vs/nls';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action2, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IRecentlyOpened, isRecentFolder, IRecent, isRecentWorkspace, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { MENUBAR_SELECTION_FOREGROUND, MENUBAR_SELECTION_BACKGROUND, MENUBAR_SELECTION_BORDER, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_INACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
@@ -92,23 +92,14 @@ MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
-	submenu: MenuId.MenubarDebugMenu,
-	title: {
-		value: 'Run',
-		original: 'Run',
-		mnemonicTitle: localize({ key: 'mRun', comment: ['&& denotes a mnemonic'] }, "&&Run")
-	},
-	order: 6
-});
-
-MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
 	submenu: MenuId.MenubarTerminalMenu,
 	title: {
 		value: 'Terminal',
 		original: 'Terminal',
 		mnemonicTitle: localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")
 	},
-	order: 7
+	order: 7,
+	when: ContextKeyExpr.has('terminalProcessSupported')
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarMainMenu, {
@@ -173,16 +164,29 @@ export abstract class MenubarControl extends Disposable {
 
 		super();
 
-		const mainMenu = this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService);
-		const [, mainMenuActions] = mainMenu.getActions()[0];
-		for (const mainMenuAction of mainMenuActions) {
-			if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
-				this.menus[mainMenuAction.item.title.original] = this._register(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
-				this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
-			}
-		}
+		const mainMenu = this._register(this.menuService.createMenu(MenuId.MenubarMainMenu, this.contextKeyService));
+		const mainMenuDisposables = this._register(new DisposableStore());
 
-		mainMenu.dispose();
+		const setupMenu = () => {
+			mainMenuDisposables.clear();
+			this.menus = {};
+			this.topLevelTitles = {};
+
+			const [, mainMenuActions] = mainMenu.getActions()[0];
+			for (const mainMenuAction of mainMenuActions) {
+				if (mainMenuAction instanceof SubmenuItemAction && typeof mainMenuAction.item.title !== 'string') {
+					this.menus[mainMenuAction.item.title.original] = mainMenuDisposables.add(this.menuService.createMenu(mainMenuAction.item.submenu, this.contextKeyService));
+					this.topLevelTitles[mainMenuAction.item.title.original] = mainMenuAction.item.title.mnemonicTitle ?? mainMenuAction.item.title.value;
+				}
+			}
+		};
+
+		setupMenu();
+
+		mainMenu.onDidChange(() => {
+			setupMenu();
+			this.doUpdateMenubar(true);
+		});
 
 		this.menuUpdater = this._register(new RunOnceScheduler(() => this.doUpdateMenubar(false), 200));
 
@@ -624,6 +628,7 @@ export class CustomMenubarControl extends MenubarControl {
 		this._onVisibilityChange.fire(visible);
 	}
 
+	private reinstallDisposables = this._register(new DisposableStore());
 	private setupCustomMenubar(firstTime: boolean): void {
 		// If there is no container, we cannot setup the menubar
 		if (!this.container) {
@@ -631,14 +636,19 @@ export class CustomMenubarControl extends MenubarControl {
 		}
 
 		if (firstTime) {
-			this.menubar = this._register(new MenuBar(this.container, this.getMenuBarOptions()));
+			// Reset and create new menubar
+			if (this.menubar) {
+				this.reinstallDisposables.clear();
+			}
+
+			this.menubar = this.reinstallDisposables.add(new MenuBar(this.container, this.getMenuBarOptions()));
 
 			this.accessibilityService.alwaysUnderlineAccessKeys().then(val => {
 				this.alwaysOnMnemonics = val;
 				this.menubar?.update(this.getMenuBarOptions());
 			});
 
-			this._register(this.menubar.onFocusStateChange(focused => {
+			this.reinstallDisposables.add(this.menubar.onFocusStateChange(focused => {
 				this._onFocusStateChange.fire(focused);
 
 				// When the menubar loses focus, update it to clear any pending updates
@@ -648,18 +658,18 @@ export class CustomMenubarControl extends MenubarControl {
 				}
 			}));
 
-			this._register(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
+			this.reinstallDisposables.add(this.menubar.onVisibilityChange(e => this.onDidVisibilityChange(e)));
 
 			// Before we focus the menubar, stop updates to it so that focus-related context keys will work
-			this._register(addDisposableListener(this.container, EventType.FOCUS_IN, () => {
+			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_IN, () => {
 				this.focusInsideMenubar = true;
 			}));
 
-			this._register(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
+			this.reinstallDisposables.add(addDisposableListener(this.container, EventType.FOCUS_OUT, () => {
 				this.focusInsideMenubar = false;
 			}));
 
-			this._register(attachMenuStyler(this.menubar, this.themeService));
+			this.reinstallDisposables.add(attachMenuStyler(this.menubar, this.themeService));
 		} else {
 			this.menubar?.update(this.getMenuBarOptions());
 		}
@@ -727,7 +737,7 @@ export class CustomMenubarControl extends MenubarControl {
 		for (const title of Object.keys(this.topLevelTitles)) {
 			const menu = this.menus[title];
 			if (firstTime && menu) {
-				this._register(menu.onDidChange(() => {
+				this.reinstallDisposables.add(menu.onDidChange(() => {
 					if (!this.focusInsideMenubar) {
 						const actions: IAction[] = [];
 						updateActions(menu, actions, title);
@@ -739,7 +749,7 @@ export class CustomMenubarControl extends MenubarControl {
 
 				// For the file menu, we need to update if the web nav menu updates as well
 				if (menu === this.menus.File) {
-					this._register(this.webNavigationMenu.onDidChange(() => {
+					this.reinstallDisposables.add(this.webNavigationMenu.onDidChange(() => {
 						if (!this.focusInsideMenubar) {
 							const actions: IAction[] = [];
 							updateActions(menu, actions, title);

@@ -8,7 +8,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, notebookDocumentMetadataDefaults, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookTextModel, NotebookCellOutputsSplice, NotebookDocumentMetadata, NotebookCellMetadata, ICellEditOperation, CellEditType, CellUri, diff, NotebookCellsChangeType, ICellDto2, TransientOptions, NotebookTextModelChangedEvent, NotebookRawContentEvent, IOutputDto, ICellOutput, IOutputItemDto, ISelectionState, NullablePartialNotebookCellMetadata, NotebookCellInternalMetadata, NullablePartialNotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IUndoRedoService, UndoRedoElementType, IUndoRedoElement, IResourceUndoRedoElement, UndoRedoGroup, IWorkspaceUndoRedoElement } from 'vs/platform/undoRedo/common/undoRedo';
 import { MoveCellEdit, SpliceCellsEdit, CellMetadataEdit } from 'vs/workbench/contrib/notebook/common/model/cellEdit';
 import { ISequence, LcsDiff } from 'vs/base/common/diff/diff';
@@ -187,6 +187,13 @@ class DelayedEmitter {
 	}
 }
 
+type TransformedEdit = {
+	edit: ICellEditOperation;
+	cellIndex: number;
+	end: number | undefined;
+	originalIndex: number;
+};
+
 export class NotebookTextModel extends Disposable implements INotebookTextModel {
 
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
@@ -197,7 +204,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _cellListeners: Map<number, IDisposable> = new Map();
 	private _cells: NotebookCellTextModel[] = [];
 
-	metadata: NotebookDocumentMetadata = notebookDocumentMetadataDefaults;
+	metadata: NotebookDocumentMetadata = {};
 	transientOptions: TransientOptions = { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false };
 	private _versionId = 0;
 
@@ -367,15 +374,9 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	}
 
 	private _doApplyEdits(rawEdits: ICellEditOperation[], synchronous: boolean, computeUndoRedo: boolean = true): void {
-		type TransformedEdit = {
-			edit: ICellEditOperation;
-			cellIndex: number;
-			end: number | undefined;
-			originalIndex: number;
-		};
 
 		// compress all edits which have no side effects on cell index
-		const edits = rawEdits.map((edit, index) => {
+		const edits = this._mergeCellEdits(rawEdits.map((edit, index) => {
 			let cellIndex: number = -1;
 			if ('index' in edit) {
 				cellIndex = edit.index;
@@ -398,7 +399,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 						: (edit.editType === CellEditType.Replace ? edit.index + edit.count : cellIndex),
 				originalIndex: index
 			};
-		}).sort((a, b) => {
+		})).sort((a, b) => {
 			if (a.end === undefined) {
 				return -1;
 			}
@@ -450,7 +451,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					this._assertIndex(cellIndex);
 					const cell = this._cells[cellIndex];
 					if (edit.append) {
-						this._spliceNotebookCellOutputs(cell, [[cell.outputs.length, 0, edit.outputs.map(op => new NotebookCellOutputTextModel(op))]], computeUndoRedo);
+						this._spliceNotebookCellOutputs(cell, { start: cell.outputs.length, deleteCount: 0, newOutputs: edit.outputs.map(op => new NotebookCellOutputTextModel(op)) }, true, computeUndoRedo);
 					} else {
 						this._spliceNotebookCellOutputs2(cell, edit.outputs.map(op => new NotebookCellOutputTextModel(op)), computeUndoRedo);
 					}
@@ -491,6 +492,31 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 					break;
 			}
 		}
+	}
+
+	private _mergeCellEdits(rawEdits: TransformedEdit[]): TransformedEdit[] {
+		let mergedEdits: TransformedEdit[] = [];
+
+		rawEdits.forEach(edit => {
+			if (mergedEdits.length) {
+				const last = mergedEdits[mergedEdits.length - 1];
+
+				if (last.edit.editType === CellEditType.Output
+					&& last.edit.append
+					&& edit.edit.editType === CellEditType.Output
+					&& edit.edit.append
+					&& last.cellIndex === edit.cellIndex
+				) {
+					last.edit.outputs = [...last.edit.outputs, ...edit.edit.outputs];
+				} else {
+					mergedEdits.push(edit);
+				}
+			} else {
+				mergedEdits.push(edit);
+			}
+		});
+
+		return mergedEdits;
 	}
 
 	private _replaceCells(index: number, count: number, cellDtos: ICellDto2[], synchronous: boolean, computeUndoRedo: boolean): void {
@@ -817,21 +843,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 	private _spliceNotebookCellOutputs2(cell: NotebookCellTextModel, outputs: ICellOutput[], computeUndoRedo: boolean): void {
 		const diff = new LcsDiff(new OutputSequence(cell.outputs), new OutputSequence(outputs));
 		const diffResult = diff.ComputeDiff(false);
-		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => [change.originalStart, change.originalLength, outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength)]);
-		this._spliceNotebookCellOutputs(cell, splices, computeUndoRedo);
+		const splices: NotebookCellOutputsSplice[] = diffResult.changes.map(change => ({ start: change.originalStart, deleteCount: change.originalLength, newOutputs: outputs.slice(change.modifiedStart, change.modifiedStart + change.modifiedLength) }));
+		splices.reverse().forEach(splice => {
+			this._spliceNotebookCellOutputs(cell, splice, false, computeUndoRedo);
+		});
 	}
 
-	private _spliceNotebookCellOutputs(cell: NotebookCellTextModel, splices: NotebookCellOutputsSplice[], computeUndoRedo: boolean): void {
-		if (splices.length === 0) {
-			return;
-		}
-
-		cell.spliceNotebookCellOutputs(splices);
+	private _spliceNotebookCellOutputs(cell: NotebookCellTextModel, splice: NotebookCellOutputsSplice, append: boolean, computeUndoRedo: boolean): void {
+		cell.spliceNotebookCellOutputs(splice);
 
 		this._eventEmitter.emit({
 			kind: NotebookCellsChangeType.Output,
 			index: this._cells.indexOf(cell),
 			outputs: cell.outputs ?? [],
+			append,
 			transient: this.transientOptions.transientOutputs,
 		}, true);
 	}

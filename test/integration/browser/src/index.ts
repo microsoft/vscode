@@ -54,23 +54,20 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 		console[type](...args);
 	});
 
-	page.on('console', async (msg: playwright.ConsoleMessage) => {
-		const msgText = msg.text();
-		if (msgText.indexOf('vscode:exit') >= 0) {
-			try {
-				await browser.close();
-			} catch (error) {
-				console.error(`Error when closing browser: ${error}`);
-			}
-
-			try {
-				await pkill(server.pid);
-			} catch (error) {
-				console.error(`Error when killing server process tree: ${error}`);
-			}
-
-			process.exit(msgText === 'vscode:exit 0' ? 0 : 1);
+	await page.exposeFunction('codeAutomationExit', async (code: number) => {
+		try {
+			await browser.close();
+		} catch (error) {
+			console.error(`Error when closing browser: ${error}`);
 		}
+
+		try {
+			await pkill(server.pid);
+		} catch (error) {
+			console.error(`Error when killing server process tree: ${error}`);
+		}
+
+		process.exit(code);
 	});
 }
 
@@ -95,27 +92,35 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		...process.env
 	};
 
+	const root = path.join(__dirname, '..', '..', '..', '..');
+	const logsPath = path.join(root, '.build', 'logs', 'integration-tests-browser');
+
+	const serverArgs = ['--browser', 'none', '--driver', 'web', '--enable-proposed-api'];
+
 	let serverLocation: string;
 	if (process.env.VSCODE_REMOTE_SERVER_PATH) {
 		serverLocation = path.join(process.env.VSCODE_REMOTE_SERVER_PATH, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		serverArgs.push(`--logsPath=${logsPath}`);
 
 		console.log(`Starting built server from '${serverLocation}'`);
+		console.log(`Storing log files into '${logsPath}'`);
 	} else {
-		serverLocation = path.join(__dirname, '..', '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = path.join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverArgs.push('--logsPath', logsPath);
 		process.env.VSCODE_DEV = '1';
 
 		console.log(`Starting server out of sources from '${serverLocation}'`);
+		console.log(`Storing log files into '${logsPath}'`);
 	}
 
 	let serverProcess = cp.spawn(
 		serverLocation,
-		['--browser', 'none', '--driver', 'web', '--enable-proposed-api'],
+		serverArgs,
 		{ env }
 	);
 
-	serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-
 	if (optimist.argv.debug) {
+		serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
 		serverProcess?.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
 	}
 

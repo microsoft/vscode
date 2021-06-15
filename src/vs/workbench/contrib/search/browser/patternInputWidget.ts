@@ -3,32 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
-import { Widget } from 'vs/base/browser/ui/widget';
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IInputValidator, HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
-import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import type { IThemable } from 'vs/base/common/styler';
+import { HistoryInputBox, IInputBoxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { Codicon } from 'vs/base/common/codicons';
+import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import type { IThemable } from 'vs/base/common/styler';
+import * as nls from 'vs/nls';
+import { ContextScopedHistoryInputBox } from 'vs/platform/browser/contextScopedHistoryWidget';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { attachCheckboxStyler, attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export interface IOptions {
 	placeholder?: string;
+	showPlaceholderOnFocus?: boolean;
 	tooltip?: string;
 	width?: number;
-	validation?: IInputValidator;
 	ariaLabel?: string;
 	history?: string[];
-	submitOnType?: boolean;
-	submitOnTypeDelay?: number;
 }
 
 export class PatternInputWidget extends Widget implements IThemable {
@@ -38,9 +36,6 @@ export class PatternInputWidget extends Widget implements IThemable {
 	inputFocusTracker!: dom.IFocusTracker;
 
 	private width: number;
-	private placeholder: string;
-	private tooltip: string;
-	private ariaLabel: string;
 
 	private domNode!: HTMLElement;
 	protected inputBox!: HistoryInputBox;
@@ -57,10 +52,13 @@ export class PatternInputWidget extends Widget implements IThemable {
 		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.width = options.width || 100;
-		this.placeholder = options.placeholder || '';
-		this.tooltip = options.tooltip || '';
-		this.ariaLabel = options.ariaLabel || nls.localize('defaultLabel', "input");
+		options = {
+			...{
+				ariaLabel: nls.localize('defaultLabel', "input")
+			},
+			...options,
+		};
+		this.width = options.width ?? 100;
 
 		this.render(options);
 
@@ -146,9 +144,10 @@ export class PatternInputWidget extends Widget implements IThemable {
 		this.domNode.classList.add('monaco-findInput');
 
 		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
-			placeholder: this.placeholder || '',
-			tooltip: this.tooltip || '',
-			ariaLabel: this.ariaLabel || '',
+			placeholder: options.placeholder,
+			showPlaceholderOnFocus: options.showPlaceholderOnFocus,
+			tooltip: options.tooltip,
+			ariaLabel: options.ariaLabel,
 			validationOptions: {
 				validation: undefined
 			},

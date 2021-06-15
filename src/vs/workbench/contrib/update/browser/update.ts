@@ -306,8 +306,7 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 	private onUpdateNotAvailable(): void {
 		this.dialogService.show(
 			severity.Info,
-			nls.localize('noUpdatesAvailable', "There are currently no updates available."),
-			[nls.localize('ok', "OK")]
+			nls.localize('noUpdatesAvailable', "There are currently no updates available.")
 		);
 	}
 

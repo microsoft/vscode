@@ -37,7 +37,7 @@ export interface IAccountUsage {
 	lastUsed: number;
 }
 
-const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'vscode.github-browser', 'ms-vscode.github-browser', 'ms-vscode.remotehub', 'ms-vscode.remotehub-insiders', 'github.codespaces'];
+const VSO_ALLOWED_EXTENSIONS = ['github.vscode-pull-request-github', 'github.vscode-pull-request-github-insiders', 'vscode.git', 'ms-vsonline.vsonline', 'ms-vscode.remotehub', 'ms-vscode.remotehub-insiders', 'github.remotehub', 'github.remotehub-insiders', 'github.codespaces'];
 
 export function readAccountUsages(storageService: IStorageService, providerId: string, accountName: string,): IAccountUsage[] {
 	const accountKey = `${providerId}-${accountName}-usages`;
@@ -713,19 +713,19 @@ export class AuthenticationService extends Disposable implements IAuthentication
 	}
 
 	async getSessions(id: string, scopes?: string[], activateImmediate: boolean = false): Promise<ReadonlyArray<AuthenticationSession>> {
-		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		if (authProvider) {
 			return await authProvider.getSessions(scopes);
-		} catch (_) {
+		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}
 
 	async createSession(id: string, scopes: string[], activateImmediate: boolean = false): Promise<AuthenticationSession> {
-		try {
-			const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		const authProvider = this._authenticationProviders.get(id) || await this.tryActivateProvider(id, activateImmediate);
+		if (authProvider) {
 			return await authProvider.createSession(scopes);
-		} catch (_) {
+		} else {
 			throw new Error(`No authentication provider '${id}' is currently registered.`);
 		}
 	}

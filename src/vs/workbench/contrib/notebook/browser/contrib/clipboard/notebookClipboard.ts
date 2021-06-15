@@ -31,7 +31,7 @@ import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 function getFocusedWebviewDelegate(accessor: ServicesAccessor): Webview | undefined {
 	const editorService = accessor.get(IEditorService);
 	const editor = getNotebookEditorFromEditorPane(editorService.activeEditorPane);
-	if (!editor?.hasFocus()) {
+	if (!editor?.hasEditorFocus()) {
 		return;
 	}
 

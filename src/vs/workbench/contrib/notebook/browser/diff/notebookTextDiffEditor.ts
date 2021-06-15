@@ -72,7 +72,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	private _revealFirst: boolean;
 	private readonly _insetModifyQueueByOutputId = new SequencerByKey<string>();
 
-	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel }>();
+	protected _onDidDynamicOutputRendered = new Emitter<{ cell: IGenericCellViewModel, output: ICellOutputViewModel; }>();
 	onDidDynamicOutputRendered = this._onDidDynamicOutputRendered.event;
 
 	private _notebookOptions: NotebookOptions;
@@ -140,19 +140,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void {
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void {
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragEnd(cellId: string): void {
+	didEndDragMarkupCell(cellId: string): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDrop(cellId: string) {
+	didDropMarkupCell(cellId: string) {
 		// throw new Error('Method not implemented.');
 	}
 
@@ -415,7 +415,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		// this._diffElementViewModels = viewModels;
 		// this._list.splice(0, this._list.length, this._diffElementViewModels);
 
-		if (this._revealFirst && firstChangeIndex !== -1) {
+		if (this._revealFirst && firstChangeIndex !== -1 && firstChangeIndex < this._list.length) {
 			this._revealFirst = false;
 			this._list.setFocus([firstChangeIndex]);
 			this._list.reveal(firstChangeIndex, 0.3);
@@ -618,7 +618,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 
 		DOM.scheduleAtNextAnimationFrame(() => {
-			webview?.ackHeight(cellInfo.cellId, outputId, height);
+			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
 
@@ -679,7 +679,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
-	updateMarkdownCellHeight() {
+	updateMarkupCellHeight() {
 		// TODO
 	}
 
@@ -766,6 +766,8 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		this._modifiedResourceDisposableStore.clear();
 		this._list?.splice(0, this._list?.length || 0);
+		this._model = null;
+		this._diffElementViewModels = [];
 	}
 
 	getOutputRenderer(): OutputRenderer {

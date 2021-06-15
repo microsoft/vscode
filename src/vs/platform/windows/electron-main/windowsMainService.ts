@@ -41,7 +41,7 @@ import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMain
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { cwd } from 'vs/base/common/process';
@@ -702,7 +702,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const options: MessageBoxOptions = {
 					title: this.productService.nameLong,
 					type: 'info',
-					buttons: [localize('ok', "OK")],
+					buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+					defaultId: 0,
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 					detail: uri.scheme === Schemas.file ?
 						localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentMainService)) :
@@ -856,6 +857,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			if (isFileToOpen(openable)) {
 				options = { ...options, forceOpenWorkspaceAsFile: true };
 			}
+
 			return this.doResolveFilePath(uri.fsPath, options);
 		}
 
@@ -1168,7 +1170,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 			appRoot: this.environmentMainService.appRoot,
 			execPath: process.execPath,
-			nodeCachedDataDir: this.environmentMainService.nodeCachedDataDir,
+			codeCachePath: this.environmentMainService.codeCachePath,
 			// If we know the backup folder upfront (for empty windows to restore), we can set it
 			// directly here which helps for restoring UI state associated with that window.
 			// For all other cases we first call into registerEmptyWindowBackupSync() to set it before

@@ -144,7 +144,7 @@ function fromLocalWebpack(extensionPath, webpackConfigFileName) {
         console.error(packagedDependencies);
         result.emit('error', err);
     });
-    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 function fromLocalNormal(extensionPath) {
     const result = es.through();
@@ -162,7 +162,7 @@ function fromLocalNormal(extensionPath) {
         es.readArray(files).pipe(result);
     })
         .catch(err => result.emit('error', err));
-    return result.pipe((0, stats_1.createStatsStream)(path.basename(extensionPath)));
+    return result.pipe(stats_1.createStatsStream(path.basename(extensionPath)));
 }
 const baseHeaders = {
     'X-Market-Client-Id': 'VSCode Build',
@@ -338,7 +338,7 @@ const webpackMediaConfigFiles = [
 // Additional projects to run esbuild on. These typically build code for webviews
 const esbuildMediaScripts = [
     'markdown-language-features/esbuild.js',
-    'notebook-markdown-extensions/esbuild.js',
+    'markdown-math/esbuild.js',
 ];
 async function webpackExtensions(taskName, isWatch, webpackConfigLocations) {
     const webpack = require('webpack');

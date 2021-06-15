@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { deepClone } from 'vs/base/common/objects';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getNotebookEditorFromEditorPane, ICellViewModel, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -18,6 +18,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class CellEditorOptions extends Disposable {
 
@@ -44,30 +45,51 @@ export class CellEditorOptions extends Disposable {
 
 	private _value: IEditorOptions;
 	private _lineNumbers: 'on' | 'off' | 'inherit' = 'inherit';
-	private readonly _onDidChange = new Emitter<IEditorOptions>();
-	readonly onDidChange: Event<IEditorOptions> = this._onDidChange.event;
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+	private _localDisposableStore = this._register(new DisposableStore());
 
-	constructor(readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
+	constructor(readonly notebookEditor: INotebookEditor, readonly notebookOptions: NotebookOptions, readonly configurationService: IConfigurationService, readonly language: string) {
 		super();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor') || e.affectsConfiguration('notebook')) {
-				this._value = this._computeEditorOptions();
-				this._onDidChange.fire(this.value);
+				this._recomputeOptions();
 			}
 		}));
 
 		this._register(notebookOptions.onDidChangeOptions(e => {
 			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations) {
-				this._value = this._computeEditorOptions();
-				this._onDidChange.fire(this.value);
+				this._recomputeOptions();
 			}
 		}));
+
+		this._register(this.notebookEditor.onDidChangeModel(() => {
+			this._localDisposableStore.clear();
+
+			if (this.notebookEditor.hasModel()) {
+				this._localDisposableStore.add(this.notebookEditor.viewModel.onDidChangeOptions(() => {
+					this._recomputeOptions();
+				}));
+
+				this._recomputeOptions();
+			}
+		}));
+
+		if (this.notebookEditor.hasModel()) {
+			this._localDisposableStore.add(this.notebookEditor.viewModel.onDidChangeOptions(() => {
+				this._recomputeOptions();
+			}));
+		}
 
 		this._value = this._computeEditorOptions();
 	}
 
+	private _recomputeOptions(): void {
+		this._value = this._computeEditorOptions();
+		this._onDidChange.fire();
+	}
+
 	private _computeEditorOptions() {
-		const editorPadding = this.notebookOptions.computeEditorPadding();
 		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
@@ -83,7 +105,8 @@ export class CellEditorOptions extends Disposable {
 			...CellEditorOptions.fixedEditorOptions,
 			... { lineNumbers },
 			...editorOptionsOverride,
-			...{ padding: editorPadding }
+			...{ padding: { top: 12, bottom: 12 } },
+			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
 		};
 
 		if (!computed.folding) {
@@ -98,14 +121,21 @@ export class CellEditorOptions extends Disposable {
 		super.dispose();
 	}
 
-	get value(): IEditorOptions {
-		return this._value;
+	getValue(internalMetadata?: NotebookCellInternalMetadata): IEditorOptions {
+		return {
+			...this._value,
+			...{
+				padding: internalMetadata ?
+					this.notebookOptions.computeEditorPadding(internalMetadata) :
+					{ top: 12, bottom: 12 }
+			}
+		};
 	}
 
 	setGlyphMargin(gm: boolean): void {
 		if (gm !== this._value.glyphMargin) {
 			this._value.glyphMargin = gm;
-			this._onDidChange.fire(this.value);
+			this._onDidChange.fire();
 		}
 	}
 
@@ -118,7 +148,7 @@ export class CellEditorOptions extends Disposable {
 		} else {
 			this._value.lineNumbers = lineNumbers as LineNumbersType;
 		}
-		this._onDidChange.fire(this.value);
+		this._onDidChange.fire();
 	}
 }
 

@@ -614,7 +614,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 			if (this.fileService.canHandleResource(fileResource)) {
 				this.hostService.openWindow([{ fileUri: fileResource }], { forceNewWindow: true });
 			} else {
-				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."), [nls.localize('ok', 'OK')]);
+				this.dialogService.show(Severity.Error, nls.localize('openFileToShowInNewWindow.unsupportedschema', "The active editor must contain an openable resource."));
 			}
 		}
 	}

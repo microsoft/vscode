@@ -37,7 +37,10 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		},
 		capturePage: () => Promise.resolve(''),
 		reloadWindow: (windowId) => Promise.resolve(),
-		exitApplication: () => browser.close(),
+		exitApplication: async () => {
+			await browser.close();
+			await teardown();
+		},
 		dispatchKeybinding: async (windowId, keybinding) => {
 			const chords = keybinding.split(' ');
 			for (let i = 0; i < chords.length; i++) {
@@ -91,7 +94,7 @@ let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
 
-export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string): Promise<void> {
+export async function launch(userDataDir: string, _workspacePath: string, codeServerPath = process.env.VSCODE_REMOTE_SERVER_PATH, extPath: string, verbose: boolean): Promise<void> {
 	workspacePath = _workspacePath;
 
 	const agentFolder = userDataDir;
@@ -101,31 +104,48 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		VSCODE_REMOTE_SERVER_PATH: codeServerPath,
 		...process.env
 	};
+
+	const root = join(__dirname, '..', '..', '..');
+	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
+
 	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
+		args.push(`--logsPath=${logsPath}`);
+
 		console.log(`Starting built server from '${serverLocation}'`);
+		console.log(`Storing log files into '${logsPath}'`);
 	} else {
-		serverLocation = join(__dirname, '..', '..', '..', `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
+		args.push('--logsPath', logsPath);
+
 		console.log(`Starting server out of sources from '${serverLocation}'`);
+		console.log(`Storing log files into '${logsPath}'`);
 	}
+
 	server = spawn(
 		serverLocation,
 		args,
 		{ env }
 	);
-	server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-	server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+
+	if (verbose) {
+		server.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
+		server.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+	}
+
 	process.on('exit', teardown);
 	process.on('SIGINT', teardown);
 	process.on('SIGTERM', teardown);
+
 	endpoint = await waitForEndpoint();
 }
 
-function teardown(): void {
+async function teardown(): Promise<void> {
 	if (server) {
-		kill(server.pid);
+		await new Promise((c, e) => kill(server!.pid, error => error ? e(error) : c(null)));
 		server = undefined;
 	}
 }

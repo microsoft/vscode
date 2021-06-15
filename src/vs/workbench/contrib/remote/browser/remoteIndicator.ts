@@ -12,7 +12,7 @@ import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Ac
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -34,6 +34,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
 
 type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
@@ -120,7 +121,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						category,
 						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
-						f1: true
+						f1: true,
+						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
 					});
 				}
 				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
@@ -299,7 +301,11 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 			const workspaceLabel = this.getWorkspaceLabel();
 			if (workspaceLabel) {
 				const toolTip: IMarkdownString = {
-					value: nls.localize('workspace.tooltip', "Virtual workspace on {0}\n\n[Some features](command:{1}) are not available for resources located on a virtual file system.", workspaceLabel, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID),
+					value: nls.localize(
+						{ key: 'workspace.tooltip2', comment: ['{0} is a remote location name, e.g. GitHub', '[Some features]({1}) is a link. Only translate `Some features`. Do not change brackets and parentheses or {1}'] },
+						"Virtual workspace on {0}\n\n[Some features]({1}) are not available for resources located on a virtual file system.",
+						workspaceLabel, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`
+					),
 					isTrusted: true
 				};
 				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, toolTip);

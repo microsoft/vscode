@@ -10,6 +10,7 @@ import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -224,7 +225,7 @@ export interface IEditorService {
 	/**
 	 * Converts a lightweight input to a workbench editor input.
 	 */
-	createEditorInput(input: IResourceEditorInputType): IEditorInput;
+	createEditorInput(input: IResourceEditorInputType): EditorInput;
 
 	/**
 	 * Save the provided list of editors.

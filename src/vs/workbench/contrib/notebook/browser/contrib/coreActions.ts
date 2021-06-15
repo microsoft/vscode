@@ -311,6 +311,7 @@ export abstract class NotebookCellAction<T = INotebookCellActionContext> extends
 	abstract override runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void>;
 }
 
+// If this changes, update getCodeCellExecutionContextKeyService to match
 const executeCellCondition = ContextKeyExpr.and(
 	NOTEBOOK_CELL_TYPE.isEqualTo('code'),
 	ContextKeyExpr.or(
@@ -659,7 +660,7 @@ registerAction2(class ExecuteCellSelectBelow extends NotebookCellAction {
 	constructor() {
 		super({
 			id: EXECUTE_CELL_SELECT_BELOW,
-			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
+			precondition: ContextKeyExpr.or(executeCellCondition, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			title: localize('notebookActions.executeAndSelectBelow', "Execute Notebook Cell and Select Below"),
 			keybinding: {
 				when: NOTEBOOK_CELL_LIST_FOCUSED,
@@ -890,10 +891,10 @@ registerAction2(class ChangeCellToCodeAction extends NotebookCellAction {
 				primary: KeyCode.KEY_Y,
 				weight: KeybindingWeight.WorkbenchContrib
 			},
-			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
+			precondition: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 			menu: {
 				id: MenuId.NotebookCellTitle,
-				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
+				when: ContextKeyExpr.and(NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_EDITOR_EDITABLE, NOTEBOOK_CELL_EDITABLE, NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 				group: CellOverflowToolbarGroups.Edit,
 			}
 		});
@@ -924,7 +925,7 @@ registerAction2(class ChangeCellToMarkdownAction extends NotebookCellAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
-		await changeCellToKind(CellKind.Markup, context);
+		await changeCellToKind(CellKind.Markup, context, 'markdown');
 	}
 });
 
@@ -972,7 +973,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 		language = availableLanguages[0] ?? 'plaintext';
 	}
 
-	notebookEditor.viewModel.notebookDocument.applyEdits([
+	notebookEditor.textModel.applyEdits([
 		{
 			editType: CellEditType.Replace,
 			index: idx,
@@ -1149,8 +1150,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	group: 'navigation/add',
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden')
 	)
 });
 
@@ -1240,8 +1241,8 @@ MenuRegistry.appendMenuItem(MenuId.NotebookToolbar, {
 	group: 'navigation/add',
 	when: ContextKeyExpr.and(
 		NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'betweenCells'),
-		ContextKeyExpr.notEquals('config.notebook.insertToolbarPosition', 'hidden')
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'betweenCells'),
+		ContextKeyExpr.notEquals('config.notebook.insertToolbarLocation', 'hidden')
 	)
 });
 
@@ -1273,7 +1274,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
-						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
+						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.toNegated(),
 						NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.EditCell,
@@ -1304,7 +1305,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
-						NOTEBOOK_CELL_TYPE.isEqualTo('markdown'),
+						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE,
 						NOTEBOOK_CELL_EDITABLE),
 					order: CellToolbarOrder.SaveCell,
@@ -1320,7 +1321,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 					{
 						when: ContextKeyExpr.and(
 							quitEditCondition,
-							NOTEBOOK_CELL_TYPE.isEqualTo('markdown')),
+							NOTEBOOK_CELL_TYPE.isEqualTo('markup')),
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 						win: {
 							primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter
@@ -1463,21 +1464,21 @@ registerAction2(class ClearCellOutputsAction extends NotebookCellAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
+		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
 		}
 
 		const cell = context.cell;
-		const index = editor.viewModel.notebookDocument.cells.indexOf(cell.model);
+		const index = editor.textModel.cells.indexOf(cell.model);
 
 		if (index < 0) {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
+		editor.textModel.applyEdits([{ editType: CellEditType.Output, index, outputs: [] }], true, undefined, () => undefined, undefined);
 
 		if (context.cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
-			context.notebookEditor.viewModel.notebookDocument.applyEdits([{
+			context.notebookEditor.textModel.applyEdits([{
 				editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
 					runState: null,
 					runStartTime: null,
@@ -1634,8 +1635,8 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		} else if (languageId !== 'markdown' && context.cell?.cellKind === CellKind.Markup) {
 			await changeCellToKind(CellKind.Code, { cell: context.cell, notebookEditor: context.notebookEditor }, languageId);
 		} else {
-			const index = context.notebookEditor.viewModel.notebookDocument.cells.indexOf(context.cell.model);
-			context.notebookEditor.viewModel.notebookDocument.applyEdits(
+			const index = context.notebookEditor.textModel.cells.indexOf(context.cell.model);
+			context.notebookEditor.textModel.applyEdits(
 				[{ editType: CellEditType.CellLanguage, index, language: languageId }],
 				true, undefined, () => undefined, undefined
 			);
@@ -1694,16 +1695,16 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
 		const editor = context.notebookEditor;
-		if (!editor.viewModel || !editor.viewModel.length) {
+		if (!editor.hasModel() || !editor.textModel.length) {
 			return;
 		}
 
-		editor.viewModel.notebookDocument.applyEdits(
-			editor.viewModel.notebookDocument.cells.map((cell, index) => ({
+		editor.textModel.applyEdits(
+			editor.textModel.cells.map((cell, index) => ({
 				editType: CellEditType.Output, index, outputs: []
 			})), true, undefined, () => undefined, undefined);
 
-		const clearExecutionMetadataEdits = editor.viewModel.notebookDocument.cells.map((cell, index) => {
+		const clearExecutionMetadataEdits = editor.textModel.cells.map((cell, index) => {
 			if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 				return {
 					editType: CellEditType.PartialInternalMetadata, index, internalMetadata: {
@@ -1720,7 +1721,7 @@ registerAction2(class ClearAllCellOutputsAction extends NotebookAction {
 			}
 		}).filter(edit => !!edit) as ICellEditOperation[];
 		if (clearExecutionMetadataEdits.length) {
-			context.notebookEditor.viewModel.notebookDocument.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
+			context.notebookEditor.textModel.applyEdits(clearExecutionMetadataEdits, true, undefined, () => undefined, undefined);
 		}
 	}
 });
@@ -1865,7 +1866,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.select',
-			title: localize('workbench.notebook.layout.select.label', "Select Notebook Layout"),
+			title: localize('workbench.notebook.layout.select.label', "Select between Notebook Layouts"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [
@@ -1874,14 +1875,18 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 					group: 'notebookLayout',
 					when: ContextKeyExpr.and(
 						NOTEBOOK_IS_ACTIVE_EDITOR,
-						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+						ContextKeyExpr.notEquals('config.notebook.globalToolbar', true),
+						ContextKeyExpr.equals('config.notebook.experimental.openGettingStarted', true)
 					),
 					order: 0
 				},
 				{
 					id: MenuId.NotebookToolbar,
 					group: 'notebookLayout',
-					when: ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+					when: ContextKeyExpr.and(
+						ContextKeyExpr.equals('config.notebook.globalToolbar', true),
+						ContextKeyExpr.equals('config.notebook.experimental.openGettingStarted', true)
+					),
 					order: 0
 				}
 			]
@@ -1896,7 +1901,7 @@ registerAction2(class NotebookConfigureLayoutAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.notebook.layout.configure',
-			title: localize('workbench.notebook.layout.configure.label', "Configure Notebook Layout Settings"),
+			title: localize('workbench.notebook.layout.configure.label', "Customize Notebook Layout"),
 			f1: true,
 			category: NOTEBOOK_ACTIONS_CATEGORY,
 			menu: [

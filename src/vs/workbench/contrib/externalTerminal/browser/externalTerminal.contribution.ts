@@ -42,7 +42,8 @@ CommandsRegistry.registerCommand({
 		return fileService.resolveAll(resources.map(r => ({ resource: r }))).then(async stats => {
 			const targets = distinct(stats.filter(data => data.success));
 			// Always use integrated terminal when using a remote
-			const useIntegratedTerminal = remoteAgentService.getConnection() || configurationService.getValue<IExternalTerminalConfiguration>().terminal.explorerKind === 'integrated';
+			const config = configurationService.getValue<IExternalTerminalConfiguration>();
+			const useIntegratedTerminal = remoteAgentService.getConnection() || config.terminal.explorerKind === 'integrated';
 			if (useIntegratedTerminal) {
 				// TODO: Use uri for cwd in createterminal
 				const opened: { [path: string]: boolean } = {};
@@ -71,7 +72,7 @@ CommandsRegistry.registerCommand({
 				});
 			} else {
 				distinct(targets.map(({ stat }) => stat!.isDirectory ? stat!.resource.fsPath : dirname(stat!.resource.fsPath))).forEach(cwd => {
-					terminalService!.openTerminal(cwd);
+					terminalService!.openTerminal(config.terminal.external, cwd);
 				});
 			}
 		});

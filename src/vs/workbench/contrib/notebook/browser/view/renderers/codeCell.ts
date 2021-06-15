@@ -37,7 +37,7 @@ export class CodeCell extends Disposable {
 		const width = this.viewCell.layoutInfo.editorWidth;
 		const lineNum = this.viewCell.lineCount;
 		const lineHeight = this.viewCell.layoutInfo.fontInfo?.lineHeight || 17;
-		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding();
+		const editorPadding = this.notebookEditor.notebookOptions.computeEditorPadding(this.viewCell.internalMetadata);
 
 		const editorHeight = this.viewCell.layoutInfo.editorHeight === 0
 			? lineNum * lineHeight + editorPadding.top + editorPadding.bottom
@@ -56,7 +56,7 @@ export class CodeCell extends Disposable {
 			if (model && templateData.editor) {
 				templateData.editor.setModel(model);
 				viewCell.attachTextEditor(templateData.editor);
-				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
+				if (notebookEditor.getActiveCell() === viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
 					templateData.editor?.focus();
 				}
 
@@ -65,7 +65,7 @@ export class CodeCell extends Disposable {
 					this.onCellHeightChange(realContentHeight);
 				}
 
-				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasFocus()) {
+				if (this.notebookEditor.getActiveCell() === this.viewCell && viewCell.focusMode === CellFocusMode.Editor && this.notebookEditor.hasEditorFocus()) {
 					templateData.editor?.focus();
 				}
 			}
@@ -89,10 +89,11 @@ export class CodeCell extends Disposable {
 		}));
 		updateForFocusMode();
 
-		templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly });
+		const updateEditorOptions = () => templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly, padding: notebookEditor.notebookOptions.computeEditorPadding(viewCell.internalMetadata) });
+		updateEditorOptions();
 		this._register(viewCell.onDidChangeState((e) => {
-			if (e.metadataChanged) {
-				templateData.editor?.updateOptions({ readOnly: notebookEditor.viewModel.options.isReadOnly });
+			if (e.metadataChanged || e.internalMetadataChanged) {
+				updateEditorOptions();
 
 				if (this.updateForCollapseState()) {
 					this.relayoutCell();
@@ -172,7 +173,7 @@ export class CodeCell extends Disposable {
 		// Mouse click handlers
 		this._register(templateData.statusBar.onDidClick(e => {
 			if (e.type !== ClickTargetType.ContributedCommandItem) {
-				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - viewCell.getEditorStatusbarHeight());
+				const target = templateData.editor.getTargetAtClientPoint(e.event.clientX, e.event.clientY - this.notebookEditor.notebookOptions.computeEditorStatusbarHeight(viewCell.internalMetadata));
 				if (target?.position) {
 					templateData.editor.setPosition(target.position);
 					templateData.editor.focus();
@@ -209,7 +210,7 @@ export class CodeCell extends Disposable {
 		}));
 
 		// Render Outputs
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData);
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
 		this._outputContainerRenderer.render(editorHeight);
 		// Need to do this after the intial renderOutput
 		this.updateForCollapseState();

@@ -28,6 +28,7 @@ export class Application {
 	private _workbench: Workbench | undefined;
 
 	constructor(private options: ApplicationOptions) {
+		this._userDataPath = options.userDataDir;
 		this._workspacePathOrFolder = options.workspacePath;
 	}
 
@@ -64,14 +65,14 @@ export class Application {
 		return this.options.extensionsPath;
 	}
 
+	private _userDataPath: string;
 	get userDataPath(): string {
-		return this.options.userDataDir;
+		return this._userDataPath;
 	}
 
 	async start(expectWalkthroughPart = true): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.dismissTrustDialog();
 
 		// https://github.com/microsoft/vscode/issues/118748
 		// if (expectWalkthroughPart) {
@@ -83,21 +84,6 @@ export class Application {
 		await this.stop();
 		await new Promise(c => setTimeout(c, 1000));
 		await this._start(options.workspaceOrFolder, options.extraArgs);
-		await this.code.waitForElement('.explorer-folders-view');
-		await this.dismissTrustDialog();
-	}
-
-	private async dismissTrustDialog(): Promise<void> {
-		if (this.options.web) {
-			return;
-		}
-
-		try {
-			// Dismiss workspace trust dialog, if found
-			await this.code.waitAndClick(`.monaco-workbench .dialog-buttons-row a:nth-child(1)`, 10, 10, 50);
-		} catch {
-			// there musn't be any trust dialog, maybe workspace is trusted?
-		}
 	}
 
 	private async _start(workspaceOrFolder = this.workspacePathOrFolder, extraArgs: string[] = []): Promise<any> {
@@ -137,17 +123,8 @@ export class Application {
 
 	private async startApplication(extraArgs: string[] = []): Promise<any> {
 		this._code = await spawn({
-			codePath: this.options.codePath,
-			workspacePath: this.workspacePathOrFolder,
-			userDataDir: this.options.userDataDir,
-			extensionsPath: this.options.extensionsPath,
-			logger: this.options.logger,
-			verbose: this.options.verbose,
-			log: this.options.log,
-			extraArgs,
-			remote: this.options.remote,
-			web: this.options.web,
-			browser: this.options.browser
+			...this.options,
+			extraArgs: [...(this.options.extraArgs || []), ...extraArgs],
 		});
 
 		this._workbench = new Workbench(this._code, this.userDataPath);
