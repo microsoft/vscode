@@ -27,14 +27,14 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		instance: ITerminalInstance
+		@ITerminalService terminalService: ITerminalService
 	) {
 		super();
-		this._terminalInstance = instance;
+		this._terminalInstance = terminalService.createTerminal();
 	}
 
-	static copy(terminalService: ITerminalService, instantiationService: IInstantiationService): TerminalEditorInput {
-		return new TerminalEditorInput(terminalService.createInstance({}));
+	static copy(instantiationService: IInstantiationService): TerminalEditorInput {
+		return instantiationService.createInstance(TerminalEditorInput);
 	}
 
 	override getName() {
