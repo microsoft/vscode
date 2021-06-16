@@ -3015,14 +3015,16 @@ export class NotebookCellData {
 	kind: NotebookCellKind;
 	value: string;
 	languageId: string;
+	mime?: string;
 	outputs?: vscode.NotebookCellOutput[];
 	metadata?: Record<string, any>;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
+		this.mime = mime;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.executionSummary = executionSummary;

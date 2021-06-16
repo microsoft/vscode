@@ -6,12 +6,16 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export class WorkspaceTrustEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.workspaceTrust';
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
 
 	override get typeId(): string {
 		return WorkspaceTrustEditorInput.ID;

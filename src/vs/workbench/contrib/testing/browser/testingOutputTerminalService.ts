@@ -101,10 +101,12 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 
 		const output = new TestOutputProcess();
 		this.showResultsInTerminal(this.terminalService.createTerminal({
-			isFeatureTerminal: true,
-			icon: testingViewIcon,
-			customPtyImplementation: () => output,
-			name: getTitle(result),
+			config: {
+				isFeatureTerminal: true,
+				icon: testingViewIcon,
+				customPtyImplementation: () => output,
+				name: getTitle(result),
+			}
 		}), output, result);
 	}
 

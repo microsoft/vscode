@@ -87,10 +87,10 @@ defaultStyles.textContent = `
 
 	body {
 		background-color: transparent;
-		color: var(--vscode-editor-foreground, var(--theme-foreground));
-		font-family: var(--vscode-font-family, var(--theme-font-family));
-		font-weight: var(--vscode-font-weight, var(--theme-font-weight));
-		font-size: var(--vscode-font-size, var(--theme-font-size));
+		color: var(--vscode-editor-foreground);
+		font-family: var(--vscode-font-family);
+		font-weight: var(--vscode-font-weight);
+		font-size: var(--vscode-font-size);
 		margin: 0;
 		padding: 0 20px;
 	}
@@ -101,11 +101,11 @@ defaultStyles.textContent = `
 	}
 
 	a {
-		color: var(--vscode-textLink-foreground, var(--theme-link));
+		color: var(--vscode-textLink-foreground);
 	}
 
 	a:hover {
-		color: var(--vscode-textLink-activeForeground, var(--theme-link-active));
+		color: var(--vscode-textLink-activeForeground);
 	}
 
 	a:focus,
@@ -117,16 +117,16 @@ defaultStyles.textContent = `
 	}
 
 	code {
-		color: var(--vscode-textPreformat-foreground, var(--theme-code-foreground));
+		color: var(--vscode-textPreformat-foreground);
 	}
 
 	blockquote {
-		background: var(--vscode-textBlockQuote-background, var(--theme-quote-background));
-		border-color: var(--vscode-textBlockQuote-border, var(--theme-quote-border));
+		background: var(--vscode-textBlockQuote-background);
+		border-color: var(--vscode-textBlockQuote-border);
 	}
 
 	kbd {
-		color: var(--vscode-editor-foreground, var(--theme-foreground));
+		color: var(--vscode-editor-foreground);
 		border-radius: 3px;
 		vertical-align: middle;
 		padding: 1px 3px;
@@ -149,17 +149,17 @@ defaultStyles.textContent = `
 	}
 
 	::-webkit-scrollbar-corner {
-		background-color: var(--vscode-editor-background, var(--theme-background));
+		background-color: var(--vscode-editor-background);
 	}
 
 	::-webkit-scrollbar-thumb {
-		background-color: var(--vscode-scrollbarSlider-background, var(--theme-scrollbar-background));
+		background-color: var(--vscode-scrollbarSlider-background);
 	}
 	::-webkit-scrollbar-thumb:hover {
-		background-color: var(--vscode-scrollbarSlider-hoverBackground, var(--theme-scrollbar-hover-background));
+		background-color: var(--vscode-scrollbarSlider-hoverBackground);
 	}
 	::-webkit-scrollbar-thumb:active {
-		background-color: var(--vscode-scrollbarSlider-activeBackground, var(--theme-scrollbar-active-background));
+		background-color: var(--vscode-scrollbarSlider-activeBackground);
 	}`;
 
 /**

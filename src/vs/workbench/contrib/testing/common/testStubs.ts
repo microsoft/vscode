@@ -26,6 +26,18 @@ export const stubTest = (label: string, idPrefix = 'id-', children: TestItemImpl
 	return item;
 };
 
+export const expandAllStubs = (stub: TestItemImpl) => {
+	const todo = [[stub]];
+	for (const stubs of todo) {
+		for (const stub of stubs) {
+			if (stub.status !== TestItemStatus.Resolved) {
+				stub.resolveHandler!(CancellationToken.None);
+				todo.push([...stub.children.values()]);
+			}
+		}
+	}
+};
+
 export const testStubsChain = (stub: TestItemImpl, path: string[], slice = 0) => {
 	const tests = [stub];
 	for (const segment of path) {

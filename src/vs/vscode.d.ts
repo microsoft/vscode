@@ -11803,9 +11803,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * NotebookData is the raw representation of notebooks.
+	 * Raw representation of a notebook.
 	 *
-	 * Extensions are responsible to create {@link NotebookData `NotebookData`} so that the editor
+	 * Extensions are responsible for creating {@link NotebookData `NotebookData`} so that the editor
 	 * can create a {@link NotebookDocument `NotebookDocument`}.
 	 *
 	 * @see {@link NotebookSerializer}

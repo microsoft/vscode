@@ -629,14 +629,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	reattachToElement(container: HTMLElement): void {
-		if (!this._wrapperElement) {
-			throw new Error('The terminal instance has not been attached to a container yet');
-		}
-
-		this._wrapperElement.parentNode?.removeChild(this._wrapperElement);
-		this._container = container;
-		this._container.appendChild(this._wrapperElement);
+	detachFromElement(): void {
+		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
+		this._wrapperElement = undefined;
+		this._container = undefined;
 	}
 
 	attachToElement(container: HTMLElement): Promise<void> | void {
