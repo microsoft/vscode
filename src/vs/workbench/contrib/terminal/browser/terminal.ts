@@ -248,6 +248,7 @@ export interface ITerminalEditorService {
 
 	createEditor(instance: ITerminalInstance): Promise<void>;
 	detachActiveEditorInstance(): ITerminalInstance;
+	detachInstance(instance: ITerminalInstance): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
