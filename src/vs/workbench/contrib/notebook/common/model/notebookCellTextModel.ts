@@ -253,6 +253,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 	return {
 		source: cell.getValue(),
 		language: cell.language,
+		mime: cell.mime,
 		cellKind: cell.cellKind,
 		outputs: cell.outputs.map(output => ({
 			outputs: output.outputs,

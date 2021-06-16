@@ -587,6 +587,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
 				language: cell.language,
+				mime: cell.mime,
 				source: cell.getValue(),
 				outputs: [],
 				internalMetadata: cell.internalMetadata
