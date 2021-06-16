@@ -37,11 +37,11 @@ export class TerminalEditor extends EditorPane {
 		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
-		this._editorInput.terminalInstance.attachToElement(this._parentElement!);
+		this._editorInput.terminalInstance?.attachToElement(this._parentElement!);
 		if (this._lastDimension) {
 			this.layout(this._lastDimension);
 		}
-		this._editorInput.terminalInstance.setVisible(true);
+		this._editorInput.terminalInstance?.setVisible(true);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

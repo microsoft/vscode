@@ -37,6 +37,9 @@ export class TerminalEditorService implements ITerminalEditorService {
 			throw new Error('Active editor is not a terminal');
 		}
 		const instance = activeEditor.terminalInstance;
+		if (!instance) {
+			throw new Error('Terminal is already detached');
+		}
 		this.detachInstance(instance);
 		return instance;
 	}
@@ -45,6 +48,10 @@ export class TerminalEditorService implements ITerminalEditorService {
 		const editorInputs = this._editorInputs.get(instance.instanceId);
 		editorInputs?.detachInstance();
 		this._editorInputs.delete(instance.instanceId);
+		const instanceIndex = this.terminalEditorInstances.findIndex(e => e === instance);
+		if (instanceIndex !== -1) {
+			this.terminalEditorInstances.splice(instanceIndex, 1);
+		}
 		editorInputs?.dispose();
 	}
 }
