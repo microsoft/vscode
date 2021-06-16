@@ -19,12 +19,15 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	private readonly _terminalInstance: ITerminalInstance;
-	get terminalInstance(): ITerminalInstance {
-		return this._terminalInstance;
+	/**
+	 * Returns the terminal instance for this input if it has not yet been detached from the input.
+	 */
+	get terminalInstance(): ITerminalInstance | undefined {
+		return this._isDetached ? undefined : this._terminalInstance;
 	}
 
 	get resource(): URI {
-		return this.terminalInstance.resource;
+		return this._terminalInstance.resource;
 	}
 
 	constructor(
@@ -35,13 +38,13 @@ export class TerminalEditorInput extends EditorInput {
 		this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire());
 		this._register(toDisposable(() => {
 			if (!this._isDetached) {
-				this.terminalInstance.dispose();
+				this._terminalInstance.dispose();
 			}
 		}));
 	}
 
 	override getName() {
-		return this.terminalInstance.title;
+		return this._terminalInstance.title;
 	}
 
 	/**
@@ -49,6 +52,7 @@ export class TerminalEditorInput extends EditorInput {
 	 * of the terminal instance/process.
 	 */
 	detachInstance() {
+		this._terminalInstance.detachFromElement();
 		this._isDetached = true;
 	}
 }

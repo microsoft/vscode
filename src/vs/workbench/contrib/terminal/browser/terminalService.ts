@@ -776,7 +776,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance): Promise<void> {
-		if (!source) {
+		if (source) {
+			this._terminalEditorService.detachInstance(source);
+		} else {
 			source = this._terminalEditorService.detachActiveEditorInstance();
 			if (!source) {
 				return;
@@ -824,9 +826,16 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
-			const sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			// View terminals
+			let sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
 			if (sourceInstance) {
 				this.moveInstance(sourceInstance, instance, e.side);
+			}
+
+			// Terminal editors
+			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.toString() === e.uri.toString());
+			if (sourceInstance) {
+				this.moveToTerminalView(sourceInstance);
 			}
 		}));
 	}
