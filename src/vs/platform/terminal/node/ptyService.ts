@@ -362,6 +362,7 @@ export class PersistentTerminalProcess extends Disposable {
 
 	attach(): void {
 		this._disconnectRunner1.cancel();
+		this._disconnectRunner2.cancel();
 	}
 
 	async detach(): Promise<void> {
