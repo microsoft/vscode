@@ -45,7 +45,8 @@
           "label": "${path}",
           "separator": "/",
           "tildify": true,
-          "workspaceSuffix": "TestResolver"
+          "workspaceSuffix": "TestResolver",
+          "workspaceTooltip": "Remote running on the same machine"
         }
       }
     ],
