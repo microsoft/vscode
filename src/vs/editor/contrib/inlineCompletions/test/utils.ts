@@ -14,7 +14,12 @@ import { GhostText, GhostTextWidgetModel } from 'vs/editor/contrib/inlineComplet
 import { ITestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
-export function renderGhostTextToText(ghostText: GhostText, text: string): string {
+export function renderGhostTextToText(ghostText: GhostText, text: string): string;
+export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined;
+export function renderGhostTextToText(ghostText: GhostText | undefined, text: string): string | undefined {
+	if (!ghostText) {
+		return undefined;
+	}
 	const l = ghostText.lineNumber;
 	const tempModel = createTextModel(text);
 	tempModel.applyEdits(

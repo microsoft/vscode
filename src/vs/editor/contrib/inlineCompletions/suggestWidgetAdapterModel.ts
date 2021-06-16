@@ -120,9 +120,11 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	}
 
 	private setCurrentInlineCompletion(completion: NormalizedInlineCompletion | undefined): void {
+		const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
+
 		this.currentGhostText = completion
 			? (
-				inlineCompletionToGhostText(completion, this.editor.getModel()) ||
+				inlineCompletionToGhostText(completion, this.editor.getModel(), mode) ||
 				// Show an invisible ghost text to reserve space
 				new GhostText(completion.range.endLineNumber, [], [], this.minReservedLineCount)
 			) : undefined;
