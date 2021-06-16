@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/interactive';
+import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -21,6 +22,12 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+
+const DECORATION_KEY = 'interactiveInputDecoration';
+
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -45,6 +52,7 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -56,6 +64,8 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidgetService = notebookWidgetService;
 		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
+
+		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -118,6 +128,20 @@ export class InteractiveEditor extends EditorPane {
 				this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
 			}
 		});
+
+		this.themeService.onDidColorThemeChange(() => {
+			if (this.isVisible()) {
+				this.#updateInputDecoration();
+			}
+		});
+
+		this.#codeEditorWidget.onDidChangeModelContent(() => {
+			if (this.isVisible()) {
+				this.#updateInputDecoration();
+			}
+		});
+
+		this.#updateInputDecoration();
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -135,6 +159,40 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
 		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
+	}
+
+	#updateInputDecoration(): void {
+		if (!this.#codeEditorWidget) {
+			return;
+		}
+
+		if (!this.#codeEditorWidget.hasModel()) {
+			return;
+		}
+
+		const model = this.#codeEditorWidget.getModel();
+
+		const decorations: IDecorationOptions[] = [];
+
+		if (model?.getValueLength() === 0) {
+			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
+			decorations.push({
+				range: {
+					startLineNumber: 0,
+					endLineNumber: 0,
+					startColumn: 0,
+					endColumn: 1
+				},
+				renderOptions: {
+					after: {
+						contentText: nls.localize('interactiveInputPlaceHolder', "Type code here and press ctrl+enter to run"),
+						color: transparentForeground ? transparentForeground.toString() : undefined
+					}
+				}
+			});
+		}
+
+		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
 	}
 
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

@@ -156,7 +156,10 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
 				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
-				primary: KeyMod.Shift | KeyCode.Enter,
+				primary: KeyMod.WinCtrl | KeyCode.Enter,
+				win: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter
+				},
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},
 			f1: false
