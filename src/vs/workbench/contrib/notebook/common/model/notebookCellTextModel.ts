@@ -210,7 +210,12 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return this._hash;
 	}
 	private _updateAlternativeVersionId() {
-		this._alternativeId = `${this._textModel ? this._textModel.getAlternativeVersionId() : ''}${this.outputs.map(item => item.outputId).join(',')}`;
+		const modelVersion = `${this._textModel ? this._textModel.getAlternativeVersionId() : ''}`;
+		if (this.transientOptions.transientOutputs) {
+			this._alternativeId = modelVersion;
+		} else {
+			this._alternativeId = `${modelVersion}${this.outputs.map(item => item.outputId).join(',')}`;
+		}
 	}
 	private _getPersisentMetadata() {
 		let filteredMetadata: { [key: string]: any; } = {};
