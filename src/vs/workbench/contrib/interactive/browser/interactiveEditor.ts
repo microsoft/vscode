@@ -28,6 +28,9 @@ import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/noteb
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
+import { IModeService } from 'vs/editor/common/services/modeService';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -44,7 +47,9 @@ export class InteractiveEditor extends EditorPane {
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
 	#modelService: IModelService;
+	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
+	#notebookKernelService: INotebookKernelService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -57,6 +62,8 @@ export class InteractiveEditor extends EditorPane {
 		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
+		@INotebookKernelService notebookKernelService: INotebookKernelService,
+		@IModeService modeService: IModeService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -68,6 +75,8 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidgetService = notebookWidgetService;
 		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
+		this.#notebookKernelService = notebookKernelService;
+		this.#modeService = modeService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -142,6 +151,9 @@ export class InteractiveEditor extends EditorPane {
 			}
 		}));
 
+		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeNotebookAffinity(this.#updateInputEditorLanguage, this));
+		this.#widgetDisposableStore.add(this.#notebookKernelService.onDidChangeSelectedNotebooks(this.#updateInputEditorLanguage, this));
+
 		this.#widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.#updateInputDecoration();
@@ -155,6 +167,25 @@ export class InteractiveEditor extends EditorPane {
 		}));
 
 		this.#updateInputDecoration();
+		this.#updateInputEditorLanguage();
+	}
+
+	#updateInputEditorLanguage() {
+		const notebook = this.#notebookWidget.value?.textModel;
+		const textModel = this.#codeEditorWidget.getModel();
+
+		if (!notebook || !textModel) {
+			return;
+		}
+
+		const info = this.#notebookKernelService.getMatchingKernel(notebook);
+		const selectedOrSuggested = info.selected ?? info.suggested;
+
+		if (selectedOrSuggested) {
+			const language = selectedOrSuggested.supportedLanguages[0];
+			const newMode = language ? this.#modeService.create(language).languageIdentifier : PLAINTEXT_LANGUAGE_IDENTIFIER;
+			textModel.setMode(newMode);
+		}
 	}
 
 	layout(dimension: DOM.Dimension): void {
