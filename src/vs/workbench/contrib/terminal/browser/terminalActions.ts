@@ -904,7 +904,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).doWithActiveInstance(instance => instance.detachFromProcess());
+			const terminalService = accessor.get(ITerminalService);
+			await terminalService.getActiveInstance()?.detachFromProcess();
 		}
 	});
 	registerAction2(class extends Action2 {
