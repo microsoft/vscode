@@ -11,7 +11,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -120,7 +120,13 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
-			f1: true
+			menu: [
+				{
+					id: MenuId.CommandPalette,
+					when: ContextKeyExpr.equals('config.interactive.experiments.enable', true)
+				}
+			],
+			category: 'Interactive'
 		});
 	}
 
