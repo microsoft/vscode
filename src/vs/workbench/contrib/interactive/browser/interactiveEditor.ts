@@ -7,25 +7,26 @@ import 'vs/css!./media/interactive';
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -43,6 +44,7 @@ export class InteractiveEditor extends EditorPane {
 	#instantiationService: IInstantiationService;
 	#modelService: IModelService;
 	#contextKeyService: IContextKeyService;
+	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
 	constructor(
@@ -72,8 +74,6 @@ export class InteractiveEditor extends EditorPane {
 	protected createEditor(parent: HTMLElement): void {
 		this.#rootElement = DOM.append(parent, DOM.$('.interactive-editor'));
 		this.#rootElement.style.position = 'relative';
-
-		// throw new Error('Method not implemented.');
 		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
 		this.#inputEditorContainer = DOM.append(this.#rootElement, DOM.$('.input-editor-container'));
 		this.#inputEditorContainer.style.position = 'absolute';
@@ -89,6 +89,8 @@ export class InteractiveEditor extends EditorPane {
 		if (this.#notebookWidget.value) {
 			this.#notebookWidget.value.onWillHide();
 		}
+
+		this.#widgetDisposableStore.clear();
 
 		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
@@ -118,7 +120,7 @@ export class InteractiveEditor extends EditorPane {
 
 		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
 		this.#codeEditorWidget.setModel(editorModel);
-		this.#codeEditorWidget.onDidContentSizeChange(e => {
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
 				return;
 			}
@@ -131,19 +133,19 @@ export class InteractiveEditor extends EditorPane {
 				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight}px`;
 				this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
 			}
-		});
+		}));
 
-		this.themeService.onDidColorThemeChange(() => {
+		this.#widgetDisposableStore.add(this.themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
 				this.#updateInputDecoration();
 			}
-		});
+		}));
 
-		this.#codeEditorWidget.onDidChangeModelContent(() => {
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => {
 			if (this.isVisible()) {
 				this.#updateInputDecoration();
 			}
-		});
+		}));
 
 		this.#updateInputDecoration();
 	}
