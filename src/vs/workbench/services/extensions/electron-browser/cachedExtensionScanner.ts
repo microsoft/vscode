@@ -14,12 +14,13 @@ import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { BUILTIN_MANIFEST_CACHE_FILE, MANIFEST_CACHE_FOLDER, USER_MANIFEST_CACHE_FILE, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ExtensionScanner, ExtensionScannerInput, IExtensionReference, IExtensionResolver, IRelaxedExtensionDescription } from 'vs/workbench/services/extensions/node/extensionPoints';
 import { Translations, ILog } from 'vs/workbench/services/extensions/common/extensionPoints';
+import { dedupExtensions } from 'vs/workbench/services/extensions/common/extensionsUtil';
 
 interface IExtensionCacheData {
 	input: ExtensionScannerInput;
@@ -79,32 +80,7 @@ export class CachedExtensionScanner {
 		try {
 			const translations = await this.translationConfig;
 			const { system, user, development } = await CachedExtensionScanner._scanInstalledExtensions(this._hostService, this._notificationService, this._environmentService, this._extensionEnablementService, this._productService, log, translations);
-
-			let result = new Map<string, IExtensionDescription>();
-			system.forEach((systemExtension) => {
-				const extensionKey = ExtensionIdentifier.toKey(systemExtension.identifier);
-				const extension = result.get(extensionKey);
-				if (extension) {
-					log.warn(systemExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, systemExtension.extensionLocation.fsPath));
-				}
-				result.set(extensionKey, systemExtension);
-			});
-			user.forEach((userExtension) => {
-				const extensionKey = ExtensionIdentifier.toKey(userExtension.identifier);
-				const extension = result.get(extensionKey);
-				if (extension) {
-					log.warn(userExtension.extensionLocation.fsPath, nls.localize('overwritingExtension', "Overwriting extension {0} with {1}.", extension.extensionLocation.fsPath, userExtension.extensionLocation.fsPath));
-				}
-				result.set(extensionKey, userExtension);
-			});
-			development.forEach(developedExtension => {
-				log.info('', nls.localize('extensionUnderDevelopment', "Loading development extension at {0}", developedExtension.extensionLocation.fsPath));
-				const extensionKey = ExtensionIdentifier.toKey(developedExtension.identifier);
-				result.set(extensionKey, developedExtension);
-			});
-			let r: IExtensionDescription[] = [];
-			result.forEach((value) => r.push(value));
-
+			const r = dedupExtensions(system, user, development, log);
 			this._scannedExtensionsResolve(r);
 		} catch (err) {
 			this._scannedExtensionsReject(err);

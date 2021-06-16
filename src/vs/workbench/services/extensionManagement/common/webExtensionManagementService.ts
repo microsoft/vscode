@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionType, IExtensionIdentifier, IExtensionManifest, ITranslatedScannedExtension } from 'vs/platform/extensions/common/extensions';
+import { ExtensionType, IExtension, IExtensionIdentifier, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, IGalleryExtension, IReportedExtension, IGalleryMetadata, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
@@ -37,7 +37,15 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 	}
 
 	async getInstalled(type?: ExtensionType): Promise<ILocalExtension[]> {
-		const extensions = await this.webExtensionsScannerService.scanAndTranslateExtensions(type);
+		const extensions = [];
+		if (type === undefined || type === ExtensionType.System) {
+			const systemExtensions = await this.webExtensionsScannerService.scanSystemExtensions();
+			extensions.push(...systemExtensions);
+		}
+		if (type === undefined || type === ExtensionType.User) {
+			const userExtensions = await this.webExtensionsScannerService.scanUserExtensions();
+			extensions.push(...userExtensions);
+		}
 		return Promise.all(extensions.map(e => this.toLocalExtension(e)));
 	}
 
@@ -87,16 +95,12 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		return userExtensions.find(e => areSameExtensions(e.identifier, identifier));
 	}
 
-	private async toLocalExtension(scannedExtension: ITranslatedScannedExtension): Promise<ILocalExtension> {
+	private toLocalExtension(extension: IExtension): ILocalExtension {
 		return {
-			type: scannedExtension.type,
-			identifier: scannedExtension.identifier,
-			manifest: scannedExtension.packageJSON,
-			location: scannedExtension.location,
+			...extension,
 			isMachineScoped: false,
 			publisherId: null,
 			publisherDisplayName: null,
-			isBuiltin: scannedExtension.type === ExtensionType.System
 		};
 	}
 

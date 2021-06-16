@@ -9,11 +9,11 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference, parseScannedExtension } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -48,7 +48,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
@@ -68,7 +68,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
-			extensionManifestPropertiesService
+			extensionManifestPropertiesService,
+			webExtensionsScannerService
 		);
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
@@ -92,9 +93,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		const scannedExtension = await this._webExtensionsScannerService.scanAndTranslateSingleExtension(extension.location, extension.type);
+		const scannedExtension = await this._webExtensionsScannerService.scanSingleExtension(extension.location, extension.type);
 		if (scannedExtension) {
-			return parseScannedExtension(scannedExtension);
+			return toExtensionDescription(scannedExtension);
 		}
 
 		return null;
@@ -182,7 +183,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
-			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension)),
+			this._scanWebExtensions(),
 			this._remoteAgentService.getEnvironment(),
 			this._remoteAgentService.scanExtensions()
 		]);
