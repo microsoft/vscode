@@ -2569,8 +2569,8 @@ declare module 'vscode' {
 	 * The MarkdownString represents human-readable text that supports formatting via the
 	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
 	 *
-	 * When created with `supportThemeIcons` then rendering of {@link ThemeIcon theme icons} via
-	 * the `$(<name>)`-syntax is supported.
+	 * Rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax is supported
+	 * when the {@link MarkdownString.supportThemeIcons `supportThemeIcons`} is set to `true`.
 	 */
 	export class MarkdownString {
 
@@ -2588,7 +2588,7 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
 		 */
-		readonly supportThemeIcons?: boolean;
+		supportThemeIcons?: boolean;
 
 		/**
 		 * Creates a new markdown string with the given value.

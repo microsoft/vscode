@@ -1332,6 +1332,10 @@ export class MarkdownString implements vscode.MarkdownString {
 		return this.#delegate.supportThemeIcons;
 	}
 
+	set supportThemeIcons(value: boolean | undefined) {
+		this.#delegate.supportThemeIcons = value;
+	}
+
 	appendText(value: string): vscode.MarkdownString {
 		this.#delegate.appendText(value);
 		return this;
