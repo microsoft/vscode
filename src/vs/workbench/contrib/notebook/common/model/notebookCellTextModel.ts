@@ -129,8 +129,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _hash: number | null = null;
 
 	private _versionId: number = 1;
-	private _alternativeId: number = 1;
-	get alternativeId(): number {
+	private _alternativeId: string = '1';
+	get alternativeId(): string {
 		return this._alternativeId;
 	}
 
@@ -159,7 +159,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 			this._textModelDisposables.add(this._textModel.onDidChangeContent(() => {
 				if (this._textModel) {
 					this._versionId = this._textModel.getVersionId();
-					this._alternativeId = this._textModel.getAlternativeVersionId();
+					this._updateAlternativeVersionId();
 				}
 				this._onDidChangeContent.fire('content');
 			}));
@@ -209,7 +209,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		}))]);
 		return this._hash;
 	}
-
+	private _updateAlternativeVersionId() {
+		this._alternativeId = `${this._textModel ? this._textModel.getAlternativeVersionId() : ''}${this.outputs.map(item => item.outputId).join(',')}`;
+	}
 	private _getPersisentMetadata() {
 		let filteredMetadata: { [key: string]: any; } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
@@ -236,6 +238,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 
 	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
 		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+		this._updateAlternativeVersionId();
 		this._onDidChangeOutputs.fire(splice);
 	}
 	override dispose() {
