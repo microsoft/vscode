@@ -37,7 +37,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, editorErrorForeground, errorForeground, focusBorder, foreground, iconForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
@@ -2082,6 +2082,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
+			listActiveSelectionIconForeground: iconForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: foreground,
 			listFocusBackground: editorBackground,
