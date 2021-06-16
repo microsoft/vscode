@@ -9,7 +9,7 @@ import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { FileWorkingCopyManager, IFileWorkingCopyManager } from 'vs/workbench/services/workingCopy/common/fileWorkingCopyManager';
-import { WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { TestStoredFileWorkingCopyModel, TestStoredFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/storedFileWorkingCopy.test';
 import { TestUntitledFileWorkingCopyModel, TestUntitledFileWorkingCopyModelFactory } from 'vs/workbench/services/workingCopy/test/browser/untitledFileWorkingCopy.test';
 import { TestInMemoryFileSystemProvider, TestServiceAccessor, workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
@@ -129,6 +129,14 @@ suite('UntitledFileWorkingCopyManager', () => {
 		workingCopy.dispose();
 	});
 
+	test('resolve begins counter from 1 for disposed untitled', async () => {
+		const untitled1 = await manager.untitled.resolve();
+		untitled1.dispose();
+
+		const untitled1Again = await manager.untitled.resolve();
+		assert.strictEqual(untitled1.resource.toString(), untitled1Again.resource.toString());
+	});
+
 	test('resolve - existing', async () => {
 		let createCounter = 0;
 		manager.untitled.onDidCreate(e => {
@@ -234,5 +242,51 @@ suite('UntitledFileWorkingCopyManager', () => {
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 		assert.strictEqual(manager.untitled.workingCopies.length, 0);
+	});
+
+	test('manager with different types produce different URIs', async () => {
+		try {
+			manager = new FileWorkingCopyManager(
+				'someOtherUntitledTypeId',
+				new TestStoredFileWorkingCopyModelFactory(),
+				new TestUntitledFileWorkingCopyModelFactory(),
+				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
+				accessor.environmentService, accessor.dialogService
+			);
+
+			const untitled1OriginalType = await manager.untitled.resolve();
+			const untitled1OtherType = await manager.untitled.resolve();
+
+			assert.notStrictEqual(untitled1OriginalType.resource.toString(), untitled1OtherType.resource.toString());
+		} finally {
+			manager.destroy();
+		}
+	});
+
+	test('manager without typeId produces backwards compatible URIs', async () => {
+		try {
+			manager = new FileWorkingCopyManager(
+				NO_TYPE_ID,
+				new TestStoredFileWorkingCopyModelFactory(),
+				new TestUntitledFileWorkingCopyModelFactory(),
+				accessor.fileService, accessor.lifecycleService, accessor.labelService, accessor.logService,
+				accessor.workingCopyFileService, accessor.workingCopyBackupService, accessor.uriIdentityService, accessor.fileDialogService,
+				accessor.textFileService, accessor.filesConfigurationService, accessor.workingCopyService, accessor.notificationService,
+				accessor.workingCopyEditorService, accessor.editorService, accessor.elevatedFileService, accessor.pathService,
+				accessor.environmentService, accessor.dialogService
+			);
+
+			const result = await manager.untitled.resolve();
+			assert.strictEqual(result.resource.scheme, Schemas.untitled);
+			assert.ok(result.resource.path.length > 0);
+			assert.strictEqual(result.resource.query, '');
+			assert.strictEqual(result.resource.authority, '');
+			assert.strictEqual(result.resource.fragment, '');
+		} finally {
+			manager.destroy();
+		}
 	});
 });

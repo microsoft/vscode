@@ -184,7 +184,13 @@ export class UntitledFileWorkingCopyManager<M extends IUntitledFileWorkingCopyMo
 		if (!untitledResource) {
 			let counter = 1;
 			do {
-				untitledResource = URI.from({ scheme: Schemas.untitled, path: `Untitled-${counter}` });
+				untitledResource = URI.from({
+					scheme: Schemas.untitled,
+					path: `Untitled-${counter}`,
+					query: this.workingCopyTypeId ?
+						`typeId=${this.workingCopyTypeId}` : // distinguish untitled resources among others by encoding the `typeId` as query param
+						undefined							 // keep untitled resources for text files as they are (when `typeId === ''`)
+				});
 				counter++;
 			} while (this.has(untitledResource));
 		}
