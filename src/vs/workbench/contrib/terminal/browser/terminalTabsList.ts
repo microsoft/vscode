@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService, ITerminalService, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -107,7 +107,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onDidChangeConnectionState(() => this.refresh());
 		this._themeService.onDidColorThemeChange(() => this.refresh());
 		this._terminalService.onActiveInstanceChanged(e => {
-			if (e) {
+			if (e && e.target !== TerminalTarget.Editor) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
 				this.setSelection([i]);
 				this.reveal(i);
