@@ -59,6 +59,16 @@ const terminalConfiguration: IConfigurationNode = {
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
 		},
+		[TerminalSettingId.CreationTarget]: {
+			type: 'string',
+			enum: ['editor', 'view'],
+			enumDescriptions: [
+				localize('terminal.integrated.creationTarget.editor', "Create terminals in the editor"),
+				localize('terminal.integrated.creationTarget.view', "Create terminals in the terminal view")
+			],
+			default: 'view',
+			description: localize('terminal.integrated.creationTarget', "Controls where newly created terminals will appear.")
+		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',
 			enum: ['singleClick', 'doubleClick'],
