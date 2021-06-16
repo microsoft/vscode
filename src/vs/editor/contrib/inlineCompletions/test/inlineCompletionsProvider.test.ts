@@ -6,7 +6,6 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineCompletionsProvider, InlineCompletionsProviderRegistry } from 'vs/editor/common/modes';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
@@ -304,6 +303,36 @@ test('Calling the provider is debounced', async function () {
 			assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 				{ position: '(1,4)', text: 'foo', triggerKind: 0, }
 			]);
+
+			provider.assertNotCalledTwiceWithin50ms();
+		}
+	);
+});
+
+test('Backspace is debounced', async function () {
+	const provider = new MockInlineCompletionsProvider();
+	await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+		{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+		async ({ editor, editorViewModel, model, context }) => {
+			model.setActive(true);
+
+			context.keyboardType('foo');
+
+			provider.setReturnValue({ text: 'foobar', range: new Range(1, 1, 1, 4) });
+			await timeout(1000);
+
+			for (let j = 0; j < 2; j++) {
+				for (let i = 0; i < 3; i++) {
+					context.leftDelete();
+					await timeout(5);
+				}
+
+				context.keyboardType('bar');
+			}
+
+			await timeout(400);
+
+			provider.assertNotCalledTwiceWithin50ms();
 		}
 	);
 });
@@ -396,7 +425,7 @@ test('Support backward instability', async function () {
 			assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'fooba[r]']);
 
 			provider.setReturnValue({ text: 'foobaz', range: new Range(1, 1, 1, 5) });
-			CoreEditingCommands.DeleteLeft.runEditorCommand(null, editor, null);
+			context.leftDelete();
 			await timeout(1000);
 			assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 				{ position: '(1,5)', text: 'foob', triggerKind: 0, }
@@ -457,6 +486,10 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			await callback({ editor, editorViewModel, model, context });
 			model.dispose();
 		});
+
+		if (options.provider instanceof MockInlineCompletionsProvider) {
+			options.provider.assertNotCalledTwiceWithin50ms();
+		}
 
 		await p;
 	} finally {
