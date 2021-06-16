@@ -1536,6 +1536,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return state;
 	}
 
+	private _allowScrollBeyondLastLine() {
+		return this._scrollBeyondLastLine && !this.isEmbedded;
+	}
+
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
@@ -1559,12 +1563,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.size(this._body, dimension.width, dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0));
 		if (this._list.getRenderHeight() < dimension.height - topInserToolbarHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
 			this._list.layout(dimension.height - topInserToolbarHeight, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
 			this._list.layout(dimension.height - topInserToolbarHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
 		}
 
 		this._overlayContainer.style.visibility = 'visible';

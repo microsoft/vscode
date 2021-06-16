@@ -27,6 +27,7 @@ import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -90,11 +91,17 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value.onWillHide();
 		}
 
+		if (this.#codeEditorWidget) {
+			this.#codeEditorWidget.dispose();
+		}
+
 		this.#widgetDisposableStore.clear();
 
 		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
-			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([])
+			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
+				NotebookStatusBarController.id
+			])
 		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
@@ -214,6 +221,10 @@ export class InteractiveEditor extends EditorPane {
 	override clearInput() {
 		if (this.#notebookWidget.value) {
 			this.#notebookWidget.value.onWillHide();
+		}
+
+		if (this.#codeEditorWidget) {
+			this.#codeEditorWidget.dispose();
 		}
 
 		super.clearInput();
