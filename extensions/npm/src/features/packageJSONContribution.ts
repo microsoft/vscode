@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -320,7 +320,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return undefined;
 	}
 
-	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

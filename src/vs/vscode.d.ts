@@ -1055,7 +1055,7 @@ declare module 'vscode' {
 		/**
 		 * A message that should be rendered when hovering over the decoration.
 		 */
-		hoverMessage?: MarkedString | MarkedString[];
+		hoverMessage?: MarkdownString | (MarkdownString | MarkedString)[] | MarkedString;
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
@@ -2625,7 +2625,7 @@ declare module 'vscode' {
 	 *
 	 * @deprecated This type is deprecated, please use {@link MarkdownString `MarkdownString`} instead.
 	 */
-	export type MarkedString = MarkdownString | string | { language: string; value: string };
+	export type MarkedString = string | { language: string; value: string };
 
 	/**
 	 * A hover represents additional information for a symbol or word. Hovers are
@@ -2636,7 +2636,7 @@ declare module 'vscode' {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: MarkedString[];
+		contents: (MarkdownString | MarkedString)[];
 
 		/**
 		 * The range to which this hover applies. When missing, the
@@ -2651,7 +2651,7 @@ declare module 'vscode' {
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
-		constructor(contents: MarkedString | MarkedString[], range?: Range);
+		constructor(contents: MarkdownString | (MarkdownString | MarkedString)[] | MarkedString, range?: Range);
 	}
 
 	/**
