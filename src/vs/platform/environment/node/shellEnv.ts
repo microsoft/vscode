@@ -69,7 +69,6 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 				// Resolve shell env and handle errors
 				try {
 					const shellEnv = await doResolveUnixShellEnv(logService, cts.token);
-					cts.dispose();
 
 					resolve(shellEnv);
 				} catch (error) {
@@ -80,6 +79,7 @@ export async function resolveShellEnv(logService: ILogService, args: NativeParse
 					resolve({});
 				} finally {
 					clearTimeout(timeout);
+					cts.dispose();
 				}
 			});
 		}
