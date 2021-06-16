@@ -1274,6 +1274,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.toNegated(),
 						NOTEBOOK_CELL_EDITABLE),
