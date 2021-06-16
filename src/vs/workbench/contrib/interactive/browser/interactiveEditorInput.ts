@@ -40,6 +40,10 @@ export class InteractiveEditorInput extends AbstractResourceEditorInput implemen
 		// do something similar to untitled file
 		this._notebookEditorInput = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		this._inputResource = inputResource;
+
+		this.onWillDispose(() => {
+			this._notebookEditorInput.dispose();
+		});
 	}
 
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
