@@ -1255,43 +1255,31 @@ export class SettingBoolObjectRenderer extends AbstractSettingRenderer implement
 
 	private onDidChangeObject(template: ISettingBoolObjectItemTemplate, e: ISettingListChangeEvent<IBoolObjectDataItem>): void {
 		if (template.context) {
-			const defaultValue: Record<string, unknown> = typeof template.context.defaultValue === 'object'
-				? template.context.defaultValue ?? {}
-				: {};
-
-			const scopeValue: Record<string, unknown> = typeof template.context.scopeValue === 'object'
-				? template.context.scopeValue ?? {}
-				: {};
-
-			const newValue: Record<string, unknown> = {};
+			const newValue: Record<string, boolean> = {};
 			const newItems: IBoolObjectDataItem[] = [];
 
 			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
-				if (isDefined(e.item) && e.targetIndex === idx) {
+				if (e.targetIndex === idx && e.item) {
 					newValue[e.item.key] = e.item.value;
 					newItems.push(e.item);
 				}
 				// All remaining items, but skip the one that we just updated
-				else if (isUndefinedOrNull(e.item) || e.item.key !== item.key) {
+				else {
 					newValue[item.key] = item.value;
 					newItems.push(item);
 				}
 			});
 
-			Object.entries(newValue).forEach(([key, value]) => {
-				// value from the scope has changed back to the default
-				if (scopeValue[key] !== value && defaultValue[key] === value) {
-					delete newValue[key];
-				}
-			});
-
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
-				value: Object.keys(newValue).length === 0 ? undefined : newValue,
+				value: newValue,
 				type: template.context.valueType
 			});
 
+			// Focus this setting explicitly, in case we were previously
+			// focused on another setting and clicked a checkbox/value container
+			// for this setting.
 			this._onDidFocusSetting.fire(template.context);
 
 			template.objectWidget.setValue(newItems);

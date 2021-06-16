@@ -393,9 +393,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			targetIndex: idx,
 		});
 
-		if (!this.model.rendersEditOnly) {
-			this.renderList();
-		}
+		this.renderList();
 	}
 
 	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
@@ -1189,8 +1187,6 @@ export interface IBoolObjectDataItem {
 
 export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
 	private currentSettingKey: string = '';
-	private _onItemClicked: Emitter<void> = this._register(new Emitter<void>());
-	public onItemClicked = this._onItemClicked.event;
 
 	override setValue(listData: IBoolObjectDataItem[], options?: IBoolObjectSetValueOptions): void {
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
@@ -1243,7 +1239,6 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		const onValueChange = (newValue: boolean) => {
 			changedItem.value = newValue;
 			this.handleItemChange(item, changedItem, idx);
-			this._onItemClicked.fire();
 		};
 		const { element, widget: checkbox } = this.renderEditWidget(changedItem.value, onValueChange);
 		rowElement.appendChild(element);
@@ -1257,14 +1252,7 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 				checkbox.checked = !checkbox.checked;
 				onValueChange(checkbox.checked);
 			}
-		}));
-		this._register(DOM.addDisposableListener(element, DOM.EventType.MOUSE_DOWN, e => {
-			checkbox.checked = !checkbox.checked;
-			onValueChange(checkbox.checked);
-
-			// Without this line, the settings editor assumes
-			// we lost focus on this setting completely.
-			e.stopImmediatePropagation();
+			DOM.EventHelper.stop(e);
 		}));
 
 		return rowElement;
@@ -1282,14 +1270,20 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		});
 
 		this.listDisposables.add(checkbox);
-		this.listDisposables.add(checkbox.onChange(_ => {
-			onValueChange(checkbox.checked);
-		}));
 
 		const wrapper = $('.setting-list-object-input');
 		wrapper.classList.add('setting-list-object-input-key-checkbox');
 		checkbox.domNode.classList.add('setting-value-checkbox');
 		wrapper.appendChild(checkbox.domNode);
+
+		this._register(DOM.addDisposableListener(wrapper, DOM.EventType.MOUSE_DOWN, e => {
+			checkbox.checked = !checkbox.checked;
+			onValueChange(checkbox.checked);
+
+			// Without this line, the settings editor assumes
+			// we lost focus on this setting completely.
+			e.stopImmediatePropagation();
+		}));
 
 		return { widget: checkbox, element: wrapper };
 	}
