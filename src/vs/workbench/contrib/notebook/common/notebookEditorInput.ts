@@ -232,7 +232,7 @@ export interface ICompositeNotebookEditorInput {
 	readonly editorInputs: NotebookEditorInput[];
 }
 
-export function isCompositeNotebookEditor(thing: unknown): thing is ICompositeNotebookEditorInput {
+export function isCompositeNotebookEditorInput(thing: unknown): thing is ICompositeNotebookEditorInput {
 	return !!thing
 		&& typeof thing === 'object'
 		&& Array.isArray((<ICompositeNotebookEditorInput>thing).editorInputs)

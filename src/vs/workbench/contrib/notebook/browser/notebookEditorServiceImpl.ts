@@ -8,7 +8,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { isCompositeNotebookEditor, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
@@ -46,7 +46,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 					return;
 				}
 
-				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditor(e.editor) ? e.editor.editorInputs : []);
+				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditorInput(e.editor) ? e.editor.editorInputs : []);
 				inputs.forEach(input => {
 					const value = widgets.get(input.resource);
 					if (!value) {
@@ -63,7 +63,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 					this._freeWidget(e.editor, e.groupId, e.target);
 				}
 
-				if (isCompositeNotebookEditor(e.editor)) {
+				if (isCompositeNotebookEditorInput(e.editor)) {
 					e.editor.editorInputs.forEach(input => {
 						this._freeWidget(input, e.groupId, e.target);
 					});

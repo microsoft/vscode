@@ -33,6 +33,7 @@ import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -908,7 +909,21 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 }
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
-	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
+	if (!editorPane) {
+		return;
+	}
+
+	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
+		return editorPane.getControl() as INotebookEditor | undefined;
+	}
+
+	const input = editorPane.input;
+
+	if (input && isCompositeNotebookEditorInput(input)) {
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+	}
+
+	return undefined;
 }
 
 /**
