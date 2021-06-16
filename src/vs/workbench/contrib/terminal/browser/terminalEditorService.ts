@@ -30,4 +30,16 @@ export class TerminalEditorService implements ITerminalEditorService {
 		});
 		this.terminalEditorInstances.push(instance);
 	}
+
+	detachActiveEditorInstance(): ITerminalInstance {
+		const activeEditor = this._editorService.activeEditor;
+		if (!(activeEditor instanceof TerminalEditorInput)) {
+			throw new Error('Active editor is not a terminal');
+		}
+		const instance = activeEditor.terminalInstance;
+		activeEditor.detachInstance();
+		this._editorInputs.delete(instance.instanceId);
+		activeEditor.dispose();
+		return instance;
+	}
 }

@@ -12,12 +12,13 @@ export class TerminalEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.terminal';
 
+	private _isDetached = false;
+
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
 	}
 
 	private readonly _terminalInstance: ITerminalInstance;
-
 	get terminalInstance(): ITerminalInstance {
 		return this._terminalInstance;
 	}
@@ -32,10 +33,22 @@ export class TerminalEditorInput extends EditorInput {
 		super();
 		this._terminalInstance = terminalInstance;
 		this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire());
-		this._register(toDisposable(() => this.terminalInstance.dispose()));
+		this._register(toDisposable(() => {
+			if (!this._isDetached) {
+				this.terminalInstance.dispose();
+			}
+		}));
 	}
 
 	override getName() {
 		return this.terminalInstance.title;
+	}
+
+	/**
+	 * Detach the instance from the input such that when the input is disposed it will not dispose
+	 * of the terminal instance/process.
+	 */
+	detachInstance() {
+		this._isDetached = true;
 	}
 }

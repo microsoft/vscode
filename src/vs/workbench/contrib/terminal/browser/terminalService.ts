@@ -764,12 +764,47 @@ export class TerminalService implements ITerminalService {
 	}
 
 	moveToEditor(source: ITerminalInstance): void {
+		if (source.target === TerminalTarget.Editor) {
+			return;
+		}
 		const sourceGroup = this.getGroupForInstance(source);
 		if (!sourceGroup) {
 			return;
 		}
 		sourceGroup.removeInstance(source);
 		this._terminalEditorService.createEditor(source);
+	}
+
+	async moveToTerminalView(source?: ITerminalInstance): Promise<void> {
+		if (!source) {
+			source = this._terminalEditorService.detachActiveEditorInstance();
+			if (!source) {
+				return;
+			}
+		}
+
+		if (source.target !== TerminalTarget.Editor) {
+			return;
+		}
+		source.target = TerminalTarget.TerminalView;
+
+		// TODO: Share code with joinInstances - move into terminal group service
+		const group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		this._terminalGroups.push(group);
+		group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+		group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+
+		group.addInstance(source);
+		this.setActiveInstance(source);
+		await this.showPanel(true);
+		// TODO: Shouldn't this happen automatically?
+		source.setVisible(true);
+
+		// Fire events
+		this._onInstancesChanged.fire();
+		this._onGroupsChanged.fire();
+		this._onActiveGroupChanged.fire();
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {

@@ -228,6 +228,20 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.MoveToTerminalView,
+				title: { value: localize('workbench.action.terminal.moveToTerminalView', "Move From Editor to Terminal View"), original: 'Move From Editor to Terminal View' },
+				f1: true,
+				category
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			await accessor.get(ITerminalService).moveToTerminalView();
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.ShowTabs,
 				title: { value: localize('workbench.action.terminal.showTabs', "Show Tabs"), original: 'Show Tabs' },
 				f1: false,
