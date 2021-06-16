@@ -33,11 +33,10 @@ export class DisassemblyView extends EditorPane {
 
 	// Used in instruction renderer
 	fontInfo: BareFontInfo;
+	currentInstructionAddress: string = '';
 
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _debugService: IDebugService;
-	// private _currentAddress: string | undefined;
-	private _lastOffset: number = 0;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -91,7 +90,7 @@ export class DisassemblyView extends EditorPane {
 				},
 			],
 			[
-				this._instantiationService.createInstance(BreakpointRenderer),
+				this._instantiationService.createInstance(BreakpointRenderer, this),
 				this._instantiationService.createInstance(InstructionRenderer, this),
 			],
 			{
@@ -107,8 +106,7 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this._lastOffset = -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-		this.loadDisassembledInstructions(undefined, this._lastOffset, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
+		this.loadDisassembledInstructions(undefined, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
 			// on load, set the target instruction in the middle of the page.
 			if (this._disassembledInstructions!.length > 0) {
 				this._disassembledInstructions?.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
@@ -118,7 +116,6 @@ export class DisassemblyView extends EditorPane {
 		this._register(this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
 				const topElement = Math.floor(e.scrollTop / this.fontInfo.lineHeight) + DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
-				this._lastOffset -= DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD;
 				this.scrollUp_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD).then((success) => {
 					if (success) {
 						this._disassembledInstructions!.reveal(topElement, 0);
@@ -138,7 +135,7 @@ export class DisassemblyView extends EditorPane {
 
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
 		const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-		return this.loadDisassembledInstructions(address, instructionCount, instructionCount - 1);
+		return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
 	}
 
 	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
@@ -152,6 +149,7 @@ export class DisassemblyView extends EditorPane {
 			const frame = this._debugService.getViewModel().focusedStackFrame;
 			if (frame?.instructionPointerReference) {
 				address = frame.instructionPointerReference;
+				this.currentInstructionAddress = address;
 			}
 		}
 
@@ -187,8 +185,15 @@ interface IBreakpointColumnTemplateData {
 class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
 
 	static readonly TEMPLATE_ID = 'breakpoint';
+	private breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
+	private breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
+	// private debugStackframe = 'codicon-' + icons.debugStackframe.id;
+	private debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
 
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
+
+	constructor(private readonly disassemblyView: DisassemblyView) {
+	}
 
 	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
 		const icon = append(container, $('.disassembly-view'));
@@ -202,35 +207,32 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		// TODO: stepping
-		// const debugStackframe = 'codicon-' + icons.debugStackframe.id;
-		// const debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
+		if (element.instruction.address === this.disassemblyView.currentInstructionAddress) {
+			templateData.icon.classList.add(this.debugStackframeFocused);
+		}
 
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
 		if (element.allowBreakpoint) {
-			const breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
-			const breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
-
 			if (element.isBreakpointSet) {
-				templateData.icon.classList.add(breakpointIcon);
+				templateData.icon.classList.add(this.breakpointIcon);
 			}
 
 			templateData.container.onmouseover = () => {
-				templateData.icon.classList.add(breakpointHintIcon);
+				templateData.icon.classList.add(this.breakpointHintIcon);
 			};
 
 			templateData.container.onmouseout = () => {
-				templateData.icon.classList.remove(breakpointHintIcon);
+				templateData.icon.classList.remove(this.breakpointHintIcon);
 			};
 
 			templateData.container.onclick = () => {
 				if (element.isBreakpointSet) {
 					element.isBreakpointSet = false;
-					templateData.icon.classList.remove(breakpointIcon);
+					templateData.icon.classList.remove(this.breakpointIcon);
 				} else if (element.allowBreakpoint) {
 					element.isBreakpointSet = true;
-					templateData.icon.classList.add(breakpointIcon);
+					templateData.icon.classList.add(this.breakpointIcon);
 				}
 			};
 		}
@@ -241,7 +243,6 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		templateData.container.onmouseover = null;
 		templateData.container.onmouseout = null;
 	}
-
 }
 
 interface IInstructionColumnTemplateData {
@@ -307,7 +308,6 @@ class InstructionRenderer implements ITableRenderer<IDisassembledInstructionEntr
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
 	}
-
 }
 
 export class DisassemblyViewInput extends EditorInput {
