@@ -255,19 +255,14 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		// Running tests with vscode-test
-		if (this.environmentService.extensionTestsLocationURI) {
-			return true;
+		// Canonical Uris not yet resolved
+		if (!this._canonicalUrisResolved) {
+			return false;
 		}
 
 		// Remote - resolver explicitly sets workspace trust to TRUE
 		if (this.environmentService.remoteAuthority && this._remoteAuthority?.options?.isTrusted) {
 			return this._remoteAuthority.options.isTrusted;
-		}
-
-		// Canonical Uris not yet resolved
-		if (!this._canonicalUrisResolved) {
-			return false;
 		}
 
 		// Empty workspace - use memento, open ediors, or user setting
