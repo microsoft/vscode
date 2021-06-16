@@ -108,6 +108,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
 			isEmbedded: true,
+			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				NotebookStatusBarController.id
 			])
