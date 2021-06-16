@@ -59,6 +59,7 @@ export interface NotebookLayoutConfiguration {
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
+	cellBreakpointMarginActive: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -77,6 +78,7 @@ interface NotebookOptionsChangeEvent {
 	dragAndDropEnabled?: boolean;
 	fontSize?: boolean;
 	editorOptionsCustomizations?: boolean;
+	cellBreakpointMargin?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -151,7 +153,8 @@ export class NotebookOptions {
 			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize,
-			editorOptionsCustomizations
+			editorOptionsCustomizations,
+			cellBreakpointMarginActive: false
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -479,6 +482,11 @@ export class NotebookOptions {
 			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin,
 			verticalIndicatorHeight: totalHeight - bottomToolbarGap
 		};
+	}
+
+	setCellBreakpointMarginActive(active: boolean) {
+		this._layoutConfiguration.cellBreakpointMarginActive = active;
+		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
 	}
 
 	dispose() {
