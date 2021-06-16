@@ -319,7 +319,7 @@ interface IWorkbenchConstructionOptions {
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
 	 */
-	readonly staticExtensions?: readonly IStaticExtension[];
+	readonly staticExtensions?: readonly (string | IStaticExtension)[];
 
 	/**
 	 * Filter for built-in extensions.

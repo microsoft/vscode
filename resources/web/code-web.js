@@ -53,6 +53,7 @@ const args = minimist(process.argv, {
 		'port',
 		'local_port',
 		'extension',
+		'extensionId',
 		'github-auth'
 	],
 });
@@ -69,6 +70,7 @@ if (args.help) {
 		' --local_port     Local port override\n' +
 		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
+		' --extensionId    Id of an extension to include\n' +
 		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
@@ -169,23 +171,31 @@ async function getCommandlineProvidedExtensionInfos() {
 	const locations = {};
 
 	let extensionArg = args['extension'];
-	if (!extensionArg) {
+	let extensionIdArg = args['extensionId'];
+	if (!extensionArg && !extensionIdArg) {
 		return { extensions, locations };
 	}
 
-	const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
-	await Promise.all(extensionPaths.map(async extensionPath => {
-		extensionPath = path.resolve(process.cwd(), extensionPath);
-		const packageJSON = await getExtensionPackageJSON(extensionPath);
-		if (packageJSON) {
-			const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
-			extensions.push({
-				packageJSON,
-				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
-			});
-			locations[extensionId] = extensionPath;
-		}
-	}));
+	if (extensionArg) {
+		const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
+		await Promise.all(extensionPaths.map(async extensionPath => {
+			extensionPath = path.resolve(process.cwd(), extensionPath);
+			const packageJSON = await getExtensionPackageJSON(extensionPath);
+			if (packageJSON) {
+				const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
+				extensions.push({
+					packageJSON,
+					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
+				});
+				locations[extensionId] = extensionPath;
+			}
+		}));
+	}
+
+	if (extensionIdArg) {
+		extensions.push(...(Array.isArray(extensionIdArg) ? extensionIdArg : [extensionIdArg]));
+	}
+
 	return { extensions, locations };
 }
 

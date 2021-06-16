@@ -16,7 +16,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { groupByExtension, areSameExtensions, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import type { IStaticExtension } from 'vs/workbench/workbench.web.api';
@@ -24,7 +24,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { isArray, isFunction, isUndefined } from 'vs/base/common/types';
+import { isArray, isFunction, isString, isUndefined } from 'vs/base/common/types';
+import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 
 interface IStoredWebExtension {
@@ -53,6 +54,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	private readonly staticExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 	private readonly userConfiguredExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
+	private readonly staticExtensionsResource: URI | undefined = undefined;
 	private readonly installedExtensionsResource: URI | undefined = undefined;
 	private readonly resourcesAccessQueueMap = new ResourceMap<Queue<IWebExtension[]>>();
 
@@ -63,10 +65,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 	) {
 		super();
 		if (isWeb) {
 			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
+			this.staticExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'staticExtensions.json');
 			this.builtinExtensionsPromise = this.readBuiltinExtensions();
 			this.staticExtensionsPromise = this.readStaticExtensions();
 			this.userConfiguredExtensionsPromise = this.readUserConfiguredExtensions();
@@ -88,14 +92,84 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 * All extensions defined via `staticExtensions` API
 	 */
 	private async readStaticExtensions(): Promise<IExtension[]> {
-		const staticExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
-		const result: IExtension[] = [];
+		const staticExtensions: (string | IStaticExtension)[] = this.environmentService.options && Array.isArray(this.environmentService.options.staticExtensions) ? this.environmentService.options.staticExtensions : [];
+		const staticExtensionIds = [], result: IExtension[] = [];
 		for (const e of staticExtensions) {
-			const extension = this.parseStaticExtension(e, isUndefined(e.isBuiltin) ? true : e.isBuiltin);
-			if (extension) {
-				result.push(extension);
+			if (isString(e)) {
+				staticExtensionIds.push(e);
+			} else {
+				const extension = this.parseStaticExtension(e, isUndefined(e.isBuiltin) ? true : e.isBuiltin);
+				if (extension) {
+					result.push(extension);
+				}
 			}
 		}
+		if (staticExtensionIds.length) {
+			try {
+				result.push(...await this.getStaticExtensionsFromGallery(staticExtensionIds));
+			} catch (error) {
+				this.logService.info('Ignoring following static extensions as there is an error while fetching them from gallery', staticExtensionIds, getErrorMessage(error));
+			}
+		}
+		return result;
+	}
+
+	private async getStaticExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
+		if (!this.galleryService.isEnabled()) {
+			this.logService.info('Ignoring fetching static extensions from gallery as it is disabled.');
+			return [];
+		}
+
+		const cachedStaticWebExtensions = await this.readWebExtensions(this.staticExtensionsResource);
+		const webExtensions: IWebExtension[] = [];
+		extensionIds = extensionIds.map(id => id.toLowerCase());
+
+		for (const webExtension of cachedStaticWebExtensions) {
+			const index = extensionIds.indexOf(webExtension.identifier.id.toLowerCase());
+			if (index !== -1) {
+				webExtensions.push(webExtension);
+				extensionIds.splice(index, 1);
+			}
+		}
+
+		if (extensionIds.length) {
+			const galleryExtensions = await this.galleryService.getExtensions(extensionIds, CancellationToken.None);
+			const missingExtensions = extensionIds.filter(id => !galleryExtensions.find(({ identifier }) => areSameExtensions(identifier, { id })));
+			if (missingExtensions.length) {
+				this.logService.info('Cannot find static extensions from gallery', missingExtensions);
+			}
+
+			await Promise.all(galleryExtensions.map(async gallery => {
+				try {
+					if (this.canAddExtension(gallery)) {
+						webExtensions.push(await this.toWebExtension(gallery));
+					} else {
+						this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because it is not a web extension`);
+					}
+				} catch (error) {
+					this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+				}
+			}));
+		}
+
+		const result: IExtension[] = [];
+
+		if (webExtensions.length) {
+			await Promise.all(webExtensions.map(async webExtension => {
+				try {
+					result.push(await this.toExtension(webExtension, true));
+				} catch (error) {
+					this.logService.info(`Ignoring static gallery extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
+				}
+			}));
+		}
+
+		try {
+			await this.writeWebExtensions(this.staticExtensionsResource, webExtensions);
+		} catch (error) {
+			this.logService.info(`Ignoring the error while adding static gallery extensions`, getErrorMessage(error));
+		}
+
 		return result;
 	}
 
@@ -213,7 +287,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		const webExtension = await this.toWebExtension(galleryExtension);
-		const extension = await this.toExtension(webExtension);
+		const extension = await this.toExtension(webExtension, false);
 		const installedExtensions = await this.readInstalledExtensions();
 		installedExtensions.push(webExtension);
 		await this.writeInstalledExtensions(installedExtensions);
@@ -233,7 +307,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensions: IExtension[] = [];
 		await Promise.all(installedExtensions.map(async installedExtension => {
 			try {
-				extensions.push(await this.toExtension(installedExtension));
+				extensions.push(await this.toExtension(installedExtension, false));
 			} catch (error) {
 				this.logService.error(error, 'Error while scanning user extension', installedExtension.identifier.id);
 			}
@@ -256,7 +330,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		};
 	}
 
-	private async toExtension(webExtension: IWebExtension): Promise<IExtension> {
+	private async toExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IExtension> {
 		const context = await this.requestService.request({ type: 'GET', url: joinPath(webExtension.location, 'package.json').toString() }, CancellationToken.None);
 		if (!isSuccess(context)) {
 			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned ${context.res.statusCode}`);
@@ -276,7 +350,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			location: webExtension.location,
 			manifest,
 			type: ExtensionType.User,
-			isBuiltin: false,
+			isBuiltin,
 			readmeUrl: webExtension.readmeUri,
 			changelogUrl: webExtension.changelogUri,
 		};
