@@ -215,6 +215,7 @@ registerAction2(class extends Action2 {
 				]);
 
 				await editorControl.notebookEditor.executeNotebookCells(editorControl.notebookEditor.viewModel!.getCells({ start: index, end: index + 1 }));
+				editorControl.notebookEditor.revealCellRangeInView({ start: index, end: index + 1 });
 			}
 		}
 	}
