@@ -210,6 +210,9 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		if (element.instruction.address === this.disassemblyView.currentInstructionAddress) {
 			templateData.icon.classList.add(this.debugStackframeFocused);
 		}
+		else {
+			templateData.icon.classList.remove(this.debugStackframeFocused);
+		}
 
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
@@ -217,6 +220,10 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			if (element.isBreakpointSet) {
 				templateData.icon.classList.add(this.breakpointIcon);
 			}
+			else {
+				templateData.icon.classList.remove(this.breakpointIcon);
+			}
+
 
 			templateData.container.onmouseover = () => {
 				templateData.icon.classList.add(this.breakpointHintIcon);
