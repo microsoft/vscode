@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as paths from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,5 +46,12 @@ export class InteractiveEditorInput extends AbstractResourceEditorInput implemen
 
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
 		return this._notebookEditorInput.resolve();
+	}
+
+	override getName() {
+		const p = this.resource.path;
+		const basename = paths.basename(p);
+
+		return basename.substr(0, basename.length - paths.extname(p).length);
 	}
 }
