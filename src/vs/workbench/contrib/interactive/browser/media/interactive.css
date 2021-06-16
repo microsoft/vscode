@@ -5,4 +5,5 @@
 
 .interactive-editor .input-editor-container {
 	border-top: 1px solid #80808060;
+	padding: 0px 8px;
 }
