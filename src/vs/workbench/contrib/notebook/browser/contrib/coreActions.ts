@@ -982,6 +982,7 @@ export async function changeCellToKind(kind: CellKind, context: INotebookCellAct
 				cellKind: kind,
 				source: text,
 				language: language!,
+				mime: cell.mime,
 				outputs: cell.model.outputs,
 				metadata: cell.metadata,
 			}]
