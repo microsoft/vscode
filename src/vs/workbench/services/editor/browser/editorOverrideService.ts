@@ -423,7 +423,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private mapEditorsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(group.findEditors(resource));
+		const currentEditor = firstOrDefault(group.findEditors(resource)) as IRegisteredEditorInput | undefined;
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
@@ -453,7 +453,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Map the editors to quickpick entries
 		registeredEditors.forEach(editor => {
-			const currentViewType = (currentEditor as IRegisteredEditorInput).viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
+			const currentViewType = currentEditor?.viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
 			const isActive = currentEditor ? editor.editorInfo.id === currentViewType : false;
 			const isDefault = editor.editorInfo.id === defaultViewType;
 			const quickPickEntry: IQuickPickItem = {
