@@ -630,9 +630,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	detachFromElement(): void {
-		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
+		this._detachWrapperElement();
 		this._wrapperElement = undefined;
 		this._container = undefined;
+	}
+
+	private _detachWrapperElement() {
+		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
 	}
 
 	attachToElement(container: HTMLElement): Promise<void> | void {
@@ -647,9 +651,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		// The container changed, reattach
-		const wrapperElement = this._wrapperElement;
-		this.detachFromElement();
-		this._wrapperElement = wrapperElement;
+		this._detachWrapperElement();
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 		setTimeout(() => this._initDragAndDrop(container));
@@ -954,6 +956,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._wrapperElement.xterm = undefined;
 			}
 			if (this._wrapperElement.parentElement && this._container) {
+				console.log('dispose');
 				this._container.removeChild(this._wrapperElement);
 			}
 		}
