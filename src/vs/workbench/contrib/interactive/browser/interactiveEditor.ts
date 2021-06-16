@@ -6,7 +6,6 @@
 import 'vs/css!./media/interactive';
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
