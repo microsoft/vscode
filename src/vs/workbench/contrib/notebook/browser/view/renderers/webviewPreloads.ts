@@ -904,7 +904,23 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
 			if (!renderers.length) {
-				throw new Error('Could not find renderer');
+				const errorContainer = document.createElement('div');
+
+				const error = document.createElement('div');
+				error.className = 'no-renderer-error';
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				error.innerText = errorText;
+
+				const cellText = document.createElement('div');
+				cellText.innerText = info.text();
+
+				errorContainer.appendChild(error);
+				errorContainer.appendChild(cellText);
+
+				element.innerText = '';
+				element.appendChild(errorContainer);
+
+				return;
 			}
 
 			await Promise.all(renderers.map(x => x.load()));
