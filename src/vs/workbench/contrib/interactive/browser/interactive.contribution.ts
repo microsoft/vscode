@@ -31,6 +31,7 @@ import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { Schemas } from 'vs/base/common/network';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -112,6 +113,8 @@ const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegist
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Eventually);
 
 
+let counter = 1;
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -122,14 +125,18 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const resource = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+		const inputResource = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+
 		// const editorGroupsService = accessor.get(IEditorGroupsService);
 
 		// const group = editorGroupsService.activeGroup;
 		const editorService = accessor.get(IEditorService);
 		// await editorService.openEditor({ options: { override: 'interactive', pinned: true } }, group);
 		// const editorInput = NotebookEditorInput.create(accessor.get(IInstantiationService), URI.parse('inmem://test/test.interactive'), 'interactive', {});
-		const editorInput = new InteractiveEditorInput(URI.parse('interactive://test.interactive'), undefined, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
+		const editorInput = new InteractiveEditorInput(resource, undefined, inputResource, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
 		await editorService.openEditor(editorInput);
+		counter++;
 	}
 });
 
@@ -142,7 +149,7 @@ registerAction2(class extends Action2 {
 			category: 'Interactive',
 			keybinding: {
 				// when: NOTEBOOK_CELL_LIST_FOCUSED,
-				when: ContextKeyExpr.equals('resourceScheme', 'interactive'),
+				when: ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
 				primary: KeyMod.Shift | KeyCode.Enter,
 				weight: NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT
 			},

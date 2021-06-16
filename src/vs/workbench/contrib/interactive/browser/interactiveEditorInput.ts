@@ -19,16 +19,23 @@ export class InteractiveEditorInput extends AbstractResourceEditorInput {
 		return this._notebookEditorInput;
 	}
 
+	private _inputResource: URI;
+
+	get inputResource() {
+		return this._inputResource;
+	}
 	constructor(
 		resource: URI,
 		preferredResource: URI | undefined,
+		inputResource: URI,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		super(resource, preferredResource, labelService, fileService);
 		// do something similar to untitled file
-		this._notebookEditorInput = NotebookEditorInput.create(instantiationService, URI.parse('inmem://test/test.interactive'), 'interactive', {});
+		this._notebookEditorInput = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
+		this._inputResource = inputResource;
 	}
 
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {

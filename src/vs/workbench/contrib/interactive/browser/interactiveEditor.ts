@@ -83,6 +83,7 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
 			this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
 			this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
+			this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
 		}
 
 		await super.setInput(input, options, context, token);
@@ -98,7 +99,7 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(URI.parse(`interactive:replinput`)) || this.#modelService.createModel('', null, URI.parse(`interactive:replinput`), true);
+		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -111,6 +112,7 @@ export class InteractiveEditor extends EditorPane {
 				this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - contentHeight), this.#rootElement);
 				this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, contentHeight));
 				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight}px`;
+				this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
 			}
 		});
 	}
@@ -126,6 +128,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#notebookEditorContainer.style.height = `${this.#dimension.height - 19}px`;
 		this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
+		this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
 
 		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
 		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
