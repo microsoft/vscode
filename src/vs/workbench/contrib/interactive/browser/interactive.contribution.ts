@@ -130,19 +130,17 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const resource = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-		const inputResource = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+	async run(accessor: ServicesAccessor): Promise<{ notebookUri: URI, inputUri: URI }> {
+		const notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+		const inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
 
-		// const editorGroupsService = accessor.get(IEditorGroupsService);
-
-		// const group = editorGroupsService.activeGroup;
 		const editorService = accessor.get(IEditorService);
-		// await editorService.openEditor({ options: { override: 'interactive', pinned: true } }, group);
-		// const editorInput = NotebookEditorInput.create(accessor.get(IInstantiationService), URI.parse('inmem://test/test.interactive'), 'interactive', {});
-		const editorInput = new InteractiveEditorInput(resource, undefined, inputResource, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
+		const editorInput = new InteractiveEditorInput(notebookUri, undefined, inputUri, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
 		await editorService.openEditor(editorInput);
 		counter++;
+
+		// Extensions must retain references to these URIs to manipulate the interactive editor
+		return { notebookUri, inputUri };
 	}
 });
 
