@@ -552,6 +552,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstance(terminalInstance: ITerminalInstance): void {
+		if (this.configHelper.config.creationTarget === TerminalTarget.Editor) {
+			return;
+		}
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
@@ -897,6 +900,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
+		if (this.configHelper.config.creationTarget === TerminalTarget.Editor) {
+			return;
+		}
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
 			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 		pane?.setExpanded(true);

@@ -1170,8 +1170,8 @@ export function registerTerminalActions() {
 					return;
 				}
 				terminalService.setActiveInstance(instance);
-				return terminalService.showPanel(true);
 			}
+			return terminalService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
