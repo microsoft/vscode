@@ -45,7 +45,9 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 
 			// We operate on the active editor here to support re-opening
 			// diff editors where `input` may just be one side of the
-			// diff editor
+			// diff editor.
+			// Since `openInternal` can only ever be selected from the
+			// active editor of the group, this is a safe assumption.
 			// (https://github.com/microsoft/vscode/issues/124222)
 			const editor = this.group.activeEditor;
 
