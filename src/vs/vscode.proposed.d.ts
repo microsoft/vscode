@@ -2044,8 +2044,7 @@ declare module 'vscode' {
 		 * or in the {@link TestRunRequest.exclude} array will no-op.
 		 *
 		 * @param test The test to update
-		 * @param state The state to assign to the test
-		 *
+		 * @param message The message to add
 		 */
 		appendMessage(test: TestItem<T>, message: TestMessage): void;
 
