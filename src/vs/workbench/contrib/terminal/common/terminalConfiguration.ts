@@ -5,7 +5,7 @@
 
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { localize } from 'vs/nls';
-import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, TerminalCursorStyle, DEFAULT_COMMANDS_TO_SKIP_SHELL, SUGGESTIONS_FONT_WEIGHT, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_LOCAL_ECHO_EXCLUDE, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -58,6 +58,16 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'right',
 			description: localize('terminal.integrated.tabs.location', "Controls the location of the terminal tabs, either to the left or right of the actual terminal(s).")
+		},
+		[TerminalSettingId.CreationTarget]: {
+			type: 'string',
+			enum: [TerminalLocation.Editor, TerminalLocation.TerminalView],
+			enumDescriptions: [
+				localize('terminal.integrated.creationTarget.editor', "Create terminals in the editor"),
+				localize('terminal.integrated.creationTarget.view', "Create terminals in the terminal view")
+			],
+			default: 'view',
+			description: localize('terminal.integrated.creationTarget', "Controls where newly created terminals will appear.")
 		},
 		[TerminalSettingId.TabsFocusMode]: {
 			type: 'string',

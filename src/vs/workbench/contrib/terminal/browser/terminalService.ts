@@ -19,13 +19,13 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, TerminalTarget, ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -279,9 +279,7 @@ export class TerminalService implements ITerminalService {
 						if (!terminalInstance) {
 							// create group and terminal
 							const config = { attachPersistentProcess: terminalLayout.terminal! } as IShellLaunchConfig;
-							terminalInstance = this.createTerminal(
-								config
-							);
+							terminalInstance = this.createTerminal(config);
 							group = this.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
@@ -554,6 +552,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstance(terminalInstance: ITerminalInstance): void {
+		if (this.configHelper.config.creationTarget === TerminalLocation.Editor) {
+			return;
+		}
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
 		// in which case we need to create the terminal group
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
@@ -764,7 +765,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	moveToEditor(source: ITerminalInstance): void {
-		if (source.target === TerminalTarget.Editor) {
+		if (source.target === TerminalLocation.Editor) {
 			return;
 		}
 		const sourceGroup = this.getGroupForInstance(source);
@@ -785,10 +786,10 @@ export class TerminalService implements ITerminalService {
 			}
 		}
 
-		if (source.target !== TerminalTarget.Editor) {
+		if (source.target !== TerminalLocation.Editor) {
 			return;
 		}
-		source.target = TerminalTarget.TerminalView;
+		source.target = TerminalLocation.TerminalView;
 
 		// TODO: Share code with joinInstances - move into terminal group service
 		const group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
@@ -899,6 +900,9 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
+		if (this.configHelper.config.creationTarget === TerminalLocation.Editor) {
+			return;
+		}
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
 			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 		pane?.setExpanded(true);
@@ -1043,11 +1047,11 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
-					instance = this.createTerminal({ config: value.profile, cwd });
+					instance = this.createTerminal({ target: this.configHelper.config.creationTarget, config: value.profile, cwd });
 				}
 			}
 
-			if (instance) {
+			if (instance && this.configHelper.config.creationTarget === TerminalLocation.TerminalView) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
 				return instance;
@@ -1185,7 +1189,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		let instance: ITerminalInstance;
-		if (options?.target === TerminalTarget.Editor) {
+		if (options?.target === TerminalLocation.Editor || this.configHelper.config.creationTarget === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
 			this._terminalEditorService.createEditor(instance);
 			this._initInstanceListeners(instance);

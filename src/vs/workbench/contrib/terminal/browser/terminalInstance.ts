@@ -24,12 +24,12 @@ import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderB
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EDITOR_PANE_BACKGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstanceService, ITerminalInstance, ITerminalExternalLinkProvider, IRequestAddInstanceToGroupEvent } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import type { Terminal as XTermTerminal, IBuffer, ITerminalAddon, RendererType, ITheme } from 'xterm';
 import type { SearchAddon, ISearchOptions } from 'xterm-addon-search';
@@ -150,7 +150,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	disableLayout: boolean = false;
-	target?: TerminalTarget;
+	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI {
 		return URI.from({
@@ -1798,7 +1798,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
 		let backgroundColor: Color | undefined;
-		if (this.target === TerminalTarget.Editor) {
+		if (this.target === TerminalLocation.Editor) {
 			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(EDITOR_PANE_BACKGROUND);
 		} else {
 			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));

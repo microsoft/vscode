@@ -34,9 +34,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
-		if (!context.newInGroup) {
-			this._editorInput?.terminalInstance?.detachFromElement();
-		}
+		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
 		this._editorInput.terminalInstance?.attachToElement(this._parentElement!);
@@ -62,7 +60,6 @@ export class TerminalEditor extends EditorPane {
 		super.setVisible(visible, group);
 		return this._editorInput?.terminalInstance?.setVisible(visible);
 	}
-
 }
 
 export class TerminalInputSerializer implements IEditorInputSerializer {

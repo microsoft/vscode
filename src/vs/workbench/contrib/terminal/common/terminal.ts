@@ -207,6 +207,12 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
+	creationTarget: TerminalLocation;
+}
+
+export const enum TerminalLocation {
+	TerminalView = 'view',
+	Editor = 'editor'
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];

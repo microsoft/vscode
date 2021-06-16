@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITerminalEditorService, ITerminalInstance, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalEditorService implements ITerminalEditorService {
@@ -21,7 +22,7 @@ export class TerminalEditorService implements ITerminalEditorService {
 	}
 
 	async createEditor(instance: ITerminalInstance): Promise<void> {
-		instance.target = TerminalTarget.Editor;
+		instance.target = TerminalLocation.Editor;
 		const input = new TerminalEditorInput(instance);
 		this._editorInputs.set(instance.instanceId, input);
 		await this._editorService.openEditor(input, {
