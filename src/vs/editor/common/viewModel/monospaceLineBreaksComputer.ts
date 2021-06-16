@@ -9,7 +9,8 @@ import { WrappingIndent, IComputedEditorOptions, EditorOption } from 'vs/editor/
 import { CharacterClassifier } from 'vs/editor/common/core/characterClassifier';
 import { ILineBreaksComputerFactory } from 'vs/editor/common/viewModel/splitLinesCollection';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ILineBreaksComputer, LineBreakData, LineInjectedText } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 const enum CharacterClass {
 	NONE = 0,

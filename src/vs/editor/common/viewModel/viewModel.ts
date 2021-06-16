@@ -17,6 +17,7 @@ import { EditorTheme } from 'vs/editor/common/view/viewContext';
 import { ICursorSimpleModel, PartialCursorState, CursorState, IColumnSelectData, EditOperationType, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ViewEventHandler } from 'vs/editor/common/viewModel/viewEventHandler';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 export interface IViewWhitespaceViewportData {
 	readonly id: string;
@@ -95,18 +96,6 @@ export class OutputPosition {
 		this.outputLineIndex = outputLineIndex;
 		this.outputOffset = outputOffset;
 	}
-}
-
-/**
- * Represents text injected on a line
- */
-export class LineInjectedText {
-	constructor(
-		public readonly lineNumber: number,
-		public readonly column: number,
-		public readonly order: number,
-		public readonly text: string
-	) { }
 }
 
 export class LineBreakData {

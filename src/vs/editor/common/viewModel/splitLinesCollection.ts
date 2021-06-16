@@ -12,10 +12,11 @@ import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDe
 import { ModelDecorationOptions, ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { PrefixSumIndexOfResult } from 'vs/editor/common/viewModel/prefixSumComputer';
-import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, LineInjectedText, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
+import { ICoordinatesConverter, ILineBreaksComputer, IOverviewRulerDecorations, LineBreakData, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { EditorTheme } from 'vs/editor/common/view/viewContext';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 export interface ILineBreaksComputerFactory {
 	createLineBreaksComputer(fontInfo: FontInfo, tabSize: number, wrappingColumn: number, wrappingIndent: WrappingIndent): ILineBreaksComputer;
@@ -221,6 +222,7 @@ class LineNumberMapper {
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
 
+	private readonly _editorId: number;
 	private readonly model: ITextModel;
 	private _validModelVersionId: number;
 
@@ -239,6 +241,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 	private hiddenAreasIds!: string[];
 
 	constructor(
+		editorId: number,
 		model: ITextModel,
 		domLineBreaksComputerFactory: ILineBreaksComputerFactory,
 		monospaceLineBreaksComputerFactory: ILineBreaksComputerFactory,
@@ -248,6 +251,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		wrappingColumn: number,
 		wrappingIndent: WrappingIndent,
 	) {
+		this._editorId = editorId;
 		this.model = model;
 		this._validModelVersionId = -1;
 		this._domLineBreaksComputerFactory = domLineBreaksComputerFactory;
@@ -277,29 +281,8 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		}
 
 		const linesContent = this.model.getLinesContent();
-		const injectedTextDecorations = this.model.getInjectedTextDecorations();
-		const injectedText: LineInjectedText[] = [];
-		for (const injectedTextDecoration of injectedTextDecorations) {
-			// TODO: user order 0 for before
-			if (injectedTextDecoration.options.afterContent) {
-				injectedText.push(new LineInjectedText(
-					injectedTextDecoration.range.endLineNumber,
-					injectedTextDecoration.range.endColumn,
-					1,
-					injectedTextDecoration.options.afterContent
-				));
-			}
-		}
-		injectedText.sort((a, b) => {
-			if (a.lineNumber === b.lineNumber) {
-				if (a.column === b.column) {
-					return a.order - b.order;
-				}
-				return a.column - b.column;
-			}
-			return a.lineNumber - b.lineNumber;
-		});
-
+		const injectedTextDecorations = this.model.getInjectedTextDecorations(this._editorId);
+		const injectedText = LineInjectedText.fromDecorations(injectedTextDecorations);
 		const lineCount = linesContent.length;
 		const lineBreaksComputer = this.createLineBreaksComputer();
 		const injectedTextLength = injectedText.length;

@@ -90,6 +90,7 @@ export class ViewModel extends Disposable implements IViewModel {
 			const wrappingIndent = options.get(EditorOption.wrappingIndent);
 
 			this._lines = new SplitLinesCollection(
+				this._editorId,
 				this.model,
 				domLineBreaksComputerFactory,
 				monospaceLineBreaksComputerFactory,
@@ -266,15 +267,17 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
-							// TODO: enrich this event with injected text decorations
 							for (const line of change.detail) {
 								lineBreaksComputer.addRequest(line, null, null);
 							}
 							break;
 						}
 						case textModelEvents.RawContentChangedType.LineChanged: {
-							// TODO: enrich this event with injected text decorations
-							lineBreaksComputer.addRequest(change.detail, null, null);
+							let injectedText: textModelEvents.LineInjectedText[] | null = null;
+							if (change.injectedText) {
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
+							lineBreaksComputer.addRequest(change.detail, injectedText, null);
 							break;
 						}
 					}

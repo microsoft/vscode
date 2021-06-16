@@ -5,6 +5,7 @@
 
 import { IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IModelDecoration } from 'vs/editor/common/model';
 
 /**
  * An event describing that the current mode associated with a model has changed.
@@ -127,6 +128,47 @@ export class ModelRawFlush {
 }
 
 /**
+ * Represents text injected on a line
+ * @internal
+ */
+export class LineInjectedText {
+
+	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
+		const result: LineInjectedText[] = [];
+		for (const decoration of decorations) {
+			// TODO: user order 0 for before
+			if (decoration.options.afterContent) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.endLineNumber,
+					decoration.range.endColumn,
+					1,
+					decoration.options.afterContent
+				));
+			}
+		}
+		result.sort((a, b) => {
+			if (a.lineNumber === b.lineNumber) {
+				if (a.column === b.column) {
+					return a.order - b.order;
+				}
+				return a.column - b.column;
+			}
+			return a.lineNumber - b.lineNumber;
+		});
+		return result;
+	}
+
+	constructor(
+		public readonly ownerId: number,
+		public readonly lineNumber: number,
+		public readonly column: number,
+		public readonly order: number,
+		public readonly text: string
+	) { }
+}
+
+/**
  * An event describing that a line has changed in a model.
  * @internal
  */
@@ -140,10 +182,15 @@ export class ModelRawLineChanged {
 	 * The new value of the line.
 	 */
 	public readonly detail: string;
+	/**
+	 * The injected text on the line.
+	 */
+	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(lineNumber: number, detail: string) {
+	constructor(lineNumber: number, detail: string, injectedText: LineInjectedText[] | null) {
 		this.lineNumber = lineNumber;
 		this.detail = detail;
+		this.injectedText = injectedText;
 	}
 }
 

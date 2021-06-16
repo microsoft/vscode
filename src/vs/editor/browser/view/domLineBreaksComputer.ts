@@ -10,7 +10,8 @@ import { createStringBuilder, IStringBuilder } from 'vs/editor/common/core/strin
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { Configuration } from 'vs/editor/browser/config/configuration';
-import { ILineBreaksComputer, LineBreakData, LineInjectedText } from 'vs/editor/common/viewModel/viewModel';
+import { ILineBreaksComputer, LineBreakData } from 'vs/editor/common/viewModel/viewModel';
+import { LineInjectedText } from 'vs/editor/common/model/textModelEvents';
 
 const ttPolicy = window.trustedTypes?.createPolicy('domLineBreaksComputer', { createHTML: value => value });
 

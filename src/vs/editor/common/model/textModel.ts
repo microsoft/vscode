@@ -20,7 +20,7 @@ import { EditStack } from 'vs/editor/common/model/editStack';
 import { guessIndentation } from 'vs/editor/common/model/indentationGuesser';
 import { IntervalNode, IntervalTree, recomputeMaxEnd } from 'vs/editor/common/model/intervalTree';
 import { PieceTreeTextBufferBuilder } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBufferBuilder';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent, InternalModelContentChangeEvent, LineInjectedText, ModelRawChange, ModelRawContentChangedEvent, ModelRawEOLChanged, ModelRawFlush, ModelRawLineChanged, ModelRawLinesDeleted, ModelRawLinesInserted } from 'vs/editor/common/model/textModelEvents';
 import { SearchData, SearchParams, TextModelSearch } from 'vs/editor/common/model/textModelSearch';
 import { TextModelTokenization } from 'vs/editor/common/model/textModelTokens';
 import { getWordAtText } from 'vs/editor/common/model/wordHelper';
@@ -1424,16 +1424,25 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._trimAutoWhitespaceLines = result.trimAutoWhitespaceLineNumbers;
 
 		if (contentChanges.length !== 0) {
-			let rawContentChanges: ModelRawChange[] = [];
-
-			let lineCount = oldLineCount;
+			// We do a first pass to update tokens and decorations
+			// because we want to read decorations in the second pass
+			// where we will emit content change events
+			// and we want to read the final decorations
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
 				const [eolCount, firstLineLength, lastLineLength] = countEOL(change.text);
 				this._tokens.acceptEdit(change.range, eolCount, firstLineLength);
 				this._tokens2.acceptEdit(change.range, eolCount, firstLineLength, lastLineLength, change.text.length > 0 ? change.text.charCodeAt(0) : CharCode.Null);
-				this._onDidChangeDecorations.fire();
 				this._decorationsTree.acceptReplace(change.rangeOffset, change.rangeLength, change.text.length, change.forceMoveMarkers);
+			}
+
+			let rawContentChanges: ModelRawChange[] = [];
+
+			let lineCount = oldLineCount;
+			for (let i = 0, len = contentChanges.length; i < len; i++) {
+				const change = contentChanges[i];
+				const [eolCount] = countEOL(change.text);
+				this._onDidChangeDecorations.fire();
 
 				const startLineNumber = change.range.startLineNumber;
 				const endLineNumber = change.range.endLineNumber;
@@ -1444,10 +1453,39 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				const changeLineCountDelta = (insertingLinesCnt - deletingLinesCnt);
 
+				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
+				const firstEditLineNumber = currentEditStartLineNumber;
+				const lastEditLineNumber = currentEditStartLineNumber + editingLinesCnt;
+
+				// We use `cacheVersionId` 0 because we only increment the model version id once at the end of handling all the changes
+				// and we wouldn't want the interval tree to cache ranges incorrectly
+				const decorationsWithInjectedTextInEditedRange = this._ensureNodesHaveRanges(this._decorationsTree.getInjectedTextInInterval(
+					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
+					this.getOffsetAt(new Position(lastEditLineNumber, this.getLineMaxColumn(lastEditLineNumber))),
+					0,
+					0
+				));
+				const injectedText = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
+
+				let injectedTextIndex = injectedText.length - 1;
+				let prevLineNumberWithInjectedText = (injectedTextIndex >= 0 ? injectedText[injectedTextIndex].lineNumber : 0);
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
-					const currentEditLineNumber = newLineCount - lineCount - changeLineCountDelta + editLineNumber;
-					rawContentChanges.push(new ModelRawLineChanged(editLineNumber, this.getLineContent(currentEditLineNumber)));
+					const currentEditLineNumber = currentEditStartLineNumber + j;
+
+					let lineInjectedText: LineInjectedText[] | null = null;
+					if (currentEditLineNumber === prevLineNumberWithInjectedText) {
+						// There is some injected text on this line
+						lineInjectedText = [];
+						while (currentEditLineNumber === prevLineNumberWithInjectedText && injectedTextIndex >= 0) {
+							lineInjectedText.push(injectedText[injectedTextIndex]);
+							injectedTextIndex--;
+							prevLineNumberWithInjectedText = (injectedTextIndex >= 0 ? injectedText[injectedTextIndex].lineNumber : 0);
+						}
+						lineInjectedText.reverse();
+					}
+
+					rawContentChanges.push(new ModelRawLineChanged(editLineNumber, this.getLineContent(currentEditLineNumber), lineInjectedText));
 				}
 
 				if (editingLinesCnt < deletingLinesCnt) {

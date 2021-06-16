@@ -107,6 +107,7 @@ suite('Editor ViewModel - SplitLinesCollection', () => {
 		].join('\n'));
 
 		const linesCollection = new SplitLinesCollection(
+			1,
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
@@ -748,6 +749,7 @@ suite('SplitLinesCollection', () => {
 		const lineBreaksComputerFactory = new MonospaceLineBreaksComputerFactory(wordWrapBreakBeforeCharacters, wordWrapBreakAfterCharacters);
 
 		const linesCollection = new SplitLinesCollection(
+			1,
 			model,
 			lineBreaksComputerFactory,
 			lineBreaksComputerFactory,
