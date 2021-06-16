@@ -203,7 +203,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 			id: ShowNextInlineSuggestionAction.ID,
 			label: nls.localize('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
 			alias: 'Show Next Inline Suggestion',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
@@ -227,7 +227,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 			id: ShowPreviousInlineSuggestionAction.ID,
 			label: nls.localize('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
 			alias: 'Show Previous Inline Suggestion',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,
