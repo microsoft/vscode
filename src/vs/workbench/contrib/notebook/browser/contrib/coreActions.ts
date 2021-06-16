@@ -31,7 +31,7 @@ import { EditorsOrder, IEditorCommandsContext } from 'vs/workbench/common/editor
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { Iterable } from 'vs/base/common/iterator';
 import { flatten, maxIndex, minIndex } from 'vs/base/common/arrays';
@@ -1008,12 +1008,17 @@ abstract class InsertCellCommand extends NotebookAction {
 	}
 
 	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		let newCell: CellViewModel | null = null;
 		if (context.cell) {
-			context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
+			newCell = context.notebookEditor.insertNotebookCell(context.cell, this.kind, this.direction, undefined, true);
 		} else {
 			const focusRange = context.notebookEditor.getFocus();
 			const next = focusRange.end - 1;
-			context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+			newCell = context.notebookEditor.insertNotebookCell(context.notebookEditor.viewModel.viewCells[next], this.kind, this.direction, undefined, true);
+		}
+
+		if (newCell) {
+			context.notebookEditor.focusNotebookCell(newCell, 'editor');
 		}
 	}
 }
