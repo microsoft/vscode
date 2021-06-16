@@ -788,7 +788,7 @@ export class TerminalService implements ITerminalService {
 		}
 		source.target = TerminalTarget.TerminalView;
 
-		// TODO: Share code with joinInstances
+		// TODO: Share code with joinInstances - move into terminal group service
 		const group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
 		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 		this._terminalGroups.push(group);

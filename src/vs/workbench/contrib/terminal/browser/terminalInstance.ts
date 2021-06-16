@@ -956,7 +956,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._wrapperElement.xterm = undefined;
 			}
 			if (this._wrapperElement.parentElement && this._container) {
-				console.log('dispose');
 				this._container.removeChild(this._wrapperElement);
 			}
 		}
