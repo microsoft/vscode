@@ -13,7 +13,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, MenuItemAction, MenuRegistry, registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyNotExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -98,6 +98,7 @@ export interface INotebookActionContext {
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
 	readonly selectedCells?: readonly ICellViewModel[];
+	readonly autoReveal?: boolean;
 }
 
 export interface INotebookCellActionContext extends INotebookActionContext {
@@ -326,6 +327,7 @@ const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.ke
 interface IMultiCellArgs {
 	ranges: ICellRange[];
 	document?: URI;
+	autoReveal?: boolean;
 }
 
 function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
@@ -388,9 +390,11 @@ function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[])
 
 		const ranges = firstArg.ranges;
 		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		const autoReveal = firstArg.autoReveal;
 		return {
 			notebookEditor: editor,
-			selectedCells
+			selectedCells,
+			autoReveal
 		};
 	}
 
@@ -549,6 +553,10 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 								'document': {
 									'type': 'object',
 									'description': 'The document uri',
+								},
+								'autoReveal': {
+									'type': 'boolean',
+									'description': 'Whether the cell should be revealed into view automatically'
 								}
 							}
 						}
@@ -944,9 +952,17 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
-		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+		const cellIndex = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 	} else if (context.selectedCells) {
-		return context.notebookEditor.executeNotebookCells(context.selectedCells);
+		await context.notebookEditor.executeNotebookCells(context.selectedCells);
+		const firstCell = context.selectedCells[0];
+
+		if (firstCell) {
+			const cellIndex = context.notebookEditor.viewModel.getCellIndex(firstCell);
+			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		}
 	}
 }
 
