@@ -10,7 +10,7 @@ import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbenc
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
-import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
 import { INotebookDecorationRenderOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -30,7 +30,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 	readonly onDidAddNotebookEditor = this._onNotebookEditorAdd.event;
 	readonly onDidRemoveNotebookEditor = this._onNotebookEditorsRemove.event;
 
-	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined }>>();
+	private readonly _borrowableEditors = new Map<number, ResourceMap<{ widget: NotebookEditorWidget, token: number | undefined; }>>();
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
@@ -119,14 +119,14 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		targetMap.set(input.resource, widget);
 	}
 
-	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput): IBorrowValue<NotebookEditorWidget> {
+	retrieveWidget(accessor: ServicesAccessor, group: IEditorGroup, input: NotebookEditorInput, creationOptions?: INotebookEditorCreationOptions): IBorrowValue<NotebookEditorWidget> {
 
 		let value = this._borrowableEditors.get(group.id)?.get(input.resource);
 
 		if (!value) {
 			// NEW widget
 			const instantiationService = accessor.get(IInstantiationService);
-			const widget = instantiationService.createInstance(NotebookEditorWidget, { isEmbedded: false });
+			const widget = instantiationService.createInstance(NotebookEditorWidget, creationOptions ?? { isEmbedded: false });
 			const token = this._tokenPool++;
 			value = { widget, token };
 
@@ -146,7 +146,7 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 		return this._createBorrowValue(value.token!, value);
 	}
 
-	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget, token: number | undefined }): IBorrowValue<NotebookEditorWidget> {
+	private _createBorrowValue(myToken: number, widget: { widget: NotebookEditorWidget, token: number | undefined; }): IBorrowValue<NotebookEditorWidget> {
 		return {
 			get value() {
 				return widget.token === myToken ? widget.widget : undefined;

@@ -25,6 +25,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -89,7 +90,10 @@ export class InteractiveEditor extends EditorPane {
 			this.#notebookWidget.value.onWillHide();
 		}
 
-		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput);
+		this.#notebookWidget = this.#instantiationService.invokeFunction(this.#notebookWidgetService.retrieveWidget, group, notebookInput, {
+			isEmbedded: true,
+			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([])
+		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
 		if (this.#dimension) {
