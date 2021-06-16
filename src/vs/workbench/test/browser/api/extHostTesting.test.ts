@@ -5,16 +5,16 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
-import { createDefaultDocumentTestRoot, TestItemFilteredWrapper, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
+import { TestItemFilteredWrapper, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestMessage } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
+import { expandAllStubs, stubTest, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import type { TestItem, TestRunRequest, TextDocument } from 'vscode';
 
@@ -67,7 +67,8 @@ suite('ExtHost Testing', () => {
 	let owned: TestOwnedTestCollection;
 	setup(() => {
 		owned = new TestOwnedTestCollection();
-		single = owned.createForHierarchy(d => single.setDiff(d /* don't clear during testing */));
+		single = owned.createForHierarchy();
+		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
 	});
 
 	teardown(() => {
@@ -331,18 +332,7 @@ suite('ExtHost Testing', () => {
 						stubTest('c', undefined, undefined, URI.parse('file:///baz.ts')),
 					]);
 
-				// todo: this is not used, don't think it's needed anymore
-				await createDefaultDocumentTestRoot<void>(
-					{
-						createWorkspaceTestRoot: () => testsWithLocation as TestItem<void>,
-						runTests() {
-							throw new Error('no implemented');
-						}
-					},
-					textDocumentFilter,
-					undefined,
-					CancellationToken.None
-				);
+				expandAllStubs(testsWithLocation);
 			});
 
 			teardown(() => {
@@ -352,6 +342,7 @@ suite('ExtHost Testing', () => {
 			test('gets all actual properties', () => {
 				const testItem = stubTest('test1');
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
+				wrapper.refreshMatch();
 
 				assert.strictEqual(testItem.debuggable, wrapper.debuggable);
 				assert.strictEqual(testItem.description, wrapper.description);
@@ -363,14 +354,14 @@ suite('ExtHost Testing', () => {
 			test('gets no children if nothing matches Uri filter', () => {
 				const tests = testStubs.nested();
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
+				wrapper.refreshMatch();
 				assert.strictEqual(wrapper.children.size, 0);
 			});
 
 			test('filter is applied to children', () => {
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				wrapper.refreshMatch();
 				assert.strictEqual(wrapper.label, 'root');
-				wrapper.resolveHandler?.(CancellationToken.None);
 
 				const children = [...wrapper.children.values()];
 				assert.strictEqual(children.length, 1);
@@ -380,7 +371,7 @@ suite('ExtHost Testing', () => {
 
 			test('can get if node has matching filter', () => {
 				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				rootWrapper.resolveHandler?.(CancellationToken.None);
+				rootWrapper.refreshMatch();
 
 				const invisible = testsWithLocation.children.get('id-b')!;
 				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
@@ -393,9 +384,9 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
 			});
 
-			test('can reset cached value of hasNodeMatchingFilter', () => {
+			test('can reset cached value of hasNodeMatchingFilter on new children', () => {
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
+				wrapper.refreshMatch();
 
 				const invisible = testsWithLocation.children.get('id-b')!;
 				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
@@ -407,6 +398,19 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(invisibleWrapper.hasNodeMatchingFilter, true);
 				assert.strictEqual(invisibleWrapper.children.size, 1);
 				assert.strictEqual(wrapper.children.get('id-b'), invisibleWrapper);
+			});
+
+			test('can reset cached value of hasNodeMatchingFilter on children removed', () => {
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				wrapper.refreshMatch();
+
+				const itemB = testsWithLocation.children.get('id-b')!;
+				const visibleChild = stubTest('bc', undefined, undefined, URI.parse('file:///foo.ts'));
+				itemB.addChild(visibleChild);
+				assert.strictEqual(!!wrapper.children.get('id-b'), true);
+
+				visibleChild.dispose();
+				assert.strictEqual(!!wrapper.children.get('id-b'), false);
 			});
 		});
 	});

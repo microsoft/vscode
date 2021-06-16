@@ -85,13 +85,14 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	private readonly owned = new TestOwnedTestCollection();
 	private readonly onDiff = this._register(new Emitter<object>());
 	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
-	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy(d => this.c.setDiff(d /* don't clear during testing */)));
+	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy());
 	private isProcessingDiff = false;
 	public readonly projection: T;
 	public readonly tree: TestObjectTree<TestExplorerTreeElement>;
 
 	constructor(folders: IWorkspaceFolderData[], makeTree: (listener: TestSubscriptionListener) => T) {
 		super();
+		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
 		this.projection = this._register(makeTree({
 			workspaceFolderCollections: folders.map(folder => [{ folder }, {
 				expand: (testId: string, levels: number) => {
