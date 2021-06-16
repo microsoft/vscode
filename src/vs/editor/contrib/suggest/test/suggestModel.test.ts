@@ -31,11 +31,12 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerServ
 import { ISuggestMemoryService } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { MockKeybindingService, MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { mock } from 'vs/base/test/common/mock';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 
 function createMockEditor(model: TextModel): ITestCodeEditor {
@@ -204,7 +205,9 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					}
 				},
 				NullTelemetryService,
-				new NullLogService()
+				new NullLogService(),
+				new MockContextKeyService(),
+				new TestConfigurationService()
 			);
 			disposables.push(oracle, editor);
 

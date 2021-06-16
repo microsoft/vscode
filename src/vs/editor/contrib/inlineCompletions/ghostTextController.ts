@@ -19,7 +19,7 @@ import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class GhostTextController extends Disposable {
-	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
+	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
 
 	static ID = 'editor.contrib.ghostTextController';
@@ -48,6 +48,9 @@ export class GhostTextController extends Disposable {
 		}));
 		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.suggest)) {
+				this.updateModelController();
+			}
+			if (e.hasChanged(EditorOption.inlineSuggest)) {
 				this.updateModelController();
 			}
 		}));
