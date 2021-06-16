@@ -20,6 +20,7 @@ import { INotebookEditorOptions } from 'vs/workbench/contrib/notebook/browser/no
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -33,6 +34,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
 	#modelService: IModelService;
+	#contextKeyService: IContextKeyService;
 	#dimension?: DOM.Dimension;
 
 	constructor(
@@ -42,6 +44,7 @@ export class InteractiveEditor extends EditorPane {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
 		@IModelService modelService: IModelService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -52,6 +55,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#instantiationService = instantiationService;
 		this.#notebookWidgetService = notebookWidgetService;
 		this.#modelService = modelService;
+		this.#contextKeyService = contextKeyService;
 	}
 
 	protected createEditor(parent: HTMLElement): void {
@@ -92,7 +96,7 @@ export class InteractiveEditor extends EditorPane {
 			throw new Error('?');
 		}
 
-		// this.#widget.value?.setParentContextKeyService(this._contextKeyService);
+		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
