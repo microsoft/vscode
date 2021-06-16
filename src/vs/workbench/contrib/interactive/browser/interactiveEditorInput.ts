@@ -9,14 +9,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
-export class InteractiveEditorInput extends AbstractResourceEditorInput {
+export class InteractiveEditorInput extends AbstractResourceEditorInput implements ICompositeNotebookEditorInput {
 	typeId: string = 'workbench.input.interactive';
 
 	private _notebookEditorInput: NotebookEditorInput;
 	get notebookEditorInput() {
 		return this._notebookEditorInput;
+	}
+
+	get editorInputs() {
+		return [this._notebookEditorInput];
 	}
 
 	private _inputResource: URI;

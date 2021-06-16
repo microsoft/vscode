@@ -8,7 +8,7 @@ import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/note
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditor, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
@@ -42,21 +42,31 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 			const listeners: IDisposable[] = [];
 			listeners.push(group.onDidGroupChange(e => {
 				const widgets = this._borrowableEditors.get(group.id);
-				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE || !(e.editor instanceof NotebookEditorInput)) {
+				if (!widgets || e.kind !== GroupChangeKind.EDITOR_CLOSE) {
 					return;
 				}
-				const value = widgets.get(e.editor.resource);
-				if (!value) {
-					return;
-				}
-				value.token = undefined;
-				this._disposeWidget(value.widget);
-				widgets.delete(e.editor.resource);
-				value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
+
+				const inputs = e.editor instanceof NotebookEditorInput ? [e.editor] : (isCompositeNotebookEditor(e.editor) ? e.editor.editorInputs : []);
+				inputs.forEach(input => {
+					const value = widgets.get(input.resource);
+					if (!value) {
+						return;
+					}
+					value.token = undefined;
+					this._disposeWidget(value.widget);
+					widgets.delete(input.resource);
+					value.widget = (<any>undefined); // unset the widget so that others that still hold a reference don't harm us
+				});
 			}));
 			listeners.push(group.onWillMoveEditor(e => {
 				if (e.editor instanceof NotebookEditorInput) {
 					this._freeWidget(e.editor, e.groupId, e.target);
+				}
+
+				if (isCompositeNotebookEditor(e.editor)) {
+					e.editor.editorInputs.forEach(input => {
+						this._freeWidget(input, e.groupId, e.target);
+					});
 				}
 			}));
 			groupListener.set(id, listeners);

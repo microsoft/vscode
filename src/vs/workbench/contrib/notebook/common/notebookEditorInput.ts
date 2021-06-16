@@ -170,7 +170,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return undefined;
 	}
 
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput } {
+	private _move(_group: GroupIdentifier, newResource: URI): { editor: IEditorInput; } {
 		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
 		return { editor: editorInput };
 	}
@@ -226,4 +226,15 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 		return false;
 	}
+}
+
+export interface ICompositeNotebookEditorInput {
+	readonly editorInputs: NotebookEditorInput[];
+}
+
+export function isCompositeNotebookEditor(thing: unknown): thing is ICompositeNotebookEditorInput {
+	return !!thing
+		&& typeof thing === 'object'
+		&& Array.isArray((<ICompositeNotebookEditorInput>thing).editorInputs)
+		&& ((<ICompositeNotebookEditorInput>thing).editorInputs.every(input => input instanceof NotebookEditorInput));
 }
