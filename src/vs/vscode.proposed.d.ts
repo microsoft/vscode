@@ -2033,7 +2033,7 @@ declare module 'vscode' {
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
-		 * @param duration Optionally sets how long the test took to run
+		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
 		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
