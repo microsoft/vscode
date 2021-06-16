@@ -16,7 +16,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 30
     env:
-      CHILD_CONCURRENCY: "1"
+      CHILD_CONCURRENCY: "5"
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@v2
