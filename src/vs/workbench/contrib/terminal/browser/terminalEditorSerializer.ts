@@ -20,31 +20,29 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string {
+		console.log('serialize', editorInput.terminalInstance?.persistentProcessId);
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
 		this._terminalEditorService.detachInstance(editorInput.terminalInstance!);
 		return term;
 	}
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TerminalEditorInput | undefined {
-		try {
-			const terminalInstance = JSON.parse(serializedEditorInput);
-			if (!terminalInstance) {
-				return undefined;
-			}
-			const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
-			return new TerminalEditorInput(terminal);
-		} catch {
-			return undefined;
-		}
+		const terminalInstance = JSON.parse(serializedEditorInput);
+		const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
+		console.log('deserializing editor', terminalInstance);
+		const input = new TerminalEditorInput(terminal);
+		terminal.onExit(() => input.dispose());
+		return input;
 	}
 
 	private _toJson(instance?: ITerminalInstance): SerializedTerminalEditorInput | undefined {
-		if (!instance) {
+		// TODO update these names
+		if (!instance || !instance.persistentProcessId) {
 			return undefined;
 		}
 		return {
-			id: instance.instanceId,
-			pid: instance.persistentProcessId || 0,
+			id: instance.persistentProcessId,
+			pid: instance.processId || 0,
 			title: instance.title,
 			titleSource: instance.titleSource,
 			cwd: '',

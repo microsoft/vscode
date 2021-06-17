@@ -334,11 +334,17 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, LAUNCHING_DURATION);
 
-		const result = await newProcess.start();
-		if (result) {
-			// Error
-			return result;
+		try {
+			const result = await newProcess.start();
+			if (result) {
+				// Error
+				return result;
+			}
+		} catch (e) {
+			console.log('caught', e.message);
+			return { message: e.message };
 		}
+
 
 		return undefined;
 	}
