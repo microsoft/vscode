@@ -198,6 +198,7 @@ registerAction2(class extends Action2 {
 							count: 0,
 							cells: [{
 								cellKind: CellKind.Code,
+								mime: undefined,
 								language,
 								source: value,
 								outputs: [],
