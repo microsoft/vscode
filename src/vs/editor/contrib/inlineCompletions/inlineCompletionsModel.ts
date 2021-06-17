@@ -200,6 +200,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.scheduleAutomaticUpdate();
 		}));
 
+		this._register(InlineCompletionsProviderRegistry.onDidChange(() => {
+			this.updateSoon.schedule();
+		}));
+
 		this.scheduleAutomaticUpdate();
 	}
 
