@@ -23,6 +23,11 @@
 	height: 100%;
 }
 
+/* Override monaco's cursor focus outline */
+.monaco-workbench .editor-instance textarea:focus {
+	outline: 0 !important;
+}
+
 .monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;

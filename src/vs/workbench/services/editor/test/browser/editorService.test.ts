@@ -7,12 +7,10 @@ import * as assert from 'assert';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -27,7 +25,6 @@ import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { NullFileSystemProvider } from 'vs/platform/files/test/common/nullFileSystemProvider';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { isLinux } from 'vs/base/common/platform';
 import { MockScopableContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -491,38 +488,6 @@ suite('EditorService', () => {
 		const untypedDiffInput = input.asResourceEditorInput(0) as IResourceDiffEditorInput;
 		assert.strictEqual(untypedDiffInput.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
 		assert.strictEqual(untypedDiffInput.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
-	});
-
-	test('delegate', function (done) {
-		const instantiationService = workbenchInstantiationService();
-
-		class MyEditor extends EditorPane {
-
-			constructor(id: string) {
-				super(id, undefined!, new TestThemeService(), new TestStorageService());
-			}
-
-			override getId(): string {
-				return 'myEditor';
-			}
-
-			layout(): void { }
-
-			createEditor(): void { }
-		}
-
-		const editor = instantiationService.createInstance(MyEditor, 'my.editor');
-
-		const input = instantiationService.createInstance(TextResourceEditorInput, URI.parse('my://resource-delegate'), 'name', 'description', undefined, undefined);
-		const delegate = instantiationService.createInstance(DelegatingEditorService, async (group, delegate) => {
-			assert.ok(group);
-
-			done();
-
-			return editor;
-		});
-
-		delegate.openEditor(input);
 	});
 
 	test('close editor does not dispose when editor opened in other group', async () => {

@@ -9,7 +9,7 @@ import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -91,11 +91,6 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
-export const enum TerminalTarget {
-	TerminalView = 'view',
-	Editor = 'editor'
-}
-
 export interface ICreateTerminalOptions {
 	/**
 	 * The shell launch config or profile to launch with, when not specified the default terminal
@@ -110,7 +105,7 @@ export interface ICreateTerminalOptions {
 	/**
 	 * Where to create the terminal, when not specified the default target will be used.
 	 */
-	target?: TerminalTarget;
+	target?: TerminalLocation;
 }
 
 export interface ITerminalService {
@@ -182,6 +177,7 @@ export interface ITerminalService {
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	moveToEditor(source: ITerminalInstance): void;
+	moveToTerminalView(source?: ITerminalInstance): Promise<void>;
 
 	/**
 	 * Perform an action with the active terminal instance, if the terminal does
@@ -246,6 +242,8 @@ export interface ITerminalEditorService {
 	readonly terminalEditorInstances: ITerminalInstance[];
 
 	createEditor(instance: ITerminalInstance): Promise<void>;
+	detachActiveEditorInstance(): ITerminalInstance;
+	detachInstance(instance: ITerminalInstance): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
@@ -326,7 +324,7 @@ export interface ITerminalInstance {
 	 */
 	processId: number | undefined;
 
-	target?: TerminalTarget;
+	target?: TerminalLocation;
 
 	/**
 	 * The id of a persistent process. This is defined if this is a terminal created by a pty host
@@ -488,7 +486,7 @@ export interface ITerminalInstance {
 	/**
 	 * Inform the process that the terminal is now detached.
 	 */
-	detachFromProcess(): void;
+	detachFromProcess(): Promise<void>;
 
 	/**
 	 * Forces the terminal to redraw its viewport.

@@ -92,7 +92,7 @@ suite('FileWorkingCopyManager', () => {
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 0);
 
 		await manager.resolve(URI.file('/test.html'));
-		await manager.resolve({ contents: bufferToStream(VSBuffer.fromString('Hello Untitled')) });
+		await manager.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello Untitled')) } });
 
 		assert.strictEqual(accessor.workingCopyService.workingCopies.length, 2);
 		assert.strictEqual(manager.stored.workingCopies.length, 1);

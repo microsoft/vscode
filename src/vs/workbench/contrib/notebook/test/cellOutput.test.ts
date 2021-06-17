@@ -42,7 +42,7 @@ OutputRendererRegistry.registerOutputTransform(class implements IOutputTransform
 suite('NotebookViewModel Outputs', async () => {
 	const instantiationService = setupInstantiationService();
 	instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
-		override getMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: [], output: IOutputDto) {
+		override getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: [], output: IOutputDto) {
 			if (output.outputId === 'output_id_err') {
 				return [{
 					mimeType: 'application/vnd.code.notebook.stderr',

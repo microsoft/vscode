@@ -91,23 +91,23 @@ export class LinkedEditingContribution extends Disposable implements IEditorCont
 		this._currentRequestPosition = null;
 		this._currentRequestModelVersion = null;
 
-		this._register(this._editor.onDidChangeModel(() => this.reinitialize()));
+		this._register(this._editor.onDidChangeModel(() => this.reinitialize(true)));
 
 		this._register(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.linkedEditing) || e.hasChanged(EditorOption.renameOnType)) {
-				this.reinitialize();
+				this.reinitialize(false);
 			}
 		}));
-		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize()));
-		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize()));
+		this._register(LinkedEditingRangeProviderRegistry.onDidChange(() => this.reinitialize(false)));
+		this._register(this._editor.onDidChangeModelLanguage(() => this.reinitialize(true)));
 
-		this.reinitialize();
+		this.reinitialize(true);
 	}
 
-	private reinitialize() {
+	private reinitialize(forceRefresh: boolean) {
 		const model = this._editor.getModel();
 		const isEnabled = model !== null && (this._editor.getOption(EditorOption.linkedEditing) || this._editor.getOption(EditorOption.renameOnType)) && LinkedEditingRangeProviderRegistry.has(model);
-		if (isEnabled === this._enabled) {
+		if (isEnabled === this._enabled && !forceRefresh) {
 			return;
 		}
 

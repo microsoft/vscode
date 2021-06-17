@@ -535,7 +535,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 		// Capture list of starting candidates so we don't auto forward them later.
 		await this.setInitialCandidates();
 
-		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		// Need to check the setting again, since it may have changed while we waited for the initial candidates to be set.
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+			this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		}
 	}
 
 	private async setInitialCandidates() {

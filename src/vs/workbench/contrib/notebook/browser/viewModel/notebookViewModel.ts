@@ -780,6 +780,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					{
 						cellKind: type,
 						language: language,
+						mime: undefined,
 						outputs: outputs,
 						metadata: metadata,
 						source: source
@@ -923,6 +924,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (newLinesContents) {
 				const language = cell.language;
 				const kind = cell.cellKind;
+				const mime = cell.mime;
 
 				const textModel = await cell.resolveTextModel();
 				await this._bulkEditService.apply(
@@ -936,6 +938,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 								cells: newLinesContents.slice(1).map(line => ({
 									cellKind: kind,
 									language,
+									mime,
 									source: line,
 									outputs: [],
 									metadata: {}

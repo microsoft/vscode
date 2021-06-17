@@ -8,7 +8,7 @@ import { HoverAnchor, HoverAnchorType, HoverForeignElementAnchor, IEditorHover, 
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelDecoration } from 'vs/editor/common/model';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { commitInlineSuggestionAction, GhostTextController, ShowNextInlineSuggestionAction, ShowPreviousInlineSuggestionAction } from 'vs/editor/contrib/inlineCompletions/ghostTextController';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
@@ -81,10 +81,12 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 	}
 
 	renderHoverParts(hoverParts: InlineCompletionsHover[], fragment: DocumentFragment, statusBar: IEditorHoverStatusBar): IDisposable {
-		const menu = this._menuService.createMenu(
+		const disposableStore = new DisposableStore();
+
+		const menu = disposableStore.add(this._menuService.createMenu(
 			MenuId.InlineCompletionsActions,
 			this._contextKeyService
-		);
+		));
 
 		const previousAction = statusBar.addAction({
 			label: nls.localize('showNextInlineSuggestion', "Next"),
@@ -124,6 +126,6 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			}
 		}
 
-		return Disposable.None;
+		return disposableStore;
 	}
 }

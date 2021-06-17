@@ -207,6 +207,12 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
+	creationTarget: TerminalLocation;
+}
+
+export const enum TerminalLocation {
+	TerminalView = 'view',
+	Editor = 'editor'
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -297,7 +303,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
-	detachFromProcess(): void;
+	detachFromProcess(): Promise<void>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
@@ -450,7 +456,8 @@ export const enum TerminalCommandId {
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
 	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession',
 	DetachProcess = 'workbench.action.terminal.detachProcess',
-	MoveToEditor = 'workbench.action.terminal.moveToEditor'
+	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	MoveToTerminalView = 'workbench.action.terminal.moveToTerminalView',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
