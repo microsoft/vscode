@@ -92,6 +92,7 @@ declare module 'vscode' {
 		localAddressPort?: number;
 		label?: string;
 		public?: boolean;
+		protocol?: string;
 	}
 
 	export interface TunnelDescription {
@@ -99,6 +100,8 @@ declare module 'vscode' {
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
 		public?: boolean;
+		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
+		protocol?: string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -226,6 +229,7 @@ declare module 'vscode' {
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
+		workspaceTooltip?: string;
 		authorityPrefix?: string;
 		stripPathStartingSeparator?: boolean;
 	}
@@ -2032,7 +2036,7 @@ declare module 'vscode' {
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
-		 * @param duration Optionally sets how long the test took to run
+		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
 		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
@@ -2043,8 +2047,7 @@ declare module 'vscode' {
 		 * or in the {@link TestRunRequest.exclude} array will no-op.
 		 *
 		 * @param test The test to update
-		 * @param state The state to assign to the test
-		 *
+		 * @param message The message to add
 		 */
 		appendMessage(test: TestItem<T>, message: TestMessage): void;
 

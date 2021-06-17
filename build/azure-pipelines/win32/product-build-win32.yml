@@ -17,6 +17,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -198,7 +199,7 @@ steps:
 
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: logs-windows-$(VSCODE_ARCH)
+      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       targetPath: .build\logs
     displayName: "Publish Log Files"
     continueOnError: true

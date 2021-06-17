@@ -8,7 +8,7 @@ import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostCont
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -159,6 +159,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 						localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
 						public: tunnel.public,
+						protocol: tunnel.protocol ?? TunnelProtocol.Http,
 						dispose: async (silent?: boolean) => {
 							this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);

@@ -288,7 +288,25 @@ export function setupTerminalMenus(): void {
 					order: 2,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+						ContextKeyExpr.or(
+							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+						)
 					])
 				}
 			},
@@ -304,7 +322,25 @@ export function setupTerminalMenus(): void {
 					order: 3,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+						ContextKeyExpr.or(
+							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+						)
 					])
 				}
 			},

@@ -1055,7 +1055,7 @@ declare module 'vscode' {
 		/**
 		 * A message that should be rendered when hovering over the decoration.
 		 */
-		hoverMessage?: MarkdownString | (MarkdownString | MarkedString)[] | MarkedString;
+		hoverMessage?: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>;
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
@@ -2636,7 +2636,7 @@ declare module 'vscode' {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: (MarkdownString | MarkedString)[];
+		contents: Array<MarkdownString | MarkedString>;
 
 		/**
 		 * The range to which this hover applies. When missing, the
@@ -2651,7 +2651,7 @@ declare module 'vscode' {
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
-		constructor(contents: MarkdownString | (MarkdownString | MarkedString)[] | MarkedString, range?: Range);
+		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
 	}
 
 	/**
@@ -8269,7 +8269,7 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse('${vscode.env.uriScheme}://my.extension/did-authenticate'));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *

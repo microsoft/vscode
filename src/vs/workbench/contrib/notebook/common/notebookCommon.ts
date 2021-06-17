@@ -362,7 +362,7 @@ export const enum CellEditType {
 export interface ICellDto2 {
 	source: string;
 	language: string;
-	mime?: string;
+	mime: string | undefined;
 	cellKind: CellKind;
 	outputs: IOutputDto[];
 	metadata?: NotebookCellMetadata;

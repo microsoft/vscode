@@ -12,10 +12,6 @@
 	overflow: hidden;
 }
 
-.settings-editor .codicon {
-	color: inherit !important;
-}
-
 .settings-editor:focus {
 	outline: none !important;
 }

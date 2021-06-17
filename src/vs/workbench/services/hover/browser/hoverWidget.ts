@@ -31,6 +31,10 @@ type TargetRect = {
 	center: { x: number, y: number },
 };
 
+const enum Constants {
+	PointerSize = 3
+}
+
 export class HoverWidget extends Widget {
 	private readonly _messageListeners = new DisposableStore();
 	private readonly _mouseTracker: CompositeMouseTracker;
@@ -197,6 +201,32 @@ export class HoverWidget extends Widget {
 
 		this.adjustHorizontalHoverPosition(targetRect);
 		this.adjustVerticalHoverPosition(targetRect);
+
+		// Offset the hover position if there is a pointer so it aligns with the target element
+		if (this._hoverPointer) {
+			switch (this._hoverPosition) {
+				case HoverPosition.RIGHT:
+					targetRect.left += Constants.PointerSize;
+					targetRect.right += Constants.PointerSize;
+					break;
+				case HoverPosition.LEFT:
+					targetRect.left -= Constants.PointerSize;
+					targetRect.right -= Constants.PointerSize;
+					break;
+				case HoverPosition.BELOW:
+					targetRect.top += Constants.PointerSize;
+					targetRect.bottom += Constants.PointerSize;
+					break;
+				case HoverPosition.ABOVE:
+					targetRect.top -= Constants.PointerSize;
+					targetRect.bottom -= Constants.PointerSize;
+					break;
+			}
+
+			targetRect.center.x = targetRect.left + (width / 2);
+			targetRect.center.y = targetRect.top + (height / 2);
+		}
+
 		this.computeXCordinate(targetRect);
 		this.computeYCordinate(targetRect);
 
@@ -332,12 +362,12 @@ export class HoverWidget extends Widget {
 
 				// If hover is taller than target and aligned with target's bottom, then show the pointer at the center of target
 				if (hoverHeight > target.height && this._y === target.bottom) {
-					this._hoverPointer.style.top = `${target.center.y - target.top - 3}px`;
+					this._hoverPointer.style.top = `${target.center.y - target.top - Constants.PointerSize}px`;
 				}
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - 3}px`;
+					this._hoverPointer.style.top = `${Math.round((hoverHeight / 2)) - Constants.PointerSize}px`;
 				}
 
 				break;
@@ -348,12 +378,12 @@ export class HoverWidget extends Widget {
 
 				// If hover is wider than target and aligned with target's left, then show the pointer at the center of target
 				if (hoverWidth > target.width && this._x === target.left) {
-					this._hoverPointer.style.left = `${target.center.x - target.left - 3}px`;
+					this._hoverPointer.style.left = `${target.center.x - target.left - Constants.PointerSize}px`;
 				}
 
 				// Otherwise show the pointer at the center of hover
 				else {
-					this._hoverPointer.style.left = `${Math.round((hoverWidth / 2)) - 3}px`;
+					this._hoverPointer.style.left = `${Math.round((hoverWidth / 2)) - Constants.PointerSize}px`;
 				}
 				break;
 		}

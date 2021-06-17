@@ -72,6 +72,8 @@ interface ITunnelOptions {
 	label?: string;
 
 	public?: boolean;
+
+	protocol?: string;
 }
 
 export interface TunnelCreationOptions {
@@ -92,6 +94,11 @@ interface ITunnel {
 	localAddress: string;
 
 	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
 
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
@@ -318,8 +325,15 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
+
+	/**
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be an Id of an extension published in the Marketplace or location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (string | UriComponents)[];
 
 	/**
 	 * Filter for built-in extensions.
@@ -438,7 +452,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: readonly IStaticExtension[];
+	readonly extensions?: readonly UriComponents[];
 
 	/**
 	 * Whether to enable the smoke test driver.

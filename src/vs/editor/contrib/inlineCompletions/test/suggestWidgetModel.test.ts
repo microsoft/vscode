@@ -143,9 +143,7 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 		clock = sinon.useFakeTimers();
 	}
 	try {
-		const p = clock?.runAllAsync();
-
-		await withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
+		const p = withAsyncTestCodeEditor(text, { ...options, serviceCollection }, async (editor, editorViewModel, instantiationService) => {
 			editor.registerAndInstantiateContribution(SnippetController2.ID, SnippetController2);
 			editor.registerAndInstantiateContribution(SuggestController.ID, SuggestController);
 			const model = instantiationService.createInstance(SuggestWidgetAdapterModel, editor);
@@ -154,7 +152,10 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 			model.dispose();
 		});
 
+		const p2 = clock?.runAllAsync();
+
 		await p;
+		await p2;
 	} finally {
 		clock?.restore();
 		disposableStore.dispose();

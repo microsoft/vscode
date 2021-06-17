@@ -60,7 +60,6 @@ export class TerminalEditor extends EditorPane {
 		super.setVisible(visible, group);
 		return this._editorInput?.terminalInstance?.setVisible(visible);
 	}
-
 }
 
 export class TerminalInputSerializer implements IEditorInputSerializer {

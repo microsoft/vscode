@@ -1501,7 +1501,8 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .extension-editor .subcontent a { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .extension-editor .subcontent a:hover,
+			.monaco-workbench .extension-editor .subcontent a:active { color: ${activeLink}; }`);
 	}
 
 });

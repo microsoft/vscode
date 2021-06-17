@@ -27,6 +27,7 @@ export interface IExtensionManagementServerService {
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IWorkbenchExtensionManagementService>(IExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
+	installWebExtension(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension): Promise<ILocalExtension>;
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null
@@ -112,9 +113,12 @@ export interface IWebExtensionsScannerService {
 	scanSystemExtensions(): Promise<IExtension[]>;
 	scanUserExtensions(): Promise<IExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
-	scanSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
 
 	canAddExtension(galleryExtension: IGalleryExtension): boolean;
-	addExtension(galleryExtension: IGalleryExtension): Promise<IExtension>;
+	addExtension(location: URI): Promise<IExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
+
+	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }
