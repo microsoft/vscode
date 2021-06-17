@@ -5,7 +5,7 @@
 
 import * as arrays from 'vs/base/common/arrays';
 import { WrappingIndent } from 'vs/editor/common/config/editorOptions';
-import { LineTokens } from 'vs/editor/common/core/lineTokens';
+import { IViewLineTokens, LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, IActiveIndentGuideInfo, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionNormalizationAffinity } from 'vs/editor/common/model';
@@ -1273,53 +1273,45 @@ export class SplitLine implements ISplitLine {
 			throw new Error('Not supported');
 		}
 
-		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
-
 		const lineBreakData = this._lineBreakData;
-		console.log(lineBreakData.injectionTexts, startOffset, endOffset);
-
-		let lineTokens: LineTokens;
-		//lineTokens.
-		//console.log(lineTokens);
+		const deltaStartIndex = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength : 0);
 
 		const offsets = lineBreakData.injectionOffsets;
-		//const widths = lineBreakData.injectionWidth;
 		const texts = lineBreakData.injectionTexts;
+
+		let lineContent: string;
+		let tokens: IViewLineTokens;
 		if (offsets) {
-			lineTokens = model.getLineTokens(modelLineNumber).withInserted(offsets.map((offset, idx) => ({
+			const lineTokens = model.getLineTokens(modelLineNumber).withInserted(offsets.map((offset, idx) => ({
 				offset,
 				text: texts![idx],
 				tokenMetadata: LineTokens.defaultTokenMetadata
 			})));
 
+			const startOffset = (outputLineIndex > 0 ? lineBreakData.breakOffsets[outputLineIndex - 1] : 0);
+			const endOffset = lineBreakData.breakOffsets[outputLineIndex];
+			lineContent = lineTokens.getLineContent().substring(startOffset, endOffset);
+			tokens = lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
 		} else {
-			lineTokens = model.getLineTokens(modelLineNumber);
-		}
-
-		let lineContent = lineBreakData.injectionTexts !== null
-			? lineTokens.getLineContent().substring(startOffset, endOffset)
-			: model.getValueInRange({
+			const startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
+			const endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
+			const lineTokens = model.getLineTokens(modelLineNumber);
+			lineContent = model.getValueInRange({
 				startLineNumber: modelLineNumber,
 				startColumn: startOffset + 1,
 				endLineNumber: modelLineNumber,
 				endColumn: endOffset + 1
 			});
+			tokens = lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex);
+		}
 
 		if (outputLineIndex > 0) {
 			lineContent = spaces(lineBreakData.wrappedTextIndentLength) + lineContent;
 		}
 
-		let minColumn = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength + 1 : 1);
-		let maxColumn = lineContent.length + 1;
-
-		let continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
-
-		let deltaStartIndex = 0;
-		if (outputLineIndex > 0) {
-			deltaStartIndex = lineBreakData.wrappedTextIndentLength;
-		}
-
+		const minColumn = (outputLineIndex > 0 ? lineBreakData.wrappedTextIndentLength + 1 : 1);
+		const maxColumn = lineContent.length + 1;
+		const continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
 		const startVisibleColumn = (outputLineIndex === 0 ? 0 : lineBreakData.breakOffsetsVisibleColumn[outputLineIndex - 1]);
 
 		return new ViewLineData(
@@ -1328,7 +1320,7 @@ export class SplitLine implements ISplitLine {
 			minColumn,
 			maxColumn,
 			startVisibleColumn,
-			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
+			tokens
 		);
 	}
 

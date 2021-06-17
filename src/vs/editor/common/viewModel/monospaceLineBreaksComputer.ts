@@ -357,13 +357,32 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: string, injectedText: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+function applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
+	if (!injectedTexts || injectedTexts.length === 0) {
+		return lineText;
+	}
+	let result = '';
+	let lastOriginalOffset = 0;
+	for (const injectedText of injectedTexts) {
+		result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
+		lastOriginalOffset = injectedText.column - 1;
+		result += injectedText.text;
+	}
+	result += lineText.substring(lastOriginalOffset);
+	return result;
+}
+
+function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
+	const lineText = applyInjectedText(_lineText, injectedTexts);
+
 	if (firstLineBreakColumn === -1) {
+		// TODO: return LineBreakData that only has injected text if necessary
 		return null;
 	}
 
 	const len = lineText.length;
 	if (len <= 1) {
+		// TODO: return LineBreakData that only has injected text if necessary
 		return null;
 	}
 
@@ -445,10 +464,10 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, lineText: str
 	let injectionTexts: string[] | null;
 	let injectionOffsets: number[] | null;
 	let injectionWidths: number[] | null;
-	if (injectedText) {
-		injectionTexts = injectedText.map(t => t.text);
-		injectionOffsets = injectedText.map(text => text.column - 1);
-		injectionWidths = injectedText.map(text => text.text.length);
+	if (injectedTexts) {
+		injectionTexts = injectedTexts.map(t => t.text);
+		injectionOffsets = injectedTexts.map(text => text.column - 1);
+		injectionWidths = injectedTexts.map(text => text.text.length);
 	} else {
 		injectionTexts = null;
 		injectionOffsets = null;
