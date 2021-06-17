@@ -333,7 +333,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
-		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		if (!this.notebookEditor.creationOptions.isReadOnly) {
+			deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		}
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
@@ -692,8 +694,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
-		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
-
+		if (!this.notebookEditor.creationOptions.isReadOnly) {
+			deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		}
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const dragHandle = DOM.append(container, DOM.$('.cell-drag-handle'));
 
