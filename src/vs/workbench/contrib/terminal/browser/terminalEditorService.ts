@@ -3,11 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { ITerminalEditorService, ITerminalInstance, TerminalTarget } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class TerminalEditorService implements ITerminalEditorService {
+export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
 
 	terminalEditorInstances: ITerminalInstance[] = [];
@@ -15,8 +20,40 @@ export class TerminalEditorService implements ITerminalEditorService {
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService
 	) {
+		super();
+
+		// TODO: Register the terminal editor as an override to integrate properly with dnd
+		this._register(editorOverrideService.registerEditor(
+			`${Schemas.vscodeTerminal}:/**`,
+			{
+				id: TerminalEditor.ID,
+				label: terminalStrings.terminal,
+				priority: RegisteredEditorPriority.builtin
+			},
+			{
+				canHandleDiff: false,
+				canSupportResource: uri => {
+					console.log('check canSupportResource', uri);
+					return uri.scheme === Schemas.vscodeTerminal;
+				},
+				singlePerResource: true
+			},
+			(resource, options, group) => {
+				// TODO: Get terminal instance based on resource
+				return {
+					editor: new TerminalEditorInput(this.terminalEditorInstances[0]),
+					options: {
+						...options,
+						pinned: true,
+						forceReload: true
+					}
+				};
+			}
+		));
+
 		// TODO: Multiplex instance events
 	}
 
