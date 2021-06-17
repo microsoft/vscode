@@ -120,10 +120,33 @@ suite('UntitledFileWorkingCopyManager', () => {
 			dirtyCounter++;
 		});
 
-		const workingCopy = await manager.untitled.resolve({ contents: bufferToStream(VSBuffer.fromString('Hello World')) });
+		const workingCopy1 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')) } });
 
-		assert.strictEqual(workingCopy.isDirty(), true);
+		assert.strictEqual(workingCopy1.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 1);
+		assert.strictEqual(workingCopy1.model?.contents, 'Hello World');
+
+		workingCopy1.dispose();
+
+		const workingCopy2 = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: true } });
+
+		assert.strictEqual(workingCopy2.isDirty(), true);
+		assert.strictEqual(dirtyCounter, 2);
+		assert.strictEqual(workingCopy2.model?.contents, 'Hello World');
+
+		workingCopy2.dispose();
+	});
+
+	test('resolve - with initial value but markDirty: false', async () => {
+		let dirtyCounter = 0;
+		manager.untitled.onDidChangeDirty(e => {
+			dirtyCounter++;
+		});
+
+		const workingCopy = await manager.untitled.resolve({ contents: { value: bufferToStream(VSBuffer.fromString('Hello World')), markDirty: false } });
+
+		assert.strictEqual(workingCopy.isDirty(), false);
+		assert.strictEqual(dirtyCounter, 0);
 		assert.strictEqual(workingCopy.model?.contents, 'Hello World');
 
 		workingCopy.dispose();

@@ -101,7 +101,7 @@ suite('UntitledFileWorkingCopy', () => {
 			uri,
 			basename(uri),
 			hasAssociatedFilePath,
-			initialValue.length > 0 ? bufferToStream(VSBuffer.fromString(initialValue)) : undefined,
+			initialValue.length > 0 ? { value: bufferToStream(VSBuffer.fromString(initialValue)) } : undefined,
 			factory,
 			async workingCopy => { await workingCopy.revert(); return true; },
 			accessor.workingCopyService,
