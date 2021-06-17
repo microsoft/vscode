@@ -100,7 +100,7 @@ declare module 'vscode' {
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
 		public?: boolean;
-		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
+		// If protocol is not provided it is assumed to be http, regardless of the value of localAddress.
 		protocol?: string;
 	}
 
