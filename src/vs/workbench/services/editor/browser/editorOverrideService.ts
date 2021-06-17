@@ -22,6 +22,8 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IContributedEditorInput extends IEditorInput {
 	viewType?: string;
@@ -56,13 +58,20 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IHostService private readonly hostService: IHostService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		// Read in the cache on statup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
 		this.storageService.remove(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL);
-		this.convertOldAssociationFormat();
+		this.hostService.hadLastFocus().then(hadLastFocus => {
+			if (!hadLastFocus) {
+				return;
+			}
+			this.convertOldAssociationFormat();
+		});
 
 		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
@@ -75,8 +84,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 
 		// When the setting changes we want to ensure that it is properly converted
-		this._register(this.configurationService.onDidChangeConfiguration(() => {
-			this.convertOldAssociationFormat();
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(editorsAssociationsSettingId)) {
+				this.convertOldAssociationFormat();
+			}
 		}));
 	}
 
@@ -177,7 +188,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private convertOldAssociationFormat(): void {
-		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
 		// If it's not an array, then it's the new format
 		if (!Array.isArray(rawAssociations)) {
 			return;
@@ -189,11 +200,25 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				newSettingObject[association.filenamePattern] = association.viewType;
 			}
 		}
+		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
 		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
+		let rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+
+		// If it's an array then it is old format
+		if (Array.isArray(rawAssociations)) {
+			// Make the correctly formatted object
+			const newValue = Object.create(null);
+			for (const association of rawAssociations) {
+				if (association.filenamePattern) {
+					newValue[association.filenamePattern] = association.viewType;
+				}
+			}
+			rawAssociations = newValue;
+		}
+
 		let associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {
