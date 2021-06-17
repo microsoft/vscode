@@ -330,6 +330,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		if (this.isWorkspaceTrustForced()) {
+			return { trusted: true, uri };
+		}
+
 		let resultState = false;
 		let maxLength = -1;
 
@@ -355,6 +359,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 		for (const uri of uris) {
 			if (trusted) {
 				if (this.isTrustedVirtualResource(uri)) {
+					continue;
+				}
+
+				if (this.isWorkspaceTrustForced()) {
 					continue;
 				}
 
