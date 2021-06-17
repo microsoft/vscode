@@ -97,7 +97,7 @@ suite('UntitledFileWorkingCopyManager', () => {
 		assert.strictEqual(workingCopy1.isDirty(), false);
 		assert.strictEqual(dirtyCounter, 2);
 
-		workingCopy2.model?.fireContentChangeEvent({ isEmpty: false });
+		workingCopy2.model?.fireContentChangeEvent({ isInitial: false });
 		assert.strictEqual(workingCopy2.isDirty(), true);
 		assert.strictEqual(dirtyCounter, 3);
 

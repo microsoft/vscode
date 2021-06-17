@@ -559,7 +559,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 				this._onDidChangeContent.fire({
 					isRedoing: false, //todo@rebornix forward this information from notebook model
 					isUndoing: false,
-					isEmpty: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
+					isInitial: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
 				});
 				break;
 			}

@@ -36,12 +36,12 @@ export interface IUntitledFileWorkingCopyModel extends IFileWorkingCopyModel {
 export interface IUntitledFileWorkingCopyModelContentChangedEvent {
 
 	/**
-	 * Flag that indicates that the content change
-	 * resulted in empty contents. A untitled file
-	 * working copy without contents may be marked
-	 * as non-dirty.
+	 * Flag that indicates that the content change should
+	 * clear the dirty flag, e.g. because the contents are
+	 * back to being empty or back to an initial state that
+	 * should not be considered as dirty.
 	 */
-	readonly isEmpty: boolean;
+	readonly isInitial: boolean;
 }
 
 export interface IUntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> extends IFileWorkingCopy<M> {
@@ -201,9 +201,9 @@ export class UntitledFileWorkingCopy<M extends IUntitledFileWorkingCopyModel> ex
 	private onModelContentChanged(e: IUntitledFileWorkingCopyModelContentChangedEvent): void {
 
 		// Mark the untitled file working copy as non-dirty once its
-		// content becomes empty and we do not have an associated
-		// path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && e.isEmpty) {
+		// in case provided by the change event and in case we do not
+		// have an associated path set
+		if (!this.hasAssociatedFilePath && e.isInitial) {
 			this.setDirty(false);
 		}
 
