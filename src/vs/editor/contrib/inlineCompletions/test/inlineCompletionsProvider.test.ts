@@ -22,17 +22,24 @@ suite('inlineCompletionToGhostText', () => {
 		const cleanedText = text.replace('[', '').replace(']', '');
 		const tempModel = createTextModel(cleanedText);
 		const range = Range.fromPositions(tempModel.getPositionAt(rangeStartOffset), tempModel.getPositionAt(rangeEndOffset));
-		const ghostText = inlineCompletionToGhostText({ text: suggestion, range }, tempModel);
-		tempModel.dispose();
-		if (!ghostText) {
-			return undefined;
+		const options = ['prefix', 'subwordDiff'] as const;
+		const result = {} as any;
+		for (const option of options) {
+			result[option] = renderGhostTextToText(inlineCompletionToGhostText({ text: suggestion, range }, tempModel, option), cleanedText);
 		}
 
-		return renderGhostTextToText(ghostText, cleanedText);
+		tempModel.dispose();
+
+		if (new Set(Object.values(result)).size === 1) {
+			return Object.values(result)[0];
+		}
+
+		return result;
 	}
 
 	test('Basic', () => {
 		assert.deepStrictEqual(getOutput('[foo]baz', 'foobar'), 'foo[bar]baz');
+		assert.deepStrictEqual(getOutput('[aaa]aaa', 'aaaaaa'), 'aaa[aaa]aaa');
 		assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
 		assert.deepStrictEqual(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
 		assert.deepStrictEqual(getOutput('foo[]', 'bar\nhello'), 'foo[bar]{\nhello}');
@@ -46,7 +53,6 @@ suite('inlineCompletionToGhostText', () => {
 		assert.deepStrictEqual(getOutput('[ foo]', 'foobar'), ' foo[bar]');
 		assert.deepStrictEqual(getOutput('[\tfoo]', 'foobar'), '\tfoo[bar]');
 		assert.deepStrictEqual(getOutput('[\t foo]', '\tfoobar'), '	 foo[bar]');
-		assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), '\t[\t]foo[bar]');
 		assert.deepStrictEqual(getOutput('[\t]', '\t\tfoobar'), '\t[\tfoobar]');
 		assert.deepStrictEqual(getOutput('\t[]', '\t'), '\t[\t]');
 		assert.deepStrictEqual(getOutput('\t[\t]', ''), '\t\t');
@@ -57,12 +63,13 @@ suite('inlineCompletionToGhostText', () => {
 		assert.deepStrictEqual(getOutput('bar[\tfoo]', 'foobar'), undefined);
 	});
 
-	test('Other', () => {
-		assert.deepStrictEqual(getOutput('foo[()]', '(x);'), 'foo([x])[;]');
-	});
-
 	test('Unsupported cases', () => {
 		assert.deepStrictEqual(getOutput('foo[\n]', '\n'), undefined);
+	});
+
+	test('Multi Part Diffing', () => {
+		assert.deepStrictEqual(getOutput('foo[()]', '(x);'), { prefix: undefined, subwordDiff: 'foo([x])[;]' });
+		assert.deepStrictEqual(getOutput('[\tfoo]', '\t\tfoobar'), { prefix: undefined, subwordDiff: '\t[\t]foo[bar]' });
 	});
 });
 
@@ -478,20 +485,23 @@ async function withAsyncTestCodeEditorAndInlineCompletionsModel(
 		clock = sinon.useFakeTimers();
 	}
 	try {
-		const p = clock?.runAllAsync();
-
-		await withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
+		const p = withAsyncTestCodeEditor(text, options, async (editor, editorViewModel, instantiationService) => {
 			const model = instantiationService.createInstance(InlineCompletionsModel, editor);
 			const context = new GhostTextContext(model, editor);
 			await callback({ editor, editorViewModel, model, context });
 			model.dispose();
 		});
 
+		const p2 = clock?.runAllAsync();
+
+		await p;
+		await p2;
+
 		if (options.provider instanceof MockInlineCompletionsProvider) {
 			options.provider.assertNotCalledTwiceWithin50ms();
 		}
 
-		await p;
+
 	} finally {
 		clock?.restore();
 		disposableStore.dispose();

@@ -48,7 +48,7 @@ export class CellOutputViewModel extends Disposable implements ICellOutputViewMo
 	}
 
 	resolveMimeTypes(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined): [readonly IOrderedMimeType[], number] {
-		const mimeTypes = this._notebookService.getMimeTypeInfo(textModel, kernelProvides, this.model);
+		const mimeTypes = this._notebookService.getOutputMimeTypeInfo(textModel, kernelProvides, this.model);
 		let index = -1;
 		if (this._pickedMimeType) {
 			index = mimeTypes.findIndex(mimeType => mimeType.rendererId === this._pickedMimeType!.rendererId && mimeType.mimeType === this._pickedMimeType!.mimeType && mimeType.isTrusted);

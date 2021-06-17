@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalTarget } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -107,7 +107,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this._terminalService.onDidChangeConnectionState(() => this.refresh());
 		this._themeService.onDidColorThemeChange(() => this.refresh());
 		this._terminalService.onActiveInstanceChanged(e => {
-			if (e && e.target !== TerminalTarget.Editor) {
+			if (e && e.target !== TerminalLocation.Editor) {
 				const i = this._terminalService.terminalInstances.indexOf(e);
 				this.setSelection([i]);
 				this.reveal(i);

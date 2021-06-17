@@ -207,10 +207,10 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
-	creationTarget: TerminalTarget.Editor | TerminalTarget.TerminalView;
+	creationTarget: TerminalLocation;
 }
 
-export const enum TerminalTarget {
+export const enum TerminalLocation {
 	TerminalView = 'view',
 	Editor = 'editor'
 }

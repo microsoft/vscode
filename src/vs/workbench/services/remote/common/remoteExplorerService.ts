@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
+import { ALL_INTERFACES_ADDRESSES, isAllInterfaces, isLocalhost, ITunnelService, LOCALHOST_ADDRESSES, PortAttributesProvider, ProvidedOnAutoForward, ProvidedPortAttributes, RemoteTunnel, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -148,11 +148,6 @@ export enum OnPortForward {
 	OpenPreview = 'openPreview',
 	Silent = 'silent',
 	Ignore = 'ignore'
-}
-
-export enum TunnelProtocol {
-	Http = 'http',
-	Https = 'https'
 }
 
 export interface Attributes {
@@ -563,9 +558,12 @@ export class TunnelModel extends Disposable {
 
 			const key = makeAddress(remote.host, remote.port);
 			this.inProgress.set(key, true);
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, localPort, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic);
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, localPort, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic, attributes?.protocol);
 			if (tunnel && tunnel.localAddress) {
 				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
+				const protocol = (tunnel.protocol ?
+					((tunnel.protocol === TunnelProtocol.Https) ? TunnelProtocol.Https : TunnelProtocol.Http)
+					: (attributes?.protocol ?? TunnelProtocol.Http));
 				const newForward: Tunnel = {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
@@ -573,7 +571,7 @@ export class TunnelModel extends Disposable {
 					name: attributes?.label ?? name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
-					protocol: attributes?.protocol ?? TunnelProtocol.Http,
+					protocol,
 					localUri: await this.makeLocalUri(tunnel.localAddress, attributes),
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
@@ -591,12 +589,12 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			if (attributes?.label ?? name) {
-				existingTunnel.name = attributes?.label ?? name;
+			const newName = attributes?.label ?? name;
+			if (newName !== existingTunnel.name) {
+				existingTunnel.name = newName;
 				this._onForwardPort.fire();
 			}
-			// Remove tunnel provider check when protocol is part of the API https://github.com/microsoft/vscode/issues/124816
-			if (!this.tunnelService.hasTunnelProvider && attributes?.protocol && (attributes.protocol !== existingTunnel.protocol)) {
+			if (attributes?.protocol && (attributes.protocol !== existingTunnel.protocol)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}

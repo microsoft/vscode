@@ -195,6 +195,13 @@ export class ExtensionManagementService extends Disposable implements IWorkbench
 		return Promise.reject('No Servers to Install');
 	}
 
+	async installWebExtension(location: URI): Promise<ILocalExtension> {
+		if (!this.extensionManagementServerService.webExtensionManagementServer) {
+			throw new Error('Web extension management server is not found');
+		}
+		return this.extensionManagementServerService.webExtensionManagementServer.extensionManagementService.install(location);
+	}
+
 	protected async installVSIX(vsix: URI, server: IExtensionManagementServer, options: InstallVSIXOptions | undefined): Promise<ILocalExtension> {
 		const manifest = await this.getManifest(vsix);
 		if (manifest) {

@@ -54,6 +54,11 @@ registerAction2(class extends Action2 {
 				),
 				group: 'status',
 				order: -10
+			}, {
+				id: MenuId.InteractiveToolbar,
+				when: NOTEBOOK_KERNEL_COUNT.notEqualsTo(0),
+				group: 'status',
+				order: -10
 			}],
 			description: {
 				description: nls.localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),

@@ -22,6 +22,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { ILogService } from 'vs/platform/log/common/log';
 
 interface IRegisteredEditorInput extends IEditorInput {
 	viewType?: string;
@@ -56,7 +57,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		@INotificationService private readonly notificationService: INotificationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IStorageService private readonly storageService: IStorageService,
-		@IExtensionService private readonly extensionService: IExtensionService
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		// Read in the cache on statup
@@ -75,8 +77,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 
 		// When the setting changes we want to ensure that it is properly converted
-		this._register(this.configurationService.onDidChangeConfiguration(() => {
-			this.convertOldAssociationFormat();
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectsConfiguration(editorsAssociationsSettingId)) {
+				this.convertOldAssociationFormat();
+			}
 		}));
 	}
 
@@ -124,8 +128,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If it's the currently active editor we shouldn't do anything
-		const currentEditors = group.findEditors(resource);
-		const isActive = currentEditors.find(editor => (editor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id);
+		const activeEditor = group.activeEditor;
+		const isActive = activeEditor ? (activeEditor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
 		if (isActive) {
 			return OverrideStatus.ABORT;
 		}
@@ -186,11 +190,12 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				newSettingObject[association.filenamePattern] = association.viewType;
 			}
 		}
+		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
 		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
-		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || [];
+		const rawAssociations = this.configurationService.getValue<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
 		let associations = [];
 		for (const [key, value] of Object.entries(rawAssociations)) {
 			const association: EditorAssociation = {

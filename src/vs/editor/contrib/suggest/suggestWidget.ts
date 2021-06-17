@@ -808,7 +808,8 @@ export class SuggestWidget implements IDisposable {
 				height = maxHeight;
 			}
 
-			if (height > maxHeightBelow || this._forceRenderingAbove) {
+			const forceRenderingAboveRequiredSpace = 100;
+			if (height > maxHeightBelow || (this._forceRenderingAbove && maxHeightAbove > forceRenderingAboveRequiredSpace)) {
 				this._contentWidget.setPreference(ContentWidgetPositionPreference.ABOVE);
 				this.element.enableSashes(true, true, false, false);
 				maxHeight = maxHeightAbove;

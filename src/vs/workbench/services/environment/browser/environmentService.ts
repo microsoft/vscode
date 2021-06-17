@@ -279,7 +279,7 @@ export class BrowserWorkbenchEnvironmentService implements IWorkbenchEnvironment
 		const developmentOptions = this.options.developmentOptions;
 		if (developmentOptions) {
 			if (developmentOptions.extensions?.length) {
-				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e.extensionLocation));
+				extensionHostDebugEnvironment.extensionDevelopmentLocationURI = developmentOptions.extensions.map(e => URI.revive(e));
 				extensionHostDebugEnvironment.isExtensionDevelopment = true;
 			}
 			if (developmentOptions) {

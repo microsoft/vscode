@@ -25,6 +25,7 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 
 export const WORKSPACE_TRUST_ENABLED = 'security.workspace.trust.enabled';
 export const WORKSPACE_TRUST_STARTUP_PROMPT = 'security.workspace.trust.startupPrompt';
+export const WORKSPACE_TRUST_BANNER = 'security.workspace.trust.banner';
 export const WORKSPACE_TRUST_UNTRUSTED_FILES = 'security.workspace.trust.untrustedFiles';
 export const WORKSPACE_TRUST_EMPTY_WINDOW = 'security.workspace.trust.emptyWindow';
 export const WORKSPACE_TRUST_EXTENSION_SUPPORT = 'extensions.supportUntrustedWorkspaces';
@@ -147,6 +148,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				.finally(() => {
 					this._workspaceTrustInitializedPromiseResolve();
 				});
+		}
+
+		// Save empty workspace state
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._workspaceTrustInitializedPromise.then(() => {
+				this.isTrusted = this.isWorkpaceTrusted();
+			});
 		}
 	}
 

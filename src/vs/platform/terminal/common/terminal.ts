@@ -38,6 +38,7 @@ export const enum TerminalSettingId {
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
+	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',

@@ -10,7 +10,7 @@ import { IAction, Separator } from 'vs/base/common/actions';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { IMenu, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -22,7 +22,6 @@ import { SELECT_KERNEL_ID } from 'vs/workbench/contrib/notebook/browser/contrib/
 import { INotebookEditor, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebooKernelActionViewItem } from 'vs/workbench/contrib/notebook/browser/notebookKernelActionViewItem';
 import { ActionViewWithLabel } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellActionView';
-import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { GlobalToolbar } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
@@ -53,6 +52,7 @@ export class NotebookEditorToolbar extends Disposable {
 		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
 		@IContextMenuService readonly contextMenuService: IContextMenuService,
+		@IMenuService readonly menuService: IMenuService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@optional(ITASExperimentService) private readonly experimentService: ITASExperimentService
@@ -94,8 +94,7 @@ export class NotebookEditorToolbar extends Disposable {
 	}
 
 	private _reigsterNotebookActionsToolbar() {
-		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.contextKeyService));
+		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;

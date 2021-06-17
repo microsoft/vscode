@@ -27,7 +27,7 @@ import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
 import { createActionViewItem, createAndFillInActionBarActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext } from 'vs/platform/contextkey/common/contextkeys';
@@ -45,7 +45,6 @@ import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/vie
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController, DRAGGING_CLASS } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
 import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellEditorOptions';
-import { CellMenus } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellMenus';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { CodeCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/codeCell';
 import { StatefulMarkdownCell } from 'vs/workbench/contrib/notebook/browser/view/renderers/markdownCell';
@@ -88,12 +87,12 @@ export class NotebookCellListDelegate extends Disposable implements IListVirtual
 
 abstract class AbstractCellRenderer {
 	protected readonly editorOptions: CellEditorOptions;
-	protected readonly cellMenus: CellMenus;
 
 	constructor(
 		protected readonly instantiationService: IInstantiationService,
 		protected readonly notebookEditor: INotebookEditor,
 		protected readonly contextMenuService: IContextMenuService,
+		protected readonly menuService: IMenuService,
 		configurationService: IConfigurationService,
 		protected readonly keybindingService: IKeybindingService,
 		protected readonly notificationService: INotificationService,
@@ -102,7 +101,6 @@ abstract class AbstractCellRenderer {
 		protected dndController: CellDragAndDropController | undefined
 	) {
 		this.editorOptions = new CellEditorOptions(notebookEditor, notebookEditor.notebookOptions, configurationService, language);
-		this.cellMenus = this.instantiationService.createInstance(CellMenus);
 	}
 
 	dispose() {
@@ -126,8 +124,7 @@ abstract class AbstractCellRenderer {
 		});
 		disposables.add(toolbar);
 
-		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
+		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellInsertToolbar, contextKeyService));
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
 			toolbar.setActions(actions.primary, actions.secondary);
@@ -315,10 +312,11 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'markdown', dndController);
+		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'markdown', dndController);
 		this.useRenderer = options.useRenderer;
 	}
 
@@ -335,7 +333,9 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
-		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		if (!this.notebookEditor.creationOptions.isReadOnly) {
+			deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		}
 
 		DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-top'));
 		const focusIndicatorLeft = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
@@ -357,7 +357,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
-		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
+		const titleMenu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
 			useRenderer: this.useRenderer,
@@ -672,11 +672,12 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		contextKeyServiceProvider: (container: HTMLElement) => IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(instantiationService, notebookEditor, contextMenuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'plaintext', dndController);
+		super(instantiationService, notebookEditor, contextMenuService, menuService, configurationService, keybindingService, notificationService, contextKeyServiceProvider, 'plaintext', dndController);
 	}
 
 	get templateId() {
@@ -693,8 +694,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const titleToolbarContainer = DOM.append(container, $('.cell-title-toolbar'));
 		const toolbar = disposables.add(this.createToolbar(titleToolbarContainer));
 		const deleteToolbar = disposables.add(this.createToolbar(titleToolbarContainer, 'cell-delete-toolbar'));
-		deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
-
+		if (!this.notebookEditor.creationOptions.isReadOnly) {
+			deleteToolbar.setActions([this.instantiationService.createInstance(DeleteCellAction)]);
+		}
 		const focusIndicator = DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left'));
 		const dragHandle = DOM.append(container, DOM.$('.cell-drag-handle'));
 
@@ -741,7 +743,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService, this.notebookEditor.notebookOptions);
 
-		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
+		const titleMenu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
@@ -842,7 +844,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const actions = this.getCellToolbarActions(this.cellMenus.getCellExecuteMenu(contextKeyService));
+				const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 				const primary = actions.primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
@@ -877,10 +879,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = this.cellMenus.getCellExecuteMenu(contextKeyService);
+		const menu = this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService);
 		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(this.cellMenus.getCellExecuteMenu(contextKeyService));
+			const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 			runToolbar.setActions(actions.primary);
 		};
 		updateActions();
@@ -1206,6 +1208,7 @@ export class ListTopCellToolbar extends Disposable {
 		insertionIndicatorContainer: HTMLElement,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
+		@IMenuService protected readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
 	) {
@@ -1227,8 +1230,7 @@ export class ListTopCellToolbar extends Disposable {
 			notebookEditor
 		};
 
-		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this.menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+		this.menu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, contextKeyService));
 		this._register(this.menu.onDidChange(() => {
 			this.updateActions();
 		}));
