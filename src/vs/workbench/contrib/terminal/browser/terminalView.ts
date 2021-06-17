@@ -372,7 +372,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@ICommandService commandService: ICommandService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super(new MenuItemAction(
 			{
@@ -387,7 +387,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			},
 			undefined,
 			contextKeyService,
-			commandService
+			_commandService
 		), keybindingService, notificationService);
 
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
@@ -407,7 +407,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 
 	override async onClick(event: MouseEvent): Promise<void> {
-		this._openContextMenu();
+		if (event.altKey && this._menuItemAction.alt) {
+			this._commandService.executeCommand(this._menuItemAction.alt.id);
+		} else {
+			this._openContextMenu();
+		}
 	}
 
 	override updateLabel(): void {
