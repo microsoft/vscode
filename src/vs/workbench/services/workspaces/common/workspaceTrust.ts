@@ -398,7 +398,7 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	}
 
 	private isTrustedByRemote(uri: URI): boolean {
-		if (this.environmentService.remoteAuthority) {
+		if (!this.environmentService.remoteAuthority) {
 			return false;
 		}
 
