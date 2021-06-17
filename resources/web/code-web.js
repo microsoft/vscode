@@ -183,10 +183,7 @@ async function getCommandlineProvidedExtensionInfos() {
 			const packageJSON = await getExtensionPackageJSON(extensionPath);
 			if (packageJSON) {
 				const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
-				extensions.push({
-					packageJSON,
-					extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
-				});
+				extensions.push({ scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` });
 				locations[extensionId] = extensionPath;
 			}
 		}));
@@ -208,13 +205,6 @@ async function getExtensionPackageJSON(extensionPath) {
 			if (packageJSON.main && !packageJSON.browser) {
 				return; // unsupported
 			}
-
-			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
-			const packageNLSExists = await exists(packageNLSPath);
-			if (packageNLSExists) {
-				packageJSON = extensions.translatePackageJSON(packageJSON, packageNLSPath); // temporary, until fixed in core
-			}
-
 			return packageJSON;
 		} catch (e) {
 			console.log(e);
@@ -407,7 +397,7 @@ async function handleRoot(req, res) {
 	}
 
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: staticExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+	const { extensions: additionalBuiltinExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
 
 	const dedupedBuiltInExtensions = [];
 	for (const builtInExtension of builtInExtensions) {
@@ -422,7 +412,7 @@ async function handleRoot(req, res) {
 
 	if (args.verbose) {
 		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
-		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
+		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
 	const secondaryHost = (
@@ -432,7 +422,7 @@ async function handleRoot(req, res) {
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,
-		staticExtensions,
+		additionalBuiltinExtensions,
 		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {

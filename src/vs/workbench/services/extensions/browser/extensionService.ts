@@ -93,7 +93,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		const scannedExtension = await this._webExtensionsScannerService.scanSingleExtension(extension.location, extension.type);
+		const scannedExtension = await this._webExtensionsScannerService.scanExistingExtension(extension.location, extension.type);
 		if (scannedExtension) {
 			return toExtensionDescription(scannedExtension);
 		}

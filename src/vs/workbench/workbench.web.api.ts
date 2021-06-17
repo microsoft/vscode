@@ -318,8 +318,15 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated
 	 */
-	readonly staticExtensions?: readonly (string | IStaticExtension)[];
+	readonly staticExtensions?: readonly IStaticExtension[];
+
+	/**
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be an Id of an extension published in the Marketplace or location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (string | UriComponents)[];
 
 	/**
 	 * Filter for built-in extensions.
@@ -438,7 +445,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: readonly IStaticExtension[];
+	readonly extensions?: readonly UriComponents[];
 
 	/**
 	 * Whether to enable the smoke test driver.
