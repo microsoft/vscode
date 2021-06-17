@@ -548,6 +548,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		// Uri is trusted automatically by the remote
+		if (this.isTrustedByRemote(uri)) {
+			return { trusted: true, uri };
+		}
+
 		return this.doGetUriTrustInfo(await this.getCanonicalUri(uri));
 	}
 
