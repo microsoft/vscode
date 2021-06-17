@@ -1862,7 +1862,8 @@ declare module 'vscode' {
 		modal?: boolean;
 
 		/**
-		 * Human-readable detail message that is rendered less prominent.
+		 * Human-readable detail message that is rendered less prominent. _Note_ that detail
+		 * is only shown for {@link MessageOptions.modal modal} messages.
 		 */
 		detail?: string;
 	}
