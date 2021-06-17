@@ -174,7 +174,7 @@ export const commitInlineSuggestionAction = new GhostTextCommand({
 		EditorContextKeys.tabMovesFocus.toNegated()
 	),
 	kbOpts: {
-		weight: 100,
+		weight: 200,
 		primary: KeyCode.Tab,
 	},
 	handler(x) {
