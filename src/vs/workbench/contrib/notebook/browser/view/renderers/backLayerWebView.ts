@@ -72,7 +72,6 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 	private readonly _onMessage = this._register(new Emitter<INotebookWebviewMessage>());
 	private readonly _preloadsCache = new Set<string>();
 	public readonly onMessage: Event<INotebookWebviewMessage> = this._onMessage.event;
-	// private _initalized?: Promise<void>;
 	private _disposed = false;
 	private _currentKernel?: INotebookKernel;
 
