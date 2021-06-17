@@ -68,7 +68,7 @@ export class MainThreadMessageService implements MainThreadMessageServiceShape {
 
 			if (detail) {
 				primaryActions.push(new Action('more', nls.localize('details', "More"), undefined, true, () => {
-					resolve(this._showModalMessage(severity, message, detail, commands, false));
+					this._showModalMessage(severity, message, detail, commands, false);
 				}));
 			}
 
