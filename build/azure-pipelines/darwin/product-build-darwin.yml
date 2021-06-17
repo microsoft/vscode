@@ -257,7 +257,7 @@ steps:
 
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: logs-macos-$(VSCODE_ARCH)
+      artifactName: logs-macos-$(VSCODE_ARCH)-$(System.JobAttempt)
       targetPath: .build/logs
     displayName: "Publish Log Files"
     continueOnError: true

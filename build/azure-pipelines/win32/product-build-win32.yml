@@ -199,7 +199,7 @@ steps:
 
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: logs-windows-$(VSCODE_ARCH)
+      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
       targetPath: .build\logs
     displayName: "Publish Log Files"
     continueOnError: true
