@@ -18,8 +18,6 @@ import { Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { parseLinkedText } from 'vs/base/common/linkedText';
-import { Schemas } from 'vs/base/common/network';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -46,8 +44,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { getSelectionKeyboardEvent, WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Link } from 'vs/platform/opener/browser/link';
+import { INotificationService, } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProgress, IProgressService, IProgressStep } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
@@ -64,6 +61,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { ExcludePatternInputWidget, IncludePatternInputWidget } from 'vs/workbench/contrib/search/browser/patternInputWidget';
 import { appendKeyBindingLabel, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchDetailsIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
+import { renderSearchMessage } from 'vs/workbench/contrib/search/browser/searchMessage';
 import { FileMatchRenderer, FolderMatchRenderer, MatchRenderer, SearchAccessibilityProvider, SearchDelegate, SearchDND } from 'vs/workbench/contrib/search/browser/searchResultsView';
 import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/contrib/search/browser/searchWidget';
 import * as Constants from 'vs/workbench/contrib/search/common/constants';
@@ -365,7 +363,7 @@ export class SearchView extends ViewPane {
 		this._register(this.inputPatternIncludes.onSubmit(onFilePatternSubmit));
 		this._register(this.inputPatternExcludes.onSubmit(onFilePatternSubmit));
 
-		this.messagesElement = dom.append(this.container, $('.messages'));
+		this.messagesElement = dom.append(this.container, $('.messages.text-search-provider-messages'));
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this.showSearchWithoutFolderMessage();
 		}
@@ -1520,29 +1518,18 @@ export class SearchView extends ViewPane {
 				aria.status(nls.localize('ariaSearchResultsStatus', "Search returned {0} results in {1} files", this.viewModel.searchResult.count(), this.viewModel.searchResult.fileCount()));
 			}
 
-			let warningMessage = '';
 
 			if (completed && completed.limitHit) {
-				warningMessage += nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.");
+				completed.messages.push({ type: TextSearchCompleteMessageType.Warning, text: nls.localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results.") });
 			}
 
 			if (completed && completed.messages) {
 				for (const message of completed.messages) {
-					if (message.type === TextSearchCompleteMessageType.Information) {
-						this.addMessage(message);
-					}
-					else if (message.type === TextSearchCompleteMessageType.Warning) {
-						warningMessage += (warningMessage ? ' - ' : '') + message.text;
-					}
+					this.addMessage(message);
 				}
 			}
 
-			if (warningMessage) {
-				this.searchWidget.searchInput.showMessage({
-					content: warningMessage,
-					type: MessageType.WARNING
-				});
-			}
+			this.reLayout();
 		};
 
 		const onError = (e: any) => {
@@ -1647,47 +1634,9 @@ export class SearchView extends ViewPane {
 	}
 
 	private addMessage(message: TextSearchCompleteMessage) {
-		const linkedText = parseLinkedText(message.text);
-
 		const messageBox = this.messagesElement.firstChild as HTMLDivElement;
-		if (!messageBox) {
-			return;
-		}
-
-		const span = dom.append(messageBox, $('span.providerMessage'));
-
-		if (messageBox.innerText) {
-			dom.append(span, document.createTextNode(' - '));
-		}
-
-		for (const node of linkedText.nodes) {
-			if (typeof node === 'string') {
-				dom.append(span, document.createTextNode(node));
-			} else {
-				const link = this.instantiationService.createInstance(Link, node, {
-					opener: async href => {
-						if (!message.trusted) { return; }
-						const parsed = URI.parse(href, true);
-						if (parsed.scheme === Schemas.command && message.trusted) {
-							const result = await this.commandService.executeCommand(parsed.path);
-							if ((result as any)?.triggerSearch) {
-								this.triggerQueryChange();
-							}
-						} else if (parsed.scheme === Schemas.https) {
-							this.openerService.open(parsed);
-						} else {
-							if (parsed.scheme === Schemas.command && !message.trusted) {
-								this.notificationService.error(nls.localize('unable to open trust', "Unable to open command link from untrusted source: {0}", href));
-							} else {
-								this.notificationService.error(nls.localize('unable to open', "Unable to open unknown link: {0}", href));
-							}
-						}
-					}
-				});
-				dom.append(span, link.el);
-				this.messageDisposables.add(link);
-			}
-		}
+		if (!messageBox) { return; }
+		dom.append(messageBox, renderSearchMessage(message, this.instantiationService, this.notificationService, this.openerService, this.commandService, this.messageDisposables, () => this.triggerQueryChange()));
 	}
 
 	private buildResultCountMessage(resultCount: number, fileCount: number): string {
