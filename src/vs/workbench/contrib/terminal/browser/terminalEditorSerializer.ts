@@ -6,42 +6,42 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorInputSerializer } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalInputSerializer implements IEditorInputSerializer {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@IEditorService private readonly _editorService: IEditorService
 	) { }
 
 	public canSerialize(editorInput: TerminalEditorInput): boolean {
 		return true;
 	}
 
-	public serialize(editorInput: TerminalEditorInput): string {
-		console.log('serialize', editorInput.terminalInstance?.persistentProcessId);
+	public serialize(editorInput: TerminalEditorInput): string | undefined {
+		if (!editorInput.terminalInstance) {
+			return;
+		}
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		this._terminalEditorService.detachInstance(editorInput.terminalInstance!);
+		this._terminalEditorService.detachInstance(editorInput.terminalInstance);
 		return term;
 	}
 
-	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): TerminalEditorInput | undefined {
+	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
 		const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
-		console.log('deserializing editor', terminalInstance);
-		const input = new TerminalEditorInput(terminal);
-		terminal.onExit(() => input.dispose());
-		return input;
+		const editor = instantiationService.createInstance(TerminalEditorInput, terminal);
+		terminal.onExit(() => editor.dispose());
+		return editor;
 	}
 
-	private _toJson(instance?: ITerminalInstance): SerializedTerminalEditorInput | undefined {
-		// TODO update these names
-		if (!instance || !instance.persistentProcessId) {
-			return undefined;
-		}
+	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
 		return {
-			id: instance.persistentProcessId,
+			id: instance.persistentProcessId!,
 			pid: instance.processId || 0,
 			title: instance.title,
 			titleSource: instance.titleSource,
@@ -58,6 +58,6 @@ interface SerializedTerminalEditorInput {
 	readonly title: string;
 	readonly titleSource: TitleEventSource;
 	readonly cwd: string;
-	readonly icon?: TerminalIcon;
-	readonly color?: string
+	readonly icon: TerminalIcon | undefined;
+	readonly color: string | undefined;
 }

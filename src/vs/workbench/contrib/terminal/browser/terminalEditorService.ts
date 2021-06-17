@@ -48,7 +48,6 @@ export class TerminalEditorService implements ITerminalEditorService {
 	detachInstance(instance: ITerminalInstance) {
 		const editorInputs = this._editorInputs.get(instance.instanceId);
 		editorInputs?.detachInstance();
-		this._editorInputs.delete(instance.instanceId);
 		const instanceIndex = this.terminalEditorInstances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
 			this.terminalEditorInstances.splice(instanceIndex, 1);
