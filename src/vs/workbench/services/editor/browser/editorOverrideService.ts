@@ -128,8 +128,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// If it's the currently active editor we shouldn't do anything
-		const currentEditors = group.findEditors(resource);
-		const isActive = currentEditors.find(editor => (editor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id);
+		const activeEditor = group.activeEditor;
+		const isActive = activeEditor ? (activeEditor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
 		if (isActive) {
 			return OverrideStatus.ABORT;
 		}
