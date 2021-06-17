@@ -652,6 +652,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return this._attachToElement(container);
 		}
 
+		// Update the theme when attaching as the terminal location could have changed
+		if (this._xterm) {
+			this._updateTheme(this._xterm);
+		}
+
 		// The container changed, reattach
 		this._detachWrapperElement();
 		this._container = container;
