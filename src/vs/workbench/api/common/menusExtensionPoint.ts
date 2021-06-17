@@ -191,6 +191,18 @@ const apiMenus: IAPIMenu[] = [
 		proposed: true
 	},
 	{
+		key: 'interactive/toolbar',
+		id: MenuId.InteractiveToolbar,
+		description: localize('interactive.toolbar', "The contributed interactive toolbar menu"),
+		proposed: true
+	},
+	{
+		key: 'interactive/cell/title',
+		id: MenuId.InteractiveCellTitle,
+		description: localize('interactive.cell.title', "The contributed interactive cell title menu"),
+		proposed: true
+	},
+	{
 		key: 'testing/item/context',
 		id: MenuId.TestItem,
 		description: localize('testing.item.title', "The contributed test item menu"),
@@ -689,7 +701,7 @@ const _apiMenusByKey = new Map(Iterable.map(Iterable.from(apiMenus), menu => ([m
 const _menuRegistrations = new DisposableStore();
 const _submenuMenuItems = new Map<number /* menu id */, Set<number /* submenu id */>>();
 
-const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[] }>({
+const menusExtensionPoint = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: (schema.IUserFriendlyMenuItem | schema.IUserFriendlySubmenuItem)[]; }>({
 	extensionPoint: 'menus',
 	jsonSchema: schema.menusContribution,
 	deps: [submenusExtensionPoint]
@@ -701,7 +713,7 @@ menusExtensionPoint.setHandler(extensions => {
 	_menuRegistrations.clear();
 	_submenuMenuItems.clear();
 
-	const items: { id: MenuId, item: IMenuItem | ISubmenuItem }[] = [];
+	const items: { id: MenuId, item: IMenuItem | ISubmenuItem; }[] = [];
 
 	for (let extension of extensions) {
 		const { value, collector } = extension;
