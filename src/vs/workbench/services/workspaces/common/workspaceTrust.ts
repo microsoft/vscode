@@ -148,6 +148,13 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					this._workspaceTrustInitializedPromiseResolve();
 				});
 		}
+
+		// Save empty workspace state
+		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			this._workspaceTrustInitializedPromise.then(() => {
+				this.isTrusted = this.isWorkpaceTrusted();
+			});
+		}
 	}
 
 	//#endregion
