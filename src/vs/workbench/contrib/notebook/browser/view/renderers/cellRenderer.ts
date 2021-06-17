@@ -127,7 +127,7 @@ abstract class AbstractCellRenderer {
 		disposables.add(toolbar);
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		const menu = disposables.add(cellMenu.getCellInsertionMenu(contextKeyService));
+		const menu = disposables.add(cellMenu.getMenu(this.notebookEditor.creationOptions.menuIds.cellInsertToolbar, contextKeyService));
 		const updateActions = () => {
 			const actions = this.getCellToolbarActions(menu);
 			toolbar.setActions(actions.primary, actions.secondary);
@@ -357,7 +357,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		const statusBar = disposables.add(this.instantiationService.createInstance(CellEditorStatusBar, editorPart));
 
-		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
+		const titleMenu = disposables.add(this.cellMenus.getMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 
 		const templateData: MarkdownCellRenderTemplate = {
 			useRenderer: this.useRenderer,
@@ -741,7 +741,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorBottom = DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom'));
 		const betweenCellToolbar = this.createBetweenCellToolbar(bottomCellContainer, disposables, contextKeyService, this.notebookEditor.notebookOptions);
 
-		const titleMenu = disposables.add(this.cellMenus.getCellTitleMenu(contextKeyService));
+		const titleMenu = disposables.add(this.cellMenus.getMenu(this.notebookEditor.creationOptions.menuIds.cellTitleToolbar, contextKeyService));
 
 		const templateData: CodeCellRenderTemplate = {
 			rootContainer,
@@ -842,7 +842,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const actions = this.getCellToolbarActions(this.cellMenus.getCellExecuteMenu(contextKeyService));
+				const actions = this.getCellToolbarActions(this.cellMenus.getMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 				const primary = actions.primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
@@ -877,10 +877,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = this.cellMenus.getCellExecuteMenu(contextKeyService);
+		const menu = this.cellMenus.getMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService);
 		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(this.cellMenus.getCellExecuteMenu(contextKeyService));
+			const actions = this.getCellToolbarActions(this.cellMenus.getMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 			runToolbar.setActions(actions.primary);
 		};
 		updateActions();
@@ -1228,7 +1228,7 @@ export class ListTopCellToolbar extends Disposable {
 		};
 
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this.menu = this._register(cellMenu.getCellTopInsertionMenu(contextKeyService));
+		this.menu = this._register(cellMenu.getMenu(this.notebookEditor.creationOptions.menuIds.cellTopInsertToolbar, contextKeyService));
 		this._register(this.menu.onDidChange(() => {
 			this.updateActions();
 		}));

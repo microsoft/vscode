@@ -46,7 +46,7 @@ export interface ICommandAction {
 	tooltip?: string;
 	icon?: Icon;
 	precondition?: ContextKeyExpression;
-	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString };
+	toggled?: ContextKeyExpression | { condition: ContextKeyExpression, icon?: Icon, tooltip?: string, title?: string | ILocalizedString; };
 }
 
 export type ISerializableCommandAction = UriDto<ICommandAction>;
@@ -147,8 +147,10 @@ export class MenuId {
 	static readonly CommentThreadActions = new MenuId('CommentThreadActions');
 	static readonly CommentTitle = new MenuId('CommentTitle');
 	static readonly CommentActions = new MenuId('CommentActions');
+	static readonly InteractiveToolbar = new MenuId('InteractiveToolbar');
+	static readonly InteractiveCellTitle = new MenuId('InteractiveCellTitle');
+	static readonly InteractiveCellExecute = new MenuId('InteractiveCellExecute');
 	static readonly NotebookToolbar = new MenuId('NotebookToolbar');
-	static readonly NotebookRightToolbar = new MenuId('NotebookRightToolbar');
 	static readonly NotebookCellTitle = new MenuId('NotebookCellTitle');
 	static readonly NotebookCellInsert = new MenuId('NotebookCellInsert');
 	static readonly NotebookCellBetween = new MenuId('NotebookCellBetween');
@@ -214,7 +216,7 @@ export interface IMenuRegistry {
 	addCommand(userCommand: ICommandAction): IDisposable;
 	getCommand(id: string): ICommandAction | undefined;
 	getCommands(): ICommandsMap;
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable;
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem; }>): IDisposable;
 	appendMenuItem(menu: MenuId, item: IMenuItem | ISubmenuItem): IDisposable;
 	getMenuItems(loc: MenuId): Array<IMenuItem | ISubmenuItem>;
 }
@@ -265,7 +267,7 @@ export const MenuRegistry: IMenuRegistry = new class implements IMenuRegistry {
 		return this.appendMenuItems(Iterable.single({ id, item }));
 	}
 
-	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem }>): IDisposable {
+	appendMenuItems(items: Iterable<{ id: MenuId, item: IMenuItem | ISubmenuItem; }>): IDisposable {
 
 		const changedIds = new Set<MenuId>();
 		const toRemove = new LinkedList<Function>();
@@ -403,8 +405,8 @@ export class MenuItemAction implements IAction {
 		this.checked = false;
 
 		if (item.toggled) {
-			const toggled = ((item.toggled as { condition: ContextKeyExpression }).condition ? item.toggled : { condition: item.toggled }) as {
-				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString, title?: string | ILocalizedString
+			const toggled = ((item.toggled as { condition: ContextKeyExpression; }).condition ? item.toggled : { condition: item.toggled }) as {
+				condition: ContextKeyExpression, icon?: Icon, tooltip?: string | ILocalizedString, title?: string | ILocalizedString;
 			};
 			this.checked = contextKeyService.contextMatchesRules(toggled.condition);
 			if (this.checked && toggled.tooltip) {
@@ -455,7 +457,7 @@ export class SyncActionDescriptor {
 	private readonly _keybindingContext: ContextKeyExpression | undefined;
 	private readonly _keybindingWeight: number | undefined;
 
-	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action },
+	public static create<Services extends BrandedService[]>(ctor: { new(id: string, label: string, ...services: Services): Action; },
 		id: string, label: string | undefined, keybindings?: IKeybindings, keybindingContext?: ContextKeyExpression, keybindingWeight?: number
 	): SyncActionDescriptor {
 		return new SyncActionDescriptor(ctor as IConstructorSignature2<string, string | undefined, Action>, id, label, keybindings, keybindingContext, keybindingWeight);
@@ -522,7 +524,7 @@ export interface IAction2Options extends ICommandAction {
 	/**
 	 * One or many menu items.
 	 */
-	menu?: OneOrN<{ id: MenuId } & Omit<IMenuItem, 'command'>>;
+	menu?: OneOrN<{ id: MenuId; } & Omit<IMenuItem, 'command'>>;
 
 	/**
 	 * One keybinding.
@@ -541,7 +543,7 @@ export abstract class Action2 {
 	abstract run(accessor: ServicesAccessor, ...args: any[]): void;
 }
 
-export function registerAction2(ctor: { new(): Action2 }): IDisposable {
+export function registerAction2(ctor: { new(): Action2; }): IDisposable {
 	const disposables = new DisposableStore();
 	const action = new ctor();
 

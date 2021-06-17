@@ -95,7 +95,7 @@ export class NotebookEditorToolbar extends Disposable {
 
 	private _reigsterNotebookActionsToolbar() {
 		const cellMenu = this.instantiationService.createInstance(CellMenus);
-		this._notebookGlobalActionsMenu = this._register(cellMenu.getNotebookToolbar(this.contextKeyService));
+		this._notebookGlobalActionsMenu = this._register(cellMenu.getMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
 		this._useGlobalToolbar = this.configurationService.getValue<boolean | undefined>(GlobalToolbar) ?? false;

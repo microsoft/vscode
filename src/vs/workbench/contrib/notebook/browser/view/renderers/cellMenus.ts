@@ -12,31 +12,7 @@ export class CellMenus {
 		@IMenuService private readonly menuService: IMenuService,
 	) { }
 
-	getNotebookToolbar(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookToolbar, contextKeyService);
-	}
-
-	getNotebookRightToolbar(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookRightToolbar, contextKeyService);
-	}
-
-	getCellTitleMenu(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookCellTitle, contextKeyService);
-	}
-
-	getCellInsertionMenu(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookCellBetween, contextKeyService);
-	}
-
-	getCellTopInsertionMenu(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookCellListTop, contextKeyService);
-	}
-
-	getCellExecuteMenu(contextKeyService: IContextKeyService): IMenu {
-		return this.getMenu(MenuId.NotebookCellExecute, contextKeyService);
-	}
-
-	private getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
+	getMenu(menuId: MenuId, contextKeyService: IContextKeyService): IMenu {
 		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		return menu;
 	}

@@ -31,6 +31,7 @@ import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/brows
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -111,7 +112,14 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
 				NotebookStatusBarController.id
-			])
+			]),
+			menuIds: {
+				notebookToolbar: MenuId.InteractiveToolbar,
+				cellTitleToolbar: MenuId.InteractiveCellTitle,
+				cellInsertToolbar: MenuId.NotebookCellBetween,
+				cellTopInsertToolbar: MenuId.NotebookCellListTop,
+				cellExecuteToolbar: MenuId.InteractiveCellExecute
+			}
 		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 

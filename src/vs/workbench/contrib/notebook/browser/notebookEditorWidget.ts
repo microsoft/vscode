@@ -196,6 +196,18 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 }
 
+export function getDefaultNotebookCreationOptions() {
+	return {
+		menuIds: {
+			notebookToolbar: MenuId.NotebookToolbar,
+			cellTitleToolbar: MenuId.NotebookCellTitle,
+			cellInsertToolbar: MenuId.NotebookCellBetween,
+			cellTopInsertToolbar: MenuId.NotebookCellListTop,
+			cellExecuteToolbar: MenuId.NotebookCellExecute
+		}
+	};
+}
+
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;

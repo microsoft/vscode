@@ -25,7 +25,7 @@ import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
@@ -345,6 +345,13 @@ export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
 	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly menuIds: {
+		notebookToolbar: MenuId;
+		cellTitleToolbar: MenuId;
+		cellInsertToolbar: MenuId;
+		cellTopInsertToolbar: MenuId;
+		cellExecuteToolbar: MenuId;
+	};
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -366,6 +373,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	textModel?: NotebookTextModel;
 	getId(): string;
 	hasEditorFocus(): boolean;
+	readonly creationOptions: INotebookEditorCreationOptions;
 
 	isEmbedded: boolean;
 
