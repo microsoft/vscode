@@ -49,6 +49,18 @@ const terminalConfiguration: IConfigurationNode = {
 			],
 			default: 'singleTerminalOrNarrow',
 		},
+		[TerminalSettingId.TabsShowActions]: {
+			description: localize('terminal.integrated.tabs.showActions', 'Controls whether terminal split and kill buttons are displays next to the new terminal button.'),
+			type: 'string',
+			enum: ['always', 'singleTerminal', 'singleTerminalOrNarrow', 'never'],
+			enumDescriptions: [
+				localize('terminal.integrated.tabs.showActions.always', "Always show the actions"),
+				localize('terminal.integrated.tabs.showActions.singleTerminal', "Show the actions when it is the only terminal opened"),
+				localize('terminal.integrated.tabs.showActions.singleTerminalOrNarrow', "Show the actions when it is the only terminal opened or when the tabs view is in its narrow textless state"),
+				localize('terminal.integrated.tabs.showActions.never', "Never show the actions"),
+			],
+			default: 'singleTerminalOrNarrow',
+		},
 		[TerminalSettingId.TabsLocation]: {
 			type: 'string',
 			enum: ['left', 'right'],
