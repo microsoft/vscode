@@ -156,8 +156,8 @@ class FileAccessImpl {
 	 * **Note:** use `dom.ts#asCSSUrl` whenever the URL is to be used in CSS context.
 	 */
 	asBrowserUri(uri: URI): URI;
-	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string; }, __forceCodeFileUri?: boolean): URI;
-	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string; }, __forceCodeFileUri?: boolean): URI {
+	asBrowserUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI;
+	asBrowserUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }, __forceCodeFileUri?: boolean): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Handle remote URIs via `RemoteAuthorities`
@@ -188,8 +188,8 @@ class FileAccessImpl {
 	 * is responsible for loading.
 	 */
 	asFileUri(uri: URI): URI;
-	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string; }): URI;
-	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string; }): URI {
+	asFileUri(moduleId: string, moduleIdToUrl: { toUrl(moduleId: string): string }): URI;
+	asFileUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		const uri = this.toUri(uriOrModule, moduleIdToUrl);
 
 		// Only convert the URI if it is `vscode-file:` scheme
@@ -208,7 +208,7 @@ class FileAccessImpl {
 		return uri;
 	}
 
-	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string; }): URI {
+	private toUri(uriOrModule: URI | string, moduleIdToUrl?: { toUrl(moduleId: string): string }): URI {
 		if (URI.isUri(uriOrModule)) {
 			return uriOrModule;
 		}
