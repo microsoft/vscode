@@ -66,12 +66,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// Read in the cache on statup
 		this.cache = new Set<string>(JSON.parse(this.storageService.get(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL, JSON.stringify([]))));
 		this.storageService.remove(EditorOverrideService.overrideCacheStorageID, StorageScope.GLOBAL);
-		this.hostService.hadLastFocus().then(hadLastFocus => {
-			if (!hadLastFocus) {
-				return;
-			}
-			this.convertOldAssociationFormat();
-		});
+		this.convertOldAssociationFormat();
 
 		this._register(this.storageService.onWillSaveState(() => {
 			// We want to store the glob patterns we would activate on, this allows us to know if we need to await the ext host on startup for opening a resource
@@ -188,20 +183,25 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private convertOldAssociationFormat(): void {
-		const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
-		// If it's not an array, then it's the new format
-		if (!Array.isArray(rawAssociations)) {
-			return;
-		}
-		let newSettingObject = Object.create(null);
-		// Make the correctly formatted object from the array and then set that object
-		for (const association of rawAssociations) {
-			if (association.filenamePattern) {
-				newSettingObject[association.filenamePattern] = association.viewType;
+		this.hostService.hadLastFocus().then(hadLastFocus => {
+			if (!hadLastFocus) {
+				return;
 			}
-		}
-		this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
-		this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
+			const rawAssociations = this.configurationService.getValue<EditorAssociations | { [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
+			// If it's not an array, then it's the new format
+			if (!Array.isArray(rawAssociations)) {
+				return;
+			}
+			let newSettingObject = Object.create(null);
+			// Make the correctly formatted object from the array and then set that object
+			for (const association of rawAssociations) {
+				if (association.filenamePattern) {
+					newSettingObject[association.filenamePattern] = association.viewType;
+				}
+			}
+			this.logService.info(`Migrating ${editorsAssociationsSettingId}`);
+			this.configurationService.updateValue(editorsAssociationsSettingId, newSettingObject);
+		});
 	}
 
 	private getAllUserAssociations(): EditorAssociations {
