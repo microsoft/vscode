@@ -6,20 +6,22 @@
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorInputSerializer } from 'vs/workbench/common/editor';
-import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalInputSerializer implements IEditorInputSerializer {
-	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
+	) { }
 
 	public canSerialize(editorInput: TerminalEditorInput): boolean {
 		return true;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string {
-		console.log('serialize');
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		editorInput.detachInstance();
+		this._terminalEditorService.detachInstance(editorInput.terminalInstance!);
 		return term;
 	}
 
