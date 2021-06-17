@@ -208,8 +208,9 @@ interface TestResultItemWithChildren extends TestResultItem {
 	children: TestResultItemWithChildren[];
 }
 
-const itemToNode = (item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
+const itemToNode = (controllerId: string, item: ITestItem, parent: string | null): TestResultItemWithChildren => ({
 	parent,
+	controllerId,
 	item: { ...item },
 	children: [],
 	tasks: [],
@@ -334,14 +335,14 @@ export class LiveTestResult implements ITestResult {
 	 * Add the chain of tests to the run. The first test in the chain should
 	 * be either a test root, or a previously-known test.
 	 */
-	public addTestChainToRun(chain: ReadonlyArray<ITestItem>) {
+	public addTestChainToRun(controllerId: string, chain: ReadonlyArray<ITestItem>) {
 		let parent = this.testById.get(chain[0].extId);
 		if (!parent) { // must be a test root
-			parent = this.addTestToRun(chain[0], null);
+			parent = this.addTestToRun(controllerId, chain[0], null);
 		}
 
 		for (let i = 1; i < chain.length; i++) {
-			parent = this.addTestToRun(chain[i], parent.item.extId);
+			parent = this.addTestToRun(controllerId, chain[i], parent.item.extId);
 		}
 
 		for (let i = 0; i < this.tasks.length; i++) {
@@ -492,8 +493,8 @@ export class LiveTestResult implements ITestResult {
 		);
 	}
 
-	private addTestToRun(item: ITestItem, parent: string | null) {
-		const node = itemToNode(item, parent);
+	private addTestToRun(controllerId: string, item: ITestItem, parent: string | null) {
+		const node = itemToNode(controllerId, item, parent);
 		node.direct = this.includedIds.has(item.extId);
 		this.testById.set(item.extId, node);
 		this.counts[TestResultState.Unset]++;

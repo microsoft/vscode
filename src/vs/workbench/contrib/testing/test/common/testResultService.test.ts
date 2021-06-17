@@ -9,12 +9,12 @@ import { bufferToStream, newWriteableBufferStream, VSBuffer } from 'vs/base/comm
 import { Lazy } from 'vs/base/common/lazy';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { NullLogService } from 'vs/platform/log/common/log';
+import { SingleUseTestCollection } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
 import { ITestTaskState, TestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { getPathForTestInResult, HydratedTestResult, LiveOutputController, LiveTestResult, makeEmptyCounts, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { TestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { InMemoryResultStorage, ITestResultStorage } from 'vs/workbench/contrib/testing/common/testResultStorage';
-import { Convert, ReExportedTestRunState as TestRunState, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
-import { getInitializedMainTestCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import { Convert, getInitializedMainTestCollection, ReExportedTestRunState as TestRunState, TestResultState, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
 export const emptyOutputController = () => new LiveOutputController(
@@ -30,7 +30,7 @@ suite('Workbench - Test Results Service', () => {
 
 	let r: TestLiveTestResult;
 	let changed = new Set<TestResultItemChange>();
-	let tests: TestItemImpl;
+	let tests: SingleUseTestCollection;
 
 	const defaultOpts = {
 		exclude: [],
@@ -57,8 +57,17 @@ suite('Workbench - Test Results Service', () => {
 		r.addTask({ id: 't', name: undefined, running: true });
 
 		tests = testStubs.nested();
-		r.addTestChainToRun(testStubsChain(tests, ['id-a', 'id-aa']).map(Convert.TestItem.from));
-		r.addTestChainToRun(testStubsChain(tests, ['id-a', 'id-ab'], 1).map(Convert.TestItem.from));
+		await tests.expand(tests.root.id, Infinity);
+		r.addTestChainToRun('ctrl', [
+			Convert.TestItem.from(tests.root),
+			Convert.TestItem.from(tests.root.children.get('id-a')!),
+			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-aa')!),
+		]);
+
+		r.addTestChainToRun('ctrl', [
+			Convert.TestItem.from(tests.root.children.get('id-a')!),
+			Convert.TestItem.from(tests.root.children.get('id-a')!.children.get('id-ab')!),
+		]);
 	});
 
 	suite('LiveTestResult', () => {
@@ -128,7 +137,7 @@ suite('Workbench - Test Results Service', () => {
 			});
 			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestRunState.Running);
 			// update computed state:
-			assert.deepStrictEqual(r.getStateById('id-root')?.computedState, TestRunState.Running);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.computedState, TestRunState.Running);
 			assert.deepStrictEqual(getChangeSummary(), [
 				{ label: 'a', reason: TestResultItemChangeReason.ComputedStateChange },
 				{ label: 'aa', reason: TestResultItemChangeReason.OwnStateChange },
@@ -174,7 +183,7 @@ suite('Workbench - Test Results Service', () => {
 				[TestRunState.Unset]: 3,
 			});
 
-			assert.deepStrictEqual(r.getStateById('id-root')?.ownComputedState, TestRunState.Unset);
+			assert.deepStrictEqual(r.getStateById(tests.root.id)?.ownComputedState, TestRunState.Unset);
 			assert.deepStrictEqual(r.getStateById('id-aa')?.ownComputedState, TestRunState.Passed);
 		});
 	});
@@ -212,8 +221,8 @@ suite('Workbench - Test Results Service', () => {
 			await timeout(0); // allow load promise to resolve
 			assert.strictEqual(1, results.results.length);
 
-			const [rehydrated, actual] = results.getStateById('id-root')!;
-			const expected: any = { ...r.getStateById('id-root')! };
+			const [rehydrated, actual] = results.getStateById(tests.root.id)!;
+			const expected: any = { ...r.getStateById(tests.root.id)! };
 			delete expected.tasks[0].duration; // delete undefined props that don't survive serialization
 			delete expected.item.range;
 			delete expected.item.description;
@@ -296,17 +305,17 @@ suite('Workbench - Test Results Service', () => {
 		assert.deepStrictEqual([...resultItemParents(r, r.getStateById('id-aa')!)], [
 			r.getStateById('id-aa'),
 			r.getStateById('id-a'),
-			r.getStateById('id-root'),
+			r.getStateById(tests.root.id),
 		]);
 
-		assert.deepStrictEqual([...resultItemParents(r, r.getStateById('id-root')!)], [
-			r.getStateById('id-root'),
+		assert.deepStrictEqual([...resultItemParents(r, r.getStateById(tests.root.id)!)], [
+			r.getStateById(tests.root.id),
 		]);
 	});
 
 	test('getPathForTestInResult', () => {
 		assert.deepStrictEqual([...getPathForTestInResult(r.getStateById('id-aa')!, r)], [
-			'id-root',
+			tests.root.id,
 			'id-a',
 			'id-aa',
 		]);

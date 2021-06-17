@@ -22,7 +22,6 @@ export type ExtHostTestItemEvent =
 
 export interface IExtHostTestItemApi {
 	children: Map<string, TestItemImpl>;
-	parent?: TestItemImpl;
 	bus: Emitter<ExtHostTestItemEvent>;
 }
 

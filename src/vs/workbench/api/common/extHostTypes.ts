@@ -3335,23 +3335,29 @@ const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefine
 	return a.isEqual(b);
 };
 
-export class TestItemImpl implements vscode.TestItem<unknown> {
+export class TestRunRequest<T> implements vscode.TestRunRequest<T> {
+	constructor(
+		public readonly tests: vscode.TestItem<T>[],
+		public readonly exclude?: vscode.TestItem<T>[] | undefined,
+		public readonly debug = false,
+	) { }
+}
+
+export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: ReadonlyMap<string, TestItemImpl>;
-	public readonly parent!: TestItemImpl | undefined;
+	public readonly children!: ReadonlyMap<string, TestItemImpl<T>>;
+	public readonly parent!: TestItemImpl<T> | undefined;
 
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
 	public runnable!: boolean;
 	public debuggable!: boolean;
+	public label!: string;
 	public error!: string | vscode.MarkdownString;
 	public status!: vscode.TestItemStatus;
 
-	/** Extension-owned resolve handler */
-	public resolveHandler?: (token: vscode.CancellationToken) => void;
-
-	constructor(id: string, public label: string, uri: vscode.Uri | undefined, public data: unknown) {
+	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: T, parent: vscode.TestItem | undefined) {
 		const api = getPrivateApiFor(this);
 
 		Object.defineProperties(this, {
@@ -3367,7 +3373,8 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 			},
 			parent: {
 				enumerable: false,
-				get: () => api.parent,
+				value: parent,
+				writable: false,
 			},
 			children: {
 				value: new ReadonlyMapView(api.children),
@@ -3375,12 +3382,27 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 				writable: false,
 			},
 			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
+			label: testItemPropAccessor(api, 'label', label, strictEqualComparator),
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
 			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
 			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
+
+		if (parent) {
+			if (!(parent instanceof TestItemImpl)) {
+				throw new Error(`The "parent" passed in for TestItem ${id} is invalid`);
+			}
+
+			const parentApi = getPrivateApiFor(parent);
+			if (parentApi.children.has(id)) {
+				throw new Error(`Attempted to insert a duplicate test item ID ${id}`);
+			}
+
+			parentApi.children.set(id, this);
+			parentApi.bus.fire([ExtHostTestItemEventType.NewChild, this]);
+		}
 	}
 
 	public invalidate() {
@@ -3388,27 +3410,11 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 	}
 
 	public dispose() {
-		const api = getPrivateApiFor(this);
-		if (api.parent) {
-			getPrivateApiFor(api.parent).children.delete(this.id);
+		if (this.parent) {
+			getPrivateApiFor(this.parent).children.delete(this.id);
 		}
 
-		api.bus.fire([ExtHostTestItemEventType.Disposed]);
-	}
-
-	public addChild(child: vscode.TestItem<unknown>) {
-		if (!(child instanceof TestItemImpl)) {
-			throw new Error('Test child must be created through vscode.test.createTestItem()');
-		}
-
-		const api = getPrivateApiFor(this);
-		if (api.children.has(child.id)) {
-			throw new Error(`Attempted to insert a duplicate test item ID ${child.id}`);
-		}
-
-		api.children.set(child.id, child);
-		getPrivateApiFor(child).parent = this;
-		api.bus.fire([ExtHostTestItemEventType.NewChild, child]);
+		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Disposed]);
 	}
 }
 
