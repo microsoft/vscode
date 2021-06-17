@@ -65,18 +65,11 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
-			open: async (uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken) => {
+			open: async (_uri: URI, _backupId: string | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
 				return {
 					data: {
 						metadata: {},
-						cells: [
-							{
-								source: `Started 'Python 3.9.1 64-bit ('testenv': conda)' kernel\nPython 3.9.1 (default, Dec 11 2020, 09:29:25) [MSC v.1916 64 bit (AMD64)]\nType 'copyright', 'credits' or 'license' for more information\nIPython 7.20.0 -- An enhanced Interactive Python. Type '?' for help.`,
-								language: 'markdown',
-								cellKind: CellKind.Markup,
-								outputs: [],
-							}
-						]
+						cells: []
 					},
 					transientOptions: contentOptions
 				};
