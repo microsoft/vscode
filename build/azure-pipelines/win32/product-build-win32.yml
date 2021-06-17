@@ -17,6 +17,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite'
 
   - task: DownloadPipelineArtifact@2
     inputs:
