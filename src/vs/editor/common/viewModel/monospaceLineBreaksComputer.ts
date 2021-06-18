@@ -438,7 +438,7 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 		prevCharCodeClass = charCodeClass;
 	}
 
-	if (breakingOffsetsCount === 0) {
+	if (breakingOffsetsCount === 0 && (!injectedTexts || injectedTexts.length === 0)) {
 		return null;
 	}
 
