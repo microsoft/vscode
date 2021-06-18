@@ -235,7 +235,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	private _terminalLocation: ViewContainerLocation = ViewContainerLocation.Panel;
 	private _instanceDisposables: Map<number, IDisposable[]> = new Map();
 
-	private _activeInstanceIndex: number;
+	private _activeInstanceIndex: number = -1;
 	private _isVisible: boolean = false;
 
 	get terminalInstances(): ITerminalInstance[] { return this._terminalInstances; }
@@ -248,6 +248,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onInstancesChanged = this._onInstancesChanged.event;
+	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
 	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
 
@@ -263,7 +265,6 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		if (shellLaunchConfigOrInstance) {
 			this.addInstance(shellLaunchConfigOrInstance);
 		}
-		this._activeInstanceIndex = 0;
 		if (this._container) {
 			this.attachToElement(this._container);
 		}
@@ -421,12 +422,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			return;
 		}
 
-		const didInstanceChange = this._activeInstanceIndex !== index;
 		this._activeInstanceIndex = index;
-
-		if (didInstanceChange) {
-			this._onInstancesChanged.fire();
-		}
+		this._onInstancesChanged.fire();
+		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
 	attachToElement(element: HTMLElement): void {

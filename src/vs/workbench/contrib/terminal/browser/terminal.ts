@@ -121,7 +121,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly profilesReady: Promise<void>;
 
 	initializeTerminals(): Promise<void>;
-	onActiveGroupChanged: Event<void>;
+	onActiveGroupChanged: Event<ITerminalGroup | undefined>;
 	onGroupDisposed: Event<ITerminalGroup>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;

@@ -101,8 +101,8 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private readonly _onActiveGroupChanged = new Emitter<void>();
-	get onActiveGroupChanged(): Event<void> { return this._onActiveGroupChanged.event; }
+	private readonly _onActiveGroupChanged = new Emitter<ITerminalGroup | undefined>();
+	get onActiveGroupChanged(): Event<ITerminalGroup | undefined> { return this._onActiveGroupChanged.event; }
 	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
@@ -210,6 +210,7 @@ export class TerminalService implements ITerminalService {
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
+		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
 		this._terminalGroupService.onPanelOrientationChanged(this._onPanelOrientationChanged.fire, this.onPanelOrientationChanged);
 
 		// the below avoids having to poll routinely.
@@ -527,7 +528,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	refreshActiveGroup(): void {
-		this._onActiveGroupChanged.fire();
+		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
@@ -639,7 +640,7 @@ export class TerminalService implements ITerminalService {
 
 		// Fire events
 		this._onDidChangeInstances.fire();
-		this._onActiveGroupChanged.fire();
+		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {

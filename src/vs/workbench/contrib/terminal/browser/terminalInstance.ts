@@ -984,6 +984,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		if (!this._isDisposed) {
 			this._isDisposed = true;
+			console.log('fire dispose', this.instanceId);
 			this._onDisposed.fire(this);
 		}
 		super.dispose();

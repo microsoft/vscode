@@ -99,6 +99,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 		this.groups.push(group);
 		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
+		group.addDisposable(group.onDidChangeActiveInstance(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {
@@ -109,16 +110,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _removeGroup(group: ITerminalGroup): void {
-		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
-
-		this._onDidChangeInstances.fire();
-		this._onDidChangeGroups.fire();
-		if (wasActiveGroup) {
-			this._onDidChangeActiveGroup.fire(this.activeGroup);
-		}
-	}
-
-	private _removeGroupAndAdjustFocus(group: ITerminalGroup): boolean {
 		// Get the index of the group and remove it from the list
 		const activeGroup = this.activeGroup;
 		const wasActiveGroup = group === activeGroup;
@@ -138,11 +129,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this.setActiveGroupByIndex(newIndex);
 		}
 
+		this._onDidChangeInstances.fire();
 		if (this.groups.length === 0) {
 			this._onDidChangeActiveInstance.fire(undefined);
 		}
 
-		return wasActiveGroup;
+		this._onDidChangeGroups.fire();
+		if (wasActiveGroup) {
+			this._onDidChangeActiveGroup.fire(this.activeGroup);
+		}
 	}
 
 	setActiveGroupByIndex(index: number): void {
@@ -185,13 +180,12 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.activeInstanceIndex = instanceLocation.instanceIndex;
 		this.activeGroupIndex = instanceLocation.groupIndex;
 
-		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
-		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
-
 		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
 		}
-		this._onDidChangeActiveInstance.fire(instanceLocation.instance);
+		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
+
+		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
 	}
 
 	setActiveGroupToNext(): void {
