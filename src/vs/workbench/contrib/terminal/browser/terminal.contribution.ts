@@ -23,7 +23,7 @@ import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalCol
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteTerminalService, ITerminalEditorService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -43,10 +43,12 @@ import { TerminalInputSerializer, TerminalEditor } from 'vs/workbench/contrib/te
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
+import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
 registerSingleton(ITerminalEditorService, TerminalEditorService, true);
+registerSingleton(ITerminalGroupService, TerminalGroupService, true);
 registerSingleton(IRemoteTerminalService, RemoteTerminalService);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 

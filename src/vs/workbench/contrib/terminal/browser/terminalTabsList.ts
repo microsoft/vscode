@@ -9,14 +9,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -68,7 +68,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
@@ -99,16 +100,16 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService,
 		);
-		this._terminalService.onInstancesChanged(() => this.refresh());
-		this._terminalService.onGroupsChanged(() => this.refresh());
+		this._terminalGroupService.onDidChangeInstances(() => this.refresh());
+		this._terminalGroupService.onDidChangeGroups(() => this.refresh());
 		this._terminalService.onInstanceTitleChanged(() => this.refresh());
 		this._terminalService.onInstanceIconChanged(() => this.refresh());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());
 		this._terminalService.onDidChangeConnectionState(() => this.refresh());
 		this._themeService.onDidColorThemeChange(() => this.refresh());
-		this._terminalService.onActiveInstanceChanged(e => {
-			if (e && e.target !== TerminalLocation.Editor) {
-				const i = this._terminalService.terminalInstances.indexOf(e);
+		this._terminalGroupService.onDidChangeActiveInstance(e => {
+			if (e) {
+				const i = this._terminalGroupService.instances.indexOf(e);
 				this.setSelection([i]);
 				this.reveal(i);
 			}
@@ -117,7 +118,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
 				const instance = this._terminalService.createTerminal();
-				this._terminalService.setActiveInstance(instance);
+				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
 		});
@@ -162,7 +163,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (e.editorOptions.pinned) {
 				return;
 			}
-			this._terminalService.setActiveInstance(instance);
+			this._terminalGroupService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
 			}
@@ -175,13 +176,13 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	refresh(): void {
-		this.splice(0, this.length, this._terminalService.terminalInstances);
+		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(instance.length > 0 && this._terminalService.instanceIsSplit(instance[0]));
+		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
 	}
 }
 
@@ -194,6 +195,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -250,7 +252,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
 		const hasText = !this.shouldHideText();
 
-		const group = this._terminalService.getGroupForInstance(instance);
+		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
 			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
@@ -480,7 +482,9 @@ interface ITerminalTabEntryTemplate {
 
 
 class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
-	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+	constructor(
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('terminal.tabs', "Terminal tabs");
@@ -488,7 +492,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getGroupForInstance(instance);
+		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({
@@ -519,6 +523,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 	constructor(
 		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalGroupService private _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
 	) { }
 
@@ -603,13 +608,13 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		if (!targetInstance) {
 			for (const instance of sourceInstances) {
-				this._terminalService.unsplitInstance(instance);
+				this._terminalGroupService.unsplitInstance(instance);
 			}
 			return;
 		}
 
 		for (const instance of sourceInstances) {
-			this._terminalService.moveGroup(instance, targetInstance);
+			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
 				this._terminalService.setActiveInstance(instance);
 				focused = true;
