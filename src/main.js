@@ -33,7 +33,7 @@ app.allowRendererProcessReuse = false;
 const portable = bootstrapNode.configurePortable(product);
 
 // Enable ASAR support
-bootstrap.enableASARSupport(undefined);
+bootstrap.enableASARSupport(undefined, false);
 
 // Set userData path before app 'ready' event
 const args = parseCLIArgs();
