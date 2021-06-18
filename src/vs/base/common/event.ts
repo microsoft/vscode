@@ -364,24 +364,6 @@ export namespace Event {
 		return result.event;
 	}
 
-	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
-		const emitter = new Emitter<undefined>();
-		let shouldEmit = false;
-
-		promise
-			.then(undefined, () => null)
-			.then(() => {
-				if (!shouldEmit) {
-					setTimeout(() => emitter.fire(undefined), 0);
-				} else {
-					emitter.fire(undefined);
-				}
-			});
-
-		shouldEmit = true;
-		return emitter.event;
-	}
-
 	export function toPromise<T>(event: Event<T>): Promise<T> {
 		return new Promise(resolve => once(event)(resolve));
 	}

@@ -584,33 +584,6 @@ suite('Event utils', () => {
 		});
 	});
 
-	suite('fromPromise', () => {
-
-		test('should emit when done', async () => {
-			let count = 0;
-
-			const event = Event.fromPromise(Promise.resolve(null));
-			event(() => count++);
-
-			assert.strictEqual(count, 0);
-
-			await timeout(10);
-			assert.strictEqual(count, 1);
-		});
-
-		test('should emit when done - setTimeout', async () => {
-			let count = 0;
-
-			const promise = timeout(5);
-			const event = Event.fromPromise(promise);
-			event(() => count++);
-
-			assert.strictEqual(count, 0);
-			await promise;
-			assert.strictEqual(count, 1);
-		});
-	});
-
 	suite('stopwatch', () => {
 
 		test('should emit', () => {
