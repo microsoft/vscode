@@ -207,6 +207,15 @@ export class TerminalService implements ITerminalService {
 		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
+		// Hide the panel if there are no more instances, provided that VS Code is not shutting
+		// down. When shutting down the panel is locked in place so that it is restored upon next
+		// launch.
+		this._terminalGroupService.onDidChangeActiveInstance(instance => {
+			if (!instance && !this._isShuttingDown) {
+				this.hidePanel();
+			}
+		});
+
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
 		this._processSupportContextKey.set(!isWeb || this._remoteAgentService.getConnection() !== null);
@@ -500,11 +509,6 @@ export class TerminalService implements ITerminalService {
 	getActiveInstance(): ITerminalInstance | undefined {
 		// TODO: Get the active instance from the latest activated group or editor
 		return this._terminalGroupService.activeInstance;
-		// const group = this.getActiveGroup();
-		// if (!group) {
-		// 	return null;
-		// }
-		// return group.activeInstance;
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
@@ -588,15 +592,6 @@ export class TerminalService implements ITerminalService {
 
 		oldGroup.removeInstance(instance);
 		this._terminalGroupService.createGroup(instance);
-
-		// const newGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
-		// newGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		// this._terminalGroups.push(newGroup);
-
-		// newGroup.addDisposable(newGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		// newGroup.addDisposable(newGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-		// this._onInstancesChanged.fire();
-		// this._onGroupsChanged.fire();
 	}
 
 	joinInstances(instances: ITerminalInstance[]): void {
@@ -615,12 +610,6 @@ export class TerminalService implements ITerminalService {
 		// Create a new group if needed
 		if (!candidateGroup) {
 			candidateGroup = this._terminalGroupService.createGroup();
-			// candidateGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-			// candidateGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-			// this._terminalGroups.push(candidateGroup);
-			// candidateGroup.addDisposable(candidateGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			// candidateGroup.addDisposable(candidateGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-			// this._onGroupsChanged.fire();
 		}
 
 		const wasActiveGroup = this._terminalGroupService.activeGroup === candidateGroup;
@@ -703,11 +692,6 @@ export class TerminalService implements ITerminalService {
 
 		if (!group) {
 			group = this._terminalGroupService.createGroup();
-			// group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-			// group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-			// this._terminalGroups.push(group);
-			// group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			// group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		}
 
 		group.addInstance(source);
@@ -1143,11 +1127,6 @@ export class TerminalService implements ITerminalService {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.hideFromUser = false;
 		this._terminalGroupService.createGroup(instance);
-		// const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
-		// this._terminalGroups.push(terminalGroup);
-		// terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		// terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		// terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 
 		// Make active automatically if it's the first instance
 		if (this.terminalInstances.length === 1) {

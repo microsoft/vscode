@@ -91,11 +91,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this.groups.splice(index, 1);
 			this._onDidChangeGroups.fire();
 		}
-		// if (index !== -1) {
-		// 	// TODO: Remove cast
-		// 	(this._terminalGroups as ITerminalGroup[]).splice(index, 1);
-		// 	this._onGroupsChanged.fire();
-		// }
 
 		// Adjust focus if the group was active
 		if (wasActiveGroup && this.groups.length > 0) {
@@ -107,14 +102,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			this.setActiveGroupByIndex(newIndex);
 		}
 
-		// Hide the panel if there are no more instances, provided that VS Code is not shutting
-		// down. When shutting down the panel is locked in place so that it is restored upon next
-		// launch.
-		// TODO: Move this into terminal service - listen to onDidGroupsChange
-		// if (this.groups.length === 0 && !this._isShuttingDown) {
-		// 	this.hidePanel();
-		// 	this._onActiveInstanceChanged.fire(undefined);
-		// }
+		if (this.groups.length === 0) {
+			this._onDidChangeActiveInstance.fire(undefined);
+		}
 
 		return wasActiveGroup;
 	}
