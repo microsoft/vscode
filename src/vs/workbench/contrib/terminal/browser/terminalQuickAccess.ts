@@ -50,7 +50,9 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 		const terminalEditors = this._terminalEditorService.instances;
 		for (let editorIndex = 0; editorIndex < terminalEditors.length; editorIndex++) {
-			const pick = this._createPick(terminalEditors[editorIndex], editorIndex, filter);
+			const term = terminalEditors[editorIndex];
+			term.target = TerminalLocation.Editor;
+			const pick = this._createPick(term, editorIndex, filter);
 			if (pick) {
 				terminalPicks.push(pick);
 			}
@@ -119,7 +121,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 				},
 				accept: (keyMod, event) => {
 					if (terminal.target === TerminalLocation.Editor) {
-						this._terminalEditorService.createEditor(terminal);
+						this._terminalEditorService.openEditor(terminal);
 						this._terminalEditorService.setActiveInstance(terminal);
 					} else {
 						this._terminalService.showPanel(!event.inBackground);

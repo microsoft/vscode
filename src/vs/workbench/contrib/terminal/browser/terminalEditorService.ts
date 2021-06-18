@@ -54,16 +54,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	private _setActiveInstance(instance: ITerminalInstance | undefined): void {
-		const oldActiveInstance = this.activeInstance;
 		if (instance === undefined) {
 			this._activeInstanceIndex = -1;
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
 		const newActiveInstance = this.activeInstance;
-		if (oldActiveInstance !== newActiveInstance) {
-			this._onDidChangeActiveInstance.fire(newActiveInstance);
-		}
+		this._onDidChangeActiveInstance.fire(newActiveInstance);
 	}
 
 	async openEditor(instance: ITerminalInstance): Promise<void> {
@@ -77,6 +74,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
 		const cachedEditor = this._editorInputs.get(instance.instanceId);
 		if (cachedEditor) {
+			console.log('cached');
 			return cachedEditor;
 		}
 		const input = new TerminalEditorInput(instance);
