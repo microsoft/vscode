@@ -207,7 +207,7 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
-		this.onGroupDisposed(group => this._removeGroup(group));
+		this.onGroupDisposed(group => this._terminalGroupService.removeGroup(group));
 		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
@@ -477,7 +477,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this.getActiveGroup()))
+			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup))
 		};
 		this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(state);
 	}
@@ -498,69 +498,19 @@ export class TerminalService implements ITerminalService {
 		this._primaryOffProcessTerminalService?.updateIcon(instance.persistentProcessId, instance.icon, instance.color);
 	}
 
-	private _removeGroup(group: ITerminalGroup): void {
-		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
-
-		this._onInstancesChanged.fire();
-		this._onGroupsChanged.fire();
-		if (wasActiveGroup) {
-			this._onActiveGroupChanged.fire();
-		}
-	}
-
-	private _removeGroupAndAdjustFocus(group: ITerminalGroup): boolean {
-		// Get the index of the group and remove it from the list
-		const index = this._terminalGroups.indexOf(group);
-		const activeGroup = this.getActiveGroup();
-		const activeGroupIndex = activeGroup ? this._terminalGroups.indexOf(activeGroup) : -1;
-		const wasActiveGroup = group === activeGroup;
-		if (index !== -1) {
-			// TODO: Remove cast
-			(this._terminalGroups as ITerminalGroup[]).splice(index, 1);
-			this._onGroupsChanged.fire();
-		}
-
-		// Adjust focus if the group was active
-		if (wasActiveGroup && this._terminalGroups.length > 0) {
-			const newIndex = index < this._terminalGroups.length ? index : this._terminalGroups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
-			const activeInstance = this.getActiveInstance();
-			if (activeInstance) {
-				activeInstance.focus(true);
-			}
-		} else if (activeGroupIndex >= this._terminalGroups.length) {
-			const newIndex = this._terminalGroups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
-		}
-
-		// Hide the panel if there are no more instances, provided that VS Code is not shutting
-		// down. When shutting down the panel is locked in place so that it is restored upon next
-		// launch.
-		if (this._terminalGroups.length === 0 && !this._isShuttingDown) {
-			this.hidePanel();
-			this._onActiveInstanceChanged.fire(undefined);
-		}
-
-		return wasActiveGroup;
-	}
-
 	refreshActiveGroup(): void {
 		this._onActiveGroupChanged.fire();
 	}
 
-	public getActiveGroup(): ITerminalGroup | null {
-		if (this._activeGroupIndex < 0 || this._activeGroupIndex >= this._terminalGroups.length) {
-			return null;
-		}
-		return this._terminalGroups[this._activeGroupIndex];
-	}
-
 	public getActiveInstance(): ITerminalInstance | null {
-		const group = this.getActiveGroup();
-		if (!group) {
-			return null;
-		}
-		return group.activeInstance;
+		// TODO: Change return type to undefined
+		// TODO: Get the active instance from the latest activated group or editor
+		return this._terminalGroupService.activeInstance || null;
+		// const group = this.getActiveGroup();
+		// if (!group) {
+		// 	return null;
+		// }
+		// return group.activeInstance;
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
@@ -747,7 +697,7 @@ export class TerminalService implements ITerminalService {
 			// this._onGroupsChanged.fire();
 		}
 
-		const wasActiveGroup = this.getActiveGroup() === candidateGroup;
+		const wasActiveGroup = this._terminalGroupService.activeGroup === candidateGroup;
 
 		// Unsplit all other instances and add them to the new group
 		for (const instance of instances) {

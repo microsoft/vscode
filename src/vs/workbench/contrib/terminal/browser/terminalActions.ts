@@ -30,7 +30,7 @@ import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventS
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TerminalLocation, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -276,9 +276,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.getActiveGroup()?.focusPreviousPane();
-			await terminalService.showPanel(true);
+			accessor.get(ITerminalGroupService).activeGroup?.focusPreviousPane();
+			await accessor.get(ITerminalService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -302,9 +301,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.getActiveGroup()?.focusNextPane();
-			await terminalService.showPanel(true);
+			accessor.get(ITerminalGroupService).activeGroup?.focusNextPane();
+			await accessor.get(ITerminalService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -324,7 +322,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Left);
+			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Left);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -344,7 +342,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Right);
+			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Right);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -363,7 +361,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Up);
+			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Up);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -382,7 +380,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).getActiveGroup()?.resizePane(Direction.Down);
+			accessor.get(ITerminalGroupService).activeGroup?.resizePane(Direction.Down);
 		}
 	});
 	registerAction2(class extends Action2 {

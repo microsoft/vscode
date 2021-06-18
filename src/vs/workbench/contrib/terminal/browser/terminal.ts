@@ -188,7 +188,7 @@ export interface ITerminalService {
 	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
 
-	getActiveGroup(): ITerminalGroup | null;
+	// TODO: Move these to ITerminalGroupService
 	setActiveGroupToNext(): void;
 	setActiveGroupToPrevious(): void;
 	setActiveGroupByIndex(groupIndex: number): void;
@@ -256,16 +256,21 @@ export interface ITerminalEditorService {
 export interface ITerminalGroupService {
 	readonly _serviceBrand: undefined;
 
+	readonly activeGroup: ITerminalGroup | undefined;
+	readonly activeInstance: ITerminalInstance | undefined;
 	readonly instances: readonly ITerminalInstance[];
 	readonly groups: readonly ITerminalGroup[];
 
+	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	readonly onDidChangeGroups: Event<void>;
+
 	readonly onDidChangeInstances: Event<void>;
+
 	readonly onPanelOrientationChanged: Event<Orientation>;
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
-	// removeGroup(group: ITerminalGroup): void;
+	removeGroup(group: ITerminalGroup): void;
 
 	/**
 	 * Moves a terminal instance's group to the target instance group's position.

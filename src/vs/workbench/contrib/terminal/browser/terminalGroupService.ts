@@ -17,8 +17,12 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	instances: ITerminalInstance[] = [];
 	groups: ITerminalGroup[] = [];
 
+	private _activeGroupIndex: number = -1;
+
 	private _container: HTMLElement | undefined;
 
+	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
+	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
 	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
 	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
 	private readonly _onDidChangeGroups = new Emitter<void>();
@@ -34,6 +38,18 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+	}
+
+	get activeGroup(): ITerminalGroup | undefined {
+		if (this._activeGroupIndex < 0 || this._activeGroupIndex >= this.groups.length) {
+			return undefined;
+		}
+		return this.groups[this._activeGroupIndex];
+	}
+
+	get activeInstance(): ITerminalInstance | undefined {
+		// TODO: Change ITermianlGroup.activeInstance to return undefined
+		return this.activeGroup?.activeInstance ?? undefined;
 	}
 
 	setContainer(container: HTMLElement) {
@@ -55,13 +71,63 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	// removeGroup(group: ITerminalGroup): void {
-	// 	const index = this.groups.indexOf(group);
-	// 	if (index !== -1) {
-	// 		this.groups.splice(index, 1);
-	// 		this._onDidChangeGroups.fire();
-	// 	}
-	// }
+	removeGroup(group: ITerminalGroup): void {
+		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
+
+		this._onDidChangeInstances.fire();
+		this._onDidChangeGroups.fire();
+		if (wasActiveGroup) {
+			this._onDidChangeActiveGroup.fire(this.activeGroup);
+		}
+	}
+
+	private _removeGroupAndAdjustFocus(group: ITerminalGroup): boolean {
+		// Get the index of the group and remove it from the list
+		const activeGroup = this.activeGroup;
+		const wasActiveGroup = group === activeGroup;
+		const index = this.groups.indexOf(group);
+		if (index !== -1) {
+			this.groups.splice(index, 1);
+			this._onDidChangeGroups.fire();
+		}
+		// if (index !== -1) {
+		// 	// TODO: Remove cast
+		// 	(this._terminalGroups as ITerminalGroup[]).splice(index, 1);
+		// 	this._onGroupsChanged.fire();
+		// }
+
+		// Adjust focus if the group was active
+		if (wasActiveGroup && this.groups.length > 0) {
+			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
+			this._setActiveGroupByIndex(newIndex);
+			this.activeInstance?.focus(true);
+		} else if (this._activeGroupIndex >= this.groups.length) {
+			const newIndex = this.groups.length - 1;
+			this._setActiveGroupByIndex(newIndex);
+		}
+
+		// Hide the panel if there are no more instances, provided that VS Code is not shutting
+		// down. When shutting down the panel is locked in place so that it is restored upon next
+		// launch.
+		// TODO: Move this into terminal service - listen to onDidGroupsChange
+		// if (this.groups.length === 0 && !this._isShuttingDown) {
+		// 	this.hidePanel();
+		// 	this._onActiveInstanceChanged.fire(undefined);
+		// }
+
+		return wasActiveGroup;
+	}
+
+	private _setActiveGroupByIndex(index: number): void {
+		if (index >= this.groups.length) {
+			return;
+		}
+
+		this._activeGroupIndex = index;
+
+		this.groups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
+		this._onDidChangeActiveGroup.fire(this.activeGroup);
+	}
 
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
 		const sourceGroup = this.getGroupForInstance(source);
