@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { Separator } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -39,7 +38,7 @@ export class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
@@ -47,11 +46,6 @@ export class NativeMenubarControl extends MenubarControl {
 		@ICommandService commandService: ICommandService,
 	) {
 		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
-
-		if (isMacintosh) {
-			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = localize('mPreferences', "Preferences");
-		}
 
 		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
 			const menu = this.menus[topLevelMenuName];

@@ -763,6 +763,9 @@ var AMDLoader;
                 require.resolve = function resolve(request, options) {
                     return Module._resolveFilename(request, mod, false, options);
                 };
+                require.resolve.paths = function paths(request) {
+                    return Module._resolveLookupPaths(request, mod);
+                };
                 require.main = process.mainModule;
                 require.extensions = Module._extensions;
                 require.cache = Module._cache;

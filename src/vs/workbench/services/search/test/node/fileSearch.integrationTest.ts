@@ -38,7 +38,7 @@ async function doSearchTest(query: IFileQuery, expectedResultCount: number | Fun
 		}
 	});
 
-	assert.equal(results.length, expectedResultCount, `rg ${results.length} !== ${expectedResultCount}`);
+	assert.strictEqual(results.length, expectedResultCount, `rg ${results.length} !== ${expectedResultCount}`);
 }
 
 flakySuite('FileSearch-integration', function () {

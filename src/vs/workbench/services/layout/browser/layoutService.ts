@@ -15,6 +15,7 @@ export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IW
 
 export const enum Parts {
 	TITLEBAR_PART = 'workbench.parts.titlebar',
+	BANNER_PART = 'workbench.parts.banner',
 	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
@@ -123,9 +124,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
-	 * this means that the contents of editors have loaded.
+	 * this means that the contents of visible editors have loaded.
 	 */
 	isRestored(): boolean;
+
+	/**
+	 * A promise for to await the `isRestored()` condition to be `true`.
+	 */
+	readonly whenRestored: Promise<void>;
 
 	/**
 	 * Returns whether the given part has the keyboard focus or not.
@@ -156,6 +162,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set activity bar hidden or not
 	 */
 	setActivityBarHidden(hidden: boolean): void;
+
+	/**
+	 * Set banner hidden or not
+	 */
+	setBannerHidden(hidden: boolean): void;
 
 	/**
 	 *

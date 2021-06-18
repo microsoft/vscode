@@ -61,6 +61,12 @@ export const CutAction = supportsCut ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.cutLabel', "Cut"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.cutLabel', "Cut"),
+		when: EditorContextKeys.writable,
+		order: 1,
 	}]
 })) : undefined;
 
@@ -91,11 +97,16 @@ export const CopyAction = supportsCopy ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.copyLabel', "Copy"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.copyLabel', "Copy"),
+		order: 2,
 	}]
 })) : undefined;
 
-MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, { submenu: MenuId.MenubarCopy, title: { value: nls.localize('copy as', "Copy As..."), original: 'Copy As...', }, group: '2_ccp', order: 3 });
-MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextCopy, title: { value: nls.localize('copy as', "Copy As..."), original: 'Copy As...', }, group: CLIPBOARD_CONTEXT_MENU_GROUP, order: 3 });
+MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, { submenu: MenuId.MenubarCopy, title: { value: nls.localize('copy as', "Copy As"), original: 'Copy As', }, group: '2_ccp', order: 3 });
+MenuRegistry.appendMenuItem(MenuId.EditorContext, { submenu: MenuId.EditorContextCopy, title: { value: nls.localize('copy as', "Copy As"), original: 'Copy As', }, group: CLIPBOARD_CONTEXT_MENU_GROUP, order: 3 });
 
 export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 	id: 'editor.action.clipboardPasteAction',
@@ -126,6 +137,12 @@ export const PasteAction = supportsPaste ? registerCommand(new MultiCommand({
 		group: '',
 		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
 		order: 1
+	}, {
+		menuId: MenuId.SimpleEditorContext,
+		group: CLIPBOARD_CONTEXT_MENU_GROUP,
+		title: nls.localize('actions.clipboard.pasteLabel', "Paste"),
+		when: EditorContextKeys.writable,
+		order: 4,
 	}]
 })) : undefined;
 

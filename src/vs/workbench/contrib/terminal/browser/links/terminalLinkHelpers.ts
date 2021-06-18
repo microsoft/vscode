@@ -6,7 +6,20 @@
 import type { IViewportRange, IBufferRange, IBufferLine, IBuffer, IBufferCellPosition } from 'xterm';
 import { IRange } from 'vs/editor/common/core/range';
 
-export function convertLinkRangeToBuffer(lines: IBufferLine[], bufferWidth: number, range: IRange, startLine: number) {
+/**
+ * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
+ *
+ * @param lines A single line (not the entire buffer)
+ * @param bufferWidth The number of columns in the terminal
+ * @param range The link range - string indices
+ * @param startLine The absolute y position (on the buffer) of the line
+ */
+export function convertLinkRangeToBuffer(
+	lines: IBufferLine[],
+	bufferWidth: number,
+	range: IRange,
+	startLine: number
+): IBufferRange {
 	const bufferRange: IBufferRange = {
 		start: {
 			x: range.startColumn,

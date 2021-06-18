@@ -37,6 +37,9 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
 import { URI } from 'vs/base/common/uri';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -118,18 +121,18 @@ export class OutlinePane extends ViewPane {
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 		this._editorDisposables.dispose();
 		this._editorListener.dispose();
 		super.dispose();
 	}
 
-	focus(): void {
+	override focus(): void {
 		this._tree?.domFocus();
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._domNode = container;
@@ -158,7 +161,7 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree?.layout(height, width);
 		this._treeDimensions = new dom.Dimension(width, height);
@@ -284,20 +287,33 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
-
+		this._editorDisposables.add(tree.onDidOpen(e => {
+			let override: EditorOverride | string = EditorOverride.DISABLED;
+			if (this._editorService.activeEditor instanceof NotebookEditorInput || this._editorService.activeEditor instanceof CustomEditorInput) {
+				override = this._editorService.activeEditor.viewType;
+			}
+			newOutline.reveal(e.element, { ...e.editorOptions, override }, e.sideBySide);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
 				return;
 			}
-			const item = newOutline.activeElement;
-			const top = tree.getRelativeTop(item);
-			if (top === null) {
-				tree.reveal(item, 0.5);
+			let item = newOutline.activeElement;
+			while (item) {
+				const top = tree.getRelativeTop(item);
+				if (top === null) {
+					// not visible -> reveal
+					tree.reveal(item, 0.5);
+				}
+				if (tree.getRelativeTop(item) !== null) {
+					tree.setFocus([item]);
+					tree.setSelection([item]);
+					break;
+				}
+				// STILL not visible -> try parent
+				item = tree.getParentElement(item);
 			}
-			tree.setFocus([item]);
-			tree.setSelection([item]);
 		};
 		revealActiveElement();
 		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));

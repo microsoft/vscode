@@ -13,6 +13,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { URI } from 'vs/base/common/uri';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ITunnelService } from 'vs/platform/remote/common/tunnel';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class TunnelService extends BaseTunnelService {
 	public constructor(
@@ -20,12 +21,13 @@ export class TunnelService extends BaseTunnelService {
 		@ISignService signService: ISignService,
 		@IProductService productService: IProductService,
 		@IRemoteAgentService _remoteAgentService: IRemoteAgentService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(nodeSocketFactory, logService, signService, productService);
+		super(nodeSocketFactory, logService, signService, productService, configurationService);
 	}
 
-	canTunnel(uri: URI): boolean {
+	override canTunnel(uri: URI): boolean {
 		return super.canTunnel(uri) && !!this.environmentService.remoteAuthority;
 	}
 }

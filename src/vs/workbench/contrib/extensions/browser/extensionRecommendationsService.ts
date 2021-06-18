@@ -18,9 +18,11 @@ import { ExperimentalRecommendations } from 'vs/workbench/contrib/extensions/bro
 import { WorkspaceRecommendations } from 'vs/workbench/contrib/extensions/browser/workspaceRecommendations';
 import { FileBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/fileBasedRecommendations';
 import { KeymapRecommendations } from 'vs/workbench/contrib/extensions/browser/keymapRecommendations';
+import { LanguageRecommendations } from 'vs/workbench/contrib/extensions/browser/languageRecommendations';
 import { ExtensionRecommendation } from 'vs/workbench/contrib/extensions/browser/extensionRecommendations';
 import { ConfigBasedRecommendations } from 'vs/workbench/contrib/extensions/browser/configBasedRecommendations';
 import { IExtensionRecommendationNotificationService } from 'vs/platform/extensionRecommendations/common/extensionRecommendations';
+import { timeout } from 'vs/base/common/async';
 
 type IgnoreRecommendationClassification = {
 	recommendationReason: { classification: 'SystemMetaData', purpose: 'FeatureInsight', isMeasurement: true };
@@ -39,6 +41,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	private readonly exeBasedRecommendations: ExeBasedRecommendations;
 	private readonly dynamicWorkspaceRecommendations: DynamicWorkspaceRecommendations;
 	private readonly keymapRecommendations: KeymapRecommendations;
+	private readonly languageRecommendations: LanguageRecommendations;
 
 	public readonly activationPromise: Promise<void>;
 	private sessionSeed: number;
@@ -65,6 +68,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		this.exeBasedRecommendations = instantiationService.createInstance(ExeBasedRecommendations);
 		this.dynamicWorkspaceRecommendations = instantiationService.createInstance(DynamicWorkspaceRecommendations);
 		this.keymapRecommendations = instantiationService.createInstance(KeymapRecommendations);
+		this.languageRecommendations = instantiationService.createInstance(LanguageRecommendations);
 
 		if (!this.isEnabled()) {
 			this.sessionSeed = 0;
@@ -89,6 +93,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			this.fileBasedRecommendations.activate(),
 			this.experimentalRecommendations.activate(),
 			this.keymapRecommendations.activate(),
+			this.languageRecommendations.activate(),
 		]);
 
 		this._register(Event.any(this.workspaceRecommendations.onDidChangeRecommendations, this.configBasedRecommendations.onDidChangeRecommendations, this.extensionRecommendationsManagementService.onDidChangeIgnoredRecommendations)(() => this._onDidChangeRecommendations.fire()));
@@ -105,7 +110,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 	}
 
 	private isEnabled(): boolean {
-		return this.galleryService.isEnabled() && !this.environmentService.extensionDevelopmentLocationURI;
+		return this.galleryService.isEnabled() && !this.environmentService.isExtensionDevelopment;
 	}
 
 	private async activateProactiveRecommendations(): Promise<void> {
@@ -126,6 +131,7 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 			...this.fileBasedRecommendations.recommendations,
 			...this.workspaceRecommendations.recommendations,
 			...this.keymapRecommendations.recommendations,
+			...this.languageRecommendations.recommendations,
 		];
 
 		for (const { extensionId, reason } of allRecommendations) {
@@ -184,6 +190,10 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return this.toExtensionRecommendations(this.keymapRecommendations.recommendations);
 	}
 
+	getLanguageRecommendations(): string[] {
+		return this.toExtensionRecommendations(this.languageRecommendations.recommendations);
+	}
+
 	async getWorkspaceRecommendations(): Promise<string[]> {
 		if (!this.isEnabled()) {
 			return [];
@@ -232,16 +242,20 @@ export class ExtensionRecommendationsService extends Disposable implements IExte
 		return !this.extensionRecommendationsManagementService.ignoredRecommendations.includes(extensionId.toLowerCase());
 	}
 
+	// for testing
+	protected get workbenchRecommendationDelay() {
+		// remote extensions might still being installed #124119
+		return 5000;
+	}
+
 	private async promptWorkspaceRecommendations(): Promise<void> {
 		const allowedRecommendations = [...this.workspaceRecommendations.recommendations, ...this.configBasedRecommendations.importantRecommendations]
 			.map(({ extensionId }) => extensionId)
 			.filter(extensionId => this.isExtensionAllowedToBeRecommended(extensionId));
 
 		if (allowedRecommendations.length) {
+			await timeout(this.workbenchRecommendationDelay);
 			await this.extensionRecommendationNotificationService.promptWorkspaceRecommendations(allowedRecommendations);
 		}
 	}
-
-
-
 }

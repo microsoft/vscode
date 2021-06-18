@@ -11,6 +11,7 @@
 // -   Posix: allow to change the current working dir via `VSCODE_CWD` if defined
 // -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
 // TODO@bpasero revisit if chdir() on Windows is needed in the future still
+// (find all users of `chdir` in code, there are more locations)
 function setupCurrentWorkingDirectory() {
 	const path = require('path');
 
@@ -98,7 +99,7 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
 /**
  * Helper to enable portable mode.
  *
- * @param {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} product
+ * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
  * @returns {{ portableDataPath: string; isPortable: boolean; }}
  */
 exports.configurePortable = function (product) {

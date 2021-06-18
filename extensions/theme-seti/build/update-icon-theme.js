@@ -14,6 +14,7 @@ let url = require('url');
 // Please try and keep this list in alphabetical order! Thank you.
 let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
+	"bicep": { extensions: ['bicep'] },
 	"elixir": { extensions: ['ex'] },
 	"elm": { extensions: ['elm'] },
 	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
@@ -30,6 +31,7 @@ let nonBuiltInLanguages = { // { fileNames, extensions  }
 	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
 	"puppet": { extensions: ['puppet'] },
 	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"rescript": { extensions: ['res', 'resi'] },
 	"sass": { extensions: ['sass'] },
 	"stylus": { extensions: ['styl'] },
 	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },

@@ -69,10 +69,13 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		super(environmentService.settingsResource, SyncResource.Settings, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncResourceEnablementService, telemetryService, logService, userDataSyncUtilService, configurationService);
 	}
 
-	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, token: CancellationToken): Promise<ISettingsResourcePreview[]> {
+	protected async generateSyncPreview(remoteUserData: IRemoteUserData, lastSyncUserData: IRemoteUserData | null, isRemoteDataFromCurrentMachine: boolean, token: CancellationToken): Promise<ISettingsResourcePreview[]> {
 		const fileContent = await this.getLocalFileContent();
 		const formattingOptions = await this.getFormattingOptions();
 		const remoteSettingsSyncContent = this.getSettingsSyncContent(remoteUserData);
+
+		// Use remote data as last sync data if last sync data does not exist and remote data is from same machine
+		lastSyncUserData = lastSyncUserData === null && isRemoteDataFromCurrentMachine ? remoteUserData : lastSyncUserData;
 		const lastSettingsSyncContent: ISettingsSyncContent | null = lastSyncUserData ? this.getSettingsSyncContent(lastSyncUserData) : null;
 		const ignoredSettings = await this.getIgnoredSettings();
 
@@ -247,7 +250,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return [{ resource: this.extUri.joinPath(uri, 'settings.json'), comparableResource }];
 	}
 
-	async resolveContent(uri: URI): Promise<string | null> {
+	override async resolveContent(uri: URI): Promise<string | null> {
 		if (this.extUri.isEqual(this.remoteResource, uri) || this.extUri.isEqual(this.localResource, uri) || this.extUri.isEqual(this.acceptedResource, uri)) {
 			return this.resolvePreviewContent(uri);
 		}
@@ -271,7 +274,7 @@ export class SettingsSynchroniser extends AbstractJsonFileSynchroniser implement
 		return null;
 	}
 
-	protected async resolvePreviewContent(resource: URI): Promise<string | null> {
+	protected override async resolvePreviewContent(resource: URI): Promise<string | null> {
 		let content = await super.resolvePreviewContent(resource);
 		if (content) {
 			const formatUtils = await this.getFormattingOptions();

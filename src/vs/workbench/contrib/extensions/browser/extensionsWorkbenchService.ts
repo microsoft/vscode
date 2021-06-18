@@ -36,11 +36,12 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IExtensionManifest, ExtensionType, IExtension as IPlatformExtension } from 'vs/platform/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { ExtensionKindController } from 'vs/workbench/services/extensions/common/extensionsUtil';
 import { FileAccess } from 'vs/base/common/network';
 import { IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { IUserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { isBoolean } from 'vs/base/common/types';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -517,8 +518,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 
 	private installing: IExtension[] = [];
 
-	private readonly extensionKindController: ExtensionKindController;
-
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -537,7 +536,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IIgnoredExtensionsManagementService private readonly extensionsSyncManagementService: IIgnoredExtensionsManagementService,
 		@IUserDataAutoSyncService private readonly userDataAutoSyncService: IUserDataAutoSyncService,
 		@IProductService private readonly productService: IProductService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -572,6 +572,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			}
 		}, this));
 
+		this._register(extensionEnablementService.onEnablementChanged(platformExtensions => {
+			if (this.getAutoUpdateValue() === 'onlyEnabledExtensions' && platformExtensions.some(e => this.extensionEnablementService.isEnabled(e))) {
+				this.checkForUpdates();
+			}
+		}, this));
+
 		this.queryLocal().then(() => {
 			this.resetIgnoreAutoUpdateExtensions();
 			this.eventuallySyncWithGallery(true);
@@ -581,8 +587,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.updateContexts();
 			this.updateActivity();
 		}));
-
-		this.extensionKindController = new ExtensionKindController(productService, configurationService);
 	}
 
 	get local(): IExtension[] {
@@ -709,7 +713,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return extensionsToChoose[0];
 		}
 
-		const extensionKinds = this.extensionKindController.getExtensionKind(manifest);
+		const extensionKinds = this.extensionManifestPropertiesService.getExtensionKind(manifest);
 
 		let extension = extensionsToChoose.find(extension => {
 			for (const extensionKind of extensionKinds) {
@@ -847,8 +851,13 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		return Promise.resolve(this.syncDelayer.trigger(() => this.syncWithGallery(), 0));
 	}
 
+	private getAutoUpdateValue(): boolean | 'onlyEnabledExtensions' {
+		const autoUpdate = this.configurationService.getValue<boolean | 'onlyEnabledExtensions'>(AutoUpdateConfigurationKey);
+		return isBoolean(autoUpdate) || autoUpdate === 'onlyEnabledExtensions' ? autoUpdate : true;
+	}
+
 	private isAutoUpdateEnabled(): boolean {
-		return this.configurationService.getValue(AutoUpdateConfigurationKey);
+		return this.getAutoUpdateValue() !== false;
 	}
 
 	private isAutoCheckUpdatesEnabled(): boolean {
@@ -897,7 +906,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return Promise.resolve();
 		}
 
-		const toUpdate = this.outdated.filter(e => !this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)));
+		const toUpdate = this.outdated.filter(e =>
+			!this.isAutoUpdateIgnored(new ExtensionIdentifierWithVersion(e.identifier, e.version)) &&
+			(this.getAutoUpdateValue() === true || (e.local && this.extensionEnablementService.isEnabled(e.local)))
+		);
+
 		return Promises.settled(toUpdate.map(e => this.install(e)));
 	}
 
@@ -1317,7 +1330,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		this.ignoredAutoUpdateExtensions = this.ignoredAutoUpdateExtensions.filter(extensionId => this.local.some(local => !!local.local && new ExtensionIdentifierWithVersion(local.identifier, local.version).key() === extensionId));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.syncDelayer.cancel();
 	}

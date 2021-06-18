@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetFlatNode';
-import { getEmmetHelper, getFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
+import { getEmmetHelper, getFlatNode, getHtmlFlatNode, getMappingForIncludedLanguages, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny, allowedMimeTypesInScriptTag, toLSTextDocument, isOffsetInsideOpenOrCloseTag } from './util';
 import { getRootNode as parseDocument } from './parseDocument';
 
 const localize = nls.loadMessageBundle();
@@ -56,7 +56,8 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 			let { start, end } = rangeToReplace;
 
 			const startOffset = document.offsetAt(start);
-			const startNode = getFlatNode(rootNode, startOffset, true);
+			const documentText = document.getText();
+			const startNode = getHtmlFlatNode(documentText, rootNode, startOffset, true);
 			if (startNode && isOffsetInsideOpenOrCloseTag(startNode, startOffset)) {
 				start = document.positionAt(startNode.start);
 				const nodeEndPosition = document.positionAt(startNode.end);
@@ -64,7 +65,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 			}
 
 			const endOffset = document.offsetAt(end);
-			const endNode = getFlatNode(rootNode, endOffset, true);
+			const endNode = getHtmlFlatNode(documentText, rootNode, endOffset, true);
 			if (endNode && isOffsetInsideOpenOrCloseTag(endNode, endOffset)) {
 				const nodeStartPosition = document.positionAt(endNode.start);
 				start = nodeStartPosition.isBefore(start) ? nodeStartPosition : start;
@@ -205,7 +206,7 @@ export async function wrapWithAbbreviation(args: any): Promise<boolean> {
 	let inPreviewMode = false;
 	async function makeChanges(inputAbbreviation: string | undefined, previewChanges: boolean): Promise<boolean> {
 		const isAbbreviationValid = !!inputAbbreviation && !!inputAbbreviation.trim() && helper.isAbbreviationValid(syntax, inputAbbreviation);
-		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!) : undefined;
+		const extractedResults = isAbbreviationValid ? helper.extractAbbreviationFromText(inputAbbreviation!, syntax) : undefined;
 		if (!extractedResults) {
 			if (inPreviewMode) {
 				inPreviewMode = false;
@@ -311,12 +312,12 @@ export function expandEmmetAbbreviation(args: any): Thenable<boolean | undefined
 	let allAbbreviationsSame: boolean = true;
 	const helper = getEmmetHelper();
 
-	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string] => {
+	const getAbbreviation = (document: vscode.TextDocument, selection: vscode.Selection, position: vscode.Position, syntax: string): [vscode.Range | null, string, string | undefined] => {
 		position = document.validatePosition(position);
 		let rangeToReplace: vscode.Range = selection;
 		let abbr = document.getText(rangeToReplace);
 		if (!rangeToReplace.isEmpty) {
-			const extractedResults = helper.extractAbbreviationFromText(abbr);
+			const extractedResults = helper.extractAbbreviationFromText(abbr, syntax);
 			if (extractedResults) {
 				return [rangeToReplace, extractedResults.abbreviation, extractedResults.filter];
 			}
@@ -665,6 +666,8 @@ function expandAbbr(input: ExpandAbbreviationInput): string | undefined {
 	const expandOptions = helper.getExpandOptions(input.syntax, getEmmetConfiguration(input.syntax), input.filter);
 
 	if (input.textToWrap) {
+		// escape ${ sections, fixes #122231
+		input.textToWrap = input.textToWrap.map(e => e.replace(/\$\{/g, '\\\$\{'));
 		if (input.filter && input.filter.includes('t')) {
 			input.textToWrap = input.textToWrap.map(line => {
 				return line.replace(trimRegex, '').trim();

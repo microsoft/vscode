@@ -96,7 +96,7 @@ class EventNormalizer {
 		}).sort((e1, e2) => {
 			return e1.path.length - e2.path.length; // shortest path first
 		}).filter(e => {
-			if (deletedPaths.some(d => isParent(e.path, d, !isLinux /* ignorecase */))) {
+			if (deletedPaths.some(deletedPath => isParent(e.path, deletedPath, !isLinux /* ignorecase */))) {
 				return false; // DELETE is ignored if parent is deleted already
 			}
 

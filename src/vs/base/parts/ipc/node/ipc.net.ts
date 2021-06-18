@@ -13,18 +13,36 @@ import { tmpdir } from 'os';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { ISocket, Protocol, Client, ChunkStream } from 'vs/base/parts/ipc/common/ipc.net';
+import { ISocket, Protocol, Client, ChunkStream, SocketCloseEvent, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Platform, platform } from 'vs/base/common/platform';
 
 export class NodeSocket implements ISocket {
+
 	public readonly socket: Socket;
+	private readonly _errorListener: (err: any) => void;
 
 	constructor(socket: Socket) {
 		this.socket = socket;
+		this._errorListener = (err: any) => {
+			if (err) {
+				if (err.code === 'EPIPE') {
+					// An EPIPE exception at the wrong time can lead to a renderer process crash
+					// so ignore the error since the socket will fire the close event soon anyways:
+					// > https://nodejs.org/api/errors.html#errors_common_system_errors
+					// > EPIPE (Broken pipe): A write on a pipe, socket, or FIFO for which there is no
+					// > process to read the data. Commonly encountered at the net and http layers,
+					// > indicative that the remote side of the stream being written to has been closed.
+					return;
+				}
+				onUnexpectedError(err);
+			}
+		};
+		this.socket.on('error', this._errorListener);
 	}
 
 	public dispose(): void {
+		this.socket.off('error', this._errorListener);
 		this.socket.destroy();
 	}
 
@@ -36,10 +54,17 @@ export class NodeSocket implements ISocket {
 		};
 	}
 
-	public onClose(listener: () => void): IDisposable {
-		this.socket.on('close', listener);
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
+		const adapter = (hadError: boolean) => {
+			listener({
+				type: SocketCloseEventType.NodeSocketCloseEvent,
+				hadError: hadError,
+				error: undefined
+			});
+		};
+		this.socket.on('close', adapter);
 		return {
-			dispose: () => this.socket.off('close', listener)
+			dispose: () => this.socket.off('close', adapter)
 		};
 	}
 
@@ -149,7 +174,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 	private readonly _pendingDeflateData: Buffer[] = [];
 	private readonly _incomingData: ChunkStream;
 	private readonly _onData = this._register(new Emitter<VSBuffer>());
-	private readonly _onClose = this._register(new Emitter<void>());
+	private readonly _onClose = this._register(new Emitter<SocketCloseEvent>());
 	private _isEnded: boolean = false;
 
 	private readonly _state = {
@@ -214,7 +239,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
-				this._onClose.fire();
+				this._onClose.fire({
+					type: SocketCloseEventType.NodeSocketCloseEvent,
+					hadError: true,
+					error: err
+				});
 			});
 			this._zlibInflate.on('data', (data: Buffer) => {
 				this._pendingInflateData.push(data);
@@ -233,7 +262,11 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 				// zlib errors are fatal, since we have no idea how to recover
 				console.error(err);
 				onUnexpectedError(err);
-				this._onClose.fire();
+				this._onClose.fire({
+					type: SocketCloseEventType.NodeSocketCloseEvent,
+					hadError: true,
+					error: err
+				});
 			});
 			this._zlibDeflate.on('data', (data: Buffer) => {
 				this._pendingDeflateData.push(data);
@@ -245,10 +278,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		this._zlibDeflateFlushWaitingCount = 0;
 		this._incomingData = new ChunkStream();
 		this._register(this.socket.onData(data => this._acceptChunk(data)));
-		this._register(this.socket.onClose(() => this._onClose.fire()));
+		this._register(this.socket.onClose((e) => this._onClose.fire(e)));
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._zlibDeflateFlushWaitingCount > 0) {
 			// Wait for any outstanding writes to finish before disposing
 			this._register(this._onDidZlibFlush.event(() => {
@@ -264,7 +297,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket {
 		return this._onData.event(listener);
 	}
 
-	public onClose(listener: () => void): IDisposable {
+	public onClose(listener: (e: SocketCloseEvent) => void): IDisposable {
 		return this._onClose.event(listener);
 	}
 
@@ -563,7 +596,7 @@ export class Server extends IPCServer {
 		this.server = server;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		if (this.server) {
 			this.server.close();

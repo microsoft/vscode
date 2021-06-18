@@ -70,7 +70,7 @@ export class ExtHostExtensionService extends AbstractExtHostExtensionService {
 
 	protected async _beforeAlmostReadyToRunExtensions(): Promise<void> {
 		const mainThreadConsole = this._extHostContext.getProxy(MainContext.MainThreadConsole);
-		wrapConsoleMethods(mainThreadConsole);
+		wrapConsoleMethods(mainThreadConsole, this._initData.environment.isExtensionDevelopmentDebug);
 
 		// initialize API and register actors
 		const apiFactory = this._instaService.invokeFunction(createApiFactoryAndRegisterActors);
@@ -173,15 +173,19 @@ function ensureSuffix(path: string, suffix: string): string {
 }
 
 // copied from bootstrap-fork.js
-function wrapConsoleMethods(service: MainThreadConsoleShape) {
+function wrapConsoleMethods(service: MainThreadConsoleShape, callToNative: boolean) {
 	wrap('info', 'log');
 	wrap('log', 'log');
 	wrap('warn', 'warn');
 	wrap('error', 'error');
 
 	function wrap(method: 'error' | 'warn' | 'info' | 'log', severity: 'error' | 'warn' | 'log') {
+		const original = console[method];
 		console[method] = function () {
 			service.$logExtensionHostMessage({ type: '__$console', severity, arguments: safeToArray(arguments) });
+			if (callToNative) {
+				original.apply(console, arguments as any);
+			}
 		};
 	}
 

@@ -46,14 +46,14 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): Promise<any> {
+	override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -121,7 +121,7 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -245,7 +245,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.setTitle(this.title, detail);
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
@@ -263,7 +263,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		}), { label: false, icon: true });
 	}
 
-	protected _getActionBarOptions(): IActionBarOptions {
+	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new DiffActionRunner();
 
 		// close widget on successful action
@@ -300,7 +300,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
 	}
 
-	_onWidth(width: number): void {
+	override _onWidth(width: number): void {
 		if (typeof this.height === 'undefined') {
 			return;
 		}
@@ -308,7 +308,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor.layout({ height: this.height, width });
 	}
 
-	protected _doLayoutBody(height: number, width: number): void {
+	protected override _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
@@ -347,7 +347,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		});
 	}
 
-	protected revealLine(lineNumber: number) {
+	protected override revealLine(lineNumber: number) {
 		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
 	}
 
@@ -840,7 +840,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		return model.changes;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.gutterActionDisposables.dispose();
 		super.dispose();
 	}
@@ -890,6 +890,7 @@ class DirtyDiffDecorator extends Disposable {
 
 	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
 		};
 
@@ -994,7 +995,7 @@ class DirtyDiffDecorator extends Disposable {
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.editorModel && !this.editorModel.isDisposed()) {
@@ -1142,7 +1143,7 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(changes);
-			});
+			}, (err) => onUnexpectedError(err));
 	}
 
 	private setChanges(changes: IChange[]): void {
@@ -1262,7 +1263,7 @@ export class DirtyDiffModel extends Disposable {
 		return this.changes.length - 1;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._disposed = true;
@@ -1433,7 +1434,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		return null;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disable();
 		super.dispose();
 	}

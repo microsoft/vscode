@@ -57,9 +57,9 @@ interface ITextStream {
 	on(event: string, callback: any): void;
 }
 
-export function createTextBufferFactoryFromStream(stream: ITextStream, filter?: (chunk: string) => string, validator?: (chunk: string) => Error | undefined): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream, filter?: (chunk: VSBuffer) => VSBuffer, validator?: (chunk: VSBuffer) => Error | undefined): Promise<model.ITextBufferFactory>;
-export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream, filter?: (chunk: any) => string | VSBuffer, validator?: (chunk: any) => Error | undefined): Promise<model.ITextBufferFactory> {
+export function createTextBufferFactoryFromStream(stream: ITextStream): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: VSBufferReadableStream): Promise<model.ITextBufferFactory>;
+export function createTextBufferFactoryFromStream(stream: ITextStream | VSBufferReadableStream): Promise<model.ITextBufferFactory> {
 	return new Promise<model.ITextBufferFactory>((resolve, reject) => {
 		const builder = createTextBufferBuilder();
 
@@ -67,18 +67,6 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		listenStream<string | VSBuffer>(stream, {
 			onData: chunk => {
-				if (validator) {
-					const error = validator(chunk);
-					if (error) {
-						done = true;
-						reject(error);
-					}
-				}
-
-				if (filter) {
-					chunk = filter(chunk);
-				}
-
 				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 			},
 			onError: error => {
@@ -384,7 +372,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._tokenization = new TextModelTokenization(this);
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._isDisposing = true;
 		this._onWillDispose.fire();
 		this._languageRegistryListener.dispose();
@@ -2106,10 +2094,42 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._matchBracket(this.validatePosition(position));
 	}
 
+	private _establishBracketSearchOffsets(position: Position, lineTokens: LineTokens, modeBrackets: RichEditBrackets, tokenIndex: number) {
+		const tokenCount = lineTokens.getCount();
+		const currentLanguageId = lineTokens.getLanguageId(tokenIndex);
+
+		// limit search to not go before `maxBracketLength`
+		let searchStartOffset = Math.max(0, position.column - 1 - modeBrackets.maxBracketLength);
+		for (let i = tokenIndex - 1; i >= 0; i--) {
+			const tokenEndOffset = lineTokens.getEndOffset(i);
+			if (tokenEndOffset <= searchStartOffset) {
+				break;
+			}
+			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
+				searchStartOffset = tokenEndOffset;
+				break;
+			}
+		}
+
+		// limit search to not go after `maxBracketLength`
+		let searchEndOffset = Math.min(lineTokens.getLineContent().length, position.column - 1 + modeBrackets.maxBracketLength);
+		for (let i = tokenIndex + 1; i < tokenCount; i++) {
+			const tokenStartOffset = lineTokens.getStartOffset(i);
+			if (tokenStartOffset >= searchEndOffset) {
+				break;
+			}
+			if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i)) || lineTokens.getLanguageId(i) !== currentLanguageId) {
+				searchEndOffset = tokenStartOffset;
+				break;
+			}
+		}
+
+		return { searchStartOffset, searchEndOffset };
+	}
+
 	private _matchBracket(position: Position): [Range, Range] | null {
 		const lineNumber = position.lineNumber;
 		const lineTokens = this._getLineTokens(lineNumber);
-		const tokenCount = lineTokens.getCount();
 		const lineText = this._buffer.getLineContent(lineNumber);
 
 		const tokenIndex = lineTokens.findTokenIndexAtOffset(position.column - 1);
@@ -2120,19 +2140,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		// check that the token is not to be ignored
 		if (currentModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(tokenIndex))) {
-			// limit search to not go before `maxBracketLength`
-			let searchStartOffset = Math.max(0, position.column - 1 - currentModeBrackets.maxBracketLength);
-			for (let i = tokenIndex - 1; i >= 0; i--) {
-				const tokenEndOffset = lineTokens.getEndOffset(i);
-				if (tokenEndOffset <= searchStartOffset) {
-					break;
-				}
-				if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
-					searchStartOffset = tokenEndOffset;
-				}
-			}
-			// limit search to not go after `maxBracketLength`
-			const searchEndOffset = Math.min(lineText.length, position.column - 1 + currentModeBrackets.maxBracketLength);
+
+			let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, currentModeBrackets, tokenIndex);
 
 			// it might be the case that [currentTokenStart -> currentTokenEnd] contains multiple brackets
 			// `bestResult` will contain the most right-side result
@@ -2171,18 +2180,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			// check that previous token is not to be ignored
 			if (prevModeBrackets && !ignoreBracketsInToken(lineTokens.getStandardTokenType(prevTokenIndex))) {
-				// limit search in case previous token is very large, there's no need to go beyond `maxBracketLength`
-				const searchStartOffset = Math.max(0, position.column - 1 - prevModeBrackets.maxBracketLength);
-				let searchEndOffset = Math.min(lineText.length, position.column - 1 + prevModeBrackets.maxBracketLength);
-				for (let i = prevTokenIndex + 1; i < tokenCount; i++) {
-					const tokenStartOffset = lineTokens.getStartOffset(i);
-					if (tokenStartOffset >= searchEndOffset) {
-						break;
-					}
-					if (ignoreBracketsInToken(lineTokens.getStandardTokenType(i))) {
-						searchEndOffset = tokenStartOffset;
-					}
-				}
+
+				let { searchStartOffset, searchEndOffset } = this._establishBracketSearchOffsets(position, lineTokens, prevModeBrackets, prevTokenIndex);
+
 				const foundBracket = BracketsUtils.findPrevBracketInRange(prevModeBrackets.reversedRegex, lineNumber, lineText, searchStartOffset, searchEndOffset);
 
 				// check that we didn't hit a bracket too far away from position
@@ -3028,6 +3028,30 @@ export class TextModel extends Disposable implements model.ITextModel {
 	}
 
 	//#endregion
+	normalizePosition(position: Position, affinity: model.PositionNormalizationAffinity): Position {
+		return position;
+	}
+
+	/**
+	 * Gets the column at which indentation stops at a given line.
+	 * @internal
+	*/
+	public getLineIndentColumn(lineNumber: number): number {
+		// Columns start with 1.
+		return indentOfLine(this.getLineContent(lineNumber)) + 1;
+	}
+}
+
+function indentOfLine(line: string): number {
+	let indent = 0;
+	for (const c of line) {
+		if (c === ' ' || c === '\t') {
+			indent++;
+		} else {
+			break;
+		}
+	}
+	return indent;
 }
 
 //#region Decorations
@@ -3205,6 +3229,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		return new ModelDecorationOptions(options);
 	}
 
+	readonly description: string;
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
 	readonly className: string | null;
@@ -3225,6 +3250,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly afterContentClassName: string | null;
 
 	private constructor(options: model.IModelDecorationOptions) {
+		this.description = options.description;
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
@@ -3245,16 +3271,16 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
 	}
 }
-ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({});
+ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });
 
 /**
  * The order carefully matches the values of the enum.
  */
 const TRACKED_RANGE_OPTIONS = [
-	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
-	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
-	ModelDecorationOptions.register({ stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
+	ModelDecorationOptions.register({ description: 'tracked-range-always-grows-when-typing-at-edges', stickiness: model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'tracked-range-never-grows-when-typing-at-edges', stickiness: model.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges }),
+	ModelDecorationOptions.register({ description: 'tracked-range-grows-only-when-typing-before', stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore }),
+	ModelDecorationOptions.register({ description: 'tracked-range-grows-only-when-typing-after', stickiness: model.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter }),
 ];
 
 function _normalizeOptions(options: model.IModelDecorationOptions): ModelDecorationOptions {

@@ -9,9 +9,9 @@ import { DisposableStore, IDisposable, IReference } from 'vs/base/common/lifecyc
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
-import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsRequest, TestIdPath, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
-import { ITestResult } from 'vs/workbench/contrib/testing/common/testResultService';
+import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
@@ -64,6 +64,17 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
 	 */
 	getReviverDiff(): TestsDiff;
 }
+
+/**
+ * Iterates through the item and its parents to the root.
+ */
+export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
+	let i: InternalTestItem | undefined = item;
+	while (i) {
+		yield i;
+		i = i.parent ? collection.getNodeById(i.parent) : undefined;
+	}
+};
 
 export const waitForAllRoots = (collection: IMainThreadTestCollection, ct = CancellationToken.None) => {
 	if (collection.pendingRootProviders === 0 || ct.isCancellationRequested) {
@@ -150,14 +161,18 @@ export interface ITestService {
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
 	readonly onShouldUnsubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
 	readonly onDidChangeProviders: Event<{ delta: number; }>;
+	/**
+	 * Fires when the user requests to cancel a test run -- or all runs, if no
+	 * runId is given.
+	 */
+	readonly onCancelTestRun: Event<{ runId: string | undefined; }>;
 	readonly providers: number;
 	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI; }>;
-	readonly testRuns: Iterable<RunTestsRequest>;
 
 	/**
 	 * Set of test IDs the user asked to exclude.
 	 */
-	readonly excludeTests: ObservableValue<ReadonlySet<string>>;
+	readonly excludeTests: MutableObservableValue<ReadonlySet<string>>;
 
 	/**
 	 * Sets whether a test is excluded.
@@ -188,9 +203,9 @@ export interface ITestService {
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
 
 	/**
-	 * Cancels an ongoign test run request.
+	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.
 	 */
-	cancelTestRun(req: RunTestsRequest): void;
+	cancelTestRun(runId?: string): void;
 
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
 	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;

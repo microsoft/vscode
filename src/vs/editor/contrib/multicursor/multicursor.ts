@@ -463,7 +463,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._session = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._endSession();
 		super.dispose();
 	}
@@ -1047,6 +1047,7 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		description: 'selection-highlight-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -1056,11 +1057,12 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	});
 
 	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._setState(null);
 		super.dispose();
 	}

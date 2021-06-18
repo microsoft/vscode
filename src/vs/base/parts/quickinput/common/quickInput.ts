@@ -207,7 +207,17 @@ export interface IQuickInput extends IDisposable {
 	hide(): void;
 }
 
-export interface IQuickPickAcceptEvent {
+export interface IQuickPickWillAcceptEvent {
+
+	/**
+	 * Allows to disable the default accept handling
+	 * of the picker. If `veto` is called, the picker
+	 * will not trigger the `onDidAccept` event.
+	 */
+	veto(): void;
+}
+
+export interface IQuickPickDidAcceptEvent {
 
 	/**
 	 * Signals if the picker item is to be accepted
@@ -239,7 +249,8 @@ export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	readonly onDidChangeValue: Event<string>;
 
-	readonly onDidAccept: Event<IQuickPickAcceptEvent>;
+	readonly onWillAccept: Event<IQuickPickWillAcceptEvent>;
+	readonly onDidAccept: Event<IQuickPickDidAcceptEvent>;
 
 	/**
 	 * If enabled, will fire the `onDidAccept` event when
@@ -363,7 +374,7 @@ export interface IQuickPickItemButtonContext<T extends IQuickPickItem> extends I
 export type QuickPickInput<T = IQuickPickItem> = T | IQuickPickSeparator;
 
 
-//region Fuzzy Scorer Support
+//#region Fuzzy Scorer Support
 
 export type IQuickPickItemWithResource = IQuickPickItem & { resource?: URI };
 

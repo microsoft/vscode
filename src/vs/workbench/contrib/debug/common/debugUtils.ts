@@ -41,7 +41,7 @@ export function filterExceptionsFromTelemetry<T extends { [key: string]: unknown
 
 
 export function isSessionAttach(session: IDebugSession): boolean {
-	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session);
+	return session.configuration.request === 'attach' && !getExtensionHostDebugSession(session) && (!session.parentSession || isSessionAttach(session.parentSession));
 }
 
 /**

@@ -391,12 +391,12 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		}
 
 		const focusedCellIndex = viewModel.getFocus().start;
-		const focused = viewModel.getCellByIndex(focusedCellIndex)?.handle;
+		const focused = viewModel.cellAt(focusedCellIndex)?.handle;
 		const entries: OutlineEntry[] = [];
 
-		for (let i = 0; i < viewModel.viewCells.length; i++) {
+		for (let i = 0; i < viewModel.length; i++) {
 			const cell = viewModel.viewCells[i];
-			const isMarkdown = cell.cellKind === CellKind.Markdown;
+			const isMarkdown = cell.cellKind === CellKind.Markup;
 			if (!isMarkdown && !includeCodeCells) {
 				continue;
 			}
@@ -518,7 +518,7 @@ export class NotebookCellOutline implements IOutline<OutlineEntry> {
 		const { viewModel } = this._editor;
 
 		if (viewModel) {
-			const cell = viewModel.getCellByIndex(viewModel.getFocus().start);
+			const cell = viewModel.cellAt(viewModel.getFocus().start);
 			if (cell) {
 				for (let entry of this._entries) {
 					newActive = entry.find(cell, []);

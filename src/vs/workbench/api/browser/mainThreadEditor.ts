@@ -414,7 +414,7 @@ export class MainThreadTextEditor {
 		if (!this._codeEditor) {
 			return;
 		}
-		this._codeEditor.setDecorations(key, ranges);
+		this._codeEditor.setDecorations('exthost-api', key, ranges);
 	}
 
 	public setDecorationsFast(key: string, _ranges: number[]): void {
@@ -518,7 +518,7 @@ export class MainThreadTextEditor {
 
 		const snippetController = SnippetController2.get(this._codeEditor);
 
-		// // cancel previous snippet mode
+		// cancel previous snippet mode
 		// snippetController.leaveSnippet();
 
 		// set selection, focus editor

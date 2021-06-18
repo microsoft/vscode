@@ -163,6 +163,7 @@ export class Match {
 export class FileMatch extends Disposable implements IFileMatch {
 
 	private static readonly _CURRENT_FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-current-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		zIndex: 13,
 		className: 'currentFindMatch',
@@ -177,6 +178,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	});
 
 	private static readonly _FIND_MATCH = ModelDecorationOptions.register({
+		description: 'search-find-match',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'findMatch',
 		overviewRuler: {
@@ -439,7 +441,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		this._fileStat = stat;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.setSelectedMatch(null);
 		this.unbindModel();
 		this._onDispose.fire();
@@ -630,7 +632,7 @@ export class FolderMatch extends Disposable {
 		this._unDisposedFileMatches.clear();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposeMatches();
 		this._onDispose.fire();
 		super.dispose();
@@ -649,7 +651,7 @@ export class FolderMatchWithResource extends FolderMatch {
 		super(_resource, _id, _index, _query, _parent, _searchModel, replaceService, instantiationService);
 	}
 
-	get resource(): URI {
+	override get resource(): URI {
 		return this._resource!;
 	}
 }
@@ -971,7 +973,7 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disposePastResults();
 		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
@@ -1142,7 +1144,7 @@ export class SearchModel extends Disposable {
 		if (errors.isPromiseCanceledError(e)) {
 			this.onSearchCompleted(
 				this.searchCancelledForNewSearch
-					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [] }
+					? { exit: SearchCompletionExitCode.NewSearchStarted, results: [], messages: [] }
 					: null,
 				duration);
 			this.searchCancelledForNewSearch = false;
@@ -1173,7 +1175,7 @@ export class SearchModel extends Disposable {
 		return false;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.cancelSearch();
 		this.searchResult.dispose();
 		super.dispose();
@@ -1279,6 +1281,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
+		description: 'search-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true

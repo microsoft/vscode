@@ -26,6 +26,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { revive } from 'vs/base/common/marshalling';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { NotebookDto } from 'vs/workbench/api/browser/mainThreadNotebookDto';
 
 export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): ResourceEdit[] {
 	if (!data?.edits) {
@@ -39,7 +41,7 @@ export function reviveWorkspaceEditDto2(data: IWorkspaceEditDto | undefined): Re
 		} else if (edit._type === WorkspaceEditType.Text) {
 			result.push(new ResourceTextEdit(edit.resource, edit.edit, edit.modelVersionId, edit.metadata));
 		} else if (edit._type === WorkspaceEditType.Cell) {
-			result.push(new ResourceNotebookCellEdit(edit.resource, edit.edit, edit.notebookVersionId, edit.metadata));
+			result.push(new ResourceNotebookCellEdit(edit.resource, NotebookDto.fromCellEditOperationDto(edit.edit), edit.notebookVersionId, edit.metadata));
 		}
 	}
 	return result;
@@ -249,10 +251,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return Promise.resolve(editor.insertSnippet(template, ranges, opts));
 	}
 
-	$registerTextEditorDecorationType(key: string, options: IDecorationRenderOptions): void {
+	$registerTextEditorDecorationType(extensionId: ExtensionIdentifier, key: string, options: IDecorationRenderOptions): void {
 		key = `${this._instanceId}-${key}`;
 		this._registeredDecorationTypes[key] = true;
-		this._codeEditorService.registerDecorationType(key, options);
+		this._codeEditorService.registerDecorationType(`exthost-api-${extensionId}`, key, options);
 	}
 
 	$removeTextEditorDecorationType(key: string): void {

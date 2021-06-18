@@ -25,8 +25,8 @@ export interface IEnvironmentMainService extends INativeEnvironmentService {
 	backupHome: string;
 	backupWorkspacesPath: string;
 
-	// --- V8 script cache path
-	nodeCachedDataDir?: string;
+	// --- V8 code cache path
+	codeCachePath?: string;
 
 	// --- IPC
 	mainIPCHandle: string;
@@ -65,5 +65,5 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
 
 	@memoize
-	get nodeCachedDataDir(): string | undefined { return process.env['VSCODE_NODE_CACHED_DATA_DIR'] || undefined; }
+	get codeCachePath(): string | undefined { return process.env['VSCODE_CODE_CACHE_PATH'] || undefined; }
 }

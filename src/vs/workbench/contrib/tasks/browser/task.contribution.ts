@@ -37,6 +37,7 @@ import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/pl
 import { TasksQuickAccessProvider } from 'vs/workbench/contrib/tasks/browser/tasksQuickAccess';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { TerminalMenuBarGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 
 const SHOW_TASKS_COMMANDS_CONTEXT = ContextKeyExpr.or(ShellExecutionSupportedContext, ProcessExecutionSupportedContext);
 
@@ -129,6 +130,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			}
 		} else {
 			const itemProps: IStatusbarEntry = {
+				name: nls.localize('status.runningTasks', "Running Tasks"),
 				text: `$(tools) ${tasks.length}`,
 				ariaLabel: nls.localize('numberOfRunningTasks', "{0} running tasks", tasks.length),
 				tooltip: nls.localize('runningTasks', "Show Running Tasks"),
@@ -136,7 +138,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 			};
 
 			if (!this.runningTasksStatusItem) {
-				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', nls.localize('status.runningTasks', "Running Tasks"), StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
+				this.runningTasksStatusItem = this.statusbarService.addEntry(itemProps, 'status.runningTasks', StatusbarAlignment.LEFT, 49 /* Medium Priority, next to Markers */);
 			} else {
 				this.runningTasksStatusItem.update(itemProps);
 			}
@@ -163,7 +165,7 @@ export class TaskStatusBarContributions extends Disposable implements IWorkbench
 workbenchRegistry.registerWorkbenchContribution(TaskStatusBarContributions, LifecyclePhase.Restored);
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '2_run',
+	group: TerminalMenuBarGroup.Run,
 	command: {
 		id: 'workbench.action.tasks.runTask',
 		title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
@@ -173,7 +175,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '2_run',
+	group: TerminalMenuBarGroup.Run,
 	command: {
 		id: 'workbench.action.tasks.build',
 		title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
@@ -184,7 +186,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 
 // Manage Tasks
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '3_manage',
+	group: TerminalMenuBarGroup.Manage,
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.showTasks',
@@ -195,7 +197,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '3_manage',
+	group: TerminalMenuBarGroup.Manage,
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.restartTask',
@@ -206,7 +208,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '3_manage',
+	group: TerminalMenuBarGroup.Manage,
 	command: {
 		precondition: TASK_RUNNING_STATE,
 		id: 'workbench.action.tasks.terminate',
@@ -218,7 +220,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 
 // Configure Tasks
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '4_configure',
+	group: TerminalMenuBarGroup.Configure,
 	command: {
 		id: 'workbench.action.tasks.configureTaskRunner',
 		title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
@@ -228,7 +230,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
 });
 
 MenuRegistry.appendMenuItem(MenuId.MenubarTerminalMenu, {
-	group: '4_configure',
+	group: TerminalMenuBarGroup.Configure,
 	command: {
 		id: 'workbench.action.tasks.configureDefaultBuildTask',
 		title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")

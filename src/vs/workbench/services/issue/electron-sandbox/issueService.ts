@@ -6,7 +6,7 @@
 import { IssueReporterStyles, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData } from 'vs/platform/issue/common/issue';
 import { IIssueService } from 'vs/platform/issue/electron-sandbox/issue';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground } from 'vs/platform/theme/common/colorRegistry';
+import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusOutline, listFocusBackground, listFocusForeground, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
@@ -19,6 +19,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/browser/authenticationService';
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class WorkbenchIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -29,6 +30,7 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IProductService private readonly productService: IProductService,
 		@ITASExperimentService private readonly experimentService: ITASExperimentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService
@@ -70,15 +72,24 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			});
 		}
 		const experiments = await this.experimentService.getCurrentExperiments();
-		const githubSessions = await this.authenticationService.getSessions('github');
-		const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+
+		let githubAccessToken = '';
+		try {
+			const githubSessions = await this.authenticationService.getSessions('github');
+			const potentialSessions = githubSessions.filter(session => session.scopes.includes('repo'));
+			githubAccessToken = potentialSessions[0]?.accessToken;
+		} catch (e) {
+			// Ignore
+		}
+
 		const theme = this.themeService.getColorTheme();
 		const issueReporterData: IssueReporterData = Object.assign({
 			styles: getIssueReporterStyles(theme),
 			zoomLevel: getZoomLevel(),
 			enabledExtensions: extensionData,
 			experiments: experiments?.join('\n'),
-			githubAccessToken: potentialSessions[0]?.accessToken
+			restrictedMode: !this.workspaceTrustManagementService.isWorkpaceTrusted(),
+			githubAccessToken,
 		}, dataOverrides);
 		return this.issueService.openReporter(issueReporterData);
 	}
@@ -91,8 +102,14 @@ export class WorkbenchIssueService implements IWorkbenchIssueService {
 			styles: {
 				backgroundColor: getColor(theme, editorBackground),
 				color: getColor(theme, editorForeground),
-				hoverBackground: getColor(theme, listHoverBackground),
-				hoverForeground: getColor(theme, listHoverForeground)
+				listHoverBackground: getColor(theme, listHoverBackground),
+				listHoverForeground: getColor(theme, listHoverForeground),
+				listFocusBackground: getColor(theme, listFocusBackground),
+				listFocusForeground: getColor(theme, listFocusForeground),
+				listFocusOutline: getColor(theme, listFocusOutline),
+				listActiveSelectionBackground: getColor(theme, listActiveSelectionBackground),
+				listActiveSelectionForeground: getColor(theme, listActiveSelectionForeground),
+				listHoverOutline: getColor(theme, activeContrastBorder),
 			},
 			platform: platform,
 			applicationName: this.productService.applicationName

@@ -83,6 +83,7 @@ export interface IFilesConfiguration extends PlatformIFilesConfiguration, IWorkb
 		enableDragAndDrop: boolean;
 		confirmDelete: boolean;
 		sortOrder: SortOrder;
+		sortOrderLexicographicOptions: LexicographicOptions;
 		decorations: {
 			colors: boolean;
 			badges: boolean;
@@ -105,6 +106,18 @@ export const enum SortOrder {
 	Modified = 'modified'
 }
 
+export const enum LexicographicOptions {
+	Default = 'default',
+	Upper = 'upper',
+	Lower = 'lower',
+	Unicode = 'unicode',
+}
+
+export interface ISortOrderConfiguration {
+	sortOrder: SortOrder;
+	lexicographicOptions: LexicographicOptions;
+}
+
 export class TextFileContentProvider extends Disposable implements ITextModelContentProvider {
 	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
 
@@ -119,8 +132,8 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	static async open(resource: URI, scheme: string, label: string, editorService: IEditorService, options?: ITextEditorOptions): Promise<void> {
 		await editorService.openEditor({
-			leftResource: TextFileContentProvider.resourceToTextFile(scheme, resource),
-			rightResource: resource,
+			originalInput: { resource: TextFileContentProvider.resourceToTextFile(scheme, resource) },
+			modifiedInput: { resource },
 			label,
 			options
 		});

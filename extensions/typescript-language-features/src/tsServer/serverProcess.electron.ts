@@ -226,7 +226,7 @@ export class ChildServerProcess extends Disposable implements TsServerProcess {
 		this._reader.onData(handler);
 	}
 
-	onExit(handler: (code: number | null) => void): void {
+	onExit(handler: (code: number | null, signal: string | null) => void): void {
 		this._process.on('exit', handler);
 	}
 

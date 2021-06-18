@@ -8,12 +8,11 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IWorkspaceFolder, IWorkspaceFolderData, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
-import { ITestTreeElement, ITestTreeProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections';
-import { TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
-type SerializedTree = { e: string; children?: SerializedTree[] };
+type SerializedTree = { e: string; children?: SerializedTree[], data?: string };
 
 const element = document.createElement('div');
 element.style.height = '1000px';
@@ -32,6 +31,7 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 				{
 					disposeTemplate: () => undefined,
 					renderElement: (node, _index, container: HTMLElement) => {
+						Object.assign(container.dataset, node.element);
 						container.textContent = `${node.depth}:${serializer(node.element)}`;
 					},
 					renderTemplate: c => c,
@@ -51,15 +51,18 @@ export class TestObjectTree<T> extends ObjectTree<T, any> {
 		return this.model;
 	}
 
-	public getRendered() {
-		const elements = element.querySelectorAll('.monaco-tl-contents');
+	public getRendered(getProperty?: string) {
+		const elements = element.querySelectorAll<HTMLElement>('.monaco-tl-contents');
 		const sorted = [...elements].sort((a, b) => pos(a) - pos(b));
 		let chain: SerializedTree[] = [{ e: '', children: [] }];
 		for (const element of sorted) {
 			const [depthStr, label] = element.textContent!.split(':');
 			const depth = Number(depthStr);
 			const parent = chain[depth - 1];
-			const child = { e: label };
+			const child: SerializedTree = { e: label };
+			if (getProperty) {
+				child.data = element.dataset[getProperty];
+			}
 			parent.children = parent.children?.concat(child) ?? [child];
 			chain[depth] = child;
 		}
@@ -80,19 +83,23 @@ export const makeTestWorkspaceFolder = (name: string): IWorkspaceFolder => ({
 // names are hard
 export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjection> extends Disposable {
 	private readonly owned = new TestOwnedTestCollection();
-	private readonly onDiff = this._register(new Emitter<[IWorkspaceFolderData, TestsDiff]>());
+	private readonly onDiff = this._register(new Emitter<object>());
 	public readonly onFolderChange = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
-	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy(d => this.c.setDiff(d /* don't clear during testing */)));
+	public readonly c: TestSingleUseCollection = this._register(this.owned.createForHierarchy());
+	private isProcessingDiff = false;
 	public readonly projection: T;
-	public readonly tree: TestObjectTree<ITestTreeElement>;
+	public readonly tree: TestObjectTree<TestExplorerTreeElement>;
 
 	constructor(folders: IWorkspaceFolderData[], makeTree: (listener: TestSubscriptionListener) => T) {
 		super();
+		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
 		this.projection = this._register(makeTree({
 			workspaceFolderCollections: folders.map(folder => [{ folder }, {
 				expand: (testId: string, levels: number) => {
 					this.c.expand(testId, levels);
-					this.onDiff.fire([folder, this.c.collectDiff()]);
+					if (!this.isProcessingDiff) {
+						this.onDiff.fire({ folder: { folder }, diff: this.c.collectDiff() });
+					}
 					return Promise.resolve();
 				},
 				all: [],
@@ -100,16 +107,21 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 			onDiff: this.onDiff.event,
 			onFolderChange: this.onFolderChange.event,
 		} as any));
-		this.tree = this._register(new TestObjectTree(t => t.label));
+		this.tree = this._register(new TestObjectTree(t => 'label' in t ? t.label : t.message.toString()));
 		this._register(this.tree.onDidChangeCollapseState(evt => {
-			if (evt.node.element) {
+			if (evt.node.element instanceof TestItemTreeElement) {
 				this.projection.expandElement(evt.node.element, evt.deep ? Infinity : 0);
 			}
 		}));
 	}
 
-	public flush(folder?: IWorkspaceFolderData) {
-		this.onDiff.fire([folder!, this.c.collectDiff()]);
+	public flush(folder: IWorkspaceFolderData) {
+		this.isProcessingDiff = true;
+		while (this.c.currentDiff.length) {
+			this.onDiff.fire({ folder: { folder }, diff: this.c.collectDiff() });
+		}
+		this.isProcessingDiff = false;
+
 		this.projection.applyTo(this.tree);
 		return this.tree.getRendered();
 	}

@@ -3,20 +3,26 @@
 
 	// Image contents: https://github.com/microsoft/vscode-dev-containers/blob/master/repository-containers/images/github.com/microsoft/vscode/.devcontainer/base.Dockerfile
 	"image": "mcr.microsoft.com/vscode/devcontainers/repos/microsoft/vscode:branch-main",
-
-	"workspaceMount": "source=${localWorkspaceFolder},target=/home/node/workspace/vscode,type=bind,consistency=cached",
-	"workspaceFolder": "/home/node/workspace/vscode",
 	"overrideCommand": false,
 	"runArgs": [ "--init", "--security-opt", "seccomp=unconfined"],
 
 	"settings": {
-		"terminal.integrated.shell.linux": "/bin/bash",
 		"resmon.show.battery": false,
 		"resmon.show.cpufreq": false
 	},
 
-	// noVNC, VNC, debug ports
-	"forwardPorts": [6080, 5901, 9222],
+	// noVNC, VNC
+	"forwardPorts": [6080, 5901],
+	"portsAttributes": {
+		"6080": {
+			"label": "VNC web client (noVNC)",
+			"onAutoForward": "silent"
+		},
+		"5901": {
+			"label": "VNC TCP port",
+			"onAutoForward": "silent"
+		}
+	},
 
 	"extensions": [
 		"dbaeumer.vscode-eslint",

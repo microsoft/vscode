@@ -33,6 +33,7 @@ async function main() {
             'Credits.rtf',
             'CodeResources',
             'fsevents.node',
+            'Info.plist',
             '.npmrc'
         ],
         outAppPath,

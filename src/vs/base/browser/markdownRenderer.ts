@@ -20,7 +20,7 @@ import { resolvePath } from 'vs/base/common/resources';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 
 export interface MarkedOptions extends marked.MarkedOptions {
 	baseUrl?: never;
@@ -186,7 +186,9 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.add(Event.any<MouseEvent>(domEvent(element, 'click'), domEvent(element, 'auxclick'))(e => {
+		const onClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'click'));
+		const onAuxClick = options.actionHandler.disposeables.add(new DomEmitter(element, 'auxclick'));
+		options.actionHandler.disposeables.add(Event.any(onClick.event, onAuxClick.event)(e => {
 			const mouseEvent = new StandardMouseEvent(e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
@@ -313,6 +315,14 @@ function getInsaneOptions(options: { readonly isTrusted?: boolean }): InsaneOpti
 }
 
 /**
+ * Strips all markdown from `string`, if it's an IMarkdownString. For example
+ * `# Header` would be output as `Header`. If it's not, the string is returned.
+ */
+export function renderStringAsPlaintext(string: IMarkdownString | string) {
+	return typeof string === 'string' ? string : renderMarkdownAsPlaintext(string);
+}
+
+/**
  * Strips all markdown from `markdown`. For example `# Header` would be output as `Header`.
  */
 export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
@@ -386,6 +396,7 @@ export function renderMarkdownAsPlaintext(markdown: IMarkdownString) {
 
 	const unescapeInfo = new Map<string, string>([
 		['&quot;', '"'],
+		['&nbsp;', ' '],
 		['&amp;', '&'],
 		['&#39;', '\''],
 		['&lt;', '<'],

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Composite } from 'vs/workbench/browser/composite';
-import { EditorInput, EditorOptions, IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -20,6 +21,7 @@ import { joinPath, IExtUri, isEqual } from 'vs/base/common/resources';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -56,8 +58,8 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	protected _input: EditorInput | undefined;
 	get input(): EditorInput | undefined { return this._input; }
 
-	protected _options: EditorOptions | undefined;
-	get options(): EditorOptions | undefined { return this._options; }
+	protected _options: IEditorOptions | undefined;
+	get options(): IEditorOptions | undefined { return this._options; }
 
 	private _group: IEditorGroup | undefined;
 	get group(): IEditorGroup | undefined { return this._group; }
@@ -76,7 +78,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		super(id, telemetryService, themeService, storageService);
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		super.create(parent);
 
 		// Create Editor
@@ -102,7 +104,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * The provided cancellation token should be used to test if the operation
 	 * was cancelled.
 	 */
-	async setInput(input: EditorInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	async setInput(input: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this._input = input;
 		this._options = options;
 	}
@@ -129,11 +131,11 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * Sets the given options to the editor. Clients should apply the options
 	 * to the current input.
 	 */
-	setOptions(options: EditorOptions | undefined): void {
+	setOptions(options: IEditorOptions | undefined): void {
 		this._options = options;
 	}
 
-	setVisible(visible: boolean, group?: IEditorGroup): void {
+	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible);
 
 		// Propagate to Editor
@@ -163,7 +165,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		return editorMemento;
 	}
 
-	protected saveState(): void {
+	protected override saveState(): void {
 
 		// Save all editor memento for this editor type
 		for (const [, editorMemento] of EditorPane.EDITOR_MEMENTOS) {
@@ -175,7 +177,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 		super.saveState();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._input = undefined;
 		this._options = undefined;
 
@@ -193,7 +195,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	private editorDisposables: Map<EditorInput, IDisposable> | undefined;
 
 	constructor(
-		public readonly id: string,
+		readonly id: string,
 		private key: string,
 		private memento: MementoObject,
 		private limit: number,
@@ -274,7 +276,7 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 		}
 
 		if (!this.editorDisposables.has(editor)) {
-			this.editorDisposables.set(editor, Event.once(editor.onDispose)(() => {
+			this.editorDisposables.set(editor, Event.once(editor.onWillDispose)(() => {
 				this.clearEditorState(resource);
 				this.editorDisposables?.delete(editor);
 			}));

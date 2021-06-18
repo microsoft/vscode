@@ -10,9 +10,12 @@ import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
 import { DataUri } from 'vs/base/common/resources';
 
-export const MIME_TEXT = 'text/plain';
-export const MIME_BINARY = 'application/octet-stream';
-export const MIME_UNKNOWN = 'application/unknown';
+export namespace Mimes {
+	export const text = 'text/plain';
+	export const binary = 'application/octet-stream';
+	export const unknown = 'application/unknown';
+	export const markdown = 'text/markdown';
+}
 
 export interface ITextMimeAssociation {
 	readonly id: string;
@@ -125,7 +128,7 @@ export function guessMimeTypes(resource: URI | null, firstLine?: string): string
 	}
 
 	if (!path) {
-		return [MIME_UNKNOWN];
+		return [Mimes.unknown];
 	}
 
 	path = path.toLowerCase();
@@ -135,24 +138,24 @@ export function guessMimeTypes(resource: URI | null, firstLine?: string): string
 	// 1.) User configured mappings have highest priority
 	const configuredMime = guessMimeTypeByPath(path, filename, userRegisteredAssociations);
 	if (configuredMime) {
-		return [configuredMime, MIME_TEXT];
+		return [configuredMime, Mimes.text];
 	}
 
 	// 2.) Registered mappings have middle priority
 	const registeredMime = guessMimeTypeByPath(path, filename, nonUserRegisteredAssociations);
 	if (registeredMime) {
-		return [registeredMime, MIME_TEXT];
+		return [registeredMime, Mimes.text];
 	}
 
 	// 3.) Firstline has lowest priority
 	if (firstLine) {
 		const firstlineMime = guessMimeTypeByFirstline(firstLine);
 		if (firstlineMime) {
-			return [firstlineMime, MIME_TEXT];
+			return [firstlineMime, Mimes.text];
 		}
 	}
 
-	return [MIME_UNKNOWN];
+	return [Mimes.unknown];
 }
 
 function guessMimeTypeByPath(path: string, filename: string, associations: ITextMimeAssociationItem[]): string | null {
@@ -240,7 +243,7 @@ export function isUnspecific(mime: string[] | string): boolean {
 	}
 
 	if (typeof mime === 'string') {
-		return mime === MIME_BINARY || mime === MIME_TEXT || mime === MIME_UNKNOWN;
+		return mime === Mimes.binary || mime === Mimes.text || mime === Mimes.unknown;
 	}
 
 	return mime.length === 1 && isUnspecific(mime[0]);
@@ -315,4 +318,21 @@ export function getExtensionForMimeType(mimeType: string): string | undefined {
 	}
 
 	return undefined;
+}
+
+const _simplePattern = /^(.+)\/(.+?)(;.+)?$/;
+
+export function normalizeMimeType(mimeType: string): string;
+export function normalizeMimeType(mimeType: string, strict: true): string | undefined;
+export function normalizeMimeType(mimeType: string, strict?: true): string | undefined {
+
+	const match = _simplePattern.exec(mimeType);
+	if (!match) {
+		return strict
+			? undefined
+			: mimeType;
+	}
+	// https://datatracker.ietf.org/doc/html/rfc2045#section-5.1
+	// media and subtype must ALWAYS be lowercase, parameter not
+	return `${match[1].toLowerCase()}/${match[2].toLowerCase()}${match[3] ?? ''}`;
 }

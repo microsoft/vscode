@@ -5,9 +5,9 @@
 
 import {
 	Connection, TextDocuments, InitializeParams, InitializeResult, RequestType,
-	DocumentRangeFormattingRequest, Disposable, DocumentSelector, TextDocumentPositionParams, ServerCapabilities,
+	DocumentRangeFormattingRequest, Disposable, TextDocumentPositionParams, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
-	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0
+	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
@@ -152,7 +152,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 			completionProvider: clientSnippetSupport ? { resolveProvider: true, triggerCharacters: ['.', ':', '<', '"', '=', '/'] } : undefined,
 			hoverProvider: true,
 			documentHighlightProvider: true,
-			documentRangeFormattingProvider: initializationOptions?.provideFormatter === true,
+			documentRangeFormattingProvider: params.initializationOptions?.provideFormatter === true,
+			documentFormattingProvider: params.initializationOptions?.provideFormatter === true,
 			documentLinkProvider: { resolveProvider: false },
 			documentSymbolProvider: true,
 			definitionProvider: true,
@@ -188,7 +189,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}
 	});
 
-	let formatterRegistration: Thenable<Disposable> | null = null;
+	let formatterRegistrations: Thenable<Disposable>[] | null = null;
 
 	// The settings have changed. Is send on server activation as well.
 	connection.onDidChangeConfiguration((change) => {
@@ -200,13 +201,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		if (dynamicFormatterRegistration) {
 			const enableFormatter = globalSettings && globalSettings.html && globalSettings.html.format && globalSettings.html.format.enable;
 			if (enableFormatter) {
-				if (!formatterRegistration) {
-					const documentSelector: DocumentSelector = [{ language: 'html' }, { language: 'handlebars' }];
-					formatterRegistration = connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector });
+				if (!formatterRegistrations) {
+					const documentSelector = [{ language: 'html' }, { language: 'handlebars' }];
+					formatterRegistrations = [
+						connection.client.register(DocumentRangeFormattingRequest.type, { documentSelector }),
+						connection.client.register(DocumentFormattingRequest.type, { documentSelector })
+					];
 				}
-			} else if (formatterRegistration) {
-				formatterRegistration.then(r => r.dispose());
-				formatterRegistration = null;
+			} else if (formatterRegistrations) {
+				formatterRegistrations.forEach(p => p.then(r => r.dispose()));
+				formatterRegistrations = null;
 			}
 		}
 	});
@@ -381,21 +385,27 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		}, null, `Error while computing signature help for ${signatureHelpParms.textDocument.uri}`, token);
 	});
 
-	connection.onDocumentRangeFormatting(async (formatParams, token) => {
-		return runSafe(async () => {
-			const document = documents.get(formatParams.textDocument.uri);
-			if (document) {
-				let settings = await getDocumentSettings(document, () => true);
-				if (!settings) {
-					settings = globalSettings;
-				}
-				const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
-				const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
-
-				return format(languageModes, document, formatParams.range, formatParams.options, settings, enabledModes);
+	async function onFormat(textDocument: TextDocumentIdentifier, range: Range | undefined, options: FormattingOptions): Promise<TextEdit[]> {
+		const document = documents.get(textDocument.uri);
+		if (document) {
+			let settings = await getDocumentSettings(document, () => true);
+			if (!settings) {
+				settings = globalSettings;
 			}
-			return [];
-		}, [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+			const unformattedTags: string = settings && settings.html && settings.html.format && settings.html.format.unformatted || '';
+			const enabledModes = { css: !unformattedTags.match(/\bstyle\b/), javascript: !unformattedTags.match(/\bscript\b/) };
+
+			return format(languageModes, document, range ?? getFullRange(document), options, settings, enabledModes);
+		}
+		return [];
+	}
+
+	connection.onDocumentRangeFormatting((formatParams, token) => {
+		return runSafe(() => onFormat(formatParams.textDocument, formatParams.range, formatParams.options), [], `Error while formatting range for ${formatParams.textDocument.uri}`, token);
+	});
+
+	connection.onDocumentFormatting((formatParams, token) => {
+		return runSafe(() => onFormat(formatParams.textDocument, undefined, formatParams.options), [], `Error while formatting ${formatParams.textDocument.uri}`, token);
 	});
 
 	connection.onDocumentLinks((documentLinkParam, token) => {
@@ -560,4 +570,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 
 	// Listen on the connection
 	connection.listen();
+}
+
+function getFullRange(document: TextDocument): Range {
+	return Range.create(Position.create(0, 0), document.positionAt(document.getText().length));
 }

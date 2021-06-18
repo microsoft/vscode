@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
-	describe.skip('Localization', () => {
+export function setup(opts: minimist.ParsedArgs) {
+	describe('Localization', () => {
+		beforeSuite(opts);
+
 		before(async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			// Don't run the localization tests in dev or remote.
+			if (app.quality === Quality.Dev || app.remote) {
 				return;
 			}
 
@@ -20,10 +25,12 @@ export function setup() {
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
 
-		it.skip(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
+		afterSuite();
+
+		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			if (app.quality === Quality.Dev || app.remote) {
 				this.skip();
 				return;
 			}
