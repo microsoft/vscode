@@ -1471,14 +1471,14 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const instances = getSelectedInstances(accessor);
 			// should not even need this check given the context key
 			// but TS complains
 			if (instances?.length === 1) {
-				const group = terminalService.getGroupForInstance(instances[0]);
+				const group = terminalGroupService.getGroupForInstance(instances[0]);
 				if (group && group?.terminalInstances.length > 1) {
-					accessor.get(ITerminalGroupService).unsplitInstance(instances[0]);
+					terminalGroupService.unsplitInstance(instances[0]);
 				}
 			}
 		}

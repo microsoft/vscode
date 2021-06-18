@@ -190,7 +190,7 @@ export class TerminalService implements ITerminalService {
 				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
 				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
 				if (instance) {
-					const sourceGroup = this.getGroupForInstance(instance);
+					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {
 						sourceGroup.removeInstance(instance);
 					}
@@ -355,7 +355,7 @@ export class TerminalService implements ITerminalService {
 							// create group and terminal
 							const config = { attachPersistentProcess: terminalLayout.terminal! } as IShellLaunchConfig;
 							terminalInstance = this.createTerminal(config);
-							group = this.getGroupForInstance(terminalInstance);
+							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
 							}
@@ -576,7 +576,7 @@ export class TerminalService implements ITerminalService {
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
-		const group = this.getGroupForInstance(instanceToSplit);
+		const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
 		if (!group) {
 			return null;
 		}
@@ -594,7 +594,7 @@ export class TerminalService implements ITerminalService {
 		if (source.target === TerminalLocation.Editor) {
 			return;
 		}
-		const sourceGroup = this.getGroupForInstance(source);
+		const sourceGroup = this._terminalGroupService.getGroupForInstance(source);
 		if (!sourceGroup) {
 			return;
 		}
@@ -619,7 +619,7 @@ export class TerminalService implements ITerminalService {
 
 		let group: ITerminalGroup | undefined;
 		if (target) {
-			group = this.getGroupForInstance(target);
+			group = this._terminalGroupService.getGroupForInstance(target);
 		}
 
 		if (!group) {
@@ -639,12 +639,10 @@ export class TerminalService implements ITerminalService {
 
 		// Fire events
 		this._onDidChangeInstances.fire();
-		// this._onGroupsChanged.fire();
 		this._onActiveGroupChanged.fire();
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
-		// instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onIconChanged(this._onInstanceIconChanged.fire, this._onInstanceIconChanged));
 		instance.addDisposable(instance.onIconChanged(this._onInstanceColorChanged.fire, this._onInstanceColorChanged));
@@ -727,16 +725,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	instanceIsSplit(instance: ITerminalInstance): boolean {
-		const group = this.getGroupForInstance(instance);
+		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
 			return false;
 		}
 		return group.terminalInstances.length > 1;
-	}
-
-	// TODO: Move to group service
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
-		return this._terminalGroupService.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {

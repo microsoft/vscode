@@ -217,8 +217,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
-		const sourceGroup = this._getGroupForInstance(source);
-		const targetGroup = this._getGroupForInstance(target);
+		const sourceGroup = this.getGroupForInstance(source);
+		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
@@ -230,8 +230,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
-		const sourceGroup = this._getGroupForInstance(source);
-		const targetGroup = this._getGroupForInstance(target);
+		const sourceGroup = this.getGroupForInstance(source);
+		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
@@ -249,7 +249,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	unsplitInstance(instance: ITerminalInstance): void {
-		const oldGroup = this._getGroupForInstance(instance);
+		const oldGroup = this.getGroupForInstance(instance);
 		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
 			return;
 		}
@@ -263,7 +263,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		let candidateInstance: ITerminalInstance | undefined = undefined;
 		let candidateGroup: ITerminalGroup | undefined = undefined;
 		for (const instance of instances) {
-			const group = this._getGroupForInstance(instance);
+			const group = this.getGroupForInstance(instance);
 			if (group?.terminalInstances.length === 1) {
 				candidateInstance = instance;
 				candidateGroup = group;
@@ -284,7 +284,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				continue;
 			}
 
-			const oldGroup = this._getGroupForInstance(instance);
+			const oldGroup = this.getGroupForInstance(instance);
 			if (!oldGroup) {
 				// Something went wrong, don't join this one
 				continue;
@@ -303,7 +303,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 	}
 
-	private _getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
 

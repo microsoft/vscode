@@ -194,8 +194,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
-
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
@@ -239,6 +237,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly onPanelOrientationChanged: Event<Orientation>;
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
 
 	/**
 	 * Moves a terminal instance's group to the target instance group's position.

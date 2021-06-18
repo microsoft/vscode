@@ -195,6 +195,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		private readonly _getSelection: () => ITerminalInstance[],
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -251,7 +252,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 	renderElement(instance: ITerminalInstance, index: number, template: ITerminalTabEntryTemplate): void {
 		const hasText = !this.shouldHideText();
 
-		const group = this._terminalService.getGroupForInstance(instance);
+		const group = this._terminalGroupService.getGroupForInstance(instance);
 		if (!group) {
 			throw new Error(`Could not find group for instance "${instance.instanceId}"`);
 		}
@@ -481,7 +482,9 @@ interface ITerminalTabEntryTemplate {
 
 
 class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<ITerminalInstance> {
-	constructor(@ITerminalService private readonly _terminalService: ITerminalService) { }
+	constructor(
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+	) { }
 
 	getWidgetAriaLabel(): string {
 		return localize('terminal.tabs', "Terminal tabs");
@@ -489,7 +492,7 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 
 	getAriaLabel(instance: ITerminalInstance): string {
 		let ariaLabel: string = '';
-		const tab = this._terminalService.getGroupForInstance(instance);
+		const tab = this._terminalGroupService.getGroupForInstance(instance);
 		if (tab && tab.terminalInstances?.length > 1) {
 			const terminalIndex = tab.terminalInstances.indexOf(instance);
 			ariaLabel = localize({
