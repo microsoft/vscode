@@ -614,9 +614,6 @@ export class TabsTitleControl extends TitleControl {
 
 		// Tab Editor Label
 		const editorLabel = this.tabResourceLabels.create(tabContainer);
-		// Prevent the Close button from right-justifying and being harder to reach when tabs are wrapping and the tab is the last one in a wrapping row
-		// See https://github.com/microsoft/vscode/issues/126532
-		editorLabel.element.setAttribute('style', 'flex: none;');
 
 		// Tab Actions
 		const tabActionsContainer = document.createElement('div');
