@@ -190,13 +190,9 @@ export class TerminalService implements ITerminalService {
 				} else {
 					instance = this.createInstance({});
 				}
-				instance.target = TerminalLocation.Editor;
-				// TODO: Create the input with terminal editor service
 				this._terminalEditorService.terminalEditorInstances.push(instance);
-				const editor = new TerminalEditorInput(instance);
-				(this._terminalEditorService as any)._editorInputs.set(instance.instanceId, editor);
 				return {
-					editor: editor,
+					editor: this._terminalEditorService.createEditorInput(instance),
 					options: {
 						...options,
 						pinned: true,

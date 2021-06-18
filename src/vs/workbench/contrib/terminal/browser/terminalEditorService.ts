@@ -4,13 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
-import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
@@ -30,14 +27,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	async createEditor(instance: ITerminalInstance): Promise<void> {
-		instance.target = TerminalLocation.Editor;
-		const input = new TerminalEditorInput(instance);
-		this._editorInputs.set(instance.instanceId, input);
+		const input = this.createEditorInput(instance);
 		await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
 		});
 		this.terminalEditorInstances.push(instance);
+	}
+
+	createEditorInput(instance: ITerminalInstance): TerminalEditorInput {
+		const input = new TerminalEditorInput(instance);
+		instance.target = TerminalLocation.Editor;
+		this._editorInputs.set(instance.instanceId, input);
+		return input;
 	}
 
 	detachActiveEditorInstance(): ITerminalInstance {
