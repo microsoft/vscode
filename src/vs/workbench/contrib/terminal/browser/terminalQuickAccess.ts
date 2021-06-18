@@ -76,7 +76,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 							return TriggerAction.NO_ACTION;
 						},
 						accept: (keyMod, event) => {
-							this._terminalService.activeInstance = terminal;
+							this._terminalService.setActiveInstance(terminal);
 							this._terminalService.showPanel(!event.inBackground);
 						}
 					});

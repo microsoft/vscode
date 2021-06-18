@@ -85,21 +85,6 @@ export class TerminalService implements ITerminalService {
 
 	private _activeInstance: ITerminalInstance | undefined;
 	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
-	set activeInstance(value: ITerminalInstance | undefined) {
-		if (value === undefined) {
-			throw new Error('Cannot set active instance to undefined');
-		}
-		// If this was a hideFromUser terminal created by the API this was triggered by show,
-		// in which case we need to create the terminal group
-		if (value.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(value);
-		}
-		if (value.target === TerminalLocation.Editor) {
-			this._terminalEditorService.activeInstance = value;
-		} else {
-			this._terminalGroupService.activeInstance = value;
-		}
-	}
 
 	private readonly _onActiveGroupChanged = new Emitter<ITerminalGroup | undefined>();
 	get onActiveGroupChanged(): Event<ITerminalGroup | undefined> { return this._onActiveGroupChanged.event; }
@@ -295,6 +280,19 @@ export class TerminalService implements ITerminalService {
 		});
 	}
 
+	setActiveInstance(value: ITerminalInstance) {
+		// If this was a hideFromUser terminal created by the API this was triggered by show,
+		// in which case we need to create the terminal group
+		if (value.shellLaunchConfig.hideFromUser) {
+			this._showBackgroundTerminal(value);
+		}
+		if (value.target === TerminalLocation.Editor) {
+			this._terminalEditorService.setActiveInstance(value);
+		} else {
+			this._terminalGroupService.setActiveInstance(value);
+		}
+	}
+
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
 		if (this.configHelper.config.confirmOnExit) {
 			const notConfirmed = await this._showTerminalCloseConfirmation(true);
@@ -369,7 +367,7 @@ export class TerminalService implements ITerminalService {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
 					});
 					if (activeInstance) {
-						this.activeInstance = activeInstance;
+						this.setActiveInstance(activeInstance);
 					}
 					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
 				}
@@ -628,7 +626,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		group.addInstance(source);
-		this.activeInstance = source;
+		this.setActiveInstance(source);
 		await this.showPanel(true);
 		// TODO: Shouldn't this happen automatically?
 		source.setVisible(true);
@@ -888,7 +886,7 @@ export class TerminalService implements ITerminalService {
 
 			if (instance && this.configHelper.config.defaultLocation === TerminalLocation.TerminalView) {
 				this.showPanel(true);
-				this.activeInstance = instance;
+				this.setActiveInstance(instance);
 				return instance;
 			}
 		} else { // setDefault

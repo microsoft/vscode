@@ -118,7 +118,7 @@ export function registerTerminalActions() {
 				if (!instance) {
 					return;
 				}
-				terminalService.activeInstance = instance;
+				terminalService.setActiveInstance(instance);
 			}
 			await terminalService.showPanel(true);
 		}
@@ -184,7 +184,7 @@ export function registerTerminalActions() {
 				}
 
 				if (instance) {
-					terminalService.activeInstance = instance;
+					terminalService.setActiveInstance(instance);
 				}
 			}
 			await terminalService.showPanel(true);
@@ -399,7 +399,7 @@ export function registerTerminalActions() {
 			if (!instance) {
 				return;
 			}
-			terminalService.activeInstance = instance;
+			terminalService.setActiveInstance(instance);
 			return terminalService.showPanel(true);
 		}
 	});
@@ -945,7 +945,7 @@ export function registerTerminalActions() {
 				const instance = terminalService.createTerminal({
 					config: { attachPersistentProcess: selected.term }
 				});
-				terminalService.activeInstance = instance;
+				terminalService.setActiveInstance(instance);
 				terminalService.showPanel(true);
 			}
 		}
@@ -1163,7 +1163,7 @@ export function registerTerminalActions() {
 				if (!instance) {
 					return;
 				}
-				terminalService.activeInstance = instance;
+				terminalService.setActiveInstance(instance);
 			}
 			return terminalService.showPanel(true);
 		}
@@ -1436,7 +1436,7 @@ export function registerTerminalActions() {
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
 				for (const t of instances) {
-					terminalService.activeInstance = t;
+					terminalService.setActiveInstance(t);
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
 						terminalService.splitInstance(instance, { cwd });
@@ -1594,7 +1594,7 @@ export function registerTerminalActions() {
 						}
 					);
 				}
-				terminalService.activeInstance = instance;
+				terminalService.setActiveInstance(instance);
 			}
 			await terminalService.showPanel(true);
 		}
@@ -1834,7 +1834,7 @@ export function registerTerminalActions() {
 						{
 							config: profile
 						});
-					terminalService.activeInstance = instance;
+					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
 				}

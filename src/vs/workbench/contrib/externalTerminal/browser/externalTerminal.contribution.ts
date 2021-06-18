@@ -66,7 +66,7 @@ CommandsRegistry.registerCommand({
 					opened[cwd.path] = true;
 					const instance = integratedTerminalService.createTerminal({ config: { cwd } });
 					if (instance && (resources.length === 1 || !resource || cwd.path === resource.path || cwd.path === dirname(resource.path))) {
-						integratedTerminalService.activeInstance = instance;
+						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);
 					}
 				});

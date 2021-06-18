@@ -38,7 +38,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeEditor = this._editorService.activeEditor;
-			this.activeInstance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
+			this._setActiveInstance(activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined);
 		}));
 	}
 
@@ -49,12 +49,16 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return this.instances[this._activeInstanceIndex];
 	}
 
-	set activeInstance(value: ITerminalInstance | undefined) {
+	setActiveInstance(instance: ITerminalInstance): void {
+		this._setActiveInstance(instance);
+	}
+
+	private _setActiveInstance(instance: ITerminalInstance | undefined): void {
 		const oldActiveInstance = this.activeInstance;
-		if (value === undefined) {
+		if (instance === undefined) {
 			this._activeInstanceIndex = -1;
 		} else {
-			this._activeInstanceIndex = this.instances.findIndex(e => e === value);
+			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
 		const newActiveInstance = this.activeInstance;
 		if (oldActiveInstance !== newActiveInstance) {

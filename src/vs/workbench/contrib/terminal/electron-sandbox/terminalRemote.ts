@@ -35,7 +35,7 @@ export class CreateNewLocalTerminalAction extends Action {
 			return Promise.resolve(undefined);
 		}
 
-		this._terminalService.activeInstance = instance;
+		this._terminalService.setActiveInstance(instance);
 		return this._terminalService.showPanel(true);
 	}
 }

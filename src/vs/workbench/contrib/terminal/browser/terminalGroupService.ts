@@ -73,11 +73,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return this.activeGroup?.activeInstance;
 	}
 
-	set activeInstance(value: ITerminalInstance | undefined) {
-		if (value === undefined) {
-			return;
-		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(value.instanceId));
+	setActiveInstance(instance: ITerminalInstance) {
+		this.setActiveInstanceByIndex(this._getIndexFromId(instance.instanceId));
 	}
 
 	private _getIndexFromId(terminalId: number): number {
@@ -109,7 +106,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	private _removeGroup(group: ITerminalGroup): void {
+	private _removeGroup(group: ITerminalGroup) {
 		// Get the index of the group and remove it from the list
 		const activeGroup = this.activeGroup;
 		const wasActiveGroup = group === activeGroup;
@@ -140,7 +137,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 	}
 
-	setActiveGroupByIndex(index: number): void {
+	setActiveGroupByIndex(index: number) {
 		if (index >= this.groups.length) {
 			return;
 		}
@@ -171,7 +168,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return undefined;
 	}
 
-	setActiveInstanceByIndex(index: number): void {
+	setActiveInstanceByIndex(index: number) {
 		const instanceLocation = this._getInstanceLocation(index);
 		if (!instanceLocation || (this.activeInstanceIndex > 0 && this.activeInstanceIndex === index)) {
 			return;
@@ -188,7 +185,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
 	}
 
-	setActiveGroupToNext(): void {
+	setActiveGroupToNext() {
 		if (this.groups.length <= 1) {
 			return;
 		}
@@ -199,7 +196,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
-	setActiveGroupToPrevious(): void {
+	setActiveGroupToPrevious() {
 		if (this.groups.length <= 1) {
 			return;
 		}
@@ -210,7 +207,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.setActiveGroupByIndex(newIndex);
 	}
 
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance) {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
@@ -223,7 +220,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after') {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
@@ -242,7 +239,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		targetGroup.moveInstance(source, index);
 	}
 
-	unsplitInstance(instance: ITerminalInstance): void {
+	unsplitInstance(instance: ITerminalInstance) {
 		const oldGroup = this.getGroupForInstance(instance);
 		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
 			return;
@@ -252,7 +249,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.createGroup(instance);
 	}
 
-	joinInstances(instances: ITerminalInstance[]): void {
+	joinInstances(instances: ITerminalInstance[]) {
 		// Find the group of the first instance that is the only instance in the group, if one exists
 		let candidateInstance: ITerminalInstance | undefined = undefined;
 		let candidateGroup: ITerminalGroup | undefined = undefined;
@@ -288,7 +285,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 
 		// Set the active terminal
-		this.activeInstance = instances[0];
+		this.setActiveInstance(instances[0]);
 
 		// Fire events
 		this._onDidChangeInstances.fire();

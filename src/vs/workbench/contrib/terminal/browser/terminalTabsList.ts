@@ -118,7 +118,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
 				const instance = this._terminalService.createTerminal();
-				this._terminalService.activeInstance = instance;
+				this._terminalService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
 		});
@@ -163,7 +163,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (e.editorOptions.pinned) {
 				return;
 			}
-			this._terminalService.activeInstance = instance;
+			this._terminalService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
 			}
@@ -572,7 +572,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 		if (didChangeAutoFocusInstance) {
 			this._autoFocusDisposable = disposableTimeout(() => {
-				this._terminalService.activeInstance = targetInstance;
+				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
 			}, 500);
 		}
@@ -616,7 +616,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		for (const instance of sourceInstances) {
 			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
-				this._terminalService.activeInstance = instance;
+				this._terminalService.setActiveInstance(instance);
 				focused = true;
 			}
 		}
@@ -641,7 +641,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			return;
 		}
 
-		this._terminalService.activeInstance = instance;
+		this._terminalService.setActiveInstance(instance);
 
 		const preparedPath = await this._terminalInstanceService.preparePathForTerminalAsync(path, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 		instance.sendText(preparedPath, false);

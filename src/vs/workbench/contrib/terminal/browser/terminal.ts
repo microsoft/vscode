@@ -265,12 +265,14 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
  * properties and events.
  */
 export interface ITerminalInstanceHost {
-	activeInstance: ITerminalInstance | undefined;
+	readonly activeInstance: ITerminalInstance | undefined;
 	readonly instances: readonly ITerminalInstance[];
 
 	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
+
+	setActiveInstance(instance: ITerminalInstance): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
