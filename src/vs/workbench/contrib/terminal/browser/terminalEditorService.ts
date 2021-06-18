@@ -62,7 +62,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (instanceIndex !== -1) {
 			this.terminalEditorInstances.splice(instanceIndex, 1);
 		}
-		console.log('dispose input');
+		console.log('dispose input', editorInput);
 		editorInput?.dispose();
 	}
 }
