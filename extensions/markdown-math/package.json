@@ -23,6 +23,40 @@
   "browser": "./dist/browser/extension",
   "activationEvents": [],
   "contributes": {
+    "languages": [
+      {
+        "id": "markdown-math",
+        "aliases": [],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "markdown-math",
+        "scopeName": "text.html.markdown.math",
+        "path": "./syntaxes/md-math.tmLanguage.json"
+      },
+      {
+        "scopeName": "markdown.math.block",
+        "path": "./syntaxes/md-math-block.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "markdown-math"
+        }
+      },
+      {
+        "scopeName": "markdown.math.inline",
+        "path": "./syntaxes/md-math-inline.tmLanguage.json",
+        "injectTo": [
+          "text.html.markdown"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.math.markdown": "markdown-math"
+        }
+      }
+    ],
     "notebookRenderer": [
       {
         "id": "markdownItRenderer-katex",
