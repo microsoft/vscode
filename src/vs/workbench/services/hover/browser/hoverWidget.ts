@@ -15,7 +15,6 @@ import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/b
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { isString } from 'vs/base/common/types';
@@ -32,7 +31,9 @@ type TargetRect = {
 };
 
 const enum Constants {
-	PointerSize = 3
+	PointerSize = 3,
+	HoverBorderWidth = 2,
+	HoverWindowEdgeMargin = 2,
 }
 
 export class HoverWidget extends Widget {
@@ -66,7 +67,6 @@ export class HoverWidget extends Widget {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
@@ -244,6 +244,8 @@ export class HoverWidget extends Widget {
 	}
 
 	private computeXCordinate(target: TargetRect): void {
+		const hoverWidth = this._hover.containerDomNode.clientWidth + Constants.HoverBorderWidth;
+
 		if (this._target.x !== undefined) {
 			this._x = this._target.x;
 		}
@@ -260,18 +262,19 @@ export class HoverWidget extends Widget {
 			if (this._hoverPointer) {
 				this._x = target.center.x - (this._hover.containerDomNode.clientWidth / 2);
 			} else {
-				if (target.left + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-					this._hover.containerDomNode.classList.add('right-aligned');
-					this._x = document.documentElement.clientWidth - this._workbenchLayoutService.getWindowBorderWidth() - 1;
-				} else {
-					this._x = target.left;
-				}
+				this._x = target.left;
+			}
+
+			// Hover is going beyond window towards right end
+			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
+				this._hover.containerDomNode.classList.add('right-aligned');
+				this._x = document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin;
 			}
 		}
 
-		// Hover on left is going beyond window
+		// Hover is going beyond window towards left end
 		if (this._x < document.documentElement.clientLeft) {
-			this._x = target.left;
+			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
 	}
@@ -376,15 +379,16 @@ export class HoverWidget extends Widget {
 				this._hoverPointer.classList.add(this._hoverPosition === HoverPosition.ABOVE ? 'bottom' : 'top');
 				const hoverWidth = this._hover.containerDomNode.clientWidth;
 
-				// If hover is wider than target and aligned with target's left, then show the pointer at the center of target
-				if (hoverWidth > target.width && this._x === target.left) {
-					this._hoverPointer.style.left = `${target.center.x - target.left - Constants.PointerSize}px`;
+				// Position pointer at the center of the hover
+				let pointerLeftPosition = Math.round((hoverWidth / 2)) - Constants.PointerSize;
+
+				// If pointer goes beyond target then position it at the center of the target
+				const pointerX = this._x + pointerLeftPosition;
+				if (pointerX < target.left || pointerX > target.right) {
+					pointerLeftPosition = target.center.x - this._x - Constants.PointerSize;
 				}
 
-				// Otherwise show the pointer at the center of hover
-				else {
-					this._hoverPointer.style.left = `${Math.round((hoverWidth / 2)) - Constants.PointerSize}px`;
-				}
+				this._hoverPointer.style.left = `${pointerLeftPosition}px`;
 				break;
 		}
 	}
