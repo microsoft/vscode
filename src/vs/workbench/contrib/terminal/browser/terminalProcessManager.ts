@@ -341,7 +341,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 				return result;
 			}
 		} catch (e) {
-			console.log('caught', e.message);
 			return { message: e.message };
 		}
 

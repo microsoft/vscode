@@ -114,7 +114,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = terminalService.createTerminal({ target: terminalService.configHelper.config.creationTarget });
+				const instance = terminalService.createTerminal();
 				if (!instance) {
 					return;
 				}
@@ -178,7 +178,7 @@ export function registerTerminalActions() {
 				}
 
 				if (profile) {
-					instance = terminalService.createTerminal({ target: terminalService.configHelper.config.creationTarget, config: profile, cwd });
+					instance = terminalService.createTerminal({ config: profile, cwd });
 				} else {
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
@@ -947,7 +947,6 @@ export function registerTerminalActions() {
 			const selected = await quickInputService.pick<IRemoteTerminalPick>(items, { canPickMany: false });
 			if (selected) {
 				const instance = terminalService.createTerminal({
-					target: terminalService.configHelper.config.creationTarget,
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
@@ -1585,7 +1584,7 @@ export function registerTerminalActions() {
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
 					// single root
-					instance = terminalService.createTerminal({ target: terminalService.configHelper.config.creationTarget });
+					instance = terminalService.createTerminal();
 				} else {
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")

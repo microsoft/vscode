@@ -190,9 +190,8 @@ export class TerminalService implements ITerminalService {
 				} else {
 					instance = this.createInstance({});
 				}
-				this._terminalEditorService.terminalEditorInstances.push(instance);
 				return {
-					editor: this._terminalEditorService.createEditorInput(instance),
+					editor: this._terminalEditorService.getOrCreateEditor(instance),
 					options: {
 						...options,
 						pinned: true,

@@ -794,6 +794,7 @@ export class EditorGroupModel extends Disposable {
 		}
 
 		const serializableMru = this.mru.map(editor => this.indexOf(editor, serializableEditors)).filter(i => i >= 0);
+
 		return {
 			id: this.id,
 			editors: serializedEditors,

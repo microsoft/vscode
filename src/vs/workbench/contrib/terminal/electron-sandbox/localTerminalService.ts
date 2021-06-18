@@ -176,7 +176,6 @@ export class LocalTerminalService extends Disposable implements ILocalTerminalSe
 			workspaceId: this._getWorkspaceId(),
 			tabs: layoutInfo ? layoutInfo.tabs : []
 		};
-		console.log('setting layout info', args);
 		await this._localPtyService.setTerminalLayoutInfo(args);
 	}
 

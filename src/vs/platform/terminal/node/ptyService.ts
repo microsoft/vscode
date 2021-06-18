@@ -111,7 +111,7 @@ export class PtyService extends Disposable implements IPtyService {
 		try {
 			this._throwIfNoPty(id).attach();
 			this._logService.trace(`Persistent process reconnection "${id}"`);
-		} catch (e) {
+		} catch (e: any) {
 			this._logService.trace(`Persistent process reconnection "${id}" failed`, e.message);
 		}
 	}
@@ -235,7 +235,7 @@ export class PtyService extends Disposable implements IPtyService {
 				terminal: processDetails ?? null,
 				relativeSize: t.relativeSize
 			};
-		} catch (e) {
+		} catch (e: any) {
 			this._logService.trace(`Couldn't get layout info, a terminal was probably disconnected`, e.message);
 			// this will be filtered out and not reconnected
 			return {

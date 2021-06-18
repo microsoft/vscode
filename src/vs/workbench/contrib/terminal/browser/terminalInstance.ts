@@ -1203,7 +1203,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		let exitCodeMessage: string | undefined;
 
-		console.log('exit', exitCodeOrError);
 		// Create exit code message
 		switch (typeof exitCodeOrError) {
 			case 'number':
