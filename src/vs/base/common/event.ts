@@ -173,16 +173,6 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event, it returns another event which fires only once and as soon as
-	 * the input event emits. The event data is the number of millis it took for the
-	 * event to fire.
-	 */
-	export function stopwatch<T>(event: Event<T>): Event<number> {
-		const start = new Date().getTime();
-		return map(once(event), _ => new Date().getTime() - start);
-	}
-
-	/**
 	 * Given an event, it returns another event which fires only when the event
 	 * element changes.
 	 */

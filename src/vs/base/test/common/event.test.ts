@@ -584,28 +584,6 @@ suite('Event utils', () => {
 		});
 	});
 
-	suite('stopwatch', () => {
-
-		test('should emit', () => {
-			const emitter = new Emitter<void>();
-			const event = Event.stopwatch(emitter.event);
-
-			return new Promise((c, e) => {
-				event(duration => {
-					try {
-						assert(duration > 0);
-					} catch (err) {
-						e(err);
-					}
-
-					c(undefined);
-				});
-
-				setTimeout(() => emitter.fire(), 10);
-			});
-		});
-	});
-
 	suite('buffer', () => {
 
 		test('should buffer events', () => {
