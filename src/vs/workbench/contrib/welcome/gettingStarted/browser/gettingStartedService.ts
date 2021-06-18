@@ -82,8 +82,11 @@ export interface IGettingStartedNewMenuEntryDescriptor {
 	title: string
 	description: string
 	when?: ContextKeyExpression
+	from: string
 	action: { runCommand: string, invokeFunction?: never } | { invokeFunction: (accessor: ServicesAccessor) => void, runCommand?: never }
 }
+
+export const CoreNewEntryDisplayName = localize('builtinProviderDisplayName', "Built-in");
 
 export interface IGettingStartedStartEntryDescriptor {
 	id: GettingStartedCategory | string
@@ -210,27 +213,32 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		this.tasExperimentService = tasExperimentService;
 
+
 		this.newMenuItems = [
 			{
 				title: localize('newUntitledTitle', "Untitled File"),
 				description: localize('newUntitledDescription', "Create an empty text tile"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
+				from: CoreNewEntryDisplayName,
 			},
 			{
 				title: localize('newWindowTitle', "Empty Window"),
 				description: localize('newWindowDescription', "Open an empty window"),
 				action: { runCommand: 'workbench.action.newWindow' },
+				from: CoreNewEntryDisplayName,
 			},
 			{
 				title: localize('newDuplicateWindowTitle', "Duplicate Window"),
 				description: localize('newDuplicateWindowDescription', "Open a new window with the contents of this window"),
 				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
+				from: CoreNewEntryDisplayName,
 			},
 			{
 				title: localize('newGit', "Window from Git Repo"),
 				description: localize('newGitDescription', "Open a new window from the contents of a git repository"),
 				action: { runCommand: 'git.clone' },
 				when: ContextKeyExpr.deserialize('!git.missing'),
+				from: CoreNewEntryDisplayName,
 			}
 		];
 
@@ -348,12 +356,17 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	public async selectNewEntry() {
-		const selected = await this.quickInputService.pick(this.newMenuItems.map((entry): (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) => ({
-			label: entry.title,
-			type: 'item',
-			keybinding: this.keybindingService.lookupKeybinding(entry.action.runCommand || ''),
-			...entry,
-		})), { canPickMany: false });
+		const selected = await this.quickInputService.pick(
+			this.newMenuItems
+				.filter(entry => this.contextService.contextMatchesRules(entry.when))
+				.map((entry): (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) => ({
+					...entry,
+					label: entry.title,
+					type: 'item',
+					keybinding: this.keybindingService.lookupKeybinding(entry.action.runCommand || ''),
+					description: entry.from,
+					detail: entry.description,
+				})), { canPickMany: false });
 
 
 
@@ -435,6 +448,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				description: entry.description,
 				title: entry.title,
 				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
+				from: extension.name,
 			});
 		});
 
