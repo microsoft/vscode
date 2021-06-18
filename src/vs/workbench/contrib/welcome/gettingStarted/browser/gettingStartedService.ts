@@ -91,7 +91,7 @@ enum IGettingStartedNewMenuEntryDescriptorCategory {
 
 export interface IGettingStartedNewMenuEntryDescriptor {
 	title: string
-	description: string
+	description?: string
 	when?: ContextKeyExpression
 	from: string
 	sourceExtensionId?: string
@@ -232,15 +232,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		const builtinNewMenuItems = [
 			{
-				title: localize('newUntitledTitle', "Text File"),
-				description: localize('newUntitledDescription', "Create an empty text file"),
+				title: localize('newUntitledTitle', "New Text File"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
 				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
 				from: CoreNewEntryDisplayName,
 			},
 			{
 				title: localize('newWindowTitle', "Local Window"),
-				description: localize('newWindowDescription', "Open an empty window"),
 				action: { runCommand: 'workbench.action.newWindow' },
 				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
 				from: CoreNewEntryDisplayName,
@@ -254,7 +252,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			},
 			{
 				title: localize('newGit', "Folder from Git Repo"),
-				description: localize('newGitDescription', "Open a new window from the contents of a git repository"),
 				action: { runCommand: 'git.clone' },
 				when: ContextKeyExpr.deserialize('!git.missing'),
 				category: IGettingStartedNewMenuEntryDescriptorCategory.folder,
@@ -390,7 +387,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		qp.matchOnDescription = true;
 
 		const refreshQp = () => {
-			const hasValue = !!qp.value;
 			const items: (((IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) | IQuickPickSeparator))[] = [];
 			let lastSeparator: IGettingStartedNewMenuEntryDescriptorCategory | undefined;
 			this.newMenuItems
@@ -421,15 +417,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 									tooltip: localize('create keybinding', "Create Keybinding")
 								}
 						] : [],
-						detail: hasValue ? entry.description : '',
-						description: hasValue ? entry.from : entry.description,
+						detail: entry.description,
+						description: '',
 					});
 				});
 			qp.items = items;
 		};
 		refreshQp();
-
-		disposables.add(qp.onDidChangeValue(() => refreshQp()));
 
 		disposables.add(this.onDidAddNewEntry(() => refreshQp()));
 
