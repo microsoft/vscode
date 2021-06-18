@@ -5,8 +5,9 @@
 
 import * as nls from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, IEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export class RuntimeExtensionsInput extends EditorInput {
 
@@ -38,7 +39,10 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	override matches(other: unknown): boolean {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 		return other instanceof RuntimeExtensionsInput;
 	}
 }

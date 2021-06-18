@@ -19,6 +19,7 @@ import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface NotebookEditorInputOptions {
@@ -70,6 +71,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override get typeId(): string {
 		return NotebookEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return this.viewType;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -233,7 +238,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

@@ -134,7 +134,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): ITextEditorOptions {
 	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
-		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
+		if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
 			const textOptions: ITextEditorOptions = {
 				...presetOptions,
 				viewState: withNullAsUndefined(activeGroupCodeEditor.saveViewState())

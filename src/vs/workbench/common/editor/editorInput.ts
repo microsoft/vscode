@@ -8,8 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBaseResourceEditorInput, IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane } from 'vs/workbench/common/editor';
-
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { isEqual } from 'vs/base/common/resources';
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
@@ -33,6 +34,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get editorId(): string | undefined {
+		return undefined;
+	}
 
 	get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly;
@@ -106,8 +111,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	matches(otherInput: unknown): boolean {
-		return this === otherInput;
+	matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (otherInput instanceof EditorInput) {
+			return this === otherInput;
+		} else {
+			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.editorId === (otherInput as IResourceEditorInputType).options?.override;
+		}
 	}
 
 	/**
