@@ -242,12 +242,14 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	private _initialRelativeSizes: number[] | undefined;
 
+	private readonly _onDidDisposeInstance: Emitter<ITerminalInstance> = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
 	private readonly _onDisposed: Emitter<ITerminalGroup> = this._register(new Emitter<ITerminalGroup>());
-	public readonly onDisposed: Event<ITerminalGroup> = this._onDisposed.event;
+	readonly onDisposed = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
-	readonly onInstancesChanged: Event<void> = this._onInstancesChanged.event;
+	readonly onInstancesChanged = this._onInstancesChanged.event;
 	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
-	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
+	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
 
 	constructor(
 		private _container: HTMLElement | undefined,
@@ -326,12 +328,15 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	private _initInstanceListeners(instance: ITerminalInstance) {
 		this._instanceDisposables.set(instance.instanceId, [
-			instance.onDisposed(instance => this._onInstanceDisposed(instance)),
+			instance.onDisposed(instance => {
+				this._onDidDisposeInstance.fire(instance);
+				this._handleOnDidDisposeInstance(instance);
+			}),
 			instance.onFocused(instance => this._setActiveInstance(instance))
 		]);
 	}
 
-	private _onInstanceDisposed(instance: ITerminalInstance) {
+	private _handleOnDidDisposeInstance(instance: ITerminalInstance) {
 		this._removeInstance(instance);
 	}
 

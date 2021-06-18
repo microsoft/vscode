@@ -322,11 +322,12 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onGroupsChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onGroupDisposed(() => this._updateItems(), this));
+		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
+		// TODO: dispose group shouldn't be needed
+		// this._register(_terminalGroupService.onDidDisposeGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
@@ -525,7 +526,8 @@ class TerminalThemeIconStyle extends Themable {
 	constructor(
 		container: HTMLElement,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		super(_themeService);
 		this._registerListeners();
@@ -539,7 +541,7 @@ class TerminalThemeIconStyle extends Themable {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onGroupsChanged(() => this.updateStyles()));
+		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {

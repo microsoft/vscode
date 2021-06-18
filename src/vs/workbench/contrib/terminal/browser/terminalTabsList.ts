@@ -69,6 +69,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
@@ -100,7 +101,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			keybindingService,
 		);
 		this._terminalService.onInstancesChanged(() => this.refresh());
-		this._terminalService.onGroupsChanged(() => this.refresh());
+		terminalGroupService.onDidChangeGroups(() => this.refresh());
 		this._terminalService.onInstanceTitleChanged(() => this.refresh());
 		this._terminalService.onInstanceIconChanged(() => this.refresh());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());

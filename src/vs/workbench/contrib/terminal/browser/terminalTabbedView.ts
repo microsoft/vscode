@@ -7,7 +7,7 @@ import { LayoutPriority, Orientation, Sizing, SplitView } from 'vs/base/browser/
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabsListSizes, TerminalTabList } from 'vs/workbench/contrib/terminal/browser/terminalTabsList';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -71,6 +71,7 @@ export class TerminalTabbedView extends Disposable {
 	constructor(
 		parentElement: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
@@ -129,7 +130,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 		});
 		this._register(this._terminalService.onInstancesChanged(() => this._refreshShowTabs()));
-		this._register(this._terminalService.onGroupsChanged(() => this._refreshShowTabs()));
+		this._register(this._terminalGroupService.onDidChangeGroups(() => this._refreshShowTabs()));
 		this._register(this._themeService.onDidColorThemeChange(theme => this._updateTheme(theme)));
 		this._updateTheme();
 

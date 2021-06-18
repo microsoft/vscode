@@ -202,7 +202,6 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
-		this.onGroupDisposed(group => this._terminalGroupService.removeGroup(group));
 		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
@@ -215,6 +214,7 @@ export class TerminalService implements ITerminalService {
 				this.hidePanel();
 			}
 		});
+		this._terminalGroupService.onDidDisposeInstance(this._onInstanceDisposed.fire, this._onInstanceDisposed);
 
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -712,7 +712,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
-		instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
+		// instance.addDisposable(instance.onDisposed(this._onInstanceDisposed.fire, this._onInstanceDisposed));
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onIconChanged(this._onInstanceIconChanged.fire, this._onInstanceIconChanged));
 		instance.addDisposable(instance.onIconChanged(this._onInstanceColorChanged.fire, this._onInstanceColorChanged));

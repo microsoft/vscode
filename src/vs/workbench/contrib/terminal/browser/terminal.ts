@@ -68,6 +68,7 @@ export interface ITerminalGroup {
 	terminalInstances: ITerminalInstance[];
 	title: string;
 
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDisposed: Event<ITerminalGroup>;
 	readonly onInstancesChanged: Event<void>;
 	readonly onPanelOrientationChanged: Event<Orientation>;
@@ -124,10 +125,6 @@ export interface ITerminalService {
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<void>;
 	onGroupDisposed: Event<ITerminalGroup>;
-	/**
-	 * An event that fires when a terminal group is created, disposed of, or shown (in the case of a background group)
-	 */
-	onGroupsChanged: Event<void>;
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
@@ -260,8 +257,10 @@ export interface ITerminalGroupService {
 
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
+	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
 	readonly onDidChangeGroups: Event<void>;
 
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
 

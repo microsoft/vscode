@@ -28,6 +28,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private readonly _onDidChangeGroups = new Emitter<void>();
 	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
 
+	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
+	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
 	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
 	private readonly _onDidChangeInstances = new Emitter<void>();
@@ -40,6 +42,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
+
+		this.onDidDisposeGroup(group => this.removeGroup(group));
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {
@@ -65,6 +69,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.groups.push(group);
 		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
+		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
 		if (group.terminalInstances.length > 0) {
 			this._onDidChangeInstances.fire();
 		}
