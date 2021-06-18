@@ -10,7 +10,7 @@ import { Memento } from 'vs/workbench/common/memento';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IUserDataAutoSyncEnablementService } from 'vs/platform/userDataSync/common/userDataSync';
 import { IExtensionDescription, IStartEntry } from 'vs/platform/extensions/common/extensions';
 import { URI } from 'vs/base/common/uri';
@@ -32,7 +32,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
-import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
@@ -83,6 +83,7 @@ export interface IGettingStartedNewMenuEntryDescriptor {
 	description: string
 	when?: ContextKeyExpression
 	from: string
+	sourceExtensionId?: string
 	action: { runCommand: string, invokeFunction?: never } | { invokeFunction: (accessor: ServicesAccessor) => void, runCommand?: never }
 }
 
@@ -158,6 +159,9 @@ export interface IGettingStartedService {
 export class GettingStartedService extends Disposable implements IGettingStartedService {
 	declare readonly _serviceBrand: undefined;
 
+	private readonly _onDidAddNewEntry = new Emitter<void>();
+	onDidAddNewEntry: Event<void> = this._onDidAddNewEntry.event;
+
 	private readonly _onDidAddCategory = new Emitter<void>();
 	onDidAddCategory: Event<void> = this._onDidAddCategory.event;
 
@@ -229,7 +233,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			},
 			{
 				title: localize('newDuplicateWindowTitle', "Duplicate Window"),
-				description: localize('newDuplicateWindowDescription', "Open a new window with the contents of this window"),
+				description: localize('newDuplicateWindowDescription', "Open a new window with the same contents as this window"),
 				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
 				from: CoreNewEntryDisplayName,
 			},
@@ -356,27 +360,78 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	public async selectNewEntry() {
-		const selected = await this.quickInputService.pick(
+		const disposables = new DisposableStore();
+		const qp = this.quickInputService.createQuickPick();
+		qp.title = localize('createNew', "Create New...");
+		qp.matchOnDetail = true;
+		qp.matchOnDescription = true;
+
+		const refreshQp = () => {
+			const hasValue = !!qp.value;
+			const items: (((IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) | IQuickPickSeparator))[] = [];
+			let lastSeparator = '';
 			this.newMenuItems
 				.filter(entry => this.contextService.contextMatchesRules(entry.when))
-				.map((entry): (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) => ({
-					...entry,
-					label: entry.title,
-					type: 'item',
-					keybinding: this.keybindingService.lookupKeybinding(entry.action.runCommand || ''),
-					description: entry.from,
-					detail: entry.description,
-				})), { canPickMany: false });
+				.forEach((entry) => {
+					const command = entry.action.runCommand;
+					const keybinding = this.keybindingService.lookupKeybinding(command || '');
+					if (lastSeparator !== entry.from) {
+						items.push({
+							type: 'separator',
+							label: entry.from
+						});
+						lastSeparator = entry.from;
+					}
+					items.push({
+						...entry,
+						label: entry.title,
+						type: 'item',
+						keybinding,
+						buttons: command ? [
+							keybinding ?
+								{
+									iconClass: 'codicon codicon-edit',
+									tooltip: localize('change keybinding', "Modify Keybinding")
+								} :
+								{
+									iconClass: 'codicon codicon-plus',
+									tooltip: localize('create keybinding', "Create Keybinding")
+								}
+						] : [],
+						detail: hasValue ? entry.description : '',
+						description: hasValue ? entry.from : entry.description,
+					});
+				});
+			qp.items = items;
+		};
+		refreshQp();
 
+		disposables.add(qp.onDidChangeValue(() => refreshQp()));
 
+		disposables.add(this.onDidAddNewEntry(() => refreshQp()));
 
-		if (selected) {
-			if (selected.action.runCommand) {
-				await this.commandService.executeCommand(selected.action.runCommand);
-			} else if (selected.action.invokeFunction) {
-				await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
+		disposables.add(qp.onDidAccept(async e => {
+			const selected = qp.selectedItems[0] as (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor);
+			if (selected) {
+				if (selected.action.runCommand) {
+					await this.commandService.executeCommand(selected.action.runCommand);
+				} else if (selected.action.invokeFunction) {
+					await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
+				}
 			}
-		}
+		}));
+
+		disposables.add(qp.onDidHide(() => {
+			qp.dispose();
+			disposables.dispose();
+		}));
+
+		disposables.add(qp.onDidTriggerItemButton(e => {
+			qp.hide();
+			this.commandService.executeCommand('workbench.action.openGlobalKeybindings', (e.item as any).action.runCommand);
+		}));
+
+		qp.show();
 	}
 
 	private async getCategoryOverrides(category: BuiltinGettingStartedCategory | BuiltinGettingStartedStartEntry) {
@@ -444,6 +499,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		extension.contributes.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
+				sourceExtensionId: extension.identifier.value,
 				action: { runCommand: entry.command },
 				description: entry.description,
 				title: entry.title,
@@ -557,18 +613,15 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
 		this.newMenuItems.push(categoryDescriptor);
+		this._onDidAddNewEntry.fire();
 	}
 
 	private unregisterExtensionContributions(extension: IExtensionDescription) {
+		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
+
 		if (!(extension.contributes?.walkthroughs?.length)) {
 			return;
 		}
-
-		extension.contributes?.startEntries?.forEach(section => {
-			const categoryID = extension.identifier.value + '#startEntry#' + idForStartEntry(section);
-			this.gettingStartedContributions.delete(categoryID);
-			this._onDidRemoveCategory.fire();
-		});
 
 		extension.contributes?.walkthroughs?.forEach(section => {
 			const categoryID = extension.identifier.value + '#walkthrough#' + section.id;
