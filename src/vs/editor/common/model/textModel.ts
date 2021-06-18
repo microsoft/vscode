@@ -1724,6 +1724,19 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._ensureNodesHaveRanges(result);
 	}
 
+	/** @internal */
+	public getInjectedTextInLine(lineNumber: number, ownerId: number): LineInjectedText[] {
+		const versionId = this.getVersionId();
+		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
+		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
+
+		const result = this._decorationsTree.getInjectedTextInInterval(startOffset, endOffset, ownerId, versionId);
+
+		this._ensureNodesHaveRanges(result);
+
+		return LineInjectedText.fromDecorations(result).filter(t => t.lineNumber === lineNumber);
+	}
+
 	public getAllDecorations(ownerId: number = 0, filterOutValidation: boolean = false): model.IModelDecoration[] {
 		const versionId = this.getVersionId();
 		const result = this._decorationsTree.search(ownerId, filterOutValidation, false, versionId);
@@ -1759,6 +1772,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (!node) {
 			return;
 		}
+
+		if (node.options.afterContent) {
+			const oldRange = this.getDecorationRange(decorationId);
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.endLineNumber);
+		}
+
 		const range = this._validateRangeRelaxedNoAllocations(_range);
 		const startOffset = this._buffer.getOffsetAt(range.startLineNumber, range.startColumn);
 		const endOffset = this._buffer.getOffsetAt(range.endLineNumber, range.endColumn);
@@ -1767,6 +1786,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		node.reset(this.getVersionId(), startOffset, endOffset, range);
 		this._decorationsTree.insert(node);
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+
+		if (node.options.afterContent) {
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+		}
 	}
 
 	private _changeDecorationOptionsImpl(decorationId: string, options: ModelDecorationOptions): void {
@@ -1780,6 +1803,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 		this._onDidChangeDecorations.checkAffectedAndFire(options);
+
+		if (node.options.afterContent || options.afterContent) {
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.endLineNumber);
+		}
 
 		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
 			// Delete + Insert due to an overview ruler status change
@@ -1815,6 +1842,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (node) {
 					this._decorationsTree.delete(node);
 					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+					if (node.options.afterContent) {
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.endLineNumber);
+					}
 				}
 			}
 
@@ -1837,6 +1867,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				node.ownerId = ownerId;
 				node.reset(versionId, startOffset, endOffset, range);
 				node.setOptions(options);
+
+				if (node.options.afterContent) {
+					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+				}
+
 				this._onDidChangeDecorations.checkAffectedAndFire(options);
 
 				this._decorationsTree.insert(node);
@@ -3379,6 +3414,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	private _shouldFire: boolean;
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
+	private _afftectedInjectedTextLines: Set<number> | undefined = undefined;
 
 	constructor() {
 		super();
@@ -3399,6 +3435,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 				const event: IModelDecorationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
 					affectsOverviewRuler: this._affectsOverviewRuler,
+					affectedInjectedTextLines: this._afftectedInjectedTextLines,
 				};
 				this._shouldFire = false;
 				this._affectsMinimap = false;
@@ -3406,6 +3443,13 @@ export class DidChangeDecorationsEmitter extends Disposable {
 				this._actual.fire(event);
 			}
 		}
+	}
+
+	public recordLineAffectedByInjectedText(lineNumber: number): void {
+		if (!this._afftectedInjectedTextLines) {
+			this._afftectedInjectedTextLines = new Set();
+		}
+		this._afftectedInjectedTextLines.add(lineNumber);
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {

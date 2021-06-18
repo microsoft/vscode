@@ -80,6 +80,7 @@ export interface IModelContentChangedEvent {
 export interface IModelDecorationsChangedEvent {
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
+	readonly affectedInjectedTextLines: Set<number> | undefined;
 }
 
 /**

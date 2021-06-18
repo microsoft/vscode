@@ -1917,6 +1917,7 @@ declare namespace monaco.editor {
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 */
 		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
+		getInjectedTextInLine(lineNumber: number, ownerId?: number): LineInjectedText[];
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */
@@ -2507,6 +2508,7 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
+		readonly affectedInjectedTextLines: Set<number> | undefined;
 	}
 
 	export interface IModelOptionsChangedEvent {
