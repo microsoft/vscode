@@ -168,7 +168,7 @@ export class TerminalService implements ITerminalService {
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
 		editorOverrideService.registerEditor(
-			`**`,
+			`${Schemas.vscodeTerminal}:/**`,
 			{
 				id: TerminalEditor.ID,
 				label: terminalStrings.terminal,
