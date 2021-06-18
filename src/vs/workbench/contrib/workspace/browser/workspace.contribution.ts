@@ -25,7 +25,7 @@ import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarA
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { shieldIcon, WorkspaceTrustEditor } from 'vs/workbench/contrib/workspace/browser/workspaceTrustEditor';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
-import { WorkspaceTrustContext, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { WorkspaceTrustContext, WORKSPACE_TRUST_BANNER, WORKSPACE_TRUST_EMPTY_WINDOW, WORKSPACE_TRUST_ENABLED, WORKSPACE_TRUST_STARTUP_PROMPT, WORKSPACE_TRUST_UNTRUSTED_FILES } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 import { IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -402,11 +402,15 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 	//#region Banner
 
 	private getBannerItem(restrictedMode: boolean): IBannerItem | undefined {
-
 		const dismissedRestricted = this.storageService.getBoolean(BANNER_RESTRICTED_MODE_DISMISSED_KEY, StorageScope.WORKSPACE, false);
 
+		// never show the banner
+		if (this.bannerSetting === 'never') {
+			return undefined;
+		}
+
 		// info has been dismissed
-		if (dismissedRestricted) {
+		if (this.bannerSetting === 'once' && dismissedRestricted) {
 			return undefined;
 		}
 
@@ -456,6 +460,11 @@ export class WorkspaceTrustUXHandler extends Disposable implements IWorkbenchCon
 			case WorkbenchState.WORKSPACE:
 				return localize('restrictedModeBannerMessageWorkspace', "Restricted Mode is intended for safe code browsing. Trust this workspace to enable all features.");
 		}
+	}
+
+
+	private get bannerSetting(): 'always' | 'once' | 'never' {
+		return this.configurationService.getValue(WORKSPACE_TRUST_BANNER);
 	}
 
 	//#endregion
@@ -667,6 +676,20 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 					localize('workspace.trust.startupPrompt.always', "Ask for trust every time an untrusted workspace is opened."),
 					localize('workspace.trust.startupPrompt.once', "Ask for trust the first time an untrusted workspace is opened."),
 					localize('workspace.trust.startupPrompt.never', "Do not ask for trust when an untrusted workspace is opened."),
+				]
+			},
+			[WORKSPACE_TRUST_BANNER]: {
+				type: 'string',
+				default: 'once',
+				included: !isWeb,
+				description: localize('workspace.trust.banner.description', "Controls when the restricted mode banner is shown."),
+				tags: [WORKSPACE_TRUST_SETTING_TAG],
+				scope: ConfigurationScope.APPLICATION,
+				enum: ['always', 'once', 'never'],
+				enumDescriptions: [
+					localize('workspace.trust.banner.always', "Show the banner every time an untrusted workspace is open."),
+					localize('workspace.trust.banner.once', "Show the banner the first time an untrusted workspace is opened until dismissed."),
+					localize('workspace.trust.banner.never', "Do not show the banner when an untrusted workspace is open."),
 				]
 			},
 			[WORKSPACE_TRUST_UNTRUSTED_FILES]: {

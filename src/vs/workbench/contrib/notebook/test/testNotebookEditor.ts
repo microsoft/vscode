@@ -183,7 +183,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	const model = new NotebookEditorTestModel(notebook);
 	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
 	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
-	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null);
+	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
 	const cellList = createNotebookCellList(instantiationService, viewContext);
 	cellList.attachViewModel(viewModel);

@@ -1169,19 +1169,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let options = await this.resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = (presentationOptions?.close !== undefined) ? !presentationOptions.close : true;
+		let waitOnExit: boolean | string = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
-			if (presentationOptions.panel === PanelKind.New) {
-				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else if (presentationOptions.showReuseMessage) {
-				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
-			} else {
-				waitOnExit = true;
+		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
+			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground) {
+				if (presentationOptions.panel === PanelKind.New) {
+					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+				} else if (presentationOptions.showReuseMessage) {
+					waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+				} else {
+					waitOnExit = true;
+				}
 			}
+		} else {
+			waitOnExit = !presentationOptions.close;
 		}
 
 		let commandExecutable: string | undefined;

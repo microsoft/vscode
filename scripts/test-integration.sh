@@ -33,7 +33,6 @@ else
 	yarn gulp 	compile-extension:vscode-api-tests \
 				compile-extension:vscode-colorize-tests \
 				compile-extension:vscode-custom-editor-tests \
-				compile-extension:vscode-notebook-tests \
 				compile-extension:markdown-language-features \
 				compile-extension:typescript-language-features \
 				compile-extension:emmet \
@@ -86,9 +85,6 @@ after_suite
 after_suite
 
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
-
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-notebook-tests/test --enable-proposed-api=vscode.vscode-notebook-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-notebook-tests --extensionTestsPath=$ROOT/extensions/vscode-notebook-tests/out/ $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
 after_suite
 
 # Tests in commonJS (CSS, HTML)

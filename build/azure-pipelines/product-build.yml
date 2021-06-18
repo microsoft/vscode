@@ -124,8 +124,7 @@ stages:
   - stage: Compile
     jobs:
       - job: Compile
-        pool:
-          vmImage: "Ubuntu-18.04"
+        pool: vscode-1es
         variables:
           VSCODE_ARCH: x64
         steps:

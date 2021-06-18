@@ -98,6 +98,7 @@ export interface INotebookActionContext {
 	readonly notebookEditor: IActiveNotebookEditor;
 	readonly ui?: boolean;
 	readonly selectedCells?: readonly ICellViewModel[];
+	readonly autoReveal?: boolean;
 }
 
 export interface INotebookCellActionContext extends INotebookActionContext {
@@ -326,6 +327,7 @@ const executeNotebookCondition = ContextKeyExpr.greater(NOTEBOOK_KERNEL_COUNT.ke
 interface IMultiCellArgs {
 	ranges: ICellRange[];
 	document?: URI;
+	autoReveal?: boolean;
 }
 
 function isMultiCellArgs(arg: unknown): arg is IMultiCellArgs {
@@ -388,9 +390,11 @@ function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args: any[])
 
 		const ranges = firstArg.ranges;
 		const selectedCells = flatten(ranges.map(range => editor.viewModel.getCells(range).slice(0)));
+		const autoReveal = firstArg.autoReveal;
 		return {
 			notebookEditor: editor,
-			selectedCells
+			selectedCells,
+			autoReveal
 		};
 	}
 
@@ -549,6 +553,10 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 								'document': {
 									'type': 'object',
 									'description': 'The document uri',
+								},
+								'autoReveal': {
+									'type': 'boolean',
+									'description': 'Whether the cell should be revealed into view automatically'
 								}
 							}
 						}
@@ -944,9 +952,17 @@ async function runCell(accessor: ServicesAccessor, context: INotebookActionConte
 		if (context.cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
 			return;
 		}
-		return context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+		await context.notebookEditor.executeNotebookCells(Iterable.single(context.cell));
+		const cellIndex = context.notebookEditor.viewModel.getCellIndex(context.cell);
+		context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 	} else if (context.selectedCells) {
-		return context.notebookEditor.executeNotebookCells(context.selectedCells);
+		await context.notebookEditor.executeNotebookCells(context.selectedCells);
+		const firstCell = context.selectedCells[0];
+
+		if (firstCell) {
+			const cellIndex = context.notebookEditor.viewModel.getCellIndex(firstCell);
+			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
+		}
 	}
 }
 
@@ -1280,6 +1296,7 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 				menu: {
 					id: MenuId.NotebookCellTitle,
 					when: ContextKeyExpr.and(
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
 						NOTEBOOK_CELL_TYPE.isEqualTo('markup'),
 						NOTEBOOK_CELL_MARKDOWN_EDIT_MODE.toNegated(),
 						NOTEBOOK_CELL_EDITABLE),
@@ -1343,7 +1360,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
-		return context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 	}
 });
 

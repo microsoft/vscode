@@ -3,10 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
+import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
+import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -15,33 +19,31 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
+import { ILabelService } from 'vs/platform/label/common/label';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IRemoteTerminalService, ITerminalExternalLinkProvider, ITerminalInstance, ITerminalService, ITerminalGroup, TerminalConnectionState, ITerminalProfileProvider, ICreateTerminalOptions, ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalInstance, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
+import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, ITerminalProfileContribution, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { ILifecycleService, ShutdownReason, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
-import { equals } from 'vs/base/common/objects';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { Schemas } from 'vs/base/common/network';
-import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
-import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -148,6 +150,7 @@ export class TerminalService implements ITerminalService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -163,6 +166,42 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+		editorOverrideService.registerEditor(
+			`${Schemas.vscodeTerminal}:/**`,
+			{
+				id: TerminalEditor.ID,
+				label: terminalStrings.terminal,
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canHandleDiff: false,
+				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
+				singlePerResource: true
+			},
+			(resource, options, group) => {
+				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
+				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
+				if (instance) {
+					const sourceGroup = this.getGroupForInstance(instance);
+					if (sourceGroup) {
+						sourceGroup.removeInstance(instance);
+					}
+				} else {
+					instance = this.createInstance({});
+				}
+				this._terminalEditorService.terminalEditorInstances.push(instance);
+				return {
+					editor: this._terminalEditorService.createEditorInput(instance),
+					options: {
+						...options,
+						pinned: true,
+						forceReload: true
+					}
+				};
+			}
+		);
+
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -776,7 +815,7 @@ export class TerminalService implements ITerminalService {
 		this._terminalEditorService.createEditor(source);
 	}
 
-	async moveToTerminalView(source?: ITerminalInstance): Promise<void> {
+	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
 		if (source) {
 			this._terminalEditorService.detachInstance(source);
 		} else {
@@ -791,18 +830,30 @@ export class TerminalService implements ITerminalService {
 		}
 		source.target = TerminalLocation.TerminalView;
 
+		let group: ITerminalGroup | undefined;
+		if (target) {
+			group = this.getGroupForInstance(target);
+		}
+
 		// TODO: Share code with joinInstances - move into terminal group service
-		const group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		this._terminalGroups.push(group);
-		group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		if (!group) {
+			group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+			group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			this._terminalGroups.push(group);
+			group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		}
 
 		group.addInstance(source);
 		this.setActiveInstance(source);
 		await this.showPanel(true);
 		// TODO: Shouldn't this happen automatically?
 		source.setVisible(true);
+
+		if (target && side) {
+			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
+			group.moveInstance(source, index);
+		}
 
 		// Fire events
 		this._onInstancesChanged.fire();
@@ -827,16 +878,21 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
+			const instanceId = TerminalInstance.getInstanceIdFromUri(e.uri);
+			if (instanceId === undefined) {
+				return;
+			}
+
 			// View terminals
-			let sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			let sourceInstance = this.getInstanceFromId(instanceId);
 			if (sourceInstance) {
 				this.moveInstance(sourceInstance, instance, e.side);
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.toString() === e.uri.toString());
+			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.path === e.uri.path);
 			if (sourceInstance) {
-				this.moveToTerminalView(sourceInstance);
+				this.moveToTerminalView(sourceInstance, instance, e.side);
 			}
 		}));
 	}
