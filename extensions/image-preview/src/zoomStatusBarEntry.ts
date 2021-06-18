@@ -19,12 +19,7 @@ export class ZoomStatusBarEntry extends OwnedStatusBarEntry {
 	public readonly onDidChangeScale = this._onDidChangeScale.event;
 
 	constructor() {
-		super({
-			id: 'imagePreview.zoom',
-			name: localize('zoomStatusBar.name', "Image Zoom"),
-			alignment: vscode.StatusBarAlignment.Right,
-			priority: 102 /* to the left of editor size entry (101) */,
-		});
+		super('status.imagePreview.zoom', localize('zoomStatusBar.name', "Image Zoom"), vscode.StatusBarAlignment.Right, 102 /* to the left of editor size entry (101) */);
 
 		this._register(vscode.commands.registerCommand(selectZoomLevelCommandId, async () => {
 			type MyPickItem = vscode.QuickPickItem & { scale: Scale };

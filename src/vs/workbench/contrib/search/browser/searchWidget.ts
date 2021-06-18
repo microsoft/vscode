@@ -148,7 +148,7 @@ export class SearchWidget extends Widget {
 	readonly onDidToggleContext: Event<void> = this._onDidToggleContext.event;
 
 	private showContextCheckbox!: Checkbox;
-	private contextLinesInput!: InputBox;
+	public contextLinesInput!: InputBox;
 
 	constructor(
 		container: HTMLElement,

@@ -93,7 +93,7 @@ export class EditorStateCancellationTokenSource extends EditorKeybindingCancella
 
 	private readonly _listener = new DisposableStore();
 
-	constructor(readonly editor: IActiveCodeEditor, flags: CodeEditorStateFlag, range?: IRange, parent?: CancellationToken) {
+	constructor(editor: IActiveCodeEditor, flags: CodeEditorStateFlag, range?: IRange, parent?: CancellationToken) {
 		super(editor, parent);
 
 		if (flags & CodeEditorStateFlag.Position) {

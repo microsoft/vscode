@@ -39,5 +39,7 @@ import 'vs/workbench/electron-sandbox/desktop.main';
 
 //#region --- workbench contributions
 
+// Webview (using the iframe based solution)
+import 'vs/workbench/contrib/webview/browser/webview.web.contribution';
 
 //#endregion

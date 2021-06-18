@@ -12,7 +12,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorActivation } from 'vs/platform/editor/common/editor';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IWebviewService, WebviewContentOptions, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
@@ -114,7 +114,7 @@ export class LazilyResolvedWebviewEditorInput extends WebviewInput {
 	}
 
 	@memoize
-	public async override resolve() {
+	public override async resolve() {
 		if (!this.#resolved) {
 			this.#resolved = true;
 			this.#resolvePromise = this._webviewWorkbenchService.resolveWebview(this);
@@ -243,8 +243,13 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		group: IEditorGroup,
 		preserveFocus: boolean
 	): void {
+		const topLevelEditor = this.findTopLevelEditorForWebview(webview);
 		if (webview.group === group.id) {
-			this._editorService.openEditor(webview, {
+			if (this._editorService.activeEditor === topLevelEditor) {
+				return;
+			}
+
+			this._editorService.openEditor(topLevelEditor, {
 				preserveFocus,
 				// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
 				// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
@@ -253,9 +258,23 @@ export class WebviewEditorService extends Disposable implements IWebviewWorkbenc
 		} else {
 			const groupView = this._editorGroupService.getGroup(webview.group!);
 			if (groupView) {
-				groupView.moveEditor(webview, group, { preserveFocus });
+				groupView.moveEditor(topLevelEditor, group, { preserveFocus });
 			}
 		}
+	}
+
+	private findTopLevelEditorForWebview(webview: WebviewInput): IEditorInput {
+		for (const editor of this._editorService.editors) {
+			if (editor === webview) {
+				return editor;
+			}
+			if (editor instanceof DiffEditorInput) {
+				if (webview === editor.primary || webview === editor.secondary) {
+					return editor;
+				}
+			}
+		}
+		return webview;
 	}
 
 	public reviveWebview(options: {

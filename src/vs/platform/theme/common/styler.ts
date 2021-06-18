@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, foreground, editorBackground, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupBorder, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, ColorFunction, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, darken, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground, treeIndentGuidesStroke, editorWidgetForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, ColorValue, resolveColorValue, textLinkForeground, problemsWarningIconForeground, problemsErrorIconForeground, problemsInfoIconForeground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, listFocusOutline, listInactiveFocusOutline, tableColumnsBorder, quickInputListFocusBackground } from 'vs/platform/theme/common/colorRegistry';
+import { focusBorder, inputBackground, inputForeground, ColorIdentifier, selectForeground, selectBackground, selectListBackground, selectBorder, inputBorder, contrastBorder, inputActiveOptionBorder, inputActiveOptionBackground, inputActiveOptionForeground, listFocusBackground, listFocusForeground, listActiveSelectionBackground, listActiveSelectionForeground, listInactiveSelectionForeground, listInactiveSelectionBackground, listInactiveFocusBackground, listHoverBackground, listHoverForeground, listDropBackground, pickerGroupForeground, widgetShadow, inputValidationInfoBorder, inputValidationInfoBackground, inputValidationWarningBorder, inputValidationWarningBackground, inputValidationErrorBorder, inputValidationErrorBackground, activeContrastBorder, buttonForeground, buttonBackground, buttonHoverBackground, badgeBackground, badgeForeground, progressBarBackground, breadcrumbsForeground, breadcrumbsFocusForeground, breadcrumbsActiveSelectionForeground, breadcrumbsBackground, editorWidgetBorder, inputValidationInfoForeground, inputValidationWarningForeground, inputValidationErrorForeground, menuForeground, menuBackground, menuSelectionForeground, menuSelectionBackground, menuSelectionBorder, menuBorder, menuSeparatorBackground, listFilterWidgetOutline, listFilterWidgetNoMatchesOutline, listFilterWidgetBackground, editorWidgetBackground, treeIndentGuidesStroke, editorWidgetForeground, simpleCheckboxBackground, simpleCheckboxBorder, simpleCheckboxForeground, ColorValue, resolveColorValue, textLinkForeground, problemsWarningIconForeground, problemsErrorIconForeground, problemsInfoIconForeground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, listFocusOutline, listInactiveFocusOutline, tableColumnsBorder, quickInputListFocusBackground, buttonBorder, keybindingLabelForeground, keybindingLabelBackground, keybindingLabelBorder, keybindingLabelBottomBorder, quickInputListFocusForeground, ColorTransform, listActiveSelectionIconForeground, quickInputListFocusIconForeground, listInactiveSelectionIconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Color } from 'vs/base/common/color';
 import { IThemable, styleFn } from 'vs/base/common/styler';
@@ -35,7 +35,7 @@ export function computeStyles(theme: IColorTheme, styleMap: IColorMapping): ICom
 }
 
 export function attachStyler<T extends IColorMapping>(themeService: IThemeService, styleMap: T, widgetOrCallback: IThemable | styleFn): IDisposable {
-	function applyStyles(theme: IColorTheme): void {
+	function applyStyles(): void {
 		const styles = computeStyles(themeService.getColorTheme(), styleMap);
 
 		if (typeof widgetOrCallback === 'function') {
@@ -45,7 +45,7 @@ export function attachStyler<T extends IColorMapping>(themeService: IThemeServic
 		}
 	}
 
-	applyStyles(themeService.getColorTheme());
+	applyStyles();
 
 	return themeService.onDidColorThemeChange(applyStyles);
 }
@@ -130,7 +130,8 @@ export function attachSelectBoxStyler(widget: IThemable, themeService: IThemeSer
 		selectBorder: style?.selectBorder || selectBorder,
 		focusBorder: style?.focusBorder || focusBorder,
 		listFocusBackground: style?.listFocusBackground || quickInputListFocusBackground,
-		listFocusForeground: style?.listFocusForeground || listFocusForeground,
+		listInactiveSelectionIconForeground: style?.listInactiveSelectionIconForeground || quickInputListFocusIconForeground,
+		listFocusForeground: style?.listFocusForeground || quickInputListFocusForeground,
 		listFocusOutline: style?.listFocusOutline || ((theme: IColorTheme) => theme.type === ColorScheme.HIGH_CONTRAST ? activeContrastBorder : Color.transparent),
 		listHoverBackground: style?.listHoverBackground || listHoverBackground,
 		listHoverForeground: style?.listHoverForeground || listHoverForeground,
@@ -159,54 +160,6 @@ export function attachFindReplaceInputBoxStyler(widget: IThemable, themeService:
 	} as IInputBoxStyleOverrides, widget);
 }
 
-export interface IQuickInputStyleOverrides extends IListStyleOverrides, IInputBoxStyleOverrides, IProgressBarStyleOverrides {
-	foreground?: ColorIdentifier;
-	background?: ColorIdentifier;
-	borderColor?: ColorIdentifier;
-	widgetShadow?: ColorIdentifier;
-	pickerGroupForeground?: ColorIdentifier;
-	pickerGroupBorder?: ColorIdentifier;
-}
-
-export function attachQuickInputStyler(widget: IThemable, themeService: IThemeService, style?: IQuickInputStyleOverrides): IDisposable {
-	return attachStyler(themeService, {
-		foreground: style?.foreground || foreground,
-		background: style?.background || editorBackground,
-		borderColor: style?.borderColor || contrastBorder,
-		widgetShadow: style?.widgetShadow || widgetShadow,
-		progressBarBackground: style?.progressBarBackground || progressBarBackground,
-		pickerGroupForeground: style?.pickerGroupForeground || pickerGroupForeground,
-		pickerGroupBorder: style?.pickerGroupBorder || pickerGroupBorder,
-		inputBackground: style?.inputBackground || inputBackground,
-		inputForeground: style?.inputForeground || inputForeground,
-		inputBorder: style?.inputBorder || inputBorder,
-		inputValidationInfoBorder: style?.inputValidationInfoBorder || inputValidationInfoBorder,
-		inputValidationInfoBackground: style?.inputValidationInfoBackground || inputValidationInfoBackground,
-		inputValidationInfoForeground: style?.inputValidationInfoForeground || inputValidationInfoForeground,
-		inputValidationWarningBorder: style?.inputValidationWarningBorder || inputValidationWarningBorder,
-		inputValidationWarningBackground: style?.inputValidationWarningBackground || inputValidationWarningBackground,
-		inputValidationWarningForeground: style?.inputValidationWarningForeground || inputValidationWarningForeground,
-		inputValidationErrorBorder: style?.inputValidationErrorBorder || inputValidationErrorBorder,
-		inputValidationErrorBackground: style?.inputValidationErrorBackground || inputValidationErrorBackground,
-		inputValidationErrorForeground: style?.inputValidationErrorForeground || inputValidationErrorForeground,
-		listFocusBackground: style?.listFocusBackground || listFocusBackground,
-		listFocusForeground: style?.listFocusForeground || listFocusForeground,
-		listActiveSelectionBackground: style?.listActiveSelectionBackground || darken(listActiveSelectionBackground, 0.1),
-		listActiveSelectionForeground: style?.listActiveSelectionForeground || listActiveSelectionForeground,
-		listFocusAndSelectionBackground: style?.listFocusAndSelectionBackground || listActiveSelectionBackground,
-		listFocusAndSelectionForeground: style?.listFocusAndSelectionForeground || listActiveSelectionForeground,
-		listInactiveSelectionBackground: style?.listInactiveSelectionBackground || listInactiveSelectionBackground,
-		listInactiveSelectionForeground: style?.listInactiveSelectionForeground || listInactiveSelectionForeground,
-		listInactiveFocusBackground: style?.listInactiveFocusBackground || listInactiveFocusBackground,
-		listHoverBackground: style?.listHoverBackground || listHoverBackground,
-		listHoverForeground: style?.listHoverForeground || listHoverForeground,
-		listDropBackground: style?.listDropBackground || listDropBackground,
-		listFocusOutline: style?.listFocusOutline || activeContrastBorder,
-		listSelectionOutline: style?.listSelectionOutline || activeContrastBorder,
-		listHoverOutline: style?.listHoverOutline || activeContrastBorder
-	} as IQuickInputStyleOverrides, widget);
-}
-
 export interface IListStyleOverrides extends IStyleOverrides {
 	listBackground?: ColorIdentifier;
 	listFocusBackground?: ColorIdentifier;
@@ -214,9 +167,11 @@ export interface IListStyleOverrides extends IStyleOverrides {
 	listFocusOutline?: ColorIdentifier;
 	listActiveSelectionBackground?: ColorIdentifier;
 	listActiveSelectionForeground?: ColorIdentifier;
+	listActiveSelectionIconForeground?: ColorIdentifier;
 	listFocusAndSelectionBackground?: ColorIdentifier;
 	listFocusAndSelectionForeground?: ColorIdentifier;
 	listInactiveSelectionBackground?: ColorIdentifier;
+	listInactiveSelectionIconForeground?: ColorIdentifier;
 	listInactiveSelectionForeground?: ColorIdentifier;
 	listInactiveFocusBackground?: ColorIdentifier;
 	listInactiveFocusOutline?: ColorIdentifier;
@@ -243,9 +198,11 @@ export const defaultListStyles: IColorMapping = {
 	listFocusOutline,
 	listActiveSelectionBackground,
 	listActiveSelectionForeground,
+	listActiveSelectionIconForeground,
 	listFocusAndSelectionBackground: listActiveSelectionBackground,
 	listFocusAndSelectionForeground: listActiveSelectionForeground,
 	listInactiveSelectionBackground,
+	listInactiveSelectionIconForeground,
 	listInactiveSelectionForeground,
 	listInactiveFocusBackground,
 	listInactiveFocusOutline,
@@ -269,6 +226,7 @@ export interface IButtonStyleOverrides extends IStyleOverrides {
 	buttonSecondaryForeground?: ColorIdentifier;
 	buttonSecondaryBackground?: ColorIdentifier;
 	buttonSecondaryHoverBackground?: ColorIdentifier;
+	buttonBorder?: ColorIdentifier;
 }
 
 export function attachButtonStyler(widget: IThemable, themeService: IThemeService, style?: IButtonStyleOverrides): IDisposable {
@@ -279,18 +237,26 @@ export function attachButtonStyler(widget: IThemable, themeService: IThemeServic
 		buttonSecondaryForeground: style?.buttonSecondaryForeground || buttonSecondaryForeground,
 		buttonSecondaryBackground: style?.buttonSecondaryBackground || buttonSecondaryBackground,
 		buttonSecondaryHoverBackground: style?.buttonSecondaryHoverBackground || buttonSecondaryHoverBackground,
-		buttonBorder: contrastBorder
+		buttonBorder: style?.buttonBorder || buttonBorder,
 	} as IButtonStyleOverrides, widget);
 }
 
-export interface ILinkStyleOverrides extends IStyleOverrides {
-	textLinkForeground?: ColorIdentifier;
+export interface IKeybindingLabelStyleOverrides extends IStyleOverrides {
+	keybindingLabelBackground?: ColorIdentifier;
+	keybindingLabelForeground?: ColorIdentifier;
+	keybindingLabelBorder?: ColorIdentifier;
+	keybindingLabelBottomBorder?: ColorIdentifier;
+	keybindingLabelShadow?: ColorIdentifier;
 }
 
-export function attachLinkStyler(widget: IThemable, themeService: IThemeService, style?: ILinkStyleOverrides): IDisposable {
+export function attachKeybindingLabelStyler(widget: IThemable, themeService: IThemeService, style?: IKeybindingLabelStyleOverrides): IDisposable {
 	return attachStyler(themeService, {
-		textLinkForeground: style?.textLinkForeground || textLinkForeground,
-	} as ILinkStyleOverrides, widget);
+		keybindingLabelBackground: (style && style.keybindingLabelBackground) || keybindingLabelBackground,
+		keybindingLabelForeground: (style && style.keybindingLabelForeground) || keybindingLabelForeground,
+		keybindingLabelBorder: (style && style.keybindingLabelBorder) || keybindingLabelBorder,
+		keybindingLabelBottomBorder: (style && style.keybindingLabelBottomBorder) || keybindingLabelBottomBorder,
+		keybindingLabelShadow: (style && style.keybindingLabelShadow) || widgetShadow
+	} as IKeybindingLabelStyleOverrides, widget);
 }
 
 export interface IProgressBarStyleOverrides extends IStyleOverrides {
@@ -308,7 +274,7 @@ export function attachStylerCallback(themeService: IThemeService, colors: { [nam
 }
 
 export interface IBreadcrumbsWidgetStyleOverrides extends IColorMapping {
-	breadcrumbsBackground?: ColorIdentifier | ColorFunction;
+	breadcrumbsBackground?: ColorIdentifier | ColorTransform;
 	breadcrumbsForeground?: ColorIdentifier;
 	breadcrumbsHoverForeground?: ColorIdentifier;
 	breadcrumbsFocusForeground?: ColorIdentifier;
@@ -376,8 +342,11 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 	dialogBorder: contrastBorder,
 	buttonForeground: buttonForeground,
 	buttonBackground: buttonBackground,
+	buttonSecondaryBackground: buttonSecondaryBackground,
+	buttonSecondaryForeground: buttonSecondaryForeground,
+	buttonSecondaryHoverBackground: buttonSecondaryHoverBackground,
 	buttonHoverBackground: buttonHoverBackground,
-	buttonBorder: contrastBorder,
+	buttonBorder: buttonBorder,
 	checkboxBorder: simpleCheckboxBorder,
 	checkboxBackground: simpleCheckboxBackground,
 	checkboxForeground: simpleCheckboxForeground,
@@ -386,7 +355,8 @@ export const defaultDialogStyles = <IDialogStyleOverrides>{
 	infoIconForeground: problemsInfoIconForeground,
 	inputBackground: inputBackground,
 	inputForeground: inputForeground,
-	inputBorder: inputBorder
+	inputBorder: inputBorder,
+	textLinkForeground: textLinkForeground
 };
 
 

@@ -498,20 +498,27 @@ export class TernarySearchTree<K, V> {
 	}
 
 	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
-		if (node) {
-			// left
-			yield* this._entries(node.left);
-
-			// node
-			if (node.value) {
-				// callback(node.value, this._iter.join(parts));
-				yield [node.key, node.value];
+		// DFS
+		if (!node) {
+			return;
+		}
+		const stack = [node];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			if (node) {
+				if (node.value) {
+					yield [node.key, node.value];
+				}
+				if (node.left) {
+					stack.push(node.left);
+				}
+				if (node.mid) {
+					stack.push(node.mid);
+				}
+				if (node.right) {
+					stack.push(node.right);
+				}
 			}
-			// mid
-			yield* this._entries(node.mid);
-
-			// right
-			yield* this._entries(node.right);
 		}
 	}
 }
@@ -887,7 +894,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			this._tail = undefined;
 		}
 		else if (item === this._head) {
-			// This can only happend if size === 1 which is handle
+			// This can only happen if size === 1 which is handled
 			// by the case above.
 			if (!item.next) {
 				throw new Error('Invalid list');
@@ -896,7 +903,7 @@ export class LinkedMap<K, V> implements Map<K, V> {
 			this._head = item.next;
 		}
 		else if (item === this._tail) {
-			// This can only happend if size === 1 which is handle
+			// This can only happen if size === 1 which is handled
 			// by the case above.
 			if (!item.previous) {
 				throw new Error('Invalid list');
@@ -1046,5 +1053,49 @@ export class LRUCache<K, V> extends LinkedMap<K, V> {
 		if (this.size > this._limit) {
 			this.trimOld(Math.round(this._limit * this._ratio));
 		}
+	}
+}
+
+/**
+ * Wraps the map in type that only implements readonly properties. Useful
+ * in the extension host to prevent the consumer from making any mutations.
+ */
+export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
+	readonly #source: ReadonlyMap<K, V>;
+
+	public get size() {
+		return this.#source.size;
+	}
+
+	constructor(source: ReadonlyMap<K, V>) {
+		this.#source = source;
+	}
+
+	forEach(callbackfn: (value: V, key: K, map: ReadonlyMap<K, V>) => void, thisArg?: any): void {
+		this.#source.forEach(callbackfn, thisArg);
+	}
+
+	get(key: K): V | undefined {
+		return this.#source.get(key);
+	}
+
+	has(key: K): boolean {
+		return this.#source.has(key);
+	}
+
+	entries(): IterableIterator<[K, V]> {
+		return this.#source.entries();
+	}
+
+	keys(): IterableIterator<K> {
+		return this.#source.keys();
+	}
+
+	values(): IterableIterator<V> {
+		return this.#source.values();
+	}
+
+	[Symbol.iterator](): IterableIterator<[K, V]> {
+		return this.#source.entries();
 	}
 }

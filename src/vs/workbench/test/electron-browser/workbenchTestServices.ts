@@ -23,15 +23,15 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { URI } from 'vs/base/common/uri';
 import { IReadTextFileOptions, ITextFileStreamContent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
-import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow } from 'vs/platform/windows/common/windows';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IOpenedWindow, IPartsSplash } from 'vs/platform/windows/common/windows';
 import { parseArgs, OPTIONS } from 'vs/platform/environment/node/argv';
 import { LogLevel, ILogService } from 'vs/platform/log/common/log';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { NodeTestBackupFileService } from 'vs/workbench/services/backup/test/electron-browser/backupFileService.test';
+import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
+import { NodeTestWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/test/electron-browser/workingCopyBackupService.test';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -39,27 +39,26 @@ import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/ur
 import { MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
-import { homedir, release, tmpdir } from 'os';
+import { homedir, release, tmpdir, hostname } from 'os';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { getUserDataPath } from 'vs/platform/environment/node/userDataPath';
 import product from 'vs/platform/product/common/product';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 
 const args = parseArgs(process.argv, OPTIONS);
 
 export const TestWorkbenchConfiguration: INativeWorkbenchConfiguration = {
 	windowId: 0,
 	machineId: 'testMachineId',
-	sessionId: 'testSessionId',
 	logLevel: LogLevel.Error,
 	mainPid: 0,
-	partsSplashPath: '',
 	appRoot: '',
 	userEnv: {},
 	execPath: process.execPath,
 	perfMarks: [],
 	colorScheme: { dark: true, highContrast: false },
-	os: { release: release() },
+	os: { release: release(), hostname: hostname() },
 	product,
 	homeDir: homedir(),
 	tmpDir: tmpdir(),
@@ -91,7 +90,7 @@ export class TestTextFileService extends NativeTextFileService {
 		@ILogService logService: ILogService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 		@IModeService modeService: IModeService,
-		@INativeHostService nativeHostService: INativeHostService
+		@IElevatedFileService elevatedFileService: IElevatedFileService
 	) {
 		super(
 			fileService,
@@ -110,7 +109,7 @@ export class TestTextFileService extends NativeTextFileService {
 			workingCopyFileService,
 			uriIdentityService,
 			modeService,
-			nativeHostService,
+			elevatedFileService,
 			logService
 		);
 	}
@@ -136,7 +135,8 @@ export class TestTextFileService extends NativeTextFileService {
 			etag: content.etag,
 			encoding: 'utf8',
 			value: await createTextBufferFactoryFromStream(content.value),
-			size: 10
+			size: 10,
+			readonly: false
 		};
 	}
 }
@@ -197,6 +197,7 @@ export class TestNativeHostService implements INativeHostService {
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
+	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
 	async focusWindow(options?: { windowId?: number | undefined; } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -216,13 +217,15 @@ export class TestNativeHostService implements INativeHostService {
 	async setDocumentEdited(edited: boolean): Promise<void> { }
 	async openExternal(url: string): Promise<boolean> { return false; }
 	async updateTouchBar(): Promise<void> { }
-	async moveItemToTrash(): Promise<boolean> { return false; }
+	async moveItemToTrash(): Promise<void> { }
 	async newWindowTab(): Promise<void> { }
 	async showPreviousWindowTab(): Promise<void> { }
 	async showNextWindowTab(): Promise<void> { }
 	async moveWindowTabToNewWindow(): Promise<void> { }
 	async mergeAllWindowTabs(): Promise<void> { }
 	async toggleWindowTabsBar(): Promise<void> { }
+	async installShellCommand(): Promise<void> { }
+	async uninstallShellCommand(): Promise<void> { }
 	async notifyReady(): Promise<void> { }
 	async relaunch(options?: { addArgs?: string[] | undefined; removeArgs?: string[] | undefined; } | undefined): Promise<void> { }
 	async reload(): Promise<void> { }
@@ -275,7 +278,7 @@ export class TestServiceAccessor {
 		@IFileService public fileService: TestFileService,
 		@INativeHostService public nativeHostService: TestNativeHostService,
 		@IFileDialogService public fileDialogService: TestFileDialogService,
-		@IBackupFileService public backupFileService: NodeTestBackupFileService,
+		@IWorkingCopyBackupService public workingCopyBackupService: NodeTestWorkingCopyBackupService,
 		@IWorkingCopyService public workingCopyService: IWorkingCopyService,
 		@IEditorService public editorService: IEditorService
 	) {
@@ -283,8 +286,6 @@ export class TestServiceAccessor {
 }
 
 export class TestNativePathService extends TestPathService {
-
-	declare readonly _serviceBrand: undefined;
 
 	constructor() {
 		super(URI.file(homedir()));

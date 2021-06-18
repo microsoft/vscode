@@ -6,7 +6,6 @@
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IColorRegistry, Extensions, ColorContribution } from 'vs/platform/theme/common/colorRegistry';
 import { asText } from 'vs/platform/request/common/request';
-import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import * as path from 'vs/base/common/path';
 import * as assert from 'assert';
@@ -102,11 +101,11 @@ function getDescription(color: ColorContribution) {
 
 async function getColorsFromExtension(): Promise<{ [id: string]: string }> {
 	let extPath = getPathFromAmdModule(require, '../../../../../extensions');
-	let extFolders = await pfs.readDirsInDir(extPath);
+	let extFolders = await pfs.Promises.readDirsInDir(extPath);
 	let result: { [id: string]: string } = Object.create(null);
 	for (let folder of extFolders) {
 		try {
-			let packageJSON = JSON.parse((await fs.promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
+			let packageJSON = JSON.parse((await pfs.Promises.readFile(path.join(extPath, folder, 'package.json'))).toString());
 			let contributes = packageJSON['contributes'];
 			if (contributes) {
 				let colors = contributes['colors'];

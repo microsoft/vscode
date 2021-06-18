@@ -266,6 +266,11 @@ export interface PresentationOptions {
 	 * Controls whether the task is executed in a specific terminal group using split panes.
 	 */
 	group?: string;
+
+	/**
+	 * Controls whether the terminal that the task runs in is closed when the task completes.
+	 */
+	close?: boolean;
 }
 
 export namespace PresentationOptions {
@@ -291,6 +296,14 @@ export namespace RuntimeType {
 				return RuntimeType.CustomExecution;
 			default:
 				return RuntimeType.Process;
+		}
+	}
+	export function toString(value: RuntimeType): string {
+		switch (value) {
+			case RuntimeType.Shell: return 'shell';
+			case RuntimeType.Process: return 'process';
+			case RuntimeType.CustomExecution: return 'customExecution';
+			default: return 'process';
 		}
 	}
 }
@@ -663,7 +676,7 @@ export abstract class CommonTask {
 
 export class CustomTask extends CommonTask {
 
-	type!: '$customized'; // CUSTOMIZED_TASK_TYPE
+	override type!: '$customized'; // CUSTOMIZED_TASK_TYPE
 
 	instance: number | undefined;
 
@@ -857,7 +870,7 @@ export class ContributedTask extends CommonTask {
 	 * Indicated the source of the task (e.g. tasks.json or extension)
 	 * Set in the super constructor
 	 */
-	_source!: ExtensionTaskSource;
+	override _source!: ExtensionTaskSource;
 
 	instance: number | undefined;
 
@@ -939,7 +952,7 @@ export class InMemoryTask extends CommonTask {
 
 	instance: number | undefined;
 
-	type!: 'inMemory';
+	override type!: 'inMemory';
 
 	public constructor(id: string, source: InMemoryTaskSource, label: string, type: string,
 		runOptions: RunOptions, configurationProperties: ConfigurationProperties) {

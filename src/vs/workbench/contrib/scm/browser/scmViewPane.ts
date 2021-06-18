@@ -56,7 +56,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu';
 import * as platform from 'vs/base/common/platform';
 import { compare, format } from 'vs/base/common/strings';
-import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { inputPlaceholderForeground, inputValidationInfoBorder, inputValidationWarningBorder, inputValidationErrorBorder, inputValidationInfoBackground, inputValidationInfoForeground, inputValidationWarningBackground, inputValidationWarningForeground, inputValidationErrorBackground, inputValidationErrorForeground, inputBackground, inputForeground, inputBorder, focusBorder, registerColor, contrastBorder, editorSelectionBackground, selectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { Schemas } from 'vs/base/common/network';
@@ -301,7 +301,7 @@ class RepositoryPaneActionRunner extends ActionRunner {
 		super();
 	}
 
-	async override runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
+	override async runAction(action: IAction, context: ISCMResource | IResourceNode<ISCMResource, ISCMResourceGroup>): Promise<any> {
 		if (!(action instanceof MenuItemAction)) {
 			return super.runAction(action, context);
 		}
@@ -1439,9 +1439,9 @@ registerAction2(ExpandAllRepositoriesAction);
 
 class SCMInputWidget extends Disposable {
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
-		[InputValidationType.Information]: 15000,
-		[InputValidationType.Warning]: 18000,
-		[InputValidationType.Error]: 20000
+		[InputValidationType.Information]: 5000,
+		[InputValidationType.Warning]: 8000,
+		[InputValidationType.Error]: 10000
 	};
 
 	private readonly defaultInputFontFamily = DEFAULT_FONT_FAMILY;
@@ -1541,7 +1541,7 @@ class SCMInputWidget extends Disposable {
 			this.inputEditor.setPosition(position);
 			this.inputEditor.revealPositionInCenterIfOutsideViewport(position);
 		}));
-		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.inputEditor.focus()));
+		this.repositoryDisposables.add(input.onDidChangeFocus(() => this.focus()));
 		this.repositoryDisposables.add(input.onDidChangeValidationMessage((e) => this.setValidation(e, { focus: true, timeout: true })));
 
 		// Keep API in sync with model, update placeholder visibility and validate
@@ -1608,10 +1608,11 @@ class SCMInputWidget extends Disposable {
 		}
 
 		this.validation = validation;
-		if (options?.focus) {
-			this.inputEditor.focus();
-		}
 		this.renderValidation();
+
+		if (options?.focus && !this.hasFocus()) {
+			this.focus();
+		}
 
 		if (validation && options?.timeout) {
 			this._validationTimer = setTimeout(() => this.setValidation(undefined), SCMInputWidget.ValidationTimeouts[validation.type]);
@@ -2160,6 +2161,11 @@ registerThemingParticipant((theme, collector) => {
 		.scm-view .scm-editor-container .monaco-editor,
 		.scm-view .scm-editor-container .monaco-editor .margin
 		{ background-color: ${inputBackgroundColor} !important; }`);
+	}
+
+	const selectionBackgroundColor = theme.getColor(selectionBackground) ?? theme.getColor(editorSelectionBackground);
+	if (selectionBackgroundColor) {
+		collector.addRule(`.scm-view .scm-editor-container .monaco-editor .focused .selected-text { background-color: ${selectionBackgroundColor}; }`);
 	}
 
 	const inputForegroundColor = theme.getColor(inputForeground);

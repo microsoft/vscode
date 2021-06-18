@@ -6,7 +6,7 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability } from 'vs/platform/files/common/files';
+import { FileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, FileOverwriteOptions, FileDeleteOptions, FileOpenOptions, IFileStat, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IExtHostContext, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -65,6 +65,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 				ctime: stat.ctime,
 				mtime: stat.mtime,
 				size: stat.size,
+				permissions: MainThreadFileSystem._asFilePermission(stat),
 				type: MainThreadFileSystem._asFileType(stat)
 			};
 		}).catch(MainThreadFileSystem._handleError);
@@ -93,6 +94,13 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 			res += FileType.SymbolicLink;
 		}
 		return res;
+	}
+
+	private static _asFilePermission(stat: IFileStat): FilePermission | undefined {
+		if (stat.readonly) {
+			return FilePermission.Readonly;
+		}
+		return undefined;
 	}
 
 	$readFile(uri: UriComponents): Promise<VSBuffer> {

@@ -155,7 +155,8 @@
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content {
 	font-size: 12px;
 	font-weight: unset;
-	padding: 0 2px;
+	padding: 0;
+	justify-content: center;
 }
 
 .monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .badge .codicon.badge-content::before {

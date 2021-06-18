@@ -10,11 +10,13 @@ import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/
 import { isWeb } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { EditorInput, EditorOptions, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
@@ -121,7 +123,7 @@ export class WebviewEditor extends EditorPane {
 		super.clearInput();
 	}
 
-	public async override setInput(input: EditorInput, options: EditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	public override async setInput(input: EditorInput, options: IEditorOptions, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (input.matches(this.input)) {
 			return;
 		}
@@ -164,7 +166,7 @@ export class WebviewEditor extends EditorPane {
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
 		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
-			containsGroup: (group) => this.group?.id === group.group.id
+			containsGroup: (group) => this.group?.id === group.id
 		}));
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(() => this.webview));

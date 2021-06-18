@@ -109,23 +109,35 @@ export const enum ConfigurationScope {
 }
 
 export interface IConfigurationPropertySchema extends IJSONSchema {
+
 	scope?: ConfigurationScope;
-	requiresTrustedWorkspace?: boolean;
+
+	/**
+	 * When restricted, value of this configuration will be read only from trusted sources.
+	 * For eg., If the workspace is not trusted, then the value of this configuration is not read from workspace settings file.
+	 */
+	restricted?: boolean;
+
 	included?: boolean;
+
 	tags?: string[];
+
 	/**
 	 * When enabled this setting is ignored during sync and user can override this.
 	 */
 	ignoreSync?: boolean;
+
 	/**
 	 * When enabled this setting is ignored during sync and user cannot override this.
 	 */
 	disallowSyncIgnore?: boolean;
+
 	enumItemLabels?: string[];
 }
 
 export interface IConfigurationExtensionInfo {
 	id: string;
+	restrictedConfigurations?: string[];
 }
 
 export interface IConfigurationNode {
@@ -137,18 +149,15 @@ export interface IConfigurationNode {
 	properties?: { [path: string]: IConfigurationPropertySchema; };
 	allOf?: IConfigurationNode[];
 	scope?: ConfigurationScope;
-	requiresTrustedWorkspace?: boolean;
 	extensionInfo?: IConfigurationExtensionInfo;
 }
 
-type SettingProperties = { [key: string]: any };
-
-export const allSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const applicationSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const machineSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const machineOverridableSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const windowSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
-export const resourceSettings: { properties: SettingProperties, patternProperties: SettingProperties } = { properties: {}, patternProperties: {} };
+export const allSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const applicationSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const machineOverridableSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const windowSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
+export const resourceSettings: { properties: IStringDictionary<IConfigurationPropertySchema>, patternProperties: IStringDictionary<IConfigurationPropertySchema> } = { properties: {}, patternProperties: {} };
 
 export const resourceLanguageSettingsSchemaId = 'vscode://schemas/settings/resourceLanguage';
 
@@ -192,7 +201,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 	public registerConfigurations(configurations: IConfigurationNode[], validate: boolean = true): void {
 		const properties: string[] = [];
 		configurations.forEach(configuration => {
-			properties.push(...this.validateAndRegisterProperties(configuration, validate)); // fills in defaults
+			properties.push(...this.validateAndRegisterProperties(configuration, validate, configuration.extensionInfo)); // fills in defaults
 			this.configurationContributors.push(configuration);
 			this.registerJSONConfiguration(configuration);
 		});
@@ -299,9 +308,8 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		this.updateOverridePropertyPatternKey();
 	}
 
-	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, scope: ConfigurationScope = ConfigurationScope.WINDOW, requiresTrustedWorkspace?: boolean): string[] {
+	private validateAndRegisterProperties(configuration: IConfigurationNode, validate: boolean = true, extensionInfo?: IConfigurationExtensionInfo, scope: ConfigurationScope = ConfigurationScope.WINDOW): string[] {
 		scope = types.isUndefinedOrNull(configuration.scope) ? scope : configuration.scope;
-		requiresTrustedWorkspace = types.isUndefinedOrNull(configuration.requiresTrustedWorkspace) ? types.isUndefined(requiresTrustedWorkspace) ? false : requiresTrustedWorkspace : configuration.requiresTrustedWorkspace;
 		let propertyKeys: string[] = [];
 		let properties = configuration.properties;
 		if (properties) {
@@ -321,7 +329,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 					property.scope = undefined; // No scope for overridable properties `[${identifier}]`
 				} else {
 					property.scope = types.isUndefinedOrNull(property.scope) ? scope : property.scope;
-					property.requiresTrustedWorkspace = types.isUndefinedOrNull(property.requiresTrustedWorkspace) ? requiresTrustedWorkspace : property.requiresTrustedWorkspace;
+					property.restricted = types.isUndefinedOrNull(property.restricted) ? !!extensionInfo?.restrictedConfigurations?.includes(key) : property.restricted;
 				}
 
 				// Add to properties maps
@@ -345,7 +353,7 @@ class ConfigurationRegistry implements IConfigurationRegistry {
 		let subNodes = configuration.allOf;
 		if (subNodes) {
 			for (let node of subNodes) {
-				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, scope, requiresTrustedWorkspace));
+				propertyKeys.push(...this.validateAndRegisterProperties(node, validate, extensionInfo, scope));
 			}
 		}
 		return propertyKeys;

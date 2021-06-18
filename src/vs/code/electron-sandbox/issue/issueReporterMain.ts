@@ -11,6 +11,7 @@ import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/windows/electron-sandbox/window';
 import { $, reset, safeInnerHtml, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { Delayer } from 'vs/base/common/async';
 import { groupBy } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -62,6 +63,7 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
+	private delayedSubmit = new Delayer<void>(300);
 
 	private readonly previewButton!: Button;
 
@@ -85,6 +87,7 @@ export class IssueReporter extends Disposable {
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement);
+			this.updatePreviewButtonState();
 		}
 
 		const issueTitle = configuration.data.issueTitle;
@@ -137,6 +140,7 @@ export class IssueReporter extends Disposable {
 		this.applyStyles(configuration.data.styles);
 		this.handleExtensionData(configuration.data.enabledExtensions);
 		this.updateExperimentsInfo(configuration.data.experiments);
+		this.updateRestrictedMode(configuration.data.restrictedMode);
 	}
 
 	render(): void {
@@ -355,7 +359,11 @@ export class IssueReporter extends Disposable {
 			this.searchIssues(title, fileOnExtension, fileOnMarketplace);
 		});
 
-		this.previewButton.onDidClick(() => this.createIssue());
+		this.previewButton.onDidClick(async () => {
+			this.delayedSubmit.trigger(async () => {
+				this.createIssue();
+			});
+		});
 
 		function sendWorkbenchCommand(commandId: string) {
 			ipcRenderer.send('vscode:workbenchCommand', { id: commandId, from: 'issueReporter' });
@@ -382,9 +390,11 @@ export class IssueReporter extends Disposable {
 			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {
-				if (await this.createIssue()) {
-					ipcRenderer.send('vscode:closeIssueReporter');
-				}
+				this.delayedSubmit.trigger(async () => {
+					if (await this.createIssue()) {
+						ipcRenderer.send('vscode:closeIssueReporter');
+					}
+				});
 			}
 
 			// Cmd/Ctrl + w closes issue window
@@ -1148,6 +1158,10 @@ export class IssueReporter extends Disposable {
 
 			reset(target, this.getExtensionTableHtml(extensions), document.createTextNode(themeExclusionStr));
 		}
+	}
+
+	private updateRestrictedMode(restrictedMode: boolean) {
+		this.issueReporterModel.update({ restrictedMode });
 	}
 
 	private updateExperimentsInfo(experimentInfo: string | undefined) {

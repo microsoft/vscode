@@ -21,6 +21,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ADD_CONFIGURATION_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import { BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { debugStart } from 'vs/workbench/contrib/debug/browser/debugIcons';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -45,6 +46,7 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextViewService contextViewService: IContextViewService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService
 	) {
 		super(context, action);
 		this.toDispose = [];
@@ -71,7 +73,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
-		this.start.title = this.action.label;
+		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
+		let keybindingLabel = keybinding ? ` (${keybinding})` : '';
+		this.start.title = this.action.label + keybindingLabel;
 		this.start.setAttribute('role', 'button');
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {

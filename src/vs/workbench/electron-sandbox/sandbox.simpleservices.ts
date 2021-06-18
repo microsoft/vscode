@@ -12,19 +12,10 @@ import { IAddressProvider } from 'vs/platform/remote/common/remoteAgentConnectio
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService, NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { isWindows } from 'vs/base/common/platform';
-import { IWebviewService, WebviewContentOptions, WebviewElement, WebviewExtensionDescription, WebviewOptions, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { ITunnelProvider, ITunnelService, RemoteTunnel, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
-import { ITaskProvider, ITaskService, ITaskSummary, ProblemMatcherRunOptions, Task, TaskFilter, TaskTerminateResponse, WorkspaceFolderTaskResult } from 'vs/workbench/contrib/tasks/common/taskService';
-import { Action } from 'vs/base/common/actions';
-import { LinkedMap } from 'vs/base/common/map';
-import { IWorkspace, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { CustomTask, ContributedTask, InMemoryTask, TaskRunSource, ConfiguringTask, TaskIdentifier, TaskSorter } from 'vs/workbench/contrib/tasks/common/tasks';
-import { TaskSystemInfo } from 'vs/workbench/contrib/tasks/common/taskSystem';
 import { joinPath } from 'vs/base/common/resources';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SearchService } from 'vs/workbench/services/search/common/searchService';
 import { ISearchService } from 'vs/workbench/services/search/common/search';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -272,23 +263,6 @@ registerSingleton(IExtensionService, SimpleExtensionService);
 //#endregion
 
 
-//#region Webview
-
-class SimpleWebviewService implements IWebviewService {
-	declare readonly _serviceBrand: undefined;
-
-	readonly activeWebview = undefined;
-	readonly onDidChangeActiveWebview = Event.None;
-
-	createWebviewElement(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewElement { throw new Error('Method not implemented.'); }
-	createWebviewOverlay(id: string, options: WebviewOptions, contentOptions: WebviewContentOptions, extension: WebviewExtensionDescription | undefined): WebviewOverlay { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(IWebviewService, SimpleWebviewService);
-
-//#endregion
-
-
 //#region Tunnel
 
 class SimpleTunnelService implements ITunnelService {
@@ -300,6 +274,8 @@ class SimpleTunnelService implements ITunnelService {
 	canMakePublic = false;
 	onTunnelOpened = Event.None;
 	onTunnelClosed = Event.None;
+	onAddedTunnelProvider = Event.None;
+	hasTunnelProvider = false;
 
 	canTunnel(uri: URI): boolean { return false; }
 	openTunnel(addressProvider: IAddressProvider | undefined, remoteHost: string | undefined, remotePort: number, localPort?: number): Promise<RemoteTunnel> | undefined { return undefined; }
@@ -309,62 +285,6 @@ class SimpleTunnelService implements ITunnelService {
 }
 
 registerSingleton(ITunnelService, SimpleTunnelService);
-
-//#endregion
-
-
-//#region Task
-
-class SimpleTaskService implements ITaskService {
-
-	declare readonly _serviceBrand: undefined;
-
-	onDidStateChange = Event.None;
-	supportsMultipleTaskExecutions = false;
-
-	configureAction(): Action { throw new Error('Method not implemented.'); }
-	build(): Promise<ITaskSummary> { throw new Error('Method not implemented.'); }
-	runTest(): Promise<ITaskSummary> { throw new Error('Method not implemented.'); }
-	run(task: CustomTask | ContributedTask | InMemoryTask | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined> { throw new Error('Method not implemented.'); }
-	inTerminal(): boolean { throw new Error('Method not implemented.'); }
-	isActive(): Promise<boolean> { throw new Error('Method not implemented.'); }
-	getActiveTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	getBusyTasks(): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	restart(task: Task): void { throw new Error('Method not implemented.'); }
-	terminate(task: Task): Promise<TaskTerminateResponse> { throw new Error('Method not implemented.'); }
-	terminateAll(): Promise<TaskTerminateResponse[]> { throw new Error('Method not implemented.'); }
-	tasks(filter?: TaskFilter): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	taskTypes(): string[] { throw new Error('Method not implemented.'); }
-	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>> { throw new Error('Method not implemented.'); }
-	readRecentTasks(): Promise<(CustomTask | ContributedTask | InMemoryTask | ConfiguringTask)[]> { throw new Error('Method not implemented.'); }
-	getTask(workspaceFolder: string | IWorkspace | IWorkspaceFolder, alias: string | TaskIdentifier, compareId?: boolean): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
-	tryResolveTask(configuringTask: ConfiguringTask): Promise<CustomTask | ContributedTask | InMemoryTask | undefined> { throw new Error('Method not implemented.'); }
-	getTasksForGroup(group: string): Promise<Task[]> { throw new Error('Method not implemented.'); }
-	getRecentlyUsedTasks(): LinkedMap<string, string> { throw new Error('Method not implemented.'); }
-	removeRecentlyUsedTask(taskRecentlyUsedKey: string): void { throw new Error('Method not implemented.'); }
-	migrateRecentTasks(tasks: Task[]): Promise<void> { throw new Error('Method not implemented.'); }
-	createSorter(): TaskSorter { throw new Error('Method not implemented.'); }
-	getTaskDescription(task: CustomTask | ContributedTask | InMemoryTask | ConfiguringTask): string | undefined { throw new Error('Method not implemented.'); }
-	canCustomize(task: CustomTask | ContributedTask): boolean { throw new Error('Method not implemented.'); }
-	customize(task: CustomTask | ContributedTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void> { throw new Error('Method not implemented.'); }
-	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean> { throw new Error('Method not implemented.'); }
-	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable { throw new Error('Method not implemented.'); }
-	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void { throw new Error('Method not implemented.'); }
-	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void { throw new Error('Method not implemented.'); }
-	setJsonTasksSupported(areSuppored: Promise<boolean>): void { throw new Error('Method not implemented.'); }
-	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void> { throw new Error('Method not implemented.'); }
-}
-
-registerSingleton(ITaskService, SimpleTaskService);
-
-//#endregion
-
-
-//#region Terminal Instance
-
-class SimpleTerminalInstanceService extends TerminalInstanceService { }
-
-registerSingleton(ITerminalInstanceService, SimpleTerminalInstanceService);
 
 //#endregion
 

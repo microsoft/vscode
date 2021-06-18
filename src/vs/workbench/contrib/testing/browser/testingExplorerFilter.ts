@@ -25,7 +25,7 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { testingFilterIcon } from 'vs/workbench/contrib/testing/browser/icons';
 import { TestExplorerStateFilter, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { ObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
 import { TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -33,17 +33,17 @@ import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
-	readonly text: ObservableValue<string>;
+	readonly text: MutableObservableValue<string>;
 	/**
 	 * Reveal request: the path to the test to reveal. The last element of the
 	 * array is the test the user wanted to reveal, and the previous
 	 * items are its parents.
 	*/
-	readonly reveal: ObservableValue<TestIdPath | undefined>;
-	readonly stateFilter: ObservableValue<TestExplorerStateFilter>;
-	readonly currentDocumentOnly: ObservableValue<boolean>;
+	readonly reveal: MutableObservableValue<TestIdPath | undefined>;
+	readonly stateFilter: MutableObservableValue<TestExplorerStateFilter>;
+	readonly currentDocumentOnly: MutableObservableValue<boolean>;
 	/** Whether excluded test should be shown in the view */
-	readonly showExcludedTests: ObservableValue<boolean>;
+	readonly showExcludedTests: MutableObservableValue<boolean>;
 
 	readonly onDidRequestInputFocus: Event<void>;
 	focusInput(): void;
@@ -54,20 +54,20 @@ export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState
 export class TestExplorerFilterState implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
-	public readonly text = new ObservableValue('');
-	public readonly stateFilter = ObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
+	public readonly text = new MutableObservableValue('');
+	public readonly stateFilter = MutableObservableValue.stored(new StoredValue<TestExplorerStateFilter>({
 		key: 'testStateFilter',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
 	}, this.storage), TestExplorerStateFilter.All);
-	public readonly currentDocumentOnly = ObservableValue.stored(new StoredValue<boolean>({
+	public readonly currentDocumentOnly = MutableObservableValue.stored(new StoredValue<boolean>({
 		key: 'testsByCurrentDocumentOnly',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
 	}, this.storage), false);
 
-	public readonly showExcludedTests = new ObservableValue(false);
-	public readonly reveal = new ObservableValue<TestIdPath | undefined>(undefined);
+	public readonly showExcludedTests = new MutableObservableValue(false);
+	public readonly reveal = new MutableObservableValue<TestIdPath | undefined>(undefined);
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
 

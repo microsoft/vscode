@@ -8,6 +8,7 @@
 	height: 16px;
 	background-repeat: no-repeat;
 	background-position: 50%;
+	background-size: 16px;
 }
 
 .monaco-action-bar .action-item.menu-entry .action-label {

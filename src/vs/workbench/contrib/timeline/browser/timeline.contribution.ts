@@ -95,7 +95,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, ({
 		title: OpenTimelineAction.LABEL,
 		icon: timelineOpenIcon
 	},
-	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource)
+	when: ContextKeyExpr.and(ExplorerFolderContext.toNegated(), ResourceContextKey.HasResource, TimelineHasProviderContext)
 }));
 
 registerSingleton(ITimelineService, TimelineService, true);

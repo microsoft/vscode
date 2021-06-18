@@ -7,7 +7,7 @@ import { SerializedError } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { IExtHostContext, MainContext, MainThreadExtensionServiceShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IExtensionService, ExtensionActivationError, ExtensionHostKind } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { localize } from 'vs/nls';
@@ -20,6 +20,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 @extHostNamedCustomer(MainContext.MainThreadExtensionService)
 export class MainThreadExtensionService implements MainThreadExtensionServiceShape {
@@ -34,6 +36,8 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		@IHostService private readonly _hostService: IHostService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@ITimerService private readonly _timerService: ITimerService,
+		@ICommandService private readonly _commandService: ICommandService,
+		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		this._extensionHostKind = extHostContext.extensionHostKind;
 	}
@@ -59,25 +63,36 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 		console.error(`[${extensionId}]${error.message}`);
 		console.error(error.stack);
 	}
-	async $onExtensionActivationError(extensionId: ExtensionIdentifier, activationError: ExtensionActivationError): Promise<void> {
-		if (typeof activationError === 'string') {
-			this._extensionService._logOrShowMessage(Severity.Error, activationError);
-		} else {
-			this._handleMissingDependency(extensionId, activationError.dependency);
-		}
-	}
+	async $onExtensionActivationError(extensionId: ExtensionIdentifier, data: SerializedError, missingExtensionDependency: MissingExtensionDependency | null): Promise<void> {
+		const error = new Error();
+		error.name = data.name;
+		error.message = data.message;
+		error.stack = data.stack;
 
-	private async _handleMissingDependency(extensionId: ExtensionIdentifier, missingDependency: string): Promise<void> {
-		const extension = await this._extensionService.getExtension(extensionId.value);
-		if (extension) {
-			const local = await this._extensionsWorkbenchService.queryLocal();
-			const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingDependency }))[0];
-			if (installedDependency) {
-				await this._handleMissingInstalledDependency(extension, installedDependency.local!);
-			} else {
-				await this._handleMissingNotInstalledDependency(extension, missingDependency);
+		this._extensionService._onDidActivateExtensionError(extensionId, error);
+
+		if (missingExtensionDependency) {
+			const extension = await this._extensionService.getExtension(extensionId.value);
+			if (extension) {
+				const local = await this._extensionsWorkbenchService.queryLocal();
+				const installedDependency = local.filter(i => areSameExtensions(i.identifier, { id: missingExtensionDependency.dependency }))[0];
+				if (installedDependency) {
+					await this._handleMissingInstalledDependency(extension, installedDependency.local!);
+					return;
+				} else {
+					await this._handleMissingNotInstalledDependency(extension, missingExtensionDependency.dependency);
+					return;
+				}
 			}
 		}
+
+		const isDev = !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment;
+		if (isDev) {
+			this._notificationService.error(error);
+			return;
+		}
+
+		console.error(error.message);
 	}
 
 	private async _handleMissingInstalledDependency(extension: IExtensionDescription, missingInstalledDependency: ILocalExtension): Promise<void> {
@@ -92,15 +107,36 @@ export class MainThreadExtensionService implements MainThreadExtensionServiceSha
 			});
 		} else {
 			const enablementState = this._extensionEnablementService.getEnablementState(missingInstalledDependency);
-			this._notificationService.notify({
-				severity: Severity.Error,
-				message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension, which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
-				actions: {
-					primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
-						() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
-							.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
-				}
-			});
+			if (enablementState === EnablementState.DisabledByVirtualWorkspace) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('notSupportedInWorkspace', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is not supported in the current workspace", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+				});
+			} else if (enablementState === EnablementState.DisabledByTrustRequirement) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('restrictedMode', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is not supported in Restricted Mode", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+					actions: {
+						primary: [new Action('manageWorkspaceTrust', localize('manageWorkspaceTrust', "Manage Workspace Trust"), '', true,
+							() => this._commandService.executeCommand('workbench.trust.manage'))]
+					}
+				});
+			} else if (this._extensionEnablementService.canChangeEnablement(missingInstalledDependency)) {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('disabledDep', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is disabled. Would you like to enable the extension and reload the window?", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+					actions: {
+						primary: [new Action('enable', localize('enable dep', "Enable and Reload"), '', true,
+							() => this._extensionEnablementService.setEnablement([missingInstalledDependency], enablementState === EnablementState.DisabledGlobally ? EnablementState.EnabledGlobally : EnablementState.EnabledWorkspace)
+								.then(() => this._hostService.reload(), e => this._notificationService.error(e)))]
+					}
+				});
+			} else {
+				this._notificationService.notify({
+					severity: Severity.Error,
+					message: localize('disabledDepNoAction', "Cannot activate the '{0}' extension because it depends on the '{1}' extension which is disabled.", extName, missingInstalledDependency.manifest.displayName || missingInstalledDependency.manifest.name),
+				});
+			}
 		}
 	}
 

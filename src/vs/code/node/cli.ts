@@ -13,8 +13,9 @@ import { createWaitMarkerFile } from 'vs/platform/environment/node/wait';
 import product from 'vs/platform/product/common/product';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { whenDeleted, writeFileSync } from 'vs/base/node/pfs';
-import { findFreePort, randomPort } from 'vs/base/node/ports';
-import { isWindows, isLinux, IProcessEnvironment } from 'vs/base/common/platform';
+import { findFreePort } from 'vs/base/node/ports';
+import { randomPort } from 'vs/base/common/ports';
+import { isWindows, IProcessEnvironment } from 'vs/base/common/platform';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { isString } from 'vs/base/common/types';
 import { hasStdinWithoutTty, stdinDataListener, getStdinFilePath, readFromStdin } from 'vs/platform/environment/node/stdin';
@@ -55,7 +56,7 @@ export async function main(argv: string[]): Promise<any> {
 
 	// Extensions Management
 	else if (shouldSpawnCliProcess(args)) {
-		const cli = await new Promise<IMainCli>((c, e) => require(['vs/code/node/cliProcessMain'], c, e));
+		const cli = await new Promise<IMainCli>((resolve, reject) => require(['vs/code/node/cliProcessMain'], resolve, reject));
 		await cli.main(args);
 
 		return;
@@ -316,10 +317,6 @@ export async function main(argv: string[]): Promise<any> {
 
 		if (!verbose) {
 			options['stdio'] = 'ignore';
-		}
-
-		if (isLinux) {
-			addArg(argv, '--no-sandbox'); // Electron 6 introduces a chrome-sandbox that requires root to run. This can fail. Disable sandbox via --no-sandbox
 		}
 
 		const child = spawn(process.execPath, argv.slice(2), options);

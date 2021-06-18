@@ -503,7 +503,7 @@ export interface IEditor {
 	 * Change the decorations. All decorations added through this changeAccessor
 	 * will get the ownerId of the editor (meaning they will not show up in other
 	 * editors).
-	 * @see `ITextModel.changeDecorations`
+	 * @see {@link ITextModel.changeDecorations}
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
@@ -639,6 +639,7 @@ export interface IContentDecorationRenderOptions {
 	textDecoration?: string;
 	color?: string | ThemeColor;
 	backgroundColor?: string | ThemeColor;
+	opacity?: string;
 
 	margin?: string;
 	padding?: string;

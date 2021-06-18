@@ -76,10 +76,9 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor | undefined {
-		const activeEditor = this.editorService.activeEditor;
-		const resource = activeEditor?.resource;
-		if (resource && isEqual(resource, resourceRange.resource)) {
-			return this.editorService.activeTextEditorControl as ICodeEditor;
+		const resource = this.editorService.activeEditor?.resource;
+		if (resource && isEqual(resource, resourceRange.resource) && isCodeEditor(this.editorService.activeTextEditorControl)) {
+			return this.editorService.activeTextEditorControl;
 		}
 
 		return undefined;
@@ -108,12 +107,14 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 
 	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'codeeditor-range-highlight-whole',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	private static readonly _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'codeeditor-range-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight'
 	});

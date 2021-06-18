@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.18.3"
+      versionSpec: "14.x"
 
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
@@ -17,6 +17,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,ESRP-SSL-AADAuth,vscode-storage-key,builds-docdb-key-readwrite'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -53,7 +54,7 @@ steps:
 
   - task: Cache@2
     inputs:
-      key: 'nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash'
+      key: "nodeModules | $(Agent.OS) | .build/arch, .build/terrapin, .build/yarnlockhash"
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -78,11 +79,13 @@ steps:
       . build/azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:npm_config_arch="$(VSCODE_ARCH)"
+      $env:npm_config_build_from_source="true"
       $env:CHILD_CONCURRENCY="1"
       retry { exec { yarn --frozen-lockfile } }
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -154,13 +157,6 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { yarn --cwd test/integration/browser compile }
-    displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
-
-  - powershell: |
       # Figure out the full absolute path of the product we just built
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
@@ -200,6 +196,14 @@ steps:
     displayName: "Publish Crash Reports"
     continueOnError: true
     condition: failed()
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-windows-$(VSCODE_ARCH)-$(System.JobAttempt)
+      targetPath: .build\logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_STEP_ON_IT'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results
@@ -294,31 +298,31 @@ steps:
       $env:AZURE_STORAGE_ACCESS_KEY_2 = "$(vscode-storage-key)"
       $env:AZURE_DOCUMENTDB_MASTERKEY = "$(builds-docdb-key-readwrite)"
       $env:VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)"
-      .\build\azure-pipelines\win32\publish.ps1
+      .\build\azure-pipelines\win32\prepare-publish.ps1
     displayName: Publish
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip
-    artifact: vscode-win32-$(VSCODE_ARCH)
+  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\archive\$(ARCHIVE_NAME)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_archive
     displayName: Publish archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe
-    artifact: vscode-win32-$(VSCODE_ARCH)-setup
+  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\system-setup\$(SYSTEM_SETUP_NAME)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_setup
     displayName: Publish system setup
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
-  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe
-    artifact: vscode-win32-$(VSCODE_ARCH)-user-setup
+  - publish: $(System.DefaultWorkingDirectory)\.build\win32-$(VSCODE_ARCH)\user-setup\$(USER_SETUP_NAME)
+    artifact: vscode_client_win32_$(VSCODE_ARCH)_user-setup
     displayName: Publish user setup
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH).zip
-    artifact: vscode-server-win32-$(VSCODE_ARCH)
+    artifact: vscode_server_win32_$(VSCODE_ARCH)_archive
     displayName: Publish server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))
 
   - publish: $(System.DefaultWorkingDirectory)\.build\vscode-server-win32-$(VSCODE_ARCH)-web.zip
-    artifact: vscode-server-win32-$(VSCODE_ARCH)-web
+    artifact: vscode_web_win32_$(VSCODE_ARCH)_archive
     displayName: Publish web server archive
     condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'), ne(variables['VSCODE_ARCH'], 'arm64'))

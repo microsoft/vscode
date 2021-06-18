@@ -216,14 +216,14 @@ export class DefaultConfigurationModel extends ConfigurationModel {
 
 export interface ConfigurationParseOptions {
 	scopes: ConfigurationScope[] | undefined;
-	excludeUnsafeConfigurations?: boolean;
+	skipRestricted?: boolean;
 }
 
 export class ConfigurationModelParser {
 
 	private _raw: any = null;
 	private _configurationModel: ConfigurationModel | null = null;
-	private _excludedUnsafeConfigurations: string[] = [];
+	private _restrictedConfigurations: string[] = [];
 	private _parseErrors: any[] = [];
 
 	constructor(protected readonly _name: string) { }
@@ -232,8 +232,8 @@ export class ConfigurationModelParser {
 		return this._configurationModel || new ConfigurationModel();
 	}
 
-	get excludedUnsafeConfigurations(): string[] {
-		return this._excludedUnsafeConfigurations;
+	get restrictedConfigurations(): string[] {
+		return this._restrictedConfigurations;
 	}
 
 	get errors(): any[] {
@@ -255,9 +255,9 @@ export class ConfigurationModelParser {
 
 	public parseRaw(raw: any, options?: ConfigurationParseOptions): void {
 		this._raw = raw;
-		const { contents, keys, overrides, unsafeConfigurations } = this.doParseRaw(raw, options);
+		const { contents, keys, overrides, restricted } = this.doParseRaw(raw, options);
 		this._configurationModel = new ConfigurationModel(contents, keys, overrides);
-		this._excludedUnsafeConfigurations = unsafeConfigurations || [];
+		this._restrictedConfigurations = restricted || [];
 	}
 
 	private doParseContent(content: string): any {
@@ -317,41 +317,42 @@ export class ConfigurationModelParser {
 		return raw;
 	}
 
-	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { unsafeConfigurations?: string[] } {
+	protected doParseRaw(raw: any, options?: ConfigurationParseOptions): IConfigurationModel & { restricted?: string[] } {
 		const configurationProperties = Registry.as<IConfigurationRegistry>(Extensions.Configuration).getConfigurationProperties();
 		const filtered = this.filter(raw, configurationProperties, true, options);
 		raw = filtered.raw;
 		const contents = toValuesTree(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
 		const keys = Object.keys(raw);
 		const overrides: IOverrides[] = toOverrides(raw, message => console.error(`Conflict in settings file ${this._name}: ${message}`));
-		return { contents, keys, overrides, unsafeConfigurations: filtered.unsafeConfigurations };
+		return { contents, keys, overrides, restricted: filtered.restricted };
 	}
 
-	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, unsafeConfigurations: string[] } {
-		if (!options?.scopes && !options?.excludeUnsafeConfigurations) {
-			return { raw: properties, unsafeConfigurations: [] };
+	private filter(properties: any, configurationProperties: { [qualifiedKey: string]: IConfigurationPropertySchema | undefined }, filterOverriddenProperties: boolean, options?: ConfigurationParseOptions): { raw: {}, restricted: string[] } {
+		if (!options?.scopes && !options?.skipRestricted) {
+			return { raw: properties, restricted: [] };
 		}
 		const raw: any = {};
-		const unsafeConfigurations: string[] = [];
+		const restricted: string[] = [];
 		for (let key in properties) {
 			if (OVERRIDE_PROPERTY_PATTERN.test(key) && filterOverriddenProperties) {
 				const result = this.filter(properties[key], configurationProperties, false, options);
 				raw[key] = result.raw;
-				unsafeConfigurations.push(...result.unsafeConfigurations);
+				restricted.push(...result.restricted);
 			} else {
 				const propertySchema = configurationProperties[key];
 				const scope = propertySchema ? typeof propertySchema.scope !== 'undefined' ? propertySchema.scope : ConfigurationScope.WINDOW : undefined;
+				if (propertySchema?.restricted) {
+					restricted.push(key);
+				}
 				// Load unregistered configurations always.
 				if (scope === undefined || options.scopes === undefined || options.scopes.includes(scope)) {
-					if (options.excludeUnsafeConfigurations && propertySchema?.requiresTrustedWorkspace) {
-						unsafeConfigurations.push(key);
-					} else {
+					if (!(options.skipRestricted && propertySchema?.restricted)) {
 						raw[key] = properties[key];
 					}
 				}
 			}
 		}
-		return { raw, unsafeConfigurations };
+		return { raw, restricted };
 	}
 
 }
@@ -391,6 +392,10 @@ export class UserSettings extends Disposable {
 	reparse(): ConfigurationModel {
 		this.parser.reparse(this.parseOptions);
 		return this.parser.configurationModel;
+	}
+
+	getRestrictedSettings(): string[] {
+		return this.parser.restrictedConfigurations;
 	}
 }
 
@@ -818,7 +823,9 @@ export class ConfigurationChangeEvent implements IConfigurationChangeEvent {
 }
 
 export class AllKeysConfigurationChangeEvent extends ConfigurationChangeEvent {
-	constructor(configuration: Configuration, workspace: Workspace, public source: ConfigurationTarget, public sourceConfig: any) {
+	constructor(configuration: Configuration, workspace: Workspace, source: ConfigurationTarget, sourceConfig: any) {
 		super({ keys: configuration.allKeys(), overrides: [] }, undefined, configuration, workspace);
+		this.source = source;
+		this.sourceConfig = sourceConfig;
 	}
 }

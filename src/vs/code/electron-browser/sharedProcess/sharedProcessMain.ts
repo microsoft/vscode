@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { release } from 'os';
+import { release, hostname } from 'os';
 import { gracefulify } from 'graceful-fs';
 import { ipcRenderer } from 'electron';
 import product from 'vs/platform/product/common/product';
@@ -36,7 +36,7 @@ import { ILocalizationsService } from 'vs/platform/localizations/common/localiza
 import { combinedDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { DownloadService } from 'vs/platform/download/common/downloadService';
 import { IDownloadService } from 'vs/platform/download/common/download';
-import { NodeCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/nodeCachedDataCleaner';
+import { CodeCacheCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/codeCacheCleaner';
 import { LanguagePackCachedDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/languagePackCachedDataCleaner';
 import { StorageDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/storageDataCleaner';
 import { LogsDataCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/logsDataCleaner';
@@ -77,7 +77,7 @@ import { LocalizationsUpdater } from 'vs/code/electron-browser/sharedProcess/con
 import { DeprecatedExtensionsCleaner } from 'vs/code/electron-browser/sharedProcess/contrib/deprecatedExtensionsCleaner';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
+import { LocalReconnectConstants, TerminalIpcChannels } from 'vs/platform/terminal/common/terminal';
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { ILocalPtyService } from 'vs/platform/terminal/electron-sandbox/terminal';
 import { UserDataSyncChannel } from 'vs/platform/userDataSync/common/userDataSyncServiceIpc';
@@ -131,7 +131,7 @@ class SharedProcessMain extends Disposable {
 
 		// Instantiate Contributions
 		this._register(combinedDisposable(
-			instantiationService.createInstance(NodeCachedDataCleaner, this.configuration.nodeCachedDataDir),
+			instantiationService.createInstance(CodeCacheCleaner, this.configuration.codeCachePath),
 			instantiationService.createInstance(LanguagePackCachedDataCleaner),
 			instantiationService.createInstance(StorageDataCleaner, this.configuration.backupWorkspacesPath),
 			instantiationService.createInstance(LogsDataCleaner),
@@ -209,12 +209,12 @@ class SharedProcessMain extends Disposable {
 		services.set(IExtensionRecommendationNotificationService, new ExtensionRecommendationNotificationServiceChannelClient(this.server.getChannel('extensionRecommendationNotification', activeWindowRouter)));
 
 		// Telemetry
-		const { appRoot, extensionsPath, extensionDevelopmentLocationURI, isBuilt, installSourcePath } = environmentService;
-
 		let telemetryService: ITelemetryService;
 		let telemetryAppender: ITelemetryAppender;
-		if (!extensionDevelopmentLocationURI && !environmentService.disableTelemetry && productService.enableTelemetry) {
+		if (!environmentService.isExtensionDevelopment && !environmentService.disableTelemetry && productService.enableTelemetry) {
 			telemetryAppender = new TelemetryLogAppender(loggerService, environmentService);
+
+			const { appRoot, extensionsPath, isBuilt, installSourcePath } = environmentService;
 
 			// Application Insights
 			if (productService.aiConfig && productService.aiConfig.asimovKey && isBuilt) {
@@ -225,7 +225,7 @@ class SharedProcessMain extends Disposable {
 
 			telemetryService = new TelemetryService({
 				appender: telemetryAppender,
-				commonProperties: resolveCommonProperties(fileService, release(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
+				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, this.configuration.machineId, productService.msftInternalDomains, installSourcePath),
 				sendErrorTelemetry: true,
 				piiPaths: [appRoot, extensionsPath]
 			}, configurationService);
@@ -272,7 +272,19 @@ class SharedProcessMain extends Disposable {
 		services.set(IUserDataSyncService, new SyncDescriptor(UserDataSyncService));
 
 		// Terminal
-		services.set(ILocalPtyService, this._register(new PtyHostService(logService)));
+		services.set(
+			ILocalPtyService,
+			this._register(
+				new PtyHostService({
+					GraceTime: LocalReconnectConstants.GraceTime,
+					ShortGraceTime: LocalReconnectConstants.ShortGraceTime
+				},
+					configurationService,
+					logService,
+					telemetryService
+				)
+			)
+		);
 
 		return new InstantiationService(services);
 	}

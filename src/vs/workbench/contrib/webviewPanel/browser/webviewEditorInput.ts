@@ -5,13 +5,22 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
-import { EditorInput, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
 
 export class WebviewInput extends EditorInput {
 
 	public static typeId = 'workbench.editors.webviewInput';
+
+	public override get typeId(): string {
+		return WebviewInput.typeId;
+	}
+
+	public override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
 
 	private _name: string;
 	private _iconPath?: WebviewIcons;
@@ -47,10 +56,6 @@ export class WebviewInput extends EditorInput {
 			}
 		}
 		super.dispose();
-	}
-
-	public getTypeId(): string {
-		return WebviewInput.typeId;
 	}
 
 	public override getName(): string {
@@ -97,10 +102,6 @@ export class WebviewInput extends EditorInput {
 
 	public updateGroup(group: GroupIdentifier): void {
 		this._group = group;
-	}
-
-	public override supportsSplitEditor() {
-		return false;
 	}
 
 	protected transfer(other: WebviewInput): WebviewInput | undefined {

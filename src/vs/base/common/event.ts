@@ -68,6 +68,7 @@ export namespace Event {
 	 * Given an event and a `filter` function, returns another event which emits those
 	 * elements for which the `filter` function returns `true`.
 	 */
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
@@ -130,48 +131,45 @@ export namespace Event {
 	 * @param merge The reducing function.
 	 * @param delay The debouncing delay in millis.
 	 * @param leading Whether the event should fire in the leading phase of the timeout.
-	 * @param leakWarningThreshold The leak warning threshold override.
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false): Event<O> {
 
-		let subscription: IDisposable;
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
 
-		const emitter = new Emitter<O>({
-			leakWarningThreshold,
-			onFirstListenerAdd() {
-				subscription = event(cur => {
-					numDebouncedCalls++;
-					output = merge(output, cur);
+		return (listener, thisArgs, disposables?) => {
 
-					if (leading && !handle) {
-						emitter.fire(output);
-						output = undefined;
+			const subscription = event(cur => {
+				numDebouncedCalls++;
+				output = merge(output, cur);
+
+				if (leading && !handle) {
+					listener.call(thisArgs, output);
+					output = undefined;
+				}
+
+				clearTimeout(handle);
+				handle = setTimeout(() => {
+					const _output = output;
+					output = undefined;
+					handle = undefined;
+					if (!leading || numDebouncedCalls > 1) {
+						listener.call(thisArgs, _output!);
 					}
 
-					clearTimeout(handle);
-					handle = setTimeout(() => {
-						const _output = output;
-						output = undefined;
-						handle = undefined;
-						if (!leading || numDebouncedCalls > 1) {
-							emitter.fire(_output!);
-						}
+					numDebouncedCalls = 0;
+				}, delay);
+			}, undefined, disposables);
 
-						numDebouncedCalls = 0;
-					}, delay);
-				});
-			},
-			onLastListenerRemove() {
-				subscription.dispose();
-			}
-		});
-
-		return emitter.event;
+			// unlisten from actual event and stop timeouts
+			return combinedDisposable(
+				subscription,
+				toDisposable(() => clearTimeout(handle))
+			);
+		};
 	}
 
 	/**
@@ -188,16 +186,27 @@ export namespace Event {
 	 * Given an event, it returns another event which fires only when the event
 	 * element changes.
 	 */
-	export function latch<T>(event: Event<T>): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
 		return filter(event, value => {
-			const shouldEmit = firstCall || value !== cache;
+			const shouldEmit = firstCall || !equals(value, cache);
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
 		});
+	}
+
+	/**
+	 * Given an event, it returns another event which fires only when the event
+	 * element changes.
+	 */
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+		return [
+			Event.filter(event, isT),
+			Event.filter(event, e => !isT(e)) as Event<U>,
+		];
 	}
 
 	/**
@@ -633,10 +642,13 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		this._listeners?.clear();
-		this._deliveryQueue?.clear();
-		this._leakageMon?.dispose();
-		this._disposed = true;
+		if (!this._disposed) {
+			this._disposed = true;
+			this._listeners?.clear();
+			this._deliveryQueue?.clear();
+			this._options?.onLastListenerRemove?.();
+			this._leakageMon?.dispose();
+		}
 	}
 }
 

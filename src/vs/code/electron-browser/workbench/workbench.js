@@ -32,20 +32,38 @@
 			return require('vs/workbench/electron-browser/desktop.main').main(configuration);
 		},
 		{
-			configureDeveloperKeybindings: function (windowConfig) {
+			configureDeveloperSettings: function (windowConfig) {
 				return {
-					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath),
+					// disable automated devtools opening on error when running extension tests
+					// as this can lead to undeterministic test exectuion (devtools steals focus)
+					forceDisableShowDevtoolsOnError: typeof windowConfig.extensionTestsPath === 'string',
+					// enable devtools keybindings in extension development window
+					forceEnableDeveloperKeybindings: Array.isArray(windowConfig.extensionDevelopmentPath) && windowConfig.extensionDevelopmentPath.length > 0,
 					removeDeveloperKeybindingsAfterLoad: true
 				};
 			},
 			canModifyDOM: function (windowConfig) {
-				showPartsSplash(windowConfig);
+				showSplash(windowConfig);
 			},
 			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
 			},
 			beforeRequire: function () {
 				performance.mark('code/willLoadWorkbenchMain');
+
+				// It looks like browsers only lazily enable
+				// the <canvas> element when needed. Since we
+				// leverage canvas elements in our code in many
+				// locations, we try to help the browser to
+				// initialize canvas when it is idle, right
+				// before we wait for the scripts to be loaded.
+				// @ts-ignore
+				window.requestIdleCallback(() => {
+					const canvas = document.createElement('canvas');
+					const context = canvas.getContext('2d');
+					context.clearRect(0, 0, canvas.width, canvas.height);
+					canvas.remove();
+				}, { timeout: 50 });
 			}
 		}
 	);
@@ -71,14 +89,20 @@
 
 	/**
 	 * @typedef {import('../../../platform/windows/common/windows').INativeWindowConfiguration} INativeWindowConfiguration
+	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
 	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: INativeWindowConfiguration) => unknown,
+	 *     resultCallback: (result, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
-	 *       configureDeveloperKeybindings?: (config: INativeWindowConfiguration & object) => {forceEnableDeveloperKeybindings?: boolean, disallowReloadKeybinding?: boolean, removeDeveloperKeybindingsAfterLoad?: boolean},
-	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & object) => void,
+	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
+	 * 			forceDisableShowDevtoolsOnError?: boolean,
+	 * 			forceEnableDeveloperKeybindings?: boolean,
+	 * 			disallowReloadKeybinding?: boolean,
+	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
+	 * 		 },
+	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void
 	 *     }
@@ -91,28 +115,15 @@
 	}
 
 	/**
-	 * @param {{
-	 *	partsSplashPath?: string,
-	 *	colorScheme: ('light' | 'dark' | 'hc'),
-	 *	autoDetectHighContrast?: boolean,
-	 *	extensionDevelopmentPath?: string[],
-	 *	workspace?: import('../../../platform/workspaces/common/workspaces').IWorkspaceIdentifier | import('../../../platform/workspaces/common/workspaces').ISingleFolderWorkspaceIdentifier
-	 * }} configuration
+	 * @param {INativeWindowConfiguration & NativeParsedArgs} configuration
 	 */
-	function showPartsSplash(configuration) {
+	function showSplash(configuration) {
 		performance.mark('code/willShowPartsSplash');
 
-		let data;
-		if (typeof configuration.partsSplashPath === 'string') {
-			try {
-				data = JSON.parse(require.__$__nodeRequire('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
-			} catch (e) {
-				// ignore
-			}
-		}
+		let data = configuration.partsSplash;
 
 		// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
-		const isHighContrast = configuration.colorScheme === 'hc' /* ColorScheme.HIGH_CONTRAST */ && configuration.autoDetectHighContrast;
+		const isHighContrast = configuration.colorScheme.highContrast && configuration.autoDetectHighContrast;
 		if (data && isHighContrast && data.baseTheme !== 'hc-black') {
 			data = undefined;
 		}
@@ -137,16 +148,18 @@
 			shellBackground = '#1E1E1E';
 			shellForeground = '#CCCCCC';
 		}
+
 		const style = document.createElement('style');
 		style.className = 'initialShellColors';
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
-		if (data && data.layoutInfo) {
-			// restore parts if possible (we might not always store layout info)
-			const { id, layoutInfo, colorInfo } = data;
+		// restore parts if possible (we might not always store layout info)
+		if (data?.layoutInfo) {
+			const { layoutInfo, colorInfo } = data;
+
 			const splash = document.createElement('div');
-			splash.id = id;
+			splash.id = 'monaco-parts-splash';
 			splash.className = baseTheme;
 
 			if (layoutInfo.windowBorder) {
@@ -175,8 +188,8 @@
 			splash.appendChild(activityDiv);
 
 			// part: side bar (only when opening workspace/folder)
+			// folder or workspace -> status bar color, sidebar
 			if (configuration.workspace) {
-				// folder or workspace -> status bar color, sidebar
 				const sideDiv = document.createElement('div');
 				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
 				splash.appendChild(sideDiv);

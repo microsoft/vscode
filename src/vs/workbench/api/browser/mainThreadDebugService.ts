@@ -329,7 +329,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 					type: session.configuration.type,
 					name: session.name,
 					folderUri: session.root ? session.root.uri : undefined,
-					configuration: session.configuration
+					configuration: session.configuration,
+					parent: session.parentSession?.getId(),
 				};
 			}
 		}

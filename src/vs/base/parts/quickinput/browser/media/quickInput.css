@@ -14,17 +14,13 @@
 
 .quick-input-titlebar {
 	display: flex;
+	align-items: center;
 }
 
 .quick-input-left-action-bar {
 	display: flex;
 	margin-left: 4px;
 	flex: 1;
-	height: 24px;
-}
-
-.quick-input-left-action-bar.monaco-action-bar .actions-container {
-	justify-content: flex-start;
 }
 
 .quick-input-title {
@@ -36,12 +32,16 @@
 	display: flex;
 	margin-right: 4px;
 	flex: 1;
-	height: 24px;
+}
+
+.quick-input-right-action-bar > .actions-container {
+	justify-content: flex-end;
 }
 
 .quick-input-titlebar .monaco-action-bar .action-label.codicon {
 	background-position: center;
 	background-repeat: no-repeat;
+	padding: 2px;
 }
 
 .quick-input-description {
@@ -170,7 +170,7 @@
 	border-top-style: solid;
 }
 
-.quick-input-list .monaco-list-row:first-child .quick-input-list-entry.quick-input-list-separator-border {
+.quick-input-list .monaco-list-row[data-index="0"] .quick-input-list-entry.quick-input-list-separator-border {
 	border-top-style: none;
 }
 
@@ -275,4 +275,13 @@
 .quick-input-list .quick-input-list-entry:hover .quick-input-list-entry-action-bar .action-label,
 .quick-input-list .monaco-list-row.focused .quick-input-list-entry-action-bar .action-label {
 	display: flex;
+}
+
+/* focused items in quick pick */
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key,
+.quick-input-list .monaco-list-row.focused .quick-input-list-entry .quick-input-list-separator {
+	color: inherit
+}
+.quick-input-list .monaco-list-row.focused .monaco-keybinding-key {
+	background: none;
 }

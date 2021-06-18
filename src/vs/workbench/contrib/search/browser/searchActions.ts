@@ -102,7 +102,7 @@ export class FocusNextInputAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -127,7 +127,7 @@ export class FocusPreviousInputAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -344,7 +344,7 @@ export class FocusNextSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -370,7 +370,7 @@ export class FocusPreviousSearchResultAction extends Action {
 		super(id, label);
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		const input = this.editorService.activeEditor;
 		if (input instanceof SearchEditorInput) {
 			// cast as we cannot import SearchEditor as a value b/c cyclic dependency.
@@ -461,6 +461,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+			this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 		}
 
 		this.element.parent().remove(<any>this.element);
@@ -498,6 +499,7 @@ export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
 		return this.fileMatch.parent().replace(this.fileMatch).then(() => {
 			if (nextFocusElement) {
 				tree.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				tree.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 
 			tree.domFocus();
@@ -521,6 +523,7 @@ export class ReplaceAllInFolderAction extends AbstractSearchAndReplaceAction {
 		return this.folderMatch.replaceAll().then(() => {
 			if (nextFocusElement) {
 				this.viewer.setFocus([nextFocusElement], getSelectionKeyboardEvent());
+				this.viewer.setSelection([nextFocusElement], getSelectionKeyboardEvent());
 			}
 			this.viewer.domFocus();
 		});
@@ -543,13 +546,14 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), ThemeIcon.asClassName(searchReplaceIcon));
 	}
 
-	async override run(): Promise<any> {
+	override async run(): Promise<any> {
 		this.enabled = false;
 
 		await this.element.parent().replace(this.element);
 		const elementToFocus = this.getElementToFocusAfterReplace();
 		if (elementToFocus) {
 			this.viewer.setFocus([elementToFocus], getSelectionKeyboardEvent());
+			this.viewer.setSelection([elementToFocus], getSelectionKeyboardEvent());
 		}
 
 		const elementToShowReplacePreview = this.getElementToShowReplacePreview(elementToFocus);

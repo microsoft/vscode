@@ -11,7 +11,6 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IContentDecorationRenderOptions, IDecorationRenderOptions, IThemeDecorationRenderOptions, isThemeColor } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IColorTheme, IThemeService, ThemeColor } from 'vs/platform/theme/common/themeService';
 
 export class RefCountedStyleSheet {
@@ -124,7 +123,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		this._editorStyleSheets.delete(editorId);
 	}
 
-	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
+	public registerDecorationType(description: string, key: string, options: IDecorationRenderOptions, parentTypeKey?: string, editor?: ICodeEditor): void {
 		let provider = this._decorationOptionProviders.get(key);
 		if (!provider) {
 			const styleSheet = this._getOrCreateStyleSheet(editor);
@@ -135,7 +134,7 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 				options: options || Object.create(null)
 			};
 			if (!parentTypeKey) {
-				provider = new DecorationTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
+				provider = new DecorationTypeOptionsProvider(description, this._themeService, styleSheet, providerArgs);
 			} else {
 				provider = new DecorationSubTypeOptionsProvider(this._themeService, styleSheet, providerArgs);
 			}
@@ -172,9 +171,6 @@ export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		}
 		return provider.resolveDecorationCSSRules();
 	}
-
-	abstract getActiveCodeEditor(): ICodeEditor | null;
-	abstract openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {
@@ -244,6 +240,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 	private readonly _styleSheet: GlobalStyleSheet | RefCountedStyleSheet;
 	public refCount: number;
 
+	public description: string;
 	public className: string | undefined;
 	public inlineClassName: string | undefined;
 	public inlineClassNameAffectsLetterSpacing: boolean | undefined;
@@ -254,7 +251,9 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 	public overviewRuler: IModelDecorationOverviewRulerOptions | undefined;
 	public stickiness: TrackedRangeStickiness | undefined;
 
-	constructor(themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+	constructor(description: string, themeService: IThemeService, styleSheet: GlobalStyleSheet | RefCountedStyleSheet, providerArgs: ProviderArguments) {
+		this.description = description;
+
 		this._styleSheet = styleSheet;
 		this._styleSheet.ref();
 		this.refCount = 0;
@@ -309,6 +308,7 @@ export class DecorationTypeOptionsProvider implements IModelDecorationOptionsPro
 			return this;
 		}
 		return {
+			description: this.description,
 			inlineClassName: this.inlineClassName,
 			beforeContentClassName: this.beforeContentClassName,
 			afterContentClassName: this.afterContentClassName,

@@ -47,7 +47,8 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 				if (self.isCanceled) {
 					done(null!, {
 						limitHit: false,
-						stats: stats
+						stats: stats,
+						messages: [],
 					});
 					return;
 				}
@@ -55,7 +56,8 @@ class TestSearchEngine implements ISearchEngine<IRawFileMatch> {
 				if (!result) {
 					done(null!, {
 						limitHit: false,
-						stats: stats
+						stats: stats,
+						messages: [],
 					});
 				} else {
 					onResult(result);

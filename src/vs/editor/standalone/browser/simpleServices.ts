@@ -39,7 +39,7 @@ import { ILabelService, ResourceLabelFormatter, IFormatterChangeEvent } from 'vs
 import { INotification, INotificationHandle, INotificationService, IPromptChoice, IPromptOptions, NoOpNotification, IStatusMessageOptions, NotificationsFilter } from 'vs/platform/notification/common/notification';
 import { IProgressRunner, IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { ITelemetryInfo, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, IWorkspaceFoldersWillChangeEvent, WorkbenchState, WorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { SimpleServicesNLS } from 'vs/editor/common/standaloneStrings';
@@ -613,6 +613,9 @@ export class SimpleWorkspaceContextService implements IWorkspaceContextService {
 	private readonly _onDidChangeWorkspaceName = new Emitter<void>();
 	public readonly onDidChangeWorkspaceName: Event<void> = this._onDidChangeWorkspaceName.event;
 
+	private readonly _onWillChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersWillChangeEvent>();
+	public readonly onWillChangeWorkspaceFolders: Event<IWorkspaceFoldersWillChangeEvent> = this._onWillChangeWorkspaceFolders.event;
+
 	private readonly _onDidChangeWorkspaceFolders = new Emitter<IWorkspaceFoldersChangeEvent>();
 	public readonly onDidChangeWorkspaceFolders: Event<IWorkspaceFoldersChangeEvent> = this._onDidChangeWorkspaceFolders.event;
 
@@ -764,6 +767,10 @@ export class SimpleUriLabelService implements ILabelService {
 
 	public getHostLabel(): string {
 		return '';
+	}
+
+	public getHostTooltip(): string | undefined {
+		return undefined;
 	}
 }
 

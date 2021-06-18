@@ -569,6 +569,7 @@ class ResourceLabelWidget extends IconLabel {
 
 				if (this.options.fileDecorations.badges) {
 					iconLabelOptions.extraClasses.push(deco.badgeClassName);
+					iconLabelOptions.extraClasses.push(deco.iconClassName);
 				}
 			}
 		}

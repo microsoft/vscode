@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import product from 'vs/platform/product/common/product';
 import { zoomLevelToZoomFactor } from 'vs/platform/windows/common/windows';
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
@@ -42,14 +43,12 @@ import { IKeyboardLayoutService } from 'vs/platform/keyboardLayout/common/keyboa
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { LoggerChannelClient, LogLevelChannelClient } from 'vs/platform/log/common/logIpc';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
-import product from 'vs/platform/product/common/product';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NativeLogService } from 'vs/workbench/services/log/electron-sandbox/logService';
+import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 
 export abstract class SharedDesktopMain extends Disposable {
-
-	private readonly productService: IProductService = { _serviceBrand: undefined, ...product };
-	private readonly environmentService = new NativeWorkbenchEnvironmentService(this.configuration, this.productService);
 
 	constructor(
 		protected readonly configuration: INativeWorkbenchConfiguration
@@ -117,8 +116,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		// Logging
 		services.logService.trace('workbench configuration', JSON.stringify(this.configuration));
 
-		// Allow subclass to participate
-		this.joinOpen(instantiationService);
+		// Driver
+		if (this.configuration.driver) {
+			instantiationService.invokeFunction(async accessor => this._register(await registerWindowDriver(accessor, this.configuration.windowId)));
+		}
 	}
 
 	private registerListeners(workbench: Workbench, storageService: NativeStorageService): void {
@@ -129,7 +130,6 @@ export abstract class SharedDesktopMain extends Disposable {
 	}
 
 	protected abstract registerFileSystemProviders(environmentService: INativeWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, nativeHostService: INativeHostService): void | Promise<void>;
-	protected joinOpen(instantiationService: IInstantiationService): void { }
 
 	private async initServices(): Promise<{ serviceCollection: ServiceCollection, logService: ILogService, storageService: NativeStorageService }> {
 		const serviceCollection = new ServiceCollection();
@@ -152,19 +152,21 @@ export abstract class SharedDesktopMain extends Disposable {
 		const mainProcessService = this._register(new ElectronIPCMainProcessService(this.configuration.windowId));
 		serviceCollection.set(IMainProcessService, mainProcessService);
 
-		// Environment
-		serviceCollection.set(INativeWorkbenchEnvironmentService, this.environmentService);
-
 		// Product
-		serviceCollection.set(IProductService, this.productService);
+		const productService: IProductService = { _serviceBrand: undefined, ...product };
+		serviceCollection.set(IProductService, productService);
+
+		// Environment
+		const environmentService = new NativeWorkbenchEnvironmentService(this.configuration, productService);
+		serviceCollection.set(INativeWorkbenchEnvironmentService, environmentService);
 
 		// Logger
 		const logLevelChannelClient = new LogLevelChannelClient(mainProcessService.getChannel('logLevel'));
-		const loggerService = new LoggerChannelClient(this.environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
+		const loggerService = new LoggerChannelClient(environmentService.configuration.logLevel, logLevelChannelClient.onDidChangeLogLevel, mainProcessService.getChannel('logger'));
 		serviceCollection.set(ILoggerService, loggerService);
 
 		// Log
-		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, this.environmentService.configuration.logLevel, loggerService, logLevelChannelClient, this.environmentService));
+		const logService = this._register(new NativeLogService(`renderer${this.configuration.windowId}`, environmentService.configuration.logLevel, loggerService, logLevelChannelClient, environmentService));
 		serviceCollection.set(ILogService, logService);
 
 		// Remote
@@ -190,7 +192,7 @@ export abstract class SharedDesktopMain extends Disposable {
 		serviceCollection.set(ISignService, signService);
 
 		// Remote Agent
-		const remoteAgentService = this._register(new RemoteAgentService(this.environmentService, this.productService, remoteAuthorityResolverService, signService, logService));
+		const remoteAgentService = this._register(new RemoteAgentService(environmentService, productService, remoteAuthorityResolverService, signService, logService));
 		serviceCollection.set(IRemoteAgentService, remoteAgentService);
 
 		// Native Host
@@ -201,12 +203,12 @@ export abstract class SharedDesktopMain extends Disposable {
 		const fileService = this._register(new FileService(logService));
 		serviceCollection.set(IFileService, fileService);
 
-		const result = this.registerFileSystemProviders(this.environmentService, fileService, logService, nativeHostService);
+		const result = this.registerFileSystemProviders(environmentService, fileService, logService, nativeHostService);
 		if (result instanceof Promise) {
 			await result;
 		}
 
-		// Uri Identity
+		// URI Identity
 		const uriIdentityService = new UriIdentityService(fileService);
 		serviceCollection.set(IUriIdentityService, uriIdentityService);
 
@@ -230,10 +232,10 @@ export abstract class SharedDesktopMain extends Disposable {
 			fileService.registerProvider(Schemas.vscodeRemote, remoteFileSystemProvider);
 		}
 
-		const payload = this.resolveWorkspaceInitializationPayload();
+		const payload = this.resolveWorkspaceInitializationPayload(environmentService);
 
-		const services = await Promise.all([
-			this.createWorkspaceService(payload, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
+		const [configurationService, storageService] = await Promise.all([
+			this.createWorkspaceService(payload, environmentService, fileService, remoteAgentService, uriIdentityService, logService).then(service => {
 
 				// Workspace
 				serviceCollection.set(IWorkspaceContextService, service);
@@ -244,7 +246,7 @@ export abstract class SharedDesktopMain extends Disposable {
 				return service;
 			}),
 
-			this.createStorageService(payload, mainProcessService).then(service => {
+			this.createStorageService(payload, environmentService, mainProcessService).then(service => {
 
 				// Storage
 				serviceCollection.set(IStorageService, service);
@@ -261,6 +263,13 @@ export abstract class SharedDesktopMain extends Disposable {
 			})
 		]);
 
+		// Workspace Trust Service
+		const workspaceTrustManagementService = new WorkspaceTrustManagementService(configurationService, storageService, uriIdentityService, environmentService, configurationService, remoteAuthorityResolverService);
+		serviceCollection.set(IWorkspaceTrustManagementService, workspaceTrustManagementService);
+
+		// Update workspace trust so that configuration is updated accordingly
+		configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+		this._register(workspaceTrustManagementService.onDidChangeTrust(() => configurationService.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted())));
 
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 		//
@@ -275,10 +284,10 @@ export abstract class SharedDesktopMain extends Disposable {
 		// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
 
-		return { serviceCollection, logService, storageService: services[1] };
+		return { serviceCollection, logService, storageService };
 	}
 
-	private resolveWorkspaceInitializationPayload(): IWorkspaceInitializationPayload {
+	private resolveWorkspaceInitializationPayload(environmentService: INativeWorkbenchEnvironmentService): IWorkspaceInitializationPayload {
 		let workspaceInitializationPayload: IWorkspaceInitializationPayload | undefined = this.configuration.workspace;
 
 		// Fallback to empty workspace if we have no payload yet.
@@ -286,7 +295,7 @@ export abstract class SharedDesktopMain extends Disposable {
 			let id: string;
 			if (this.configuration.backupPath) {
 				id = basename(this.configuration.backupPath); // we know the backupPath must be a unique path so we leverage its name as workspace ID
-			} else if (this.environmentService.isExtensionDevelopment) {
+			} else if (environmentService.isExtensionDevelopment) {
 				id = 'ext-dev'; // extension development window never stores backups and is a singleton
 			} else {
 				throw new Error('Unexpected window configuration without backupPath');
@@ -298,8 +307,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		return workspaceInitializationPayload;
 	}
 
-	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
-		const workspaceService = new WorkspaceService({ remoteAuthority: this.environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(this.environmentService.userDataPath), fileService) }, this.environmentService, fileService, remoteAgentService, uriIdentityService, logService);
+	private async createWorkspaceService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, fileService: FileService, remoteAgentService: IRemoteAgentService, uriIdentityService: IUriIdentityService, logService: ILogService): Promise<WorkspaceService> {
+		const workspaceService = new WorkspaceService({ remoteAuthority: environmentService.remoteAuthority, configurationCache: new ConfigurationCache(URI.file(environmentService.userDataPath), fileService) }, environmentService, fileService, remoteAgentService, uriIdentityService, logService);
 
 		try {
 			await workspaceService.initialize(payload);
@@ -312,8 +321,8 @@ export abstract class SharedDesktopMain extends Disposable {
 		}
 	}
 
-	private async createStorageService(payload: IWorkspaceInitializationPayload, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
-		const storageService = new NativeStorageService(payload, mainProcessService, this.environmentService);
+	private async createStorageService(payload: IWorkspaceInitializationPayload, environmentService: INativeWorkbenchEnvironmentService, mainProcessService: IMainProcessService): Promise<NativeStorageService> {
+		const storageService = new NativeStorageService(payload, mainProcessService, environmentService);
 
 		try {
 			await storageService.initialize();

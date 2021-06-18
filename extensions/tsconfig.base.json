@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "es2019",
+		"lib": [
+			"es2019"
+		],
+		"module": "commonjs",
+		"strict": true,
+		"strictOptionalProperties": false,
+		"useUnknownInCatchVariables": false,
+		"alwaysStrict": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noImplicitOverride": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"forceConsistentCasingInFileNames": true
+	}
+}

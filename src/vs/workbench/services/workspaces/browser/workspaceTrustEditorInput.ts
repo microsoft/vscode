@@ -6,27 +6,24 @@
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IWorkspaceTrustService } from 'vs/platform/workspace/common/workspaceTrust';
-import { EditorInput } from 'vs/workbench/common/editor';
-import { WorkspaceTrustEditorModel, WorkspaceTrustService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
+import { EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 export class WorkspaceTrustEditorInput extends EditorInput {
 	static readonly ID: string = 'workbench.input.workspaceTrust';
+
+	override get capabilities(): EditorInputCapabilities {
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+	}
+
+	override get typeId(): string {
+		return WorkspaceTrustEditorInput.ID;
+	}
 
 	readonly resource: URI = URI.from({
 		scheme: Schemas.vscodeWorkspaceTrust,
 		path: `workspaceTrustEditor`
 	});
-
-	constructor(
-		@IWorkspaceTrustService private readonly workspaceTrustService: WorkspaceTrustService
-	) {
-		super();
-	}
-
-	getTypeId(): string {
-		return WorkspaceTrustEditorInput.ID;
-	}
 
 	override matches(otherInput: unknown): boolean {
 		return otherInput instanceof WorkspaceTrustEditorInput;
@@ -34,9 +31,5 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 
 	override getName(): string {
 		return localize('workspaceTrustEditorInputName', "Workspace Trust");
-	}
-
-	async override resolve(): Promise<WorkspaceTrustEditorModel> {
-		return this.workspaceTrustService.workspaceTrustEditorModel;
 	}
 }

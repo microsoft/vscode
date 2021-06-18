@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
@@ -15,6 +16,7 @@ import { IMainThreadTestCollection, ITestService, waitForAllRoots } from 'vs/wor
 
 export interface ITestSubscriptionFolder {
 	folder: IWorkspaceFolder;
+	collection: IMainThreadTestCollection;
 	getChildren(): Iterable<IncrementalTestCollectionItem>;
 }
 
@@ -23,35 +25,56 @@ export interface ITestSubscriptionItem extends IncrementalTestCollectionItem {
 }
 
 export class TestSubscriptionListener extends Disposable {
-	private onDiffEmitter = new Emitter<[workspaceFolder: IWorkspaceFolder, diff: TestsDiff]>();
-	private onFolderChangeEmitter = new Emitter<IWorkspaceFoldersChangeEvent>();
+	public static override readonly None = new TestSubscriptionListener({
+		busyProviders: 0,
+		onBusyProvidersChange: Event.None,
+		pendingRootProviders: 0,
+		workspaceFolderCollections: new Map(),
+		onDiff: Event.None,
+		onFolderChange: Event.None,
+	}, () => undefined);
 
-	public readonly onDiff = this.onDiffEmitter.event;
-	public readonly onFolderChange = this.onFolderChangeEmitter.event;
+	public get busyProviders() {
+		return this.subscription.busyProviders;
+	}
 
-	public get workspaceFolders() {
-		return this.subscription.workspaceFolders;
+	public get pendingRootProviders() {
+		return this.subscription.pendingRootProviders;
+	}
+
+	/**
+	 * Returns whether there are any subscriptions with non-empty providers.
+	 */
+	public get isEmpty() {
+		for (const collection of this.workspaceFolderCollections.values()) {
+			if (Iterable.some(collection.all, t => !!t.parent)) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	public get workspaceFolderCollections() {
 		return this.subscription.workspaceFolderCollections;
 	}
 
-	constructor(public readonly subscription: TestSubscription, public readonly onDispose: () => void) {
+	public readonly onBusyProvidersChange = this.subscription.onBusyProvidersChange;
+	public readonly onFolderChange = this.subscription.onFolderChange;
+	public readonly onDiff = this.subscription.onDiff;
+
+	constructor(
+		private readonly subscription: TestSubscription,
+		onDispose: () => void,
+	) {
 		super();
 		this._register(toDisposable(onDispose));
 	}
 
 	public async waitForAllRoots(token?: CancellationToken) {
-		await Promise.all(this.subscription.workspaceFolderCollections.map(([, c]) => waitForAllRoots(c, token)));
-	}
-
-	public publishFolderChange(evt: IWorkspaceFoldersChangeEvent) {
-		this.onFolderChangeEmitter.fire(evt);
-	}
-
-	public publishDiff(folder: IWorkspaceFolder, diff: TestsDiff) {
-		this.onDiffEmitter.fire([folder, diff]);
+		await Promise.all([...this.subscription.workspaceFolderCollections.values()].map(
+			(c) => waitForAllRoots(c, token),
+		));
 	}
 }
 
@@ -70,6 +93,13 @@ export interface IWorkspaceTestCollectionService {
 	 * Adds a listener that receives updates about tests.
 	 */
 	subscribeToWorkspaceTests(): TestSubscriptionListener;
+
+	/**
+	 * A pass-through method that creates a subscription listener for a document.
+	 * Useful if you need the same TestSubscriptionListener shape, but otherwise
+	 * you can `ITestService.subscribeToDiffs` directly.
+	 */
+	subscribeToDocumentTests(documentUri: URI): TestSubscriptionListener;
 }
 
 export const IWorkspaceTestCollectionService = createDecorator<IWorkspaceTestCollectionService>('ITestingViewService');
@@ -77,20 +107,24 @@ export const IWorkspaceTestCollectionService = createDecorator<IWorkspaceTestCol
 export class WorkspaceTestCollectionService implements IWorkspaceTestCollectionService {
 	declare _serviceBrand: undefined;
 
-	private subscription?: TestSubscription;
+	private subscription?: WorkspaceTestSubscription;
 
 	public workspaceFolders() {
 		return this.subscription?.workspaceFolders || [];
 	}
 
-	constructor(@IInstantiationService protected instantiationService: IInstantiationService) { }
+	constructor(
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IWorkspaceContextService protected workspaceContext: IWorkspaceContextService,
+		@ITestService protected testService: ITestService,
+	) { }
 
 	/**
 	 * @inheritdoc
 	 */
 	public subscribeToWorkspaceTests(): TestSubscriptionListener {
 		if (!this.subscription) {
-			this.subscription = this.instantiationService.createInstance(TestSubscription);
+			this.subscription = this.instantiationService.createInstance(WorkspaceTestSubscription);
 		}
 
 		const listener = new TestSubscriptionListener(this.subscription, () => {
@@ -108,13 +142,58 @@ export class WorkspaceTestCollectionService implements IWorkspaceTestCollectionS
 		this.subscription.addListener(listener);
 		return listener;
 	}
+
+	/**
+	 * @inheritdoc
+	 */
+	public subscribeToDocumentTests(documentUri: URI): TestSubscriptionListener {
+		const folder = this.workspaceContext.getWorkspaceFolder(documentUri)
+			|| this.workspaceContext.getWorkspace().folders[0];
+		if (!folder) {
+			return TestSubscriptionListener.None;
+		}
+
+		const subFolder: ITestSubscriptionFolder = {
+			folder,
+			get collection() {
+				return sub.object;
+			},
+			getChildren: () => sub.object.all,
+		};
+
+		const store = new DisposableStore();
+		const diffEmitter = store.add(new Emitter<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>());
+		const onDiff = (diff: TestsDiff) => diffEmitter.fire({ diff, folder: subFolder });
+		const sub = store.add(this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, documentUri, onDiff));
+
+		return new TestSubscriptionListener({
+			get busyProviders() { return sub.object.busyProviders; },
+			onBusyProvidersChange: sub.object.onBusyProvidersChange,
+			get pendingRootProviders() { return sub.object.pendingRootProviders; },
+			workspaceFolderCollections: new Map([[subFolder, sub.object]]),
+			onDiff: diffEmitter.event,
+			onFolderChange: Event.None,
+		}, () => store.dispose());
+	}
 }
 
 
-class TestSubscription extends Disposable {
+export interface TestSubscription {
+	readonly onBusyProvidersChange: Event<number>;
+	readonly busyProviders: number;
+	readonly pendingRootProviders: number;
+	readonly workspaceFolderCollections: Map<ITestSubscriptionFolder, IMainThreadTestCollection>;
+	readonly onFolderChange: Event<IWorkspaceFoldersChangeEvent>;
+	readonly onDiff: Event<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>;
+}
+
+class WorkspaceTestSubscription extends Disposable implements TestSubscription {
+	private onDiffEmitter = this._register(new Emitter<{ folder: ITestSubscriptionFolder, diff: TestsDiff }>());
+	private onFolderChangeEmitter = this._register(new Emitter<IWorkspaceFoldersChangeEvent>());
+
 	private listeners = new Set<TestSubscriptionListener>();
-	private pendingRootChangeEmitter = new Emitter<number>();
-	private busyProvidersChangeEmitter = new Emitter<number>();
+	private pendingRootChangeEmitter = this._register(new Emitter<number>());
+	private busyProvidersChangeEmitter = this._register(new Emitter<number>());
 	private readonly collectionsForWorkspaces = new Map<string, {
 		listener: IDisposable,
 		folder: ITestSubscriptionFolder,
@@ -123,6 +202,8 @@ class TestSubscription extends Disposable {
 
 	public readonly onPendingRootProvidersChange = this.pendingRootChangeEmitter.event;
 	public readonly onBusyProvidersChange = this.busyProvidersChangeEmitter.event;
+	public readonly onDiff = this.onDiffEmitter.event;
+	public readonly onFolderChange = this.onFolderChangeEmitter.event;
 
 	public get busyProviders() {
 		let total = 0;
@@ -151,20 +232,7 @@ class TestSubscription extends Disposable {
 	}
 
 	public get workspaceFolderCollections() {
-		return [...this.collectionsForWorkspaces.values()].map(v => [v.folder, v.collection] as const);
-	}
-
-	/**
-	 * Returns whether there are any subscriptions with non-empty providers.
-	 */
-	public get isEmpty() {
-		for (const { collection } of this.collectionsForWorkspaces.values()) {
-			if (Iterable.some(collection.all, t => !!t.parent)) {
-				return false;
-			}
-		}
-
-		return true;
+		return new Map([...this.collectionsForWorkspaces.values()].map(v => [v.folder, v.collection] as const));
 	}
 
 	constructor(
@@ -192,9 +260,7 @@ class TestSubscription extends Disposable {
 				}
 			}
 
-			for (const listener of this.listeners) {
-				listener.publishFolderChange(evt);
-			}
+			this.onFolderChangeEmitter.fire(evt);
 		}));
 
 		for (const folder of workspaceContext.getWorkspace().folders) {
@@ -213,6 +279,9 @@ class TestSubscription extends Disposable {
 	private subscribeToWorkspace(folder: IWorkspaceFolder) {
 		const folderNode: ITestSubscriptionFolder = {
 			folder,
+			get collection() {
+				return ref.object;
+			},
 			getChildren: function* () {
 				for (const rootId of ref.object.rootIds) {
 					const node = ref.object.getNodeById(rootId);
@@ -226,11 +295,7 @@ class TestSubscription extends Disposable {
 		const ref = this.testService.subscribeToDiffs(
 			ExtHostTestingResource.Workspace,
 			folder.uri,
-			diff => {
-				for (const listener of this.listeners) {
-					listener.publishDiff(folder, diff);
-				}
-			},
+			diff => this.onDiffEmitter.fire({ folder: folderNode, diff }),
 		);
 
 		const disposable = new DisposableStore();

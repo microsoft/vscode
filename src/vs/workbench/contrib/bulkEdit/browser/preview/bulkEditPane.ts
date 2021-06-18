@@ -245,7 +245,7 @@ export class BulkEditPane extends ViewPane {
 			message = localize('conflict.N', "Cannot apply refactoring because {0} other files have changed in the meantime.", conflicts.length);
 		}
 
-		this._dialogService.show(Severity.Warning, message, []).finally(() => this._done(false));
+		this._dialogService.show(Severity.Warning, message).finally(() => this._done(false));
 	}
 
 	discard() {
@@ -353,8 +353,8 @@ export class BulkEditPane extends ViewPane {
 			}
 
 			this._editorService.openEditor({
-				leftResource,
-				rightResource: previewUri,
+				originalInput: { resource: leftResource },
+				modifiedInput: { resource: previewUri },
 				label,
 				description: this._labelService.getUriLabel(dirname(leftResource), { relative: true }),
 				options

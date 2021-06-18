@@ -132,7 +132,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-haspopup', 'false');
 		this.textArea.setAttribute('aria-autocomplete', 'both');
 
-		if (options.get(EditorOption.domReadOnly)) {
+		if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
 			this.textArea.setAttribute('readonly', 'true');
 		}
 
@@ -440,8 +440,8 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('aria-label', this._getAriaLabel(options));
 		this.textArea.setAttribute('tabindex', String(options.get(EditorOption.tabIndex)));
 
-		if (e.hasChanged(EditorOption.domReadOnly)) {
-			if (options.get(EditorOption.domReadOnly)) {
+		if (e.hasChanged(EditorOption.domReadOnly) || e.hasChanged(EditorOption.readOnly)) {
+			if (options.get(EditorOption.domReadOnly) && options.get(EditorOption.readOnly)) {
 				this.textArea.setAttribute('readonly', 'true');
 			} else {
 				this.textArea.removeAttribute('readonly');

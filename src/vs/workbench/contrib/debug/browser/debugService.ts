@@ -48,6 +48,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { AdapterManager } from 'vs/workbench/contrib/debug/browser/debugAdapterManager';
 import { ITextModel } from 'vs/editor/common/model';
 import { DEBUG_CONFIGURE_COMMAND_ID, DEBUG_CONFIGURE_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class DebugService implements IDebugService {
 	declare readonly _serviceBrand: undefined;
@@ -93,7 +94,8 @@ export class DebugService implements IDebugService {
 		@IExtensionHostDebugService private readonly extensionHostDebugService: IExtensionHostDebugService,
 		@IActivityService private readonly activityService: IActivityService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IQuickInputService private readonly quickInputService: IQuickInputService
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		this.toDispose = [];
 
@@ -273,14 +275,17 @@ export class DebugService implements IDebugService {
 	 * properly manages compounds, checks for errors and handles the initializing state.
 	 */
 	async startDebugging(launch: ILaunch | undefined, configOrName?: IConfig | string, options?: IDebugSessionOptions): Promise<boolean> {
-
+		const message = options && options.noDebug ? nls.localize('runTrust', "Running executes build tasks and program code from your workspace.") : nls.localize('debugTrust', "Debugging executes build tasks and program code from your workspace.");
+		const trust = await this.workspaceTrustRequestService.requestWorkspaceTrust({ message });
+		if (!trust) {
+			return false;
+		}
 		this.startInitializingState();
 		try {
 			// make sure to save all files and that the configuration is up to date
 			await this.extensionService.activateByEvent('onDebug');
 			if (!options?.parentSession) {
-				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart');
-
+				const saveBeforeStartConfig: string = this.configurationService.getValue('debug.saveBeforeStart', { overrideIdentifier: this.editorService.activeTextEditorMode });
 				if (saveBeforeStartConfig !== 'none') {
 					await this.editorService.saveAll();
 					if (saveBeforeStartConfig === 'allEditorsInActiveGroup') {
@@ -397,7 +402,7 @@ export class DebugService implements IDebugService {
 		const unresolvedConfig = deepClone(config);
 
 		if (!type) {
-			const guess = await this.adapterManager.guessDebugger();
+			const guess = await this.adapterManager.guessDebugger(false);
 			if (guess) {
 				type = guess.type;
 			}
@@ -455,7 +460,7 @@ export class DebugService implements IDebugService {
 						nls.localize({ key: 'installAdditionalDebuggers', comment: ['Placeholder is the debug type, so for example "node", "python"'] }, "Install {0} Extension", resolvedConfig.type),
 						undefined,
 						true,
-						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers')
+						async () => this.commandService.executeCommand('debug.installAdditionalDebuggers', resolvedConfig?.type)
 					));
 
 					await this.showError(message, actionList);
@@ -665,6 +670,39 @@ export class DebugService implements IDebugService {
 			return;
 		}
 
+		// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
+		let needsToSubstitute = false;
+		let unresolved: IConfig | undefined;
+		const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
+		if (launch) {
+			unresolved = launch.getConfiguration(session.configuration.name);
+			if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
+				// Take the type from the session since the debug extension might overwrite it #21316
+				unresolved.type = session.configuration.type;
+				unresolved.noDebug = session.configuration.noDebug;
+				needsToSubstitute = true;
+			}
+		}
+
+		let resolved: IConfig | undefined | null = session.configuration;
+		if (launch && needsToSubstitute && unresolved) {
+			const initCancellationToken = new CancellationTokenSource();
+			this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
+			const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
+			if (resolvedByProviders) {
+				resolved = await this.substituteVariables(launch, resolvedByProviders);
+				if (resolved && !initCancellationToken.token.isCancellationRequested) {
+					resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
+				}
+			} else {
+				resolved = resolvedByProviders;
+			}
+		}
+		if (resolved) {
+			session.setConfiguration({ resolved, unresolved });
+		}
+		session.configuration.__restart = restartData;
+
 		if (session.capabilities.supportsRestartRequest) {
 			const taskResult = await runTasks();
 			if (taskResult === TaskRunResult.Success) {
@@ -689,41 +727,9 @@ export class DebugService implements IDebugService {
 					return;
 				}
 
-				// Read the configuration again if a launch.json has been changed, if not just use the inmemory configuration
-				let needsToSubstitute = false;
-				let unresolved: IConfig | undefined;
-				const launch = session.root ? this.configurationManager.getLaunch(session.root.uri) : undefined;
-				if (launch) {
-					unresolved = launch.getConfiguration(session.configuration.name);
-					if (unresolved && !equals(unresolved, session.unresolvedConfiguration)) {
-						// Take the type from the session since the debug extension might overwrite it #21316
-						unresolved.type = session.configuration.type;
-						unresolved.noDebug = session.configuration.noDebug;
-						needsToSubstitute = true;
-					}
-				}
-
-				let resolved: IConfig | undefined | null = session.configuration;
-				if (launch && needsToSubstitute && unresolved) {
-					const initCancellationToken = new CancellationTokenSource();
-					this.sessionCancellationTokens.set(session.getId(), initCancellationToken);
-					const resolvedByProviders = await this.configurationManager.resolveConfigurationByProviders(launch.workspace ? launch.workspace.uri : undefined, unresolved.type, unresolved, initCancellationToken.token);
-					if (resolvedByProviders) {
-						resolved = await this.substituteVariables(launch, resolvedByProviders);
-						if (resolved && !initCancellationToken.token.isCancellationRequested) {
-							resolved = await this.configurationManager.resolveDebugConfigurationWithSubstitutedVariables(launch && launch.workspace ? launch.workspace.uri : undefined, unresolved.type, resolved, initCancellationToken.token);
-						}
-					} else {
-						resolved = resolvedByProviders;
-					}
-				}
-
 				if (!resolved) {
 					return c(undefined);
 				}
-
-				session.setConfiguration({ resolved, unresolved });
-				session.configuration.__restart = restartData;
 
 				try {
 					await this.launchOrAttachToSession(session, shouldFocus);

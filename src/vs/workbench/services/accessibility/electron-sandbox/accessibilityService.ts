@@ -26,8 +26,6 @@ type AccessibilityMetricsClassification = {
 
 export class NativeAccessibilityService extends AccessibilityService implements IAccessibilityService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private didSendTelemetry = false;
 	private shouldAlwaysUnderlineAccessKeys: boolean | undefined = undefined;
 
@@ -42,7 +40,7 @@ export class NativeAccessibilityService extends AccessibilityService implements 
 		this.setAccessibilitySupport(environmentService.configuration.accessibilitySupport ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 	}
 
-	async override alwaysUnderlineAccessKeys(): Promise<boolean> {
+	override async alwaysUnderlineAccessKeys(): Promise<boolean> {
 		if (!isWindows) {
 			return false;
 		}

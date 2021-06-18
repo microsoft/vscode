@@ -101,6 +101,7 @@ export default class MergeConflictCodeLensProvider implements vscode.CodeLensPro
 	private registerCodeLensProvider() {
 		this.codeLensRegistrationHandle = vscode.languages.registerCodeLensProvider([
 			{ scheme: 'file' },
+			{ scheme: 'vscode-vfs' },
 			{ scheme: 'untitled' },
 			{ scheme: 'vscode-userdata' },
 		], this);

@@ -19,6 +19,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 // ActiveEditorContext.isEqualTo(SearchEditorConstants.SearchEditorID)
 
@@ -44,14 +45,17 @@ registerAction2(class extends Action2 {
 		const activeEditor = editorService.activeEditorPane;
 		if (activeEditor && activeEditor instanceof NotebookTextDiffEditor) {
 			const diffEditorInput = activeEditor.input as NotebookDiffEditorInput;
-			const leftResource = diffEditorInput.originalResource;
-			const rightResource = diffEditorInput.resource;
-			const options = {
-				preserveFocus: false
-			};
 
-			const label = diffEditorInput.textDiffName;
-			await editorService.openEditor({ leftResource, rightResource, label, options }, viewColumnToEditorGroup(editorGroupService, undefined));
+			await editorService.openEditor(
+				{
+					originalInput: { resource: diffEditorInput.originalInput.resource },
+					modifiedInput: { resource: diffEditorInput.resource },
+					label: diffEditorInput.getName(),
+					options: {
+						preserveFocus: false,
+						override: EditorOverride.DISABLED
+					}
+				}, viewColumnToEditorGroup(editorGroupService, undefined));
 		}
 	}
 });
@@ -72,7 +76,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -127,7 +131,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -152,7 +156,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}
@@ -164,7 +168,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		modified.textModel.spliceNotebookCellOutputs([[0, modified.outputs.length, original.outputs]]);
+		modified.textModel.spliceNotebookCellOutputs({ start: 0, deleteCount: modified.outputs.length, newOutputs: original.outputs });
 	}
 });
 
@@ -186,7 +190,7 @@ registerAction2(class extends Action2 {
 			}
 		);
 	}
-	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase }) {
+	run(accessor: ServicesAccessor, context?: { cell: DiffElementViewModelBase; }) {
 		if (!context) {
 			return;
 		}

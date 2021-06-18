@@ -118,10 +118,6 @@ export abstract class Composite extends Component implements IComposite {
 		this.parent = parent;
 	}
 
-	override updateStyles(): void {
-		super.updateStyles();
-	}
-
 	/**
 	 * Returns the container this composite is being build in.
 	 */
@@ -159,9 +155,16 @@ export abstract class Composite extends Component implements IComposite {
 	abstract layout(dimension: Dimension): void;
 
 	/**
+	 * Update the styles of the contents of this composite.
+	 */
+	override updateStyles(): void {
+		super.updateStyles();
+	}
+
+	/**
 	 * Returns an array of actions to show in the action bar of the composite.
 	 */
-	getActions(): ReadonlyArray<IAction> {
+	getActions(): readonly IAction[] {
 		return [];
 	}
 
@@ -169,14 +172,14 @@ export abstract class Composite extends Component implements IComposite {
 	 * Returns an array of actions to show in the action bar of the composite
 	 * in a less prominent way then action from getActions.
 	 */
-	getSecondaryActions(): ReadonlyArray<IAction> {
+	getSecondaryActions(): readonly IAction[] {
 		return [];
 	}
 
 	/**
 	 * Returns an array of actions to show in the context menu of the composite
 	 */
-	getContextMenuActions(): ReadonlyArray<IAction> {
+	getContextMenuActions(): readonly IAction[] {
 		return [];
 	}
 

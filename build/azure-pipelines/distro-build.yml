@@ -8,13 +8,14 @@ pr:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.18.3"
+      versionSpec: "14.x"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password'
 
   - script: |
       set -e

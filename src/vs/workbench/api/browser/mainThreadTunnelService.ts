@@ -8,14 +8,16 @@ import { MainThreadTunnelServiceShape, IExtHostContext, MainContext, ExtHostCont
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { CandidatePort, IRemoteExplorerService, makeAddress, PORT_AUTO_FORWARD_SETTING, PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, PORT_AUTO_SOURCE_SETTING_PROCESS } from 'vs/workbench/services/remote/common/remoteExplorerService';
-import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider } from 'vs/platform/remote/common/tunnel';
+import { ITunnelProvider, ITunnelService, TunnelCreationOptions, TunnelProviderFeatures, TunnelOptions, RemoteTunnel, isPortPrivileged, ProvidedPortAttributes, PortAttributesProvider, TunnelProtocol } from 'vs/platform/remote/common/tunnel';
 import { Disposable } from 'vs/base/common/lifecycle';
 import type { TunnelDescription } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
@@ -39,7 +41,8 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	private processFindingEnabled(): boolean {
-		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) && (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
+		return (!!this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING) || this.tunnelService.hasTunnelProvider)
+			&& (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 	}
 
 	async $setRemoteTunnelService(processId: number): Promise<void> {
@@ -53,6 +56,9 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING) || e.affectsConfiguration(PORT_AUTO_SOURCE_SETTING)) {
 				return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 			}
+		}));
+		this._register(this.tunnelService.onAddedTunnelProvider(() => {
+			return this._proxy.$registerCandidateFinder(this.processFindingEnabled());
 		}));
 	}
 
@@ -153,6 +159,7 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 						localAddress: typeof tunnel.localAddress === 'string' ? tunnel.localAddress : makeAddress(tunnel.localAddress.host, tunnel.localAddress.port),
 						tunnelLocalPort: typeof tunnel.localAddress !== 'string' ? tunnel.localAddress.port : undefined,
 						public: tunnel.public,
+						protocol: tunnel.protocol ?? TunnelProtocol.Http,
 						dispose: async (silent?: boolean) => {
 							this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) Closing tunnel from tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
 							return this._proxy.$closeTunnel({ host: tunnel.remoteAddress.host, port: tunnel.remoteAddress.port }, silent);
@@ -175,19 +182,13 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		this.remoteAgentService.getEnvironment().then(() => {
 			switch (source) {
 				case CandidatePortSource.None: {
-					const autoDetectionEnablement = this.configurationService.inspect(PORT_AUTO_FORWARD_SETTING);
-					if (autoDetectionEnablement.userRemote === undefined) {
-						// Only update the remote setting if the user hasn't already set it.
-						this.configurationService.updateValue(PORT_AUTO_FORWARD_SETTING, false, ConfigurationTarget.USER_REMOTE);
-					}
+					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+						.registerDefaultConfigurations([{ 'remote.autoForwardPorts': false }]);
 					break;
 				}
 				case CandidatePortSource.Output: {
-					const candidatePortSourceSetting = this.configurationService.inspect(PORT_AUTO_SOURCE_SETTING);
-					if (candidatePortSourceSetting.userRemote === undefined) {
-						// Only update the remote setting if the user hasn't already set it.
-						this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_OUTPUT, ConfigurationTarget.USER_REMOTE);
-					}
+					Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
+						.registerDefaultConfigurations([{ 'remote.autoForwardPortsSource': PORT_AUTO_SOURCE_SETTING_OUTPUT }]);
 					break;
 				}
 				default: // Do nothing, the defaults for these settings should be used.
@@ -195,9 +196,5 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		}).catch(() => {
 			// The remote failed to get setup. Errors from that area will already be surfaced to the user.
 		});
-	}
-
-	dispose(): void {
-
 	}
 }

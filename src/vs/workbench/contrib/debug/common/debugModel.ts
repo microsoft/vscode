@@ -229,7 +229,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 		namedVariables: number | undefined,
 		indexedVariables: number | undefined,
 		public presentationHint: DebugProtocol.VariablePresentationHint | undefined,
-		public type: string | undefined = undefined,
+		type: string | undefined = undefined,
 		public variableMenuContext: string | undefined = undefined,
 		public available = true,
 		startOfVariables = 0,
@@ -237,6 +237,7 @@ export class Variable extends ExpressionContainer implements IExpression {
 	) {
 		super(session, threadId, reference, `variable:${parent.getId()}:${name}:${idDuplicationIndex}`, namedVariables, indexedVariables, startOfVariables);
 		this.value = value || '';
+		this.type = type;
 	}
 
 	async setVariable(value: string): Promise<any> {
@@ -873,21 +874,21 @@ export class DataBreakpoint extends BaseBreakpoint implements IDataBreakpoint {
 	}
 }
 
-export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
+export class ExceptionBreakpoint extends BaseBreakpoint implements IExceptionBreakpoint {
 
 	constructor(
 		public filter: string,
 		public label: string,
 		enabled: boolean,
 		public supportsCondition: boolean,
-		public condition: string | undefined,
+		condition: string | undefined,
 		public description: string | undefined,
 		public conditionDescription: string | undefined
 	) {
-		super(enabled, generateUuid());
+		super(enabled, undefined, condition, undefined, generateUuid());
 	}
 
-	toJSON(): any {
+	override toJSON(): any {
 		const result = Object.create(null);
 		result.filter = this.filter;
 		result.label = this.label;
@@ -896,6 +897,10 @@ export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpo
 		result.condition = this.condition;
 
 		return result;
+	}
+
+	get supported(): boolean {
+		return true;
 	}
 
 	override toString(): string {
@@ -1179,6 +1184,16 @@ export class DebugModel implements IDebugModel {
 				const dbpData = data.get(dbp.getId());
 				if (dbpData) {
 					dbp.setSessionData(sessionId, toBreakpointSessionData(dbpData, capabilites));
+				}
+			}
+		});
+		this.exceptionBreakpoints.forEach(ebp => {
+			if (!data) {
+				ebp.setSessionData(sessionId, undefined);
+			} else {
+				const ebpData = data.get(ebp.getId());
+				if (ebpData) {
+					ebp.setSessionData(sessionId, toBreakpointSessionData(ebpData, capabilites));
 				}
 			}
 		});

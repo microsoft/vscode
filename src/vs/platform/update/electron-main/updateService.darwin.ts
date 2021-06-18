@@ -19,8 +19,6 @@ import { IProductService } from 'vs/platform/product/common/productService';
 
 export class DarwinUpdateService extends AbstractUpdateService {
 
-	declare readonly _serviceBrand: undefined;
-
 	private readonly disposables = new DisposableStore();
 
 	@memoize private get onRawError(): Event<string> { return Event.fromNodeEventEmitter(electron.autoUpdater, 'error', (_, message) => message); }
@@ -52,7 +50,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		this.logService.error('UpdateService error:', err);
 
 		// only show message when explicitly checking for updates
-		const shouldShowMessage = this.state.type === StateType.CheckingForUpdates ? !!this.state.context : true;
+		const shouldShowMessage = this.state.type === StateType.CheckingForUpdates ? this.state.explicit : true;
 		const message: string | undefined = shouldShowMessage ? err : undefined;
 		this.setState(State.Idle(UpdateType.Archive, message));
 	}
@@ -105,7 +103,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;
 		}
-		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: !!this.state.context });
+		this.telemetryService.publicLog2<{ explicit: boolean }, UpdateNotAvailableClassification>('update:notAvailable', { explicit: this.state.explicit });
 
 		this.setState(State.Idle(UpdateType.Archive));
 	}

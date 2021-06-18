@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MarkedString, CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
+import { CompletionItemKind, CompletionItem, DocumentSelector, SnippetString, workspace, MarkdownString, Uri } from 'vscode';
 import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
@@ -32,7 +32,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
-	public constructor(private xhr: XHRRequest, private canRunNPM: boolean) {
+	public constructor(private xhr: XHRRequest, private npmCommandPath: string | undefined) {
 	}
 
 	public collectDefaultSuggestions(_resource: Uri, result: ISuggestionsCollector): Thenable<any> {
@@ -52,7 +52,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private isEnabled() {
-		return this.canRunNPM || this.onlineEnabled();
+		return this.npmCommandPath || this.onlineEnabled();
 	}
 
 	private onlineEnabled() {
@@ -268,8 +268,8 @@ export class PackageJSONContribution implements IJSONContribution {
 			return undefined; // avoid unnecessary lookups
 		}
 		let info: ViewPackageInfo | undefined;
-		if (this.canRunNPM) {
-			info = await this.npmView(pack, resource);
+		if (this.npmCommandPath) {
+			info = await this.npmView(this.npmCommandPath, pack, resource);
 		}
 		if (!info && this.onlineEnabled()) {
 			info = await this.npmjsView(pack);
@@ -277,11 +277,11 @@ export class PackageJSONContribution implements IJSONContribution {
 		return info;
 	}
 
-	private npmView(pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
 		return new Promise((resolve, _reject) => {
 			const args = ['view', '--json', pack, 'description', 'dist-tags.latest', 'homepage', 'version'];
 			let cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-			cp.execFile(process.platform === 'win32' ? 'npm.cmd' : 'npm', args, { cwd }, (error, stdout) => {
+			cp.execFile(npmCommandPath, args, { cwd }, (error, stdout) => {
 				if (!error) {
 					try {
 						const content = JSON.parse(stdout);
@@ -320,7 +320,7 @@ export class PackageJSONContribution implements IJSONContribution {
 		return undefined;
 	}
 
-	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkedString[] | null> | null {
+	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
 		if (!this.isEnabled()) {
 			return null;
 		}

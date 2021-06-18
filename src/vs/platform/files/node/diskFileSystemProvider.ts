@@ -3,14 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { open, close, read, write, fdatasync, Stats, promises } from 'fs';
-import { promisify } from 'util';
+import { Stats } from 'fs';
 import { IDisposable, Disposable, toDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, FileSystemProviderErrorCode, createFileSystemProviderError, FileSystemProviderError, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, FileReadStreamOptions, IFileSystemProviderWithFileFolderCopyCapability, isFileOpenForWriteOptions } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { isLinux, isWindows } from 'vs/base/common/platform';
-import { SymlinkSupport, move, copy, rimraf, RimRafMode, exists, readdir, IDirent } from 'vs/base/node/pfs';
+import { SymlinkSupport, RimRafMode, IDirent, Promises } from 'vs/base/node/pfs';
 import { normalize, basename, dirname } from 'vs/base/common/path';
 import { joinPath } from 'vs/base/common/resources';
 import { isEqual } from 'vs/base/common/extpath';
@@ -47,7 +46,7 @@ export class DiskFileSystemProvider extends Disposable implements
 	private readonly BUFFER_SIZE = this.options?.bufferSize || 64 * 1024;
 
 	constructor(
-		private readonly logService: ILogService,
+		protected readonly logService: ILogService,
 		private readonly options?: IDiskFileSystemProviderOptions
 	) {
 		super();
@@ -96,7 +95,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async readdir(resource: URI): Promise<[string, FileType][]> {
 		try {
-			const children = await readdir(this.toFilePath(resource), { withFileTypes: true });
+			const children = await Promises.readdir(this.toFilePath(resource), { withFileTypes: true });
 
 			const result: [string, FileType][] = [];
 			await Promise.all(children.map(async child => {
@@ -152,7 +151,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		try {
 			const filePath = this.toFilePath(resource);
 
-			return await promises.readFile(filePath);
+			return await Promises.readFile(filePath);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -176,7 +175,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 			// Validate target unless { create: true, overwrite: true }
 			if (!opts.create || !opts.overwrite) {
-				const fileExists = await exists(filePath);
+				const fileExists = await Promises.exists(filePath);
 				if (fileExists) {
 					if (!opts.overwrite) {
 						throw createFileSystemProviderError(localize('fileExists', "File already exists"), FileSystemProviderErrorCode.FileExists);
@@ -216,7 +215,7 @@ export class DiskFileSystemProvider extends Disposable implements
 				try {
 					const { stat } = await SymlinkSupport.stat(filePath);
 					if (!(stat.mode & 0o200 /* File mode indicating writable by owner */)) {
-						await promises.chmod(filePath, stat.mode | 0o200);
+						await Promises.chmod(filePath, stat.mode | 0o200);
 					}
 				} catch (error) {
 					this.logService.trace(error); // ignore any errors here and try to just write
@@ -232,7 +231,7 @@ export class DiskFileSystemProvider extends Disposable implements
 						// by first truncating the file and then writing with r+ flag. This helps to save hidden files on Windows
 						// (see https://github.com/microsoft/vscode/issues/931) and prevent removing alternate data streams
 						// (see https://github.com/microsoft/vscode/issues/6363)
-						await promises.truncate(filePath, 0);
+						await Promises.truncate(filePath, 0);
 
 						// After a successful truncate() the flag can be set to 'r+' which will not truncate.
 						flags = 'r+';
@@ -256,7 +255,7 @@ export class DiskFileSystemProvider extends Disposable implements
 				flags = 'r';
 			}
 
-			const handle = await promisify(open)(filePath, flags);
+			const handle = await Promises.open(filePath, flags);
 
 			// remember this handle to track file position of the handle
 			// we init the position to 0 since the file descriptor was
@@ -290,7 +289,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			// to flush the contents to disk if possible.
 			if (this.writeHandles.delete(fd) && this.canFlush) {
 				try {
-					await promisify(fdatasync)(fd);
+					await Promises.fdatasync(fd);
 				} catch (error) {
 					// In some exotic setups it is well possible that node fails to sync
 					// In that case we disable flushing and log the error to our logger
@@ -299,7 +298,7 @@ export class DiskFileSystemProvider extends Disposable implements
 				}
 			}
 
-			return await promisify(close)(fd);
+			return await Promises.close(fd);
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -310,7 +309,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		let bytesRead: number | null = null;
 		try {
-			const result = await promisify(read)(fd, data, offset, length, normalizedPos);
+			const result = await Promises.read(fd, data, offset, length, normalizedPos);
 
 			if (typeof result === 'number') {
 				bytesRead = result; // node.d.ts fail
@@ -396,7 +395,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 		let bytesWritten: number | null = null;
 		try {
-			const result = await promisify(write)(fd, data, offset, length, normalizedPos);
+			const result = await Promises.write(fd, data, offset, length, normalizedPos);
 
 			if (typeof result === 'number') {
 				bytesWritten = result; // node.d.ts fail
@@ -418,7 +417,7 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	async mkdir(resource: URI): Promise<void> {
 		try {
-			await promises.mkdir(this.toFilePath(resource));
+			await Promises.mkdir(this.toFilePath(resource));
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -436,9 +435,9 @@ export class DiskFileSystemProvider extends Disposable implements
 
 	protected async doDelete(filePath: string, opts: FileDeleteOptions): Promise<void> {
 		if (opts.recursive) {
-			await rimraf(filePath, RimRafMode.MOVE);
+			await Promises.rm(filePath, RimRafMode.MOVE);
 		} else {
-			await promises.unlink(filePath);
+			await Promises.unlink(filePath);
 		}
 	}
 
@@ -456,7 +455,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'move', opts.overwrite);
 
 			// Move
-			await move(fromFilePath, toFilePath);
+			await Promises.move(fromFilePath, toFilePath);
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -483,7 +482,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			await this.validateTargetDeleted(from, to, 'copy', opts.overwrite);
 
 			// Copy
-			await copy(fromFilePath, toFilePath, { preserveSymlinks: true });
+			await Promises.copy(fromFilePath, toFilePath, { preserveSymlinks: true });
 		} catch (error) {
 
 			// rewrite some typical errors that can happen especially around symlinks
@@ -511,7 +510,7 @@ export class DiskFileSystemProvider extends Disposable implements
 		}
 
 		// handle existing target (unless this is a case change)
-		if (!isSameResourceWithDifferentPathCase && await exists(toFilePath)) {
+		if (!isSameResourceWithDifferentPathCase && await Promises.exists(toFilePath)) {
 			if (!overwrite) {
 				throw createFileSystemProviderError(localize('fileCopyErrorExists', "File at target already exists"), FileSystemProviderErrorCode.FileExists);
 			}
@@ -542,7 +541,7 @@ export class DiskFileSystemProvider extends Disposable implements
 			return this.watchRecursive(resource, opts.excludes);
 		}
 
-		return this.watchNonRecursive(resource); // TODO@bpasero ideally the same watcher can be used in both cases
+		return this.watchNonRecursive(resource);
 	}
 
 	private watchRecursive(resource: URI, excludes: string[]): IDisposable {

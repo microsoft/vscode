@@ -16,7 +16,7 @@ const _enableTracing = false;
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
-		this.message = graph.toString();
+		this.message = graph.findCycleSlow() ?? `UNABLE to detect cycle, dumping graph: \n${graph.toString()}`;
 	}
 }
 

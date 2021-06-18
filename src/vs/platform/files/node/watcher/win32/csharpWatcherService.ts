@@ -31,7 +31,7 @@ export class OutOfProcessWin32FolderWatcher {
 		this.restartCounter = 0;
 
 		if (Array.isArray(ignored)) {
-			this.ignored = ignored.map(i => glob.parse(i));
+			this.ignored = ignored.map(ignore => glob.parse(ignore));
 		} else {
 			this.ignored = [];
 		}

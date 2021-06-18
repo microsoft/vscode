@@ -81,7 +81,7 @@ export class MarkdownContentProvider {
 		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
 		const csp = this.getCsp(resourceProvider, sourceUri, nonce);
 
-		const body = await this.engine.render(markdownDocument);
+		const body = await this.engine.render(markdownDocument, resourceProvider);
 		const html = `<!DOCTYPE html>
 			<html style="${escapeAttribute(this.getSettingsOverrideStyles(config))}">
 			<head>

@@ -51,7 +51,6 @@ import { TestTextResourcePropertiesService, TestContextService } from 'vs/workbe
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { extUri } from 'vs/base/common/resources';
 import { ITextSnapshot } from 'vs/editor/common/model';
-import { VSBuffer, VSBufferReadable } from 'vs/base/common/buffer';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
@@ -112,7 +111,7 @@ suite('MainThreadEditors', () => {
 				}
 				return Promise.resolve(Object.create(null));
 			}
-			async override getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<VSBuffer | VSBufferReadable | undefined> {
+			override async getEncodedReadable(resource: URI, value?: string | ITextSnapshot): Promise<any> {
 				return undefined;
 			}
 		});
@@ -157,7 +156,6 @@ suite('MainThreadEditors', () => {
 
 		});
 		services.set(IPanelService, new class extends mock<IPanelService>() implements IPanelService {
-			declare readonly _serviceBrand: undefined;
 			override onDidPanelOpen = Event.None;
 			override onDidPanelClose = Event.None;
 			override getActivePanel() {
