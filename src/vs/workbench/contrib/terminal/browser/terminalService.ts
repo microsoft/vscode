@@ -28,7 +28,7 @@ import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/termina
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
@@ -195,6 +195,8 @@ export class TerminalService implements ITerminalService {
 			}
 		);
 
+		this._forwardInstanceHostEvents(this._terminalGroupService);
+
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
@@ -211,8 +213,6 @@ export class TerminalService implements ITerminalService {
 				this.hidePanel();
 			}
 		});
-		this._terminalGroupService.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
-		this._terminalGroupService.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -258,6 +258,12 @@ export class TerminalService implements ITerminalService {
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
+	}
+
+	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
+		host.onDidDisposeInstance(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance);
+		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
+		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 	}
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
