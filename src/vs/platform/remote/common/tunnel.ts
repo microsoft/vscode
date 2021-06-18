@@ -55,7 +55,8 @@ export enum ProvidedOnAutoForward {
 	OpenBrowser = 2,
 	OpenPreview = 3,
 	Silent = 4,
-	Ignore = 5
+	Ignore = 5,
+	OpenBrowserOnce = 6
 }
 
 export interface ProvidedPortAttributes {

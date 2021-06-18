@@ -161,12 +161,17 @@ export enum EditorOverride {
 	/**
 	 * Displays a picker and allows the user to decide which editor to use
 	 */
-	PICK = 1,
+	PICK,
 
 	/**
 	 * Disables overrides
 	 */
-	DISABLED
+	DISABLED,
+
+	/**
+	 * Only exclusive overrides are considered
+	 */
+	EXCLUSIVE_ONLY
 }
 
 export enum EditorOpenContext {
