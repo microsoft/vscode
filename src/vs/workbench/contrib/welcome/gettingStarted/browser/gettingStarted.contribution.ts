@@ -190,6 +190,27 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
+			id: 'welcome.showNewEntries',
+			title: localize('welcome.new', "New..."),
+			category,
+			f1: true,
+			menu: {
+				id: MenuId.MenubarFileMenu,
+				group: '1_new',
+				order: 3
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		gettingStartedService.selectNewEntry();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
 			id: 'welcome.markStepComplete',
 			title: localize('welcome.markStepComplete', "Mark Step Complete"),
 			category,

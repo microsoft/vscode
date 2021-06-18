@@ -138,7 +138,6 @@ export interface IStartEntry {
 	readonly title: string;
 	readonly description: string;
 	readonly command: string;
-	readonly type?: 'sample-folder' | 'sample-notebook' | string;
 	readonly when?: string;
 }
 

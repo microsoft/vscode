@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService, optional, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
@@ -17,7 +17,6 @@ import { URI } from 'vs/base/common/uri';
 import { joinPath } from 'vs/base/common/resources';
 import { FileAccess } from 'vs/base/common/network';
 import { DefaultIconPath, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IProductService } from 'vs/platform/product/common/productService';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { BuiltinGettingStartedCategory, BuiltinGettingStartedStep, BuiltinGettingStartedStartEntry, startEntries, walkthroughs } from 'vs/workbench/contrib/welcome/gettingStarted/common/gettingStartedContent';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
@@ -33,6 +32,8 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 
@@ -75,6 +76,13 @@ export interface IGettingStartedWalkthroughDescriptor {
 	when: ContextKeyExpression
 	content:
 	| { type: 'steps' }
+}
+
+export interface IGettingStartedNewMenuEntryDescriptor {
+	title: string
+	description: string
+	when?: ContextKeyExpression
+	action: { runCommand: string, invokeFunction?: never } | { invokeFunction: (accessor: ServicesAccessor) => void, runCommand?: never }
 }
 
 export interface IGettingStartedStartEntryDescriptor {
@@ -139,6 +147,8 @@ export interface IGettingStartedService {
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
 
+	selectNewEntry(): Promise<void>;
+
 	installedExtensionsRegistered: Promise<void>;
 }
 
@@ -176,6 +186,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
 
+	private newMenuItems: IGettingStartedNewMenuEntryDescriptor[];
+
 	private triggerInstalledExtensionsRegistered!: () => void;
 	installedExtensionsRegistered: Promise<void>;
 
@@ -184,8 +196,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		@ICommandService private readonly commandService: ICommandService,
 		@IContextKeyService private readonly contextService: IContextKeyService,
 		@IUserDataAutoSyncEnablementService  readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
-		@IProductService private readonly productService: IProductService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IExtensionManagementService private readonly extensionManagementService: IExtensionManagementService,
 		@IHostService private readonly hostService: IHostService,
 		@IViewsService private readonly viewsService: IViewsService,
@@ -195,6 +209,30 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		super();
 
 		this.tasExperimentService = tasExperimentService;
+
+		this.newMenuItems = [
+			{
+				title: localize('newUntitledTitle', "Untitled File"),
+				description: localize('newUntitledDescription', "Create an empty text tile"),
+				action: { runCommand: 'workbench.action.files.newUntitledFile' },
+			},
+			{
+				title: localize('newWindowTitle', "Empty Window"),
+				description: localize('newWindowDescription', "Open an empty window"),
+				action: { runCommand: 'workbench.action.newWindow' },
+			},
+			{
+				title: localize('newDuplicateWindowTitle', "Duplicate Window"),
+				description: localize('newDuplicateWindowDescription', "Open a new window with the contents of this window"),
+				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
+			},
+			{
+				title: localize('newGit', "Window from Git Repo"),
+				description: localize('newGitDescription', "Open a new window from the contents of a git repository"),
+				action: { runCommand: 'git.clone' },
+				when: ContextKeyExpr.deserialize('!git.missing'),
+			}
+		];
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
@@ -309,6 +347,25 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 	}
 
+	public async selectNewEntry() {
+		const selected = await this.quickInputService.pick(this.newMenuItems.map((entry): (IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) => ({
+			label: entry.title,
+			type: 'item',
+			keybinding: this.keybindingService.lookupKeybinding(entry.action.runCommand || ''),
+			...entry,
+		})), { canPickMany: false });
+
+
+
+		if (selected) {
+			if (selected.action.runCommand) {
+				await this.commandService.executeCommand(selected.action.runCommand);
+			} else if (selected.action.invokeFunction) {
+				await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
+			}
+		}
+	}
+
 	private async getCategoryOverrides(category: BuiltinGettingStartedCategory | BuiltinGettingStartedStartEntry) {
 		if (!this.tasExperimentService) { return; }
 
@@ -372,29 +429,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			return;
 		}
 
-		if (this.configurationService.getValue<boolean>('workbench.welcomePage.experimental.startEntryContributions') && this.productService.quality !== 'stable') {
-			extension.contributes.startEntries?.forEach(entry => {
-				const entryID = extension.identifier.value + '#startEntry#' + idForStartEntry(entry);
-				this.registerStartEntry({
-					content: {
-						type: 'startEntry',
-						command: entry.command,
-					},
-					description: entry.description,
-					title: entry.title,
-					id: entryID,
-					order: 0,
-					when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
-					icon: {
-						type: 'image',
-						path: extension.icon
-							? FileAccess.asBrowserUri(joinPath(extension.extensionLocation, extension.icon)).toString(true)
-							: DefaultIconPath
-					}
-				});
+		extension.contributes.startEntries?.forEach(entry => {
+			this.registerNewMenuItem({
+				action: { runCommand: entry.command },
+				description: entry.description,
+				title: entry.title,
+				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
 			});
-		}
-
+		});
 
 		let sectionToOpen: string | undefined;
 		let sectionToOpenIndex = Math.min(); // '+Infinity';
@@ -497,6 +539,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (sectionToOpen && this.configurationService.getValue<string>('workbench.welcomePage.walkthroughs.openOnInstall')) {
 			this.commandService.executeCommand('workbench.action.openWalkthrough', sectionToOpen);
 		}
+	}
+
+	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
+		this.newMenuItems.push(categoryDescriptor);
 	}
 
 	private unregisterExtensionContributions(extension: IExtensionDescription) {
