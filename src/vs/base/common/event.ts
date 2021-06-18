@@ -131,45 +131,48 @@ export namespace Event {
 	 * @param merge The reducing function.
 	 * @param delay The debouncing delay in millis.
 	 * @param leading Whether the event should fire in the leading phase of the timeout.
+	 * @param leakWarningThreshold The leak warning threshold override.
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
+		let subscription: IDisposable;
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
 
-		return (listener, thisArgs, disposables?) => {
+		const emitter = new Emitter<O>({
+			leakWarningThreshold,
+			onFirstListenerAdd() {
+				subscription = event(cur => {
+					numDebouncedCalls++;
+					output = merge(output, cur);
 
-			const subscription = event(cur => {
-				numDebouncedCalls++;
-				output = merge(output, cur);
-
-				if (leading && !handle) {
-					listener.call(thisArgs, output);
-					output = undefined;
-				}
-
-				clearTimeout(handle);
-				handle = setTimeout(() => {
-					const _output = output;
-					output = undefined;
-					handle = undefined;
-					if (!leading || numDebouncedCalls > 1) {
-						listener.call(thisArgs, _output!);
+					if (leading && !handle) {
+						emitter.fire(output);
+						output = undefined;
 					}
 
-					numDebouncedCalls = 0;
-				}, delay);
-			}, undefined, disposables);
+					clearTimeout(handle);
+					handle = setTimeout(() => {
+						const _output = output;
+						output = undefined;
+						handle = undefined;
+						if (!leading || numDebouncedCalls > 1) {
+							emitter.fire(_output!);
+						}
 
-			// unlisten from actual event and stop timeouts
-			return combinedDisposable(
-				subscription,
-				toDisposable(() => clearTimeout(handle))
-			);
-		};
+						numDebouncedCalls = 0;
+					}, delay);
+				});
+			},
+			onLastListenerRemove() {
+				subscription.dispose();
+			}
+		});
+
+		return emitter.event;
 	}
 
 	/**
