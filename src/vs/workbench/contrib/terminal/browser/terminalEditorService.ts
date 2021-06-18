@@ -66,7 +66,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 	}
 
-	async createEditor(instance: ITerminalInstance): Promise<void> {
+	async openEditor(instance: ITerminalInstance): Promise<void> {
 		const input = this.getOrCreateEditorInput(instance);
 		await this._editorService.openEditor(input, {
 			pinned: true,
