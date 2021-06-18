@@ -7,7 +7,7 @@ import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce, throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
@@ -54,6 +54,7 @@ export class TerminalService implements ITerminalService {
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
+	private _backgroundedTerminalDisposables: Map<number, IDisposable[]> = new Map();
 	private _findState: FindReplaceState;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
@@ -994,6 +995,9 @@ export class TerminalService implements ITerminalService {
 		if (shellLaunchConfig.hideFromUser) {
 			const instance = this.createInstance(shellLaunchConfig);
 			this._backgroundedTerminalInstances.push(instance);
+			this._backgroundedTerminalDisposables.set(instance.instanceId, [
+				instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+			]);
 			this._initInstanceListeners(instance);
 			return instance;
 		}
@@ -1033,6 +1037,11 @@ export class TerminalService implements ITerminalService {
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
+		const disposables = this._backgroundedTerminalDisposables.get(instance.instanceId);
+		if (disposables) {
+			dispose(disposables);
+		}
+		this._backgroundedTerminalDisposables.delete(instance.instanceId);
 		instance.shellLaunchConfig.hideFromUser = false;
 		this._terminalGroupService.createGroup(instance);
 
