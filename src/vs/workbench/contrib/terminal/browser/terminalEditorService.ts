@@ -7,7 +7,6 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
-import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
@@ -18,8 +17,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
-		@IEditorOverrideService editorOverrideService: IEditorOverrideService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
 
