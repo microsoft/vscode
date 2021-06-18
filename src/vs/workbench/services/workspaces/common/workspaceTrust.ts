@@ -166,7 +166,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(async changeEvent => {
 			/* This will only execute if storage was changed by a user action in a separate window */
 			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
