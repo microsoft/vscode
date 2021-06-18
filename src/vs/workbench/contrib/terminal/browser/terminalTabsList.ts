@@ -16,7 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
 import { Action } from 'vs/base/common/actions';
@@ -68,8 +68,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ITerminalService private _terminalService: ITerminalService,
-		@ITerminalGroupService terminalGroupService: ITerminalGroupService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IDecorationsService _decorationsService: IDecorationsService,
@@ -100,16 +100,16 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService,
 		);
-		this._terminalService.onDidChangeInstances(() => this.refresh());
-		terminalGroupService.onDidChangeGroups(() => this.refresh());
+		this._terminalGroupService.onDidChangeInstances(() => this.refresh());
+		this._terminalGroupService.onDidChangeGroups(() => this.refresh());
 		this._terminalService.onInstanceTitleChanged(() => this.refresh());
 		this._terminalService.onInstanceIconChanged(() => this.refresh());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());
 		this._terminalService.onDidChangeConnectionState(() => this.refresh());
 		this._themeService.onDidColorThemeChange(() => this.refresh());
-		this._terminalService.onDidChangeActiveInstance(e => {
-			if (e && e.target !== TerminalLocation.Editor) {
-				const i = this._terminalService.instances.indexOf(e);
+		this._terminalGroupService.onDidChangeActiveInstance(e => {
+			if (e) {
+				const i = this._terminalGroupService.instances.indexOf(e);
 				this.setSelection([i]);
 				this.reveal(i);
 			}
@@ -118,7 +118,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		this.onMouseDblClick(async () => {
 			if (this.getFocus().length === 0) {
 				const instance = this._terminalService.createTerminal();
-				this._terminalService.setActiveInstance(instance);
+				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
 			}
 		});
@@ -163,7 +163,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (e.editorOptions.pinned) {
 				return;
 			}
-			this._terminalService.setActiveInstance(instance);
+			this._terminalGroupService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
 			}
@@ -176,13 +176,13 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	refresh(): void {
-		this.splice(0, this.length, this._terminalService.instances.slice());
+		this.splice(0, this.length, this._terminalGroupService.instances.slice());
 	}
 
 	private _updateContextKey() {
 		this._terminalTabsSingleSelectedContextKey.set(this.getSelectedElements().length === 1);
 		const instance = this.getFocusedElements();
-		this._isSplitContextKey.set(instance.length > 0 && this._terminalService.instanceIsSplit(instance[0]));
+		this._isSplitContextKey.set(instance.length > 0 && this._terminalGroupService.instanceIsSplit(instance[0]));
 	}
 }
 

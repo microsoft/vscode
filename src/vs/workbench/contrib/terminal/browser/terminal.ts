@@ -200,7 +200,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
-	instanceIsSplit(instance: ITerminalInstance): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 }
 
@@ -249,6 +248,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
 	joinInstances(instances: ITerminalInstance[]): void;
+	instanceIsSplit(instance: ITerminalInstance): boolean;
 
 	getGroupLabels(): string[];
 	setActiveGroupByIndex(index: number): void;

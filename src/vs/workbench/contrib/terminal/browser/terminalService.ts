@@ -586,7 +586,6 @@ export class TerminalService implements ITerminalService {
 
 		this._initInstanceListeners(instance);
 
-		// TODO: Move into group service?
 		this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		return instance;
 	}
@@ -723,14 +722,6 @@ export class TerminalService implements ITerminalService {
 			const provider = instance.registerLinkProvider(linkProvider);
 			disposables?.push(provider);
 		}
-	}
-
-	instanceIsSplit(instance: ITerminalInstance): boolean {
-		const group = this._terminalGroupService.getGroupForInstance(instance);
-		if (!group) {
-			return false;
-		}
-		return group.terminalInstances.length > 1;
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {

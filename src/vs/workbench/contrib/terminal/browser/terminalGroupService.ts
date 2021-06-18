@@ -294,6 +294,14 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 	}
 
+	instanceIsSplit(instance: ITerminalInstance): boolean {
+		const group = this.getGroupForInstance(instance);
+		if (!group) {
+			return false;
+		}
+		return group.terminalInstances.length > 1;
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
