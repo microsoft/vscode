@@ -814,7 +814,7 @@ export class TerminalService implements ITerminalService {
 		this._terminalEditorService.createEditor(source);
 	}
 
-	async moveToTerminalView(source?: ITerminalInstance): Promise<void> {
+	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
 		if (source) {
 			this._terminalEditorService.detachInstance(source);
 		} else {
@@ -829,18 +829,30 @@ export class TerminalService implements ITerminalService {
 		}
 		source.target = TerminalLocation.TerminalView;
 
+		let group: ITerminalGroup | undefined;
+		if (target) {
+			group = this.getGroupForInstance(target);
+		}
+
 		// TODO: Share code with joinInstances - move into terminal group service
-		const group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		this._terminalGroups.push(group);
-		group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		if (!group) {
+			group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+			group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			this._terminalGroups.push(group);
+			group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		}
 
 		group.addInstance(source);
 		this.setActiveInstance(source);
 		await this.showPanel(true);
 		// TODO: Shouldn't this happen automatically?
 		source.setVisible(true);
+
+		if (target && side) {
+			const index = group.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
+			group.moveInstance(source, index);
+		}
 
 		// Fire events
 		this._onInstancesChanged.fire();
@@ -874,7 +886,7 @@ export class TerminalService implements ITerminalService {
 			// Terminal editors
 			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.path === e.uri.path);
 			if (sourceInstance) {
-				this.moveToTerminalView(sourceInstance);
+				this.moveToTerminalView(sourceInstance, instance, e.side);
 			}
 		}));
 	}

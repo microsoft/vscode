@@ -1968,7 +1968,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, 'terminals')) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
 			return;
 		}
 
@@ -1977,10 +1977,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			this._dropOverlay.classList.add('terminal-drop-overlay');
 		}
 
-		const types = e.dataTransfer?.types || [];
-
 		// Dragging terminals
-		if (types.includes('terminals')) {
+		if (containsDragType(e, DataTransfers.TERMINALS)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');
@@ -2003,10 +2001,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			return;
 		}
 
-		const types = e.dataTransfer?.types || [];
-
 		// Dragging terminals
-		if (types.includes('terminals')) {
+		if (containsDragType(e, DataTransfers.TERMINALS)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');
@@ -2022,16 +2018,24 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			return;
 		}
 
+		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		if (terminalResources) {
+			const uri = URI.parse(JSON.parse(terminalResources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				const side = this._getDropSide(e);
+				this._onDropTerminal.fire({ uri, side });
+				return;
+			}
+		}
+
 		// Check if files were dragged from the tree explorer
 		let path: string | undefined;
 		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (resources) {
 			const uri = URI.parse(JSON.parse(resources)[0]);
 			if (uri.scheme === Schemas.vscodeTerminal) {
-				this._onDropTerminal.fire({
-					uri,
-					side: this._getDropSide(e)
-				});
+				const side = this._getDropSide(e);
+				this._onDropTerminal.fire({ uri, side });
 				return;
 			} else {
 				path = uri.fsPath;
