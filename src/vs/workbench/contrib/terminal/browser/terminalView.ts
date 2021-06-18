@@ -283,11 +283,11 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _focus() {
-		this._terminalService.getActiveInstance()?.focusWhenReady();
+		this._terminalService.activeInstance?.focusWhenReady();
 	}
 
 	override shouldShowWelcome(): boolean {
-		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
+		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.instances.length === 0;
 		return this._isWelcomeShowing;
 	}
 }
@@ -321,9 +321,9 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@IContextViewService contextViewService: IContextViewService
 	) {
 		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		// TODO: dispose group shouldn't be needed
@@ -380,8 +380,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		super(new MenuItemAction(
 			{
 				id: action.id,
-				title: getSingleTabLabel(_terminalService.getActiveInstance()),
-				tooltip: getSingleTabTooltip(_terminalService.getActiveInstance())
+				title: getSingleTabLabel(_terminalService.activeInstance),
+				tooltip: getSingleTabTooltip(_terminalService.activeInstance)
 			},
 			{
 				id: TerminalCommandId.Split,
@@ -394,15 +394,15 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		), keybindingService, notificationService);
 
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
-		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
+		this._register(this._terminalService.onDidChangeActiveInstance(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
-			if (e === this._terminalService.getActiveInstance()) {
+			if (e === this._terminalService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
 			}
 		}));
 		this._register(this._terminalService.onInstanceIconChanged(e => {
-			if (e === this._terminalService.getActiveInstance()) {
+			if (e === this._terminalService.activeInstance) {
 				this.updateLabel();
 			}
 		}));
@@ -429,14 +429,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			// Middle click kills
 			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.AUXCLICK, e => {
 				if (e.button === 1) {
-					this._terminalService.getActiveInstance()?.dispose();
+					this._terminalService.activeInstance?.dispose();
 					e.preventDefault();
 				}
 			}));
 		}
 		if (this.label) {
 			const label = this.label;
-			const instance = this._terminalService.getActiveInstance();
+			const instance = this._terminalService.activeInstance;
 			if (!instance) {
 				dom.reset(label, '');
 				return;
@@ -540,7 +540,7 @@ class TerminalThemeIconStyle extends Themable {
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
 
@@ -552,7 +552,7 @@ class TerminalThemeIconStyle extends Themable {
 		let css = '';
 
 		// Add icons
-		for (const instance of this._terminalService.terminalInstances) {
+		for (const instance of this._terminalService.instances) {
 			const icon = instance.icon;
 			if (!icon) {
 				continue;
@@ -571,7 +571,7 @@ class TerminalThemeIconStyle extends Themable {
 		}
 
 		// Add colors
-		for (const instance of this._terminalService.terminalInstances) {
+		for (const instance of this._terminalService.instances) {
 			const colorClass = getColorClass(instance);
 			if (!colorClass || !instance.color) {
 				continue;

@@ -111,11 +111,11 @@ export interface ICreateTerminalOptions {
 	target?: TerminalLocation;
 }
 
-export interface ITerminalService {
+export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	configHelper: ITerminalConfigHelper;
-	terminalInstances: ITerminalInstance[];
+	// TODO: Remove groups - access should be exclusive to group service
 	readonly terminalGroups: readonly ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -126,20 +126,14 @@ export interface ITerminalService {
 	onActiveGroupChanged: Event<void>;
 	onGroupDisposed: Event<ITerminalGroup>;
 	onInstanceCreated: Event<ITerminalInstance>;
-	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	/**
-	 * An event that fires when a terminal instance is created, disposed of, or shown (in the case of a background terminal)
-	 */
-	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
 	onInstanceColorChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
-	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
@@ -161,7 +155,6 @@ export interface ITerminalService {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getGroupLabels(): string[];
-	getActiveInstance(): ITerminalInstance | undefined;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
@@ -243,26 +236,23 @@ export interface ITerminalEditorService {
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
  * within the terminal panel, not in an editor.
  */
-export interface ITerminalGroupService {
+export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	readonly groups: readonly ITerminalGroup[];
 	readonly activeGroup: ITerminalGroup | undefined;
 	readonly activeGroupIndex: number;
-	readonly instances: readonly ITerminalInstance[];
-	readonly activeInstance: ITerminalInstance | undefined;
 	readonly activeInstanceIndex: number;
 
 	// TODO: Review which methods can be made private
+
+	// TODO: Create ITerminalGroupHost and ITerminalInstanceHost interfaces that hold the events,
+	//       create helper functions to setup event forwarding
 
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
 	readonly onDidChangeGroups: Event<void>;
-
-	readonly onDidDisposeInstance: Event<ITerminalInstance>;
-	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
-	readonly onDidChangeInstances: Event<void>;
 
 	readonly onPanelOrientationChanged: Event<Orientation>;
 
@@ -284,6 +274,19 @@ export interface ITerminalGroupService {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 
 	setContainer(container: HTMLElement): void;
+}
+
+/**
+ * An interface that indicates the implementer hosts terminal instances, exposing a common set of
+ * properties and events.
+ */
+export interface ITerminalInstanceHost {
+	readonly instances: readonly ITerminalInstance[];
+	readonly activeInstance: ITerminalInstance | undefined;
+
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
+	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
+	readonly onDidChangeInstances: Event<void>;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

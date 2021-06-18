@@ -84,16 +84,14 @@ export class TerminalService implements ITerminalService {
 	private get _terminalInstances(): ITerminalInstance[] {
 		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
-	get terminalInstances(): ITerminalInstance[] {
-		return this._terminalInstances;
-	}
+	get instances(): ITerminalInstance[] { return this._terminalInstances; }
 
 	private readonly _onActiveGroupChanged = new Emitter<void>();
 	get onActiveGroupChanged(): Event<void> { return this._onActiveGroupChanged.event; }
 	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
 	get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
-	private readonly _onInstanceDisposed = new Emitter<ITerminalInstance>();
-	get onInstanceDisposed(): Event<ITerminalInstance> { return this._onInstanceDisposed.event; }
+	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
+	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
@@ -104,16 +102,16 @@ export class TerminalService implements ITerminalService {
 	get onInstanceDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceDimensionsChanged.event; }
 	private readonly _onInstanceMaximumDimensionsChanged = new Emitter<ITerminalInstance>();
 	get onInstanceMaximumDimensionsChanged(): Event<ITerminalInstance> { return this._onInstanceMaximumDimensionsChanged.event; }
-	private readonly _onInstancesChanged = new Emitter<void>();
-	get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
+	private readonly _onDidChangeInstances = new Emitter<void>();
+	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 	private readonly _onInstanceTitleChanged = new Emitter<ITerminalInstance | undefined>();
 	get onInstanceTitleChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceTitleChanged.event; }
 	private readonly _onInstanceIconChanged = new Emitter<ITerminalInstance | undefined>();
 	get onInstanceIconChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceIconChanged.event; }
 	private readonly _onInstanceColorChanged = new Emitter<ITerminalInstance | undefined>();
 	get onInstanceColorChanged(): Event<ITerminalInstance | undefined> { return this._onInstanceColorChanged.event; }
-	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
-	get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
+	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
 	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
 	get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
 	private readonly _onGroupDisposed = new Emitter<ITerminalGroup>();
@@ -197,12 +195,11 @@ export class TerminalService implements ITerminalService {
 			}
 		);
 
-
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
-		this.onInstancesChanged(() => this._terminalCountContextKey.set(this._terminalInstances.length));
+		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this._terminalInstances.length));
 		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
@@ -214,8 +211,8 @@ export class TerminalService implements ITerminalService {
 				this.hidePanel();
 			}
 		});
-		this._terminalGroupService.onDidDisposeInstance(this._onInstanceDisposed.fire, this._onInstanceDisposed);
-		this._terminalGroupService.onDidChangeInstances(this._onInstancesChanged.fire, this._onInstancesChanged);
+		this._terminalGroupService.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
+		this._terminalGroupService.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -333,7 +330,7 @@ export class TerminalService implements ITerminalService {
 							this.splitInstance(terminalInstance, { attachPersistentProcess: terminalLayout.terminal! });
 						}
 					});
-					const activeInstance = this.terminalInstances.find(t => {
+					const activeInstance = this.instances.find(t => {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
 					});
 					if (activeInstance) {
@@ -351,8 +348,8 @@ export class TerminalService implements ITerminalService {
 
 	private _attachProcessLayoutListeners(): void {
 		this.onActiveGroupChanged(() => this._saveState());
-		this.onActiveInstanceChanged(() => this._saveState());
-		this.onInstancesChanged(() => this._saveState());
+		this.onDidChangeActiveInstance(() => this._saveState());
+		this.onDidChangeInstances(() => this._saveState());
 		// The state must be updated when the terminal is relaunched, otherwise the persistent
 		// terminal ID will be stale and the process will be leaked.
 		this.onInstanceProcessIdReady(() => this._saveState());
@@ -363,14 +360,13 @@ export class TerminalService implements ITerminalService {
 	private _handleInstanceContextKeys(): void {
 		const terminalIsOpenContext = KEYBINDING_CONTEXT_TERMINAL_IS_OPEN.bindTo(this._contextKeyService);
 		const updateTerminalContextKeys = () => {
-			terminalIsOpenContext.set(this.terminalInstances.length > 0);
+			terminalIsOpenContext.set(this.instances.length > 0);
 		};
-		this.onInstancesChanged(() => updateTerminalContextKeys());
+		this.onDidChangeInstances(() => updateTerminalContextKeys());
 	}
 
 	getActiveOrCreateInstance(): ITerminalInstance {
-		const activeInstance = this.getActiveInstance();
-		return activeInstance ? activeInstance : this.createTerminal();
+		return this.activeInstance || this.createTerminal();
 	}
 
 	async setEditable(instance: ITerminalInstance, data?: IEditableData | null): Promise<void> {
@@ -428,7 +424,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _onBeforeShutdown(reason: ShutdownReason): boolean | Promise<boolean> {
-		if (this.terminalInstances.length === 0) {
+		if (this.instances.length === 0) {
 			// No terminal instances, don't veto
 			return false;
 		}
@@ -456,12 +452,12 @@ export class TerminalService implements ITerminalService {
 		// Don't touch processes if the shutdown was a result of reload as they will be reattached
 		const shouldPersistTerminals = this._configHelper.config.enablePersistentSessions && e.reason === ShutdownReason.RELOAD;
 		if (shouldPersistTerminals) {
-			this.terminalInstances.forEach(instance => instance.detachFromProcess());
+			this.instances.forEach(instance => instance.detachFromProcess());
 			return;
 		}
 
 		// Force dispose of all terminal instances
-		this.terminalInstances.forEach(instance => instance.dispose(true));
+		this.instances.forEach(instance => instance.dispose(true));
 
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
@@ -507,13 +503,13 @@ export class TerminalService implements ITerminalService {
 		this._onActiveGroupChanged.fire();
 	}
 
-	getActiveInstance(): ITerminalInstance | undefined {
+	get activeInstance(): ITerminalInstance | undefined {
 		// TODO: Get the active instance from the latest activated group or editor
 		return this._terminalGroupService.activeInstance;
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
-		const instance = this.getActiveInstance();
+		const instance = this.activeInstance;
 		if (instance) {
 			return callback(instance);
 		}
@@ -530,14 +526,14 @@ export class TerminalService implements ITerminalService {
 			return this._backgroundedTerminalInstances[bgIndex];
 		}
 		try {
-			return this.terminalInstances[this._getIndexFromId(terminalId)];
+			return this.instances[this._getIndexFromId(terminalId)];
 		} catch {
 			return undefined;
 		}
 	}
 
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance {
-		return this.terminalInstances[terminalIndex];
+		return this.instances[terminalIndex];
 	}
 
 	setActiveInstance(terminalInstance: ITerminalInstance): void {
@@ -554,7 +550,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
-		return this.terminalInstances.some(term => term.processId === remoteTerm.pid);
+		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
 
 	async initializeTerminals(): Promise<void> {
@@ -636,7 +632,7 @@ export class TerminalService implements ITerminalService {
 		this.setActiveInstance(instances[0]);
 
 		// Fire events
-		this._onInstancesChanged.fire();
+		this._onDidChangeInstances.fire();
 		if (!wasActiveGroup) {
 			this._onActiveGroupChanged.fire();
 		}
@@ -709,7 +705,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// Fire events
-		this._onInstancesChanged.fire();
+		this._onDidChangeInstances.fire();
 		// this._onGroupsChanged.fire();
 		this._onActiveGroupChanged.fire();
 	}
@@ -729,7 +725,7 @@ export class TerminalService implements ITerminalService {
 			}
 		}));
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
-		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
+		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			const instanceId = TerminalInstance.getInstanceIdFromUri(e.uri);
 			if (instanceId === undefined) {
@@ -761,7 +757,7 @@ export class TerminalService implements ITerminalService {
 	registerLinkProvider(linkProvider: ITerminalExternalLinkProvider): IDisposable {
 		const disposables: IDisposable[] = [];
 		this._linkProviders.add(linkProvider);
-		for (const instance of this.terminalInstances) {
+		for (const instance of this.instances) {
 			if (instance.areLinksReady) {
 				disposables.push(instance.registerLinkProvider(linkProvider));
 			}
@@ -820,7 +816,7 @@ export class TerminalService implements ITerminalService {
 			// Do the focus call asynchronously as going through the
 			// command palette will force editor focus
 			await timeout(0);
-			const instance = this.getActiveInstance();
+			const instance = this.activeInstance;
 			if (instance) {
 				await instance.focusWhenReady(true);
 			}
@@ -842,7 +838,7 @@ export class TerminalService implements ITerminalService {
 
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
-		this.terminalInstances.forEach((terminalInstance, i) => {
+		this.instances.forEach((terminalInstance, i) => {
 			if (terminalInstance.instanceId === terminalId) {
 				terminalIndex = i;
 			}
@@ -855,10 +851,10 @@ export class TerminalService implements ITerminalService {
 
 	protected async _showTerminalCloseConfirmation(singleTerminal?: boolean): Promise<boolean> {
 		let message: string;
-		if (this.terminalInstances.length === 1 || singleTerminal) {
+		if (this.instances.length === 1 || singleTerminal) {
 			message = nls.localize('terminalService.terminalCloseConfirmationSingular', "There is an active terminal session, do you want to kill it?");
 		} else {
-			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.terminalInstances.length);
+			message = nls.localize('terminalService.terminalCloseConfirmationPlural', "There are {0} active terminal sessions, do you want to kill them?", this.instances.length);
 		}
 		const res = await this._dialogService.confirm({
 			message,
@@ -945,7 +941,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			const activeInstance = this.getActiveInstance();
+			const activeInstance = this.activeInstance;
 			let instance;
 
 			if ('id' in value.profile) {
@@ -1001,7 +997,7 @@ export class TerminalService implements ITerminalService {
 		try {
 			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
 			this._terminalGroupService.setActiveInstanceByIndex(this._terminalInstances.length - 1);
-			await this.getActiveInstance()?.focusWhenReady();
+			await this.activeInstance?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);
 		}
@@ -1102,7 +1098,7 @@ export class TerminalService implements ITerminalService {
 			instance = this.createInstance(shellLaunchConfig);
 			this._terminalEditorService.createEditor(instance);
 			this._initInstanceListeners(instance);
-			this._onInstancesChanged.fire();
+			this._onDidChangeInstances.fire();
 		} else {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			// const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
@@ -1114,11 +1110,11 @@ export class TerminalService implements ITerminalService {
 			// terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
 			// terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 			this._initInstanceListeners(instance);
-			this._onInstancesChanged.fire();
+			this._onDidChangeInstances.fire();
 			// this._onGroupsChanged.fire();
 		}
 
-		if (this.terminalInstances.length === 1) {
+		if (this.instances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire
 			// after onInstancesChanged so consumers can react to the instance being added first
 			this._terminalGroupService.setActiveInstanceByIndex(0);
@@ -1132,11 +1128,11 @@ export class TerminalService implements ITerminalService {
 		this._terminalGroupService.createGroup(instance);
 
 		// Make active automatically if it's the first instance
-		if (this.terminalInstances.length === 1) {
+		if (this.instances.length === 1) {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 
-		this._onInstancesChanged.fire();
+		this._onDidChangeInstances.fire();
 		this._onGroupsChanged.fire();
 	}
 

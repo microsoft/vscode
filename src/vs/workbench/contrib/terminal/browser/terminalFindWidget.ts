@@ -29,7 +29,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	find(previous: boolean) {
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			if (previous) {
 				instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
@@ -41,7 +41,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	override hide() {
 		super.hide();
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			instance.focus();
 		}
@@ -49,7 +49,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	protected _onInputChanged() {
 		// Ignore input changes for now
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
 		}
@@ -57,7 +57,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerFocus() {
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			instance.notifyFindWidgetFocusChanged(true);
 		}
@@ -65,7 +65,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	protected _onFocusTrackerBlur() {
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			instance.notifyFindWidgetFocusChanged(false);
 		}
@@ -81,7 +81,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	}
 
 	findFirst() {
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance) {
 			if (instance.hasSelection()) {
 				instance.clearSelection();

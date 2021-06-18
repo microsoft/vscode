@@ -309,7 +309,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		const activeTerminalInstance = this.terminalService.getActiveInstance();
+		const activeTerminalInstance = this.terminalService.activeInstance;
 		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		return isPanelShowingTerminal && (activeTerminalInstance?.instanceId === terminalData.terminal.instanceId);
 	}
@@ -336,7 +336,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (isTerminalInPanel) {
 				this.previousPanelId = this.panelService.getActivePanel()?.getId();
 				if (this.previousPanelId === TERMINAL_VIEW_ID) {
-					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);

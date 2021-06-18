@@ -100,16 +100,16 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			configurationService,
 			keybindingService,
 		);
-		this._terminalService.onInstancesChanged(() => this.refresh());
+		this._terminalService.onDidChangeInstances(() => this.refresh());
 		terminalGroupService.onDidChangeGroups(() => this.refresh());
 		this._terminalService.onInstanceTitleChanged(() => this.refresh());
 		this._terminalService.onInstanceIconChanged(() => this.refresh());
 		this._terminalService.onInstancePrimaryStatusChanged(() => this.refresh());
 		this._terminalService.onDidChangeConnectionState(() => this.refresh());
 		this._themeService.onDidColorThemeChange(() => this.refresh());
-		this._terminalService.onActiveInstanceChanged(e => {
+		this._terminalService.onDidChangeActiveInstance(e => {
 			if (e && e.target !== TerminalLocation.Editor) {
-				const i = this._terminalService.terminalInstances.indexOf(e);
+				const i = this._terminalService.instances.indexOf(e);
 				this.setSelection([i]);
 				this.reveal(i);
 			}
@@ -176,7 +176,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 	}
 
 	refresh(): void {
-		this.splice(0, this.length, this._terminalService.terminalInstances);
+		this.splice(0, this.length, this._terminalService.instances.slice());
 	}
 
 	private _updateContextKey() {
