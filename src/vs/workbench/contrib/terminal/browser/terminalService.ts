@@ -589,26 +589,6 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
-		// TODO: Move into group service
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
-		if (!sourceGroup || !targetGroup) {
-			return;
-		}
-
-		// Move from the source group to the target group
-		if (sourceGroup !== targetGroup) {
-			// Move groups
-			sourceGroup.removeInstance(source);
-			targetGroup.addInstance(source);
-		}
-
-		// Rearrange within the target group
-		const index = targetGroup.terminalInstances.indexOf(target) + (side === 'after' ? 1 : 0);
-		targetGroup.moveInstance(source, index);
-	}
-
 	moveToEditor(source: ITerminalInstance): void {
 		if (source.target === TerminalLocation.Editor) {
 			return;
@@ -687,7 +667,8 @@ export class TerminalService implements ITerminalService {
 			// View terminals
 			let sourceInstance = this.getInstanceFromId(instanceId);
 			if (sourceInstance) {
-				this.moveInstance(sourceInstance, instance, e.side);
+				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
+				return;
 			}
 
 			// Terminal editors

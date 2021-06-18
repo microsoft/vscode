@@ -155,11 +155,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
-	/**
-	 * Moves a terminal instance's group to the target instance group's position.
-	 */
-	// moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance): Promise<void>;
 
@@ -258,6 +253,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
 	joinInstances(instances: ITerminalInstance[]): void;
 
