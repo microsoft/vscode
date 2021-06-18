@@ -64,7 +64,7 @@ export const enum Direction {
 }
 
 export interface ITerminalGroup {
-	activeInstance: ITerminalInstance | null;
+	activeInstance: ITerminalInstance | undefined;
 	terminalInstances: ITerminalInstance[];
 	title: string;
 

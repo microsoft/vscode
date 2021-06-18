@@ -72,8 +72,8 @@ export class TerminalService implements ITerminalService {
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
-	public get terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroups; }
-	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
+	get terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroups; }
+	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
 	get availableProfiles(): ITerminalProfile[] {
@@ -115,9 +115,9 @@ export class TerminalService implements ITerminalService {
 	private readonly _onActiveInstanceChanged = new Emitter<ITerminalInstance | undefined>();
 	get onActiveInstanceChanged(): Event<ITerminalInstance | undefined> { return this._onActiveInstanceChanged.event; }
 	private readonly _onInstancePrimaryStatusChanged = new Emitter<ITerminalInstance>();
-	public get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
+	get onInstancePrimaryStatusChanged(): Event<ITerminalInstance> { return this._onInstancePrimaryStatusChanged.event; }
 	private readonly _onGroupDisposed = new Emitter<ITerminalGroup>();
-	public get onGroupDisposed(): Event<ITerminalGroup> { return this._onGroupDisposed.event; }
+	get onGroupDisposed(): Event<ITerminalGroup> { return this._onGroupDisposed.event; }
 	private readonly _onGroupsChanged = new Emitter<void>();
 	get onGroupsChanged(): Event<void> { return this._onGroupsChanged.event; }
 	private readonly _onDidRegisterProcessSupport = new Emitter<void>();
@@ -456,7 +456,7 @@ export class TerminalService implements ITerminalService {
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
 
-	public getGroupLabels(): string[] {
+	getGroupLabels(): string[] {
 		return this._terminalGroups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
 			return `${index + 1}: ${group.title ? group.title : ''}`;
 		});

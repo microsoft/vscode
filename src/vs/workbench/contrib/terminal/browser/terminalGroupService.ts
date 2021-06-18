@@ -50,8 +50,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
-		// TODO: Change ITermianlGroup.activeInstance to return undefined
-		return this.activeGroup?.activeInstance ?? undefined;
+		return this.activeGroup?.activeInstance;
 	}
 
 	setContainer(container: HTMLElement) {

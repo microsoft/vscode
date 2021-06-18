@@ -301,9 +301,9 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		this._onInstancesChanged.fire();
 	}
 
-	get activeInstance(): ITerminalInstance | null {
+	get activeInstance(): ITerminalInstance | undefined {
 		if (this._terminalInstances.length === 0) {
-			return null;
+			return undefined;
 		}
 		return this._terminalInstances[this._activeInstanceIndex];
 	}
