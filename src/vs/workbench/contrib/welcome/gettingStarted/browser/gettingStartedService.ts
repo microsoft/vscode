@@ -78,12 +78,24 @@ export interface IGettingStartedWalkthroughDescriptor {
 	| { type: 'steps' }
 }
 
+enum IGettingStartedNewMenuEntryDescriptorCategory {
+	'window',
+	'file',
+	'notebook',
+	'terminal',
+	'folder',
+	'configuration',
+	'other',
+}
+
+
 export interface IGettingStartedNewMenuEntryDescriptor {
 	title: string
 	description: string
 	when?: ContextKeyExpression
 	from: string
 	sourceExtensionId?: string
+	category: IGettingStartedNewMenuEntryDescriptorCategory
 	action: { runCommand: string, invokeFunction?: never } | { invokeFunction: (accessor: ServicesAccessor) => void, runCommand?: never }
 }
 
@@ -193,7 +205,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private stepCompletionContextKeyExpressions = new Set<ContextKeyExpression>();
 	private stepCompletionContextKeys = new Set<string>();
 
-	private newMenuItems: IGettingStartedNewMenuEntryDescriptor[];
+	private newMenuItems: IGettingStartedNewMenuEntryDescriptor[] = [];
 
 	private triggerInstalledExtensionsRegistered!: () => void;
 	installedExtensionsRegistered: Promise<void>;
@@ -218,33 +230,39 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.tasExperimentService = tasExperimentService;
 
 
-		this.newMenuItems = [
+		const builtinNewMenuItems = [
 			{
-				title: localize('newUntitledTitle', "Untitled File"),
-				description: localize('newUntitledDescription', "Create an empty text tile"),
+				title: localize('newUntitledTitle', "Text File"),
+				description: localize('newUntitledDescription', "Create an empty text file"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
+				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
 				from: CoreNewEntryDisplayName,
 			},
 			{
-				title: localize('newWindowTitle', "Empty Window"),
+				title: localize('newWindowTitle', "Local Window"),
 				description: localize('newWindowDescription', "Open an empty window"),
 				action: { runCommand: 'workbench.action.newWindow' },
+				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
 				from: CoreNewEntryDisplayName,
 			},
 			{
 				title: localize('newDuplicateWindowTitle', "Duplicate Window"),
 				description: localize('newDuplicateWindowDescription', "Open a new window with the same contents as this window"),
 				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
+				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
 				from: CoreNewEntryDisplayName,
 			},
 			{
-				title: localize('newGit', "Window from Git Repo"),
+				title: localize('newGit', "Folder from Git Repo"),
 				description: localize('newGitDescription', "Open a new window from the contents of a git repository"),
 				action: { runCommand: 'git.clone' },
 				when: ContextKeyExpr.deserialize('!git.missing'),
+				category: IGettingStartedNewMenuEntryDescriptorCategory.folder,
 				from: CoreNewEntryDisplayName,
 			}
 		];
+
+		builtinNewMenuItems.forEach(item => this.registerNewMenuItem(item));
 
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
@@ -374,18 +392,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const refreshQp = () => {
 			const hasValue = !!qp.value;
 			const items: (((IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) | IQuickPickSeparator))[] = [];
-			let lastSeparator = '';
+			let lastSeparator: IGettingStartedNewMenuEntryDescriptorCategory | undefined;
 			this.newMenuItems
 				.filter(entry => this.contextService.contextMatchesRules(entry.when))
 				.forEach((entry) => {
 					const command = entry.action.runCommand;
-					const keybinding = this.keybindingService.lookupKeybinding(command || '');
-					if (lastSeparator !== entry.from) {
+					const keybinding = this.keybindingService.lookupKeybinding(command || '', this.contextService);
+					if (lastSeparator !== entry.category) {
 						items.push({
 							type: 'separator',
-							label: entry.from
+							label: displayCategory[entry.category]
 						});
-						lastSeparator = entry.from;
+						lastSeparator = entry.category;
 					}
 					items.push({
 						...entry,
@@ -483,6 +501,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				action: { runCommand: entry.command },
 				description: entry.description,
 				title: entry.title,
+				category: IGettingStartedNewMenuEntryDescriptorCategory[entry.category ?? 'other'],
 				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
 				from: extension.displayName ?? extension.name,
 			});
@@ -619,7 +638,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
-		this.newMenuItems.push(categoryDescriptor);
+		let insertIndex = (this.newMenuItems.findIndex(entry => categoryDescriptor.category < entry.category));
+		if (insertIndex === -1) { insertIndex = this.newMenuItems.length; }
+		this.newMenuItems.splice(insertIndex, 0, categoryDescriptor);
 		this._onDidAddNewEntry.fire();
 	}
 
@@ -905,5 +926,15 @@ registerAction2(class extends Action2 {
 		memento.saveMemento();
 	}
 });
+
+const displayCategory: Record<IGettingStartedNewMenuEntryDescriptorCategory, string> = {
+	[IGettingStartedNewMenuEntryDescriptorCategory.configuration]: localize('configuration', "Configuration"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.file]: localize('file', "File"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.folder]: localize('folder', "Folder"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.window]: localize('window', "Window"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.terminal]: localize('terminal', "Terminal"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.other]: localize('other', "Other"),
+	[IGettingStartedNewMenuEntryDescriptorCategory.notebook]: localize('notebook', "Notebook"),
+};
 
 registerSingleton(IGettingStartedService, GettingStartedService);
