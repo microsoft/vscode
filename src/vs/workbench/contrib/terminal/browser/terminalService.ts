@@ -210,6 +210,7 @@ export class TerminalService implements ITerminalService {
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
+		this._terminalGroupService.onPanelOrientationChanged(this._onPanelOrientationChanged.fire, this.onPanelOrientationChanged);
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,

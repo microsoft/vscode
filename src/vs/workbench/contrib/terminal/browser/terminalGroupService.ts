@@ -230,7 +230,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
-		// TODO: Move into group service
 		const sourceGroup = this._getGroupForInstance(source);
 		const targetGroup = this._getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {

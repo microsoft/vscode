@@ -10,7 +10,6 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-// TODO: Implement ITerminalInstanceHost
 export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
 
