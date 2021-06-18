@@ -1773,9 +1773,13 @@ export class TextModel extends Disposable implements model.ITextModel {
 			return;
 		}
 
-		if (node.options.afterContent) {
+		if (node.options.after) {
 			const oldRange = this.getDecorationRange(decorationId);
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.endLineNumber);
+		}
+		if (node.options.before) {
+			const oldRange = this.getDecorationRange(decorationId);
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(oldRange!.startLineNumber);
 		}
 
 		const range = this._validateRangeRelaxedNoAllocations(_range);
@@ -1787,8 +1791,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._decorationsTree.insert(node);
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 
-		if (node.options.afterContent) {
+		if (node.options.after) {
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+		}
+		if (node.options.before) {
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 		}
 	}
 
@@ -1804,8 +1811,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 		this._onDidChangeDecorations.checkAffectedAndFire(options);
 
-		if (node.options.afterContent || options.afterContent) {
+		if (node.options.after || options.after) {
 			this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.endLineNumber);
+		}
+		if (node.options.before || options.before) {
+			this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.startLineNumber);
 		}
 
 		if (nodeWasInOverviewRuler !== nodeIsInOverviewRuler) {
@@ -1842,8 +1852,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				if (node) {
 					this._decorationsTree.delete(node);
 					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
-					if (node.options.afterContent) {
+					if (node.options.after) {
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.endLineNumber);
+					}
+					if (node.options.before) {
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.startLineNumber);
 					}
 				}
 			}
@@ -1868,8 +1881,11 @@ export class TextModel extends Disposable implements model.ITextModel {
 				node.reset(versionId, startOffset, endOffset, range);
 				node.setOptions(options);
 
-				if (node.options.afterContent) {
+				if (node.options.after) {
 					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.endLineNumber);
+				}
+				if (node.options.before) {
+					this._onDidChangeDecorations.recordLineAffectedByInjectedText(range.startLineNumber);
 				}
 
 				this._onDidChangeDecorations.checkAffectedAndFire(options);
@@ -3140,8 +3156,7 @@ function isNodeInOverviewRuler(node: IntervalNode): boolean {
 }
 
 function isNodeInjectedText(node: IntervalNode): boolean {
-	// TODO: handle beforeContent
-	return (node.options.afterContent ? true : false);
+	return !!node.options.after || !!node.options.before;
 }
 
 class DecorationsTrees {
@@ -3361,7 +3376,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly inlineClassNameAffectsLetterSpacing: boolean;
 	readonly beforeContentClassName: string | null;
 	readonly afterContentClassName: string | null;
-	readonly afterContent: string | null;
+	readonly after: model.InjectedTextOptions | null;
+	readonly before: model.InjectedTextOptions | null;
 
 	private constructor(options: model.IModelDecorationOptions) {
 		this.description = options.description;
@@ -3383,7 +3399,8 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.inlineClassNameAffectsLetterSpacing = options.inlineClassNameAffectsLetterSpacing || false;
 		this.beforeContentClassName = options.beforeContentClassName ? cleanClassName(options.beforeContentClassName) : null;
 		this.afterContentClassName = options.afterContentClassName ? cleanClassName(options.afterContentClassName) : null;
-		this.afterContent = options.afterContent || null;
+		this.after = options.after || null;
+		this.before = options.before || null;
 	}
 }
 ModelDecorationOptions.EMPTY = ModelDecorationOptions.register({ description: 'empty' });

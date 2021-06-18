@@ -133,18 +133,40 @@ export class ModelRawFlush {
  * @internal
  */
 export class LineInjectedText {
+	public static applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
+		if (!injectedTexts || injectedTexts.length === 0) {
+			return lineText;
+		}
+		let result = '';
+		let lastOriginalOffset = 0;
+		for (const injectedText of injectedTexts) {
+			result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
+			lastOriginalOffset = injectedText.column - 1;
+			result += injectedText.text;
+		}
+		result += lineText.substring(lastOriginalOffset);
+		return result;
+	}
 
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			// TODO: user order 0 for before
-			if (decoration.options.afterContent) {
+			if (decoration.options.before) {
+				result.push(new LineInjectedText(
+					decoration.ownerId,
+					decoration.range.startLineNumber,
+					decoration.range.startColumn,
+					0,
+					decoration.options.before.content
+				));
+			}
+			if (decoration.options.after) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
 					decoration.range.endColumn,
 					1,
-					decoration.options.afterContent
+					decoration.options.after.content
 				));
 			}
 		}

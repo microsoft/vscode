@@ -1446,7 +1446,15 @@ declare namespace monaco.editor {
 		/**
 		 * If set, the content will be injected in the text after the range.
 		 */
-		afterContent?: string | null;
+		after?: InjectedTextOptions | null;
+		/**
+		 * If set, the content will be injected in the text before the range.
+		 */
+		before?: InjectedTextOptions | null;
+	}
+
+	export interface InjectedTextOptions {
+		content: string;
 	}
 
 	/**
@@ -1917,7 +1925,6 @@ declare namespace monaco.editor {
 		 * @param ownerId If set, it will ignore decorations belonging to other owners.
 		 */
 		getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
-		getInjectedTextInLine(lineNumber: number, ownerId?: number): LineInjectedText[];
 		/**
 		 * Normalize a string containing whitespace according to indentation rules (converts to spaces or to tabs).
 		 */

@@ -159,7 +159,16 @@ export interface IModelDecorationOptions {
 	/**
 	 * If set, the content will be injected in the text after the range.
 	 */
-	afterContent?: string | null;
+	after?: InjectedTextOptions | null;
+
+	/**
+	 * If set, the content will be injected in the text before the range.
+	 */
+	before?: InjectedTextOptions | null;
+}
+
+export interface InjectedTextOptions {
+	content: string;
 }
 
 /**
@@ -1078,6 +1087,9 @@ export interface ITextModel {
 	 */
 	getInjectedTextDecorations(ownerId?: number): IModelDecoration[];
 
+	/**
+	 * @internal
+	 */
 	getInjectedTextInLine(lineNumber: number, ownerId?: number): LineInjectedText[];
 
 	/**

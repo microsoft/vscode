@@ -357,23 +357,8 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 	return previousBreakingData;
 }
 
-function applyInjectedText(lineText: string, injectedTexts: LineInjectedText[] | null): string {
-	if (!injectedTexts || injectedTexts.length === 0) {
-		return lineText;
-	}
-	let result = '';
-	let lastOriginalOffset = 0;
-	for (const injectedText of injectedTexts) {
-		result += lineText.substring(lastOriginalOffset, injectedText.column - 1);
-		lastOriginalOffset = injectedText.column - 1;
-		result += injectedText.text;
-	}
-	result += lineText.substring(lastOriginalOffset);
-	return result;
-}
-
 function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
-	const lineText = applyInjectedText(_lineText, injectedTexts);
+	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
 	if (firstLineBreakColumn === -1) {
 		// TODO: return LineBreakData that only has injected text if necessary
