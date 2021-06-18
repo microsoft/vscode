@@ -231,11 +231,6 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly activeGroupIndex: number;
 	readonly activeInstanceIndex: number;
 
-	// TODO: Review which methods can be made private
-
-	// TODO: Create ITerminalGroupHost and ITerminalInstanceHost interfaces that hold the events,
-	//       create helper functions to setup event forwarding
-
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
@@ -244,7 +239,6 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly onPanelOrientationChanged: Event<Orientation>;
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
-	removeGroup(group: ITerminalGroup): void;
 
 	/**
 	 * Moves a terminal instance's group to the target instance group's position.
@@ -261,7 +255,6 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	setActiveGroupByIndex(index: number): void;
 	setActiveGroupToNext(): void;
 	setActiveGroupToPrevious(): void;
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
 
 	setActiveInstanceByIndex(terminalIndex: number): void;
 

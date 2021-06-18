@@ -1036,17 +1036,9 @@ export class TerminalService implements ITerminalService {
 			this._onDidChangeInstances.fire();
 		} else {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
-			// const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
-			// this._terminalGroups.push(terminalGroup);
-			// terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-
 			instance = group.terminalInstances[0];
-
-			// terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			// terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 			this._initInstanceListeners(instance);
 			this._onDidChangeInstances.fire();
-			// this._onGroupsChanged.fire();
 		}
 
 		if (this.instances.length === 1) {

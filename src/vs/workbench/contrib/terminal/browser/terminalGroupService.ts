@@ -49,7 +49,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	) {
 		super();
 
-		this.onDidDisposeGroup(group => this.removeGroup(group));
+		this.onDidDisposeGroup(group => this._removeGroup(group));
 
 		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
@@ -108,7 +108,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	removeGroup(group: ITerminalGroup): void {
+	private _removeGroup(group: ITerminalGroup): void {
 		const wasActiveGroup = this._removeGroupAndAdjustFocus(group);
 
 		this._onDidChangeInstances.fire();
@@ -217,8 +217,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
+		const sourceGroup = this._getGroupForInstance(source);
+		const targetGroup = this._getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
@@ -231,8 +231,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
 		// TODO: Move into group service
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
+		const sourceGroup = this._getGroupForInstance(source);
+		const targetGroup = this._getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
 			return;
 		}
@@ -250,7 +250,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	unsplitInstance(instance: ITerminalInstance): void {
-		const oldGroup = this.getGroupForInstance(instance);
+		const oldGroup = this._getGroupForInstance(instance);
 		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
 			return;
 		}
@@ -264,7 +264,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		let candidateInstance: ITerminalInstance | undefined = undefined;
 		let candidateGroup: ITerminalGroup | undefined = undefined;
 		for (const instance of instances) {
-			const group = this.getGroupForInstance(instance);
+			const group = this._getGroupForInstance(instance);
 			if (group?.terminalInstances.length === 1) {
 				candidateInstance = instance;
 				candidateGroup = group;
@@ -285,7 +285,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 				continue;
 			}
 
-			const oldGroup = this.getGroupForInstance(instance);
+			const oldGroup = this._getGroupForInstance(instance);
 			if (!oldGroup) {
 				// Something went wrong, don't join this one
 				continue;
@@ -304,7 +304,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 	}
 
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
+	private _getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
 
