@@ -1360,7 +1360,7 @@ registerAction2(class QuitEditCellAction extends NotebookCellAction {
 			context.cell.updateEditState(CellEditState.Preview, QUIT_EDIT_CELL_COMMAND_ID);
 		}
 
-		return context.notebookEditor.focusNotebookCell(context.cell, 'container');
+		context.notebookEditor.focusNotebookCell(context.cell, 'container', { skipReveal: true });
 	}
 });
 
