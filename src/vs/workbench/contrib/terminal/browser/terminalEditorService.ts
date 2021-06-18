@@ -26,35 +26,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	) {
 		super();
 
-		// TODO: Register the terminal editor as an override to integrate properly with dnd
-		this._register(editorOverrideService.registerEditor(
-			`${Schemas.vscodeTerminal}:/**`,
-			{
-				id: TerminalEditor.ID,
-				label: terminalStrings.terminal,
-				priority: RegisteredEditorPriority.builtin
-			},
-			{
-				canHandleDiff: false,
-				canSupportResource: uri => {
-					console.log('check canSupportResource', uri);
-					return uri.scheme === Schemas.vscodeTerminal;
-				},
-				singlePerResource: true
-			},
-			(resource, options, group) => {
-				// TODO: Get terminal instance based on resource
-				return {
-					editor: new TerminalEditorInput(this.terminalEditorInstances[0]),
-					options: {
-						...options,
-						pinned: true,
-						forceReload: true
-					}
-				};
-			}
-		));
-
 		// TODO: Multiplex instance events
 	}
 
