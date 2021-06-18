@@ -163,7 +163,7 @@ export class TerminalTabbedView extends Disposable {
 			return true;
 		}
 
-		if (hide === 'singleGroup' && this._terminalService.terminalGroups.length > 1) {
+		if (hide === 'singleGroup' && this._terminalGroupService.groups.length > 1) {
 			return true;
 		}
 
@@ -261,7 +261,7 @@ export class TerminalTabbedView extends Disposable {
 		}
 		this._splitView.addView({
 			element: terminalOuterContainer,
-			layout: width => this._terminalService.terminalGroups.forEach(tab => tab.layout(width, this._height || 0)),
+			layout: width => this._terminalGroupService.groups.forEach(tab => tab.layout(width, this._height || 0)),
 			minimumSize: 120,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: () => Disposable.None,

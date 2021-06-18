@@ -115,8 +115,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	configHelper: ITerminalConfigHelper;
-	// TODO: Remove groups - access should be exclusive to group service
-	readonly terminalGroups: readonly ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
@@ -154,7 +152,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getGroupLabels(): string[];
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
@@ -237,7 +234,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	readonly groups: readonly ITerminalGroup[];
-	readonly activeGroup: ITerminalGroup | undefined;
+	activeGroup: ITerminalGroup | undefined;
 	readonly activeGroupIndex: number;
 	readonly activeInstanceIndex: number;
 
@@ -263,6 +260,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 
+	getGroupLabels(): string[];
 	setActiveGroupByIndex(index: number): void;
 	setActiveGroupToNext(): void;
 	setActiveGroupToPrevious(): void;

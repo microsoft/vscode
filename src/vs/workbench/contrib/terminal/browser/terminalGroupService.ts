@@ -6,10 +6,12 @@
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
+import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -21,6 +23,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 	activeInstanceIndex: number = -1;
 
+	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _container: HTMLElement | undefined;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
@@ -41,11 +44,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
 
 	constructor(
+		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
 		this.onDidDisposeGroup(group => this.removeGroup(group));
+
+		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
+		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {
@@ -53,6 +60,13 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return undefined;
 		}
 		return this.groups[this.activeGroupIndex];
+	}
+	set activeGroup(value: ITerminalGroup | undefined) {
+		if (value === undefined) {
+			this.activeGroupIndex = -1;
+			return;
+		}
+		this.activeGroupIndex = this.groups.findIndex(e => e === value);
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -217,6 +231,12 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
+	}
+
+	getGroupLabels(): string[] {
+		return this.groups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
+			return `${index + 1}: ${group.title ? group.title : ''}`;
+		});
 	}
 }
 

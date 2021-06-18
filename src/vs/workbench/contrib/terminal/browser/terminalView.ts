@@ -131,7 +131,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
-				const hadTerminals = !!this._terminalService.terminalGroups.length;
+				const hadTerminals = !!this._terminalGroupService.groups.length;
 				if (this._terminalService.isProcessSupportRegistered) {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
@@ -320,7 +320,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
@@ -342,15 +342,15 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		const options = getTerminalSelectOpenItems(this._terminalService);
+		const options = getTerminalSelectOpenItems(this._terminalService, this._terminalGroupService);
 		this.setOptions(options, this._terminalGroupService.activeGroupIndex);
 	}
 }
 
-function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectOptionItem[] {
+function getTerminalSelectOpenItems(terminalService: ITerminalService, terminalGroupService: ITerminalGroupService): ISelectOptionItem[] {
 	let items: ISelectOptionItem[];
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
-		items = terminalService.getGroupLabels().map(label => {
+		items = terminalGroupService.getGroupLabels().map(label => {
 			return { text: label };
 		});
 	} else {

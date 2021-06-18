@@ -34,7 +34,7 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -47,13 +47,11 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
-	private get _terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroupService.groups; }
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
-	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
@@ -73,7 +71,6 @@ export class TerminalService implements ITerminalService {
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
-	get terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroups; }
 	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
@@ -173,7 +170,6 @@ export class TerminalService implements ITerminalService {
 		this._findState = new FindReplaceState();
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
 		this._terminalCountContextKey = KEYBINDING_CONTEXT_TERMINAL_COUNT.bindTo(this._contextKeyService);
-		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
@@ -220,7 +216,6 @@ export class TerminalService implements ITerminalService {
 		// for example, we detect if you've installed a pwsh
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
 		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
-		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -378,7 +373,7 @@ export class TerminalService implements ITerminalService {
 				}
 			});
 			if (layoutInfo.tabs.length) {
-				this._terminalGroupService.setActiveGroupByIndex(activeGroup ? this.terminalGroups.indexOf(activeGroup) : 0);
+				this._terminalGroupService.activeGroup = activeGroup;
 			}
 		}
 		return reconnectCounter;
@@ -500,12 +495,6 @@ export class TerminalService implements ITerminalService {
 		this._localTerminalService?.setTerminalLayoutInfo(undefined);
 	}
 
-	getGroupLabels(): string[] {
-		return this._terminalGroups.filter(group => group.terminalInstances.length > 0).map((group, index) => {
-			return `${index + 1}: ${group.title ? group.title : ''}`;
-		});
-	}
-
 	getFindState(): FindReplaceState {
 		return this._findState;
 	}
@@ -515,9 +504,8 @@ export class TerminalService implements ITerminalService {
 		if (!this.configHelper.config.enablePersistentSessions) {
 			return;
 		}
-		const state: ITerminalsLayoutInfoById = {
-			tabs: this.terminalGroups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup))
-		};
+		const tabs = this._terminalGroupService.groups.map(g => g.getLayoutInfo(g === this._terminalGroupService.activeGroup));
+		const state: ITerminalsLayoutInfoById = { tabs };
 		this._primaryOffProcessTerminalService?.setTerminalLayoutInfo(state);
 	}
 
@@ -579,7 +567,7 @@ export class TerminalService implements ITerminalService {
 		} else if (this._localTerminalsInitPromise) {
 			await this._localTerminalsInitPromise;
 		}
-		if (this.terminalGroups.length === 0 && this.isProcessSupportRegistered) {
+		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
 			this.createTerminal();
 		}
 	}
@@ -597,7 +585,7 @@ export class TerminalService implements ITerminalService {
 		this._initInstanceListeners(instance);
 
 		// TODO: Move into group service?
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		return instance;
 	}
 
@@ -821,8 +809,9 @@ export class TerminalService implements ITerminalService {
 		return group.terminalInstances.length > 1;
 	}
 
+	// TODO: Move to group service
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
-		return this._terminalGroups.find(group => group.terminalInstances.indexOf(instance) !== -1);
+		return this._terminalGroupService.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
