@@ -668,16 +668,22 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
 			tags: ['notebookLayout']
 		},
 		[InsertToolbarLocation]: {
-			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
+			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
 			type: 'string',
 			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+			enumDescriptions: [
+				nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
+				nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
+				nls.localize('insertToolbarLocation.both', "Both toolbars."),
+				nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
+			],
 			default: 'both',
 			tags: ['notebookLayout']
 		},
@@ -694,9 +700,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the markdown header folding arrow is shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
+			enumDescriptions: [
+				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
+			],
 			default: 'mouseover',
 			tags: ['notebookLayout']
 		},
