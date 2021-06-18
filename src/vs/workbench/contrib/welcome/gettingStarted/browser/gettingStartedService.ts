@@ -843,8 +843,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 }
 
-const idForStartEntry = (entry: IStartEntry): string => `${entry.title}#${entry.command}`;
-
 const parseDescription = (desc: string): LinkedText[] => desc.split('\n').filter(x => x).map(text => parseLinkedText(text));
 
 
