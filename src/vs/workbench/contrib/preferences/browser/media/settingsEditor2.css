@@ -505,6 +505,10 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control {
 	width: 500px;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-control textarea {
+	/* Keep textarea at a constant height */
+	height: 150px !important;
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-enum .setting-item-value > .setting-item-control,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-text .setting-item-value > .setting-item-control {

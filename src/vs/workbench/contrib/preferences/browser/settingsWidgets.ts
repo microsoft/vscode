@@ -341,7 +341,6 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 			listHeight += ITEM_HEIGHT;
 			this.listElement.appendChild(header);
 		}
-
 		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
 		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
 

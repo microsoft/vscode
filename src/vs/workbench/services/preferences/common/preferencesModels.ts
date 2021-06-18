@@ -634,6 +634,10 @@ export class DefaultSettings extends Disposable {
 					enumDescriptions = prop.items!.enumDescriptions || prop.items!.markdownEnumDescriptions;
 				}
 
+				if (prop.type === 'string' && !prop.enum) {
+					console.log('dbg str ' + key);
+				}
+
 				result.push({
 					key,
 					value,

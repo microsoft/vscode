@@ -53,6 +53,7 @@ import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSyn
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -120,6 +121,8 @@ export class SettingsEditor2 extends EditorPane {
 		}
 		return type === SettingValueType.Enum ||
 			type === SettingValueType.StringOrEnumArray ||
+			type === SettingValueType.Object ||
+			type === SettingValueType.String ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;
@@ -195,6 +198,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IExtensionService private readonly extensionService: IExtensionService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService, storageService);
 		this.delayedFilterLogging = new Delayer<void>(1000);
@@ -1011,7 +1015,7 @@ export class SettingsEditor2 extends EditorPane {
 		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
-		resolvedSettingsRoot.children!.push(resolveExtensionsSettings(dividedGroups.extension || []));
+		resolvedSettingsRoot.children!.push(await resolveExtensionsSettings(this.extensionService, dividedGroups.extension || []));
 
 		if (!this.workspaceTrustManagementService.isWorkpaceTrusted() && (this.viewState.settingsTarget instanceof URI || this.viewState.settingsTarget === ConfigurationTarget.WORKSPACE)) {
 			const configuredUntrustedWorkspaceSettings = resolveConfiguredUntrustedSettings(groups, this.viewState.settingsTarget, this.configurationService);
