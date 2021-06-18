@@ -17,11 +17,11 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	) { }
 
 	public canSerialize(editorInput: TerminalEditorInput): boolean {
-		return true;
+		return !!editorInput.terminalInstance?.persistentProcessId;
 	}
 
 	public serialize(editorInput: TerminalEditorInput): string | undefined {
-		if (!editorInput.terminalInstance) {
+		if (!editorInput.terminalInstance?.persistentProcessId) {
 			return;
 		}
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));

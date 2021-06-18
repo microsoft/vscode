@@ -145,8 +145,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	async start(id: number): Promise<ITerminalLaunchError | undefined> {
 		this._logService.trace('ptyService#start', id);
-		return this._throwIfNoPty(id).start();
+		const pty = this._ptys.get(id);
+		return pty ? pty.start() : { message: `Could not find pty with id "${id}"` };
 	}
+
 	async shutdown(id: number, immediate: boolean): Promise<void> {
 		// Don't throw if the pty is already shutdown
 		this._logService.trace('ptyService#shutDown', id, immediate);
@@ -201,7 +203,6 @@ export class PtyService extends Disposable implements IPtyService {
 	}
 
 	async setTerminalLayoutInfo(args: ISetTerminalLayoutInfoArgs): Promise<void> {
-		// this._logService.trace('ptyService#setLayoutInfo', args);
 		this._workspaceLayoutInfos.set(args.workspaceId, args);
 	}
 

@@ -25,9 +25,9 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	getOrCreateEditor(instance: ITerminalInstance, shouldOpenEditor: boolean): TerminalEditorInput {
-		const revivedEditor = this._editorInputs.get(instance.instanceId);
-		if (revivedEditor) {
-			return revivedEditor;
+		const cachedEditor = this._editorInputs.get(instance.instanceId);
+		if (cachedEditor) {
+			return cachedEditor;
 		}
 		instance.target = TerminalLocation.Editor;
 		const editor = new TerminalEditorInput(instance);
