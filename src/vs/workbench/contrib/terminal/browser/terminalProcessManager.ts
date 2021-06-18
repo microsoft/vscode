@@ -344,7 +344,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			return { message: e.message };
 		}
 
-
 		return undefined;
 	}
 

@@ -24,17 +24,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		// TODO: Multiplex instance events
 	}
 
-	getOrCreateEditor(instance: ITerminalInstance): TerminalEditorInput {
+	getOrCreateEditor(instance: ITerminalInstance, shouldOpenEditor: boolean): TerminalEditorInput {
 		const revivedEditor = this._editorInputs.get(instance.instanceId);
 		if (revivedEditor) {
 			return revivedEditor;
 		}
 		instance.target = TerminalLocation.Editor;
 		const editor = new TerminalEditorInput(instance);
-		this._editorService.openEditor(editor, {
-			pinned: true,
-			forceReload: true
-		});
+		if (shouldOpenEditor) {
+			this._editorService.openEditor(editor, {
+				pinned: true,
+				forceReload: true
+			});
+		}
 		this.terminalEditorInstances.push(instance);
 		this._editorInputs.set(instance.instanceId, editor);
 		return editor;
