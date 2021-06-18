@@ -139,6 +139,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -146,6 +147,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
@@ -518,6 +520,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -525,6 +528,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
@@ -873,6 +877,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -880,6 +885,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
@@ -1194,6 +1200,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -1201,6 +1208,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
@@ -1484,6 +1492,7 @@
 									"enum": [
 										"notify",
 										"openBrowser",
+										"openBrowserOnce",
 										"openPreview",
 										"silent",
 										"ignore"
@@ -1491,6 +1500,7 @@
 									"enumDescriptions": [
 										"Shows a notification when a port is automatically forwarded.",
 										"Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser.",
+										"Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser.",
 										"Opens a preview in the same window when the port is automatically forwarded.",
 										"Shows no notification and takes no action when this port is automatically forwarded.",
 										"This port will not be automatically forwarded."
