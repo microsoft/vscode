@@ -918,13 +918,19 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
-	export interface TreeViewOptions<T> {
+	/**
+	 * A data provider that provides tree data
+	 */
+	export interface TreeDataProvider<T> {
 		/**
-		 * An optional event to signal that elements or the root have changed.
+		 * An optional event to signal that an element or root has changed.
 		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
 		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
 		 */
-		onDidChangeTreeData?: Event<T | T[] | undefined | null | void>;
+		onDidChangeTreeData2?: Event<T | T[] | undefined | null | void>;
+	}
+
+	export interface TreeViewOptions<T> {
 		/**
 		* An optional interface to implement drag and drop in the tree view.
 		*/
