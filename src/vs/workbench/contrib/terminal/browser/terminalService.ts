@@ -180,7 +180,8 @@ export class TerminalService implements ITerminalService {
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				let instance = this.getInstanceFromId(parseInt(resource.path));
+				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
+				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
 				if (instance) {
 					const sourceGroup = this.getGroupForInstance(instance);
 					if (sourceGroup) {
@@ -877,8 +878,13 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
+			const instanceId = TerminalInstance.getInstanceIdFromUri(e.uri);
+			if (instanceId === undefined) {
+				return;
+			}
+
 			// View terminals
-			let sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			let sourceInstance = this.getInstanceFromId(instanceId);
 			if (sourceInstance) {
 				this.moveInstance(sourceInstance, instance, e.side);
 			}
