@@ -113,7 +113,6 @@ export interface ICreateTerminalOptions {
 export interface ITerminalService {
 	readonly _serviceBrand: undefined;
 
-	activeGroupIndex: number;
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
 	readonly terminalGroups: readonly ITerminalGroup[];
@@ -167,7 +166,6 @@ export interface ITerminalService {
 	getGroupLabels(): string[];
 	getActiveInstance(): ITerminalInstance | null;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
-	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
@@ -187,11 +185,6 @@ export interface ITerminalService {
 	 * @param callback The callback that fires with the active terminal
 	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
-
-	// TODO: Move these to ITerminalGroupService
-	setActiveGroupToNext(): void;
-	setActiveGroupToPrevious(): void;
-	setActiveGroupByIndex(groupIndex: number): void;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
@@ -256,15 +249,20 @@ export interface ITerminalEditorService {
 export interface ITerminalGroupService {
 	readonly _serviceBrand: undefined;
 
-	readonly activeGroup: ITerminalGroup | undefined;
-	readonly activeInstance: ITerminalInstance | undefined;
-	readonly instances: readonly ITerminalInstance[];
 	readonly groups: readonly ITerminalGroup[];
+	readonly activeGroup: ITerminalGroup | undefined;
+	readonly activeGroupIndex: number;
+	readonly instances: readonly ITerminalInstance[];
+	readonly activeInstance: ITerminalInstance | undefined;
+	readonly activeInstanceIndex: number;
+
+	// TODO: Review which methods can be made private
 
 	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
 	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	readonly onDidChangeGroups: Event<void>;
 
+	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
 	readonly onDidChangeInstances: Event<void>;
 
 	readonly onPanelOrientationChanged: Event<Orientation>;
@@ -278,7 +276,13 @@ export interface ITerminalGroupService {
 	 * @param target The target instance to move the source instance to.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+
+	setActiveGroupByIndex(index: number): void;
+	setActiveGroupToNext(): void;
+	setActiveGroupToPrevious(): void;
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
+
+	setActiveInstanceByIndex(terminalIndex: number): void;
 
 	setContainer(container: HTMLElement): void;
 }

@@ -57,8 +57,6 @@ export class TerminalService implements ITerminalService {
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _findState: FindReplaceState;
-	private _activeGroupIndex: number;
-	private _activeInstanceIndex: number;
 	private readonly _profileProviders: Map</*ext id*/string, Map</*provider id*/string, ITerminalProfileProvider>> = new Map();
 	private _linkProviders: Set<ITerminalExternalLinkProvider> = new Set();
 	private _linkProviderDisposables: Map<ITerminalExternalLinkProvider, IDisposable[]> = new Map();
@@ -74,7 +72,6 @@ export class TerminalService implements ITerminalService {
 
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
-	public get activeGroupIndex(): number { return this._activeGroupIndex; }
 	public get terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroups; }
 	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
@@ -156,8 +153,6 @@ export class TerminalService implements ITerminalService {
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
-		this._activeGroupIndex = 0;
-		this._activeInstanceIndex = 0;
 		this._isShuttingDown = false;
 		this._findState = new FindReplaceState();
 		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
@@ -338,7 +333,7 @@ export class TerminalService implements ITerminalService {
 				}
 			});
 			if (layoutInfo.tabs.length) {
-				this.setActiveGroupByIndex(activeGroup ? this.terminalGroups.indexOf(activeGroup) : 0);
+				this._terminalGroupService.setActiveGroupByIndex(activeGroup ? this.terminalGroups.indexOf(activeGroup) : 0);
 			}
 		}
 		return reconnectCounter;
@@ -550,18 +545,8 @@ export class TerminalService implements ITerminalService {
 		if (terminalInstance.shellLaunchConfig.hideFromUser) {
 			this._showBackgroundTerminal(terminalInstance);
 		}
-		this.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
-	}
-
-	setActiveGroupByIndex(index: number): void {
-		if (index >= this._terminalGroups.length) {
-			return;
-		}
-
-		this._activeGroupIndex = index;
-
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
-		this._onActiveGroupChanged.fire();
+		// TODO: Handle editor terminals too
+		this._terminalGroupService.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
 	}
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
@@ -579,65 +564,6 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _getInstanceLocation(index: number): IInstanceLocation | undefined {
-		let currentGroupIndex = 0;
-		while (index >= 0 && currentGroupIndex < this._terminalGroups.length) {
-			const group = this._terminalGroups[currentGroupIndex];
-			const count = group.terminalInstances.length;
-			if (index < count) {
-				return {
-					group,
-					groupIndex: currentGroupIndex,
-					instance: group.terminalInstances[index],
-					instanceIndex: index
-				};
-			}
-			index -= count;
-			currentGroupIndex++;
-		}
-		return undefined;
-	}
-
-	setActiveInstanceByIndex(index: number): void {
-		const instanceLocation = this._getInstanceLocation(index);
-		if (!instanceLocation || (this._activeInstanceIndex > 0 && this._activeInstanceIndex === index)) {
-			return;
-		}
-
-		this._activeInstanceIndex = instanceLocation.instanceIndex;
-		this._activeGroupIndex = instanceLocation.groupIndex;
-
-		instanceLocation.group.setActiveInstanceByIndex(this._activeInstanceIndex);
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
-
-		if (this._activeGroupIndex !== instanceLocation.groupIndex) {
-			this._onActiveGroupChanged.fire();
-		}
-		this._onActiveInstanceChanged.fire(instanceLocation.instance);
-	}
-
-	setActiveGroupToNext(): void {
-		if (this._terminalGroups.length <= 1) {
-			return;
-		}
-		let newIndex = this._activeGroupIndex + 1;
-		if (newIndex >= this._terminalGroups.length) {
-			newIndex = 0;
-		}
-		this.setActiveGroupByIndex(newIndex);
-	}
-
-	setActiveGroupToPrevious(): void {
-		if (this._terminalGroups.length <= 1) {
-			return;
-		}
-		let newIndex = this._activeGroupIndex - 1;
-		if (newIndex < 0) {
-			newIndex = this._terminalGroups.length - 1;
-		}
-		this.setActiveGroupByIndex(newIndex);
-	}
-
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
@@ -650,7 +576,8 @@ export class TerminalService implements ITerminalService {
 
 		this._initInstanceListeners(instance);
 
-		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
+		// TODO: Move into group service?
+		this._terminalGroups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
 		return instance;
 	}
 
@@ -1087,7 +1014,7 @@ export class TerminalService implements ITerminalService {
 		}
 		try {
 			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
-			this.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+			this._terminalGroupService.setActiveInstanceByIndex(this._terminalInstances.length - 1);
 			await this.getActiveInstance()?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);
@@ -1208,7 +1135,7 @@ export class TerminalService implements ITerminalService {
 		if (this.terminalInstances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire
 			// after onInstancesChanged so consumers can react to the instance being added first
-			this.setActiveInstanceByIndex(0);
+			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 		return instance;
 	}
@@ -1225,7 +1152,7 @@ export class TerminalService implements ITerminalService {
 
 		// Make active automatically if it's the first instance
 		if (this.terminalInstances.length === 1) {
-			this.setActiveInstanceByIndex(0);
+			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 
 		this._onInstancesChanged.fire();
@@ -1279,11 +1206,4 @@ export class TerminalService implements ITerminalService {
 
 interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string });
-}
-
-interface IInstanceLocation {
-	group: ITerminalGroup,
-	groupIndex: number,
-	instance: ITerminalInstance,
-	instanceIndex: number
 }

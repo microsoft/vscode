@@ -14,10 +14,10 @@ import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGro
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
 
-	instances: ITerminalInstance[] = [];
 	groups: ITerminalGroup[] = [];
-
-	private _activeGroupIndex: number = -1;
+	activeGroupIndex: number = -1;
+	instances: ITerminalInstance[] = [];
+	activeInstanceIndex: number = -1;
 
 	private _container: HTMLElement | undefined;
 
@@ -28,6 +28,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private readonly _onDidChangeGroups = new Emitter<void>();
 	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
 
+	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
+	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
 	private readonly _onDidChangeInstances = new Emitter<void>();
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 
@@ -41,10 +43,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {
-		if (this._activeGroupIndex < 0 || this._activeGroupIndex >= this.groups.length) {
+		if (this.activeGroupIndex < 0 || this.activeGroupIndex >= this.groups.length) {
 			return undefined;
 		}
-		return this.groups[this._activeGroupIndex];
+		return this.groups[this.activeGroupIndex];
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -99,11 +101,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		// Adjust focus if the group was active
 		if (wasActiveGroup && this.groups.length > 0) {
 			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this._setActiveGroupByIndex(newIndex);
+			this.setActiveGroupByIndex(newIndex);
 			this.activeInstance?.focus(true);
-		} else if (this._activeGroupIndex >= this.groups.length) {
+		} else if (this.activeGroupIndex >= this.groups.length) {
 			const newIndex = this.groups.length - 1;
-			this._setActiveGroupByIndex(newIndex);
+			this.setActiveGroupByIndex(newIndex);
 		}
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -118,15 +120,75 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return wasActiveGroup;
 	}
 
-	private _setActiveGroupByIndex(index: number): void {
+	setActiveGroupByIndex(index: number): void {
 		if (index >= this.groups.length) {
 			return;
 		}
 
-		this._activeGroupIndex = index;
+		this.activeGroupIndex = index;
 
-		this.groups.forEach((g, i) => g.setVisible(i === this._activeGroupIndex));
+		this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
 		this._onDidChangeActiveGroup.fire(this.activeGroup);
+	}
+
+
+	private _getInstanceLocation(index: number): IInstanceLocation | undefined {
+		let currentGroupIndex = 0;
+		while (index >= 0 && currentGroupIndex < this.groups.length) {
+			const group = this.groups[currentGroupIndex];
+			const count = group.terminalInstances.length;
+			if (index < count) {
+				return {
+					group,
+					groupIndex: currentGroupIndex,
+					instance: group.terminalInstances[index],
+					instanceIndex: index
+				};
+			}
+			index -= count;
+			currentGroupIndex++;
+		}
+		return undefined;
+	}
+
+	setActiveInstanceByIndex(index: number): void {
+		const instanceLocation = this._getInstanceLocation(index);
+		if (!instanceLocation || (this.activeInstanceIndex > 0 && this.activeInstanceIndex === index)) {
+			return;
+		}
+
+		this.activeInstanceIndex = instanceLocation.instanceIndex;
+		this.activeGroupIndex = instanceLocation.groupIndex;
+
+		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
+		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
+
+		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
+			this._onDidChangeActiveGroup.fire(this.activeGroup);
+		}
+		this._onDidChangeActiveInstance.fire(instanceLocation.instance);
+	}
+
+	setActiveGroupToNext(): void {
+		if (this.groups.length <= 1) {
+			return;
+		}
+		let newIndex = this.activeGroupIndex + 1;
+		if (newIndex >= this.groups.length) {
+			newIndex = 0;
+		}
+		this.setActiveGroupByIndex(newIndex);
+	}
+
+	setActiveGroupToPrevious(): void {
+		if (this.groups.length <= 1) {
+			return;
+		}
+		let newIndex = this.activeGroupIndex - 1;
+		if (newIndex < 0) {
+			newIndex = this.groups.length - 1;
+		}
+		this.setActiveGroupByIndex(newIndex);
 	}
 
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
@@ -145,4 +207,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
+}
+
+interface IInstanceLocation {
+	group: ITerminalGroup,
+	groupIndex: number,
+	instance: ITerminalInstance,
+	instanceIndex: number
 }

@@ -316,10 +316,11 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
 		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onGroupsChanged(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
@@ -341,7 +342,7 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 
 	private _updateItems(): void {
 		const options = getTerminalSelectOpenItems(this._terminalService);
-		this.setOptions(options, this._terminalService.activeGroupIndex);
+		this.setOptions(options, this._terminalGroupService.activeGroupIndex);
 	}
 }
 

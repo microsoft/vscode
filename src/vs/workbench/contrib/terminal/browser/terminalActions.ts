@@ -441,9 +441,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveGroupToNext();
-			await terminalService.showPanel(true);
+			accessor.get(ITerminalGroupService).setActiveGroupToNext();
+			await accessor.get(ITerminalService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -465,9 +464,8 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.setActiveGroupToPrevious();
-			await terminalService.showPanel(true);
+			accessor.get(ITerminalGroupService).setActiveGroupToPrevious();
+			await accessor.get(ITerminalService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1823,7 +1821,7 @@ export function registerTerminalActions() {
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
-				terminalService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
+				accessor.get(ITerminalGroupService).setActiveGroupByIndex(Number(indexMatches[1]) - 1);
 				return terminalService.showPanel(true);
 			}
 
