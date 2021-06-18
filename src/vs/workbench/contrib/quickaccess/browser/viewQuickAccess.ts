@@ -156,7 +156,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 					accept: async () => {
 						await this.terminalService.showPanel(true);
 
-						this.terminalService.setActiveInstance(terminal);
+						this.terminalService.activeInstance = terminal;
 					}
 				});
 			});

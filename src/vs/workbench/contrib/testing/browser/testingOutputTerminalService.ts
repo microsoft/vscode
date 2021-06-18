@@ -87,7 +87,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		// If there's an existing terminal for the attempted reveal, show that instead.
 		const existing = testOutputPtys.find(([, o]) => o.resultId === result?.id);
 		if (existing) {
-			this.terminalService.setActiveInstance(existing[0]);
+			this.terminalService.activeInstance = existing[0];
 			this.terminalService.showPanel();
 			return;
 		}
@@ -113,7 +113,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	private async showResultsInTerminal(terminal: ITerminalInstance, output: TestOutputProcess, result: ITestResult | undefined) {
 		this.outputTerminals.set(terminal, output);
 		output.resetFor(result?.id, getTitle(result));
-		this.terminalService.setActiveInstance(terminal);
+		this.terminalService.activeInstance = terminal;
 		this.terminalService.showPanel();
 
 		if (!result) {

@@ -38,16 +38,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
-			const oldActiveIndex = this._activeInstanceIndex;
 			const activeEditor = this._editorService.activeEditor;
-			if (activeEditor instanceof TerminalEditorInput) {
-				this._activeInstanceIndex = this.instances.findIndex(e => activeEditor.terminalInstance === e);
-			} else {
-				this._activeInstanceIndex = -1;
-			}
-			if (oldActiveIndex !== this._activeInstanceIndex) {
-				this._onDidChangeActiveInstance.fire(this.activeInstance);
-			}
+			this.activeInstance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
 		}));
 	}
 
@@ -56,6 +48,18 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			return undefined;
 		}
 		return this.instances[this._activeInstanceIndex];
+	}
+
+	set activeInstance(value: ITerminalInstance | undefined) {
+		const oldActiveIndex = this._activeInstanceIndex;
+		if (value === undefined) {
+			this._activeInstanceIndex = -1;
+		} else {
+			this._activeInstanceIndex = this.instances.findIndex(e => e === value);
+		}
+		if (oldActiveIndex !== this._activeInstanceIndex) {
+			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		}
 	}
 
 	async createEditor(instance: ITerminalInstance): Promise<void> {

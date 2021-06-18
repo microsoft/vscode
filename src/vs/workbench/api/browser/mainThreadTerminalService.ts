@@ -159,7 +159,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $show(id: TerminalIdentifier, preserveFocus: boolean): void {
 		const terminalInstance = this._getTerminalInstance(id);
 		if (terminalInstance) {
-			this._terminalService.setActiveInstance(terminalInstance);
+			this._terminalService.activeInstance = terminalInstance;
 			this._terminalService.showPanel(!preserveFocus);
 		}
 	}

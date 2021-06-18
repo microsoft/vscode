@@ -155,7 +155,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getGroupLabels(): string[];
-	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
@@ -281,8 +280,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
  * properties and events.
  */
 export interface ITerminalInstanceHost {
+	activeInstance: ITerminalInstance | undefined;
 	readonly instances: readonly ITerminalInstance[];
-	readonly activeInstance: ITerminalInstance | undefined;
 
 	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;

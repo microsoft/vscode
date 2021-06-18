@@ -57,6 +57,26 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return this.activeGroup?.activeInstance;
 	}
 
+	set activeInstance(value: ITerminalInstance | undefined) {
+		if (value === undefined) {
+			return;
+		}
+		this.setActiveInstanceByIndex(this._getIndexFromId(value.instanceId));
+	}
+
+	private _getIndexFromId(terminalId: number): number {
+		let terminalIndex = -1;
+		this.instances.forEach((terminalInstance, i) => {
+			if (terminalInstance.instanceId === terminalId) {
+				terminalIndex = i;
+			}
+		});
+		if (terminalIndex === -1) {
+			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
+		}
+		return terminalIndex;
+	}
+
 	setContainer(container: HTMLElement) {
 		this._container = container;
 		this.groups.forEach(group => group.attachToElement(container));

@@ -47,8 +47,6 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
-	private _activeInstance: ITerminalInstance | undefined;
-	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
 	private get _terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroupService.groups; }
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
@@ -84,10 +82,28 @@ export class TerminalService implements ITerminalService {
 		return this._availableProfiles || [];
 	}
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
-	private get _terminalInstances(): ITerminalInstance[] {
+	get instances(): ITerminalInstance[] {
+		// TODO: Also return editors here
 		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
 	}
-	get instances(): ITerminalInstance[] { return this._terminalInstances; }
+
+	private _activeInstance: ITerminalInstance | undefined;
+	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
+	set activeInstance(value: ITerminalInstance | undefined) {
+		if (value === undefined) {
+			throw new Error('Cannot set active instance to undefined');
+		}
+		// If this was a hideFromUser terminal created by the API this was triggered by show,
+		// in which case we need to create the terminal group
+		if (value.shellLaunchConfig.hideFromUser) {
+			this._showBackgroundTerminal(value);
+		}
+		if (value.target === TerminalLocation.Editor) {
+			this._terminalEditorService.activeInstance = value;
+		} else {
+			this._terminalGroupService.activeInstance = value;
+		}
+	}
 
 	private readonly _onActiveGroupChanged = new Emitter<void>();
 	get onActiveGroupChanged(): Event<void> { return this._onActiveGroupChanged.event; }
@@ -205,7 +221,7 @@ export class TerminalService implements ITerminalService {
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
 		this.onInstanceCreated(() => this._refreshAvailableProfiles());
-		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this._terminalInstances.length));
+		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
 		this.onGroupsChanged(() => this._terminalGroupCountContextKey.set(this._terminalGroups.length));
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
@@ -358,7 +374,7 @@ export class TerminalService implements ITerminalService {
 						return t.shellLaunchConfig.attachPersistentProcess?.id === groupLayout.activePersistentProcessId;
 					});
 					if (activeInstance) {
-						this.setActiveInstance(activeInstance);
+						this.activeInstance = activeInstance;
 					}
 					group?.resizePanes(groupLayout.terminals.map(terminal => terminal.relativeSize));
 				}
@@ -555,19 +571,6 @@ export class TerminalService implements ITerminalService {
 		return this.instances[terminalIndex];
 	}
 
-	setActiveInstance(terminalInstance: ITerminalInstance): void {
-		if (this.configHelper.config.creationTarget === TerminalLocation.Editor) {
-			return;
-		}
-		// If this was a hideFromUser terminal created by the API this was triggered by show,
-		// in which case we need to create the terminal group
-		if (terminalInstance.shellLaunchConfig.hideFromUser) {
-			this._showBackgroundTerminal(terminalInstance);
-		}
-		// TODO: Handle editor terminals too
-		this._terminalGroupService.setActiveInstanceByIndex(this._getIndexFromId(terminalInstance.instanceId));
-	}
-
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
@@ -648,7 +651,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		// Set the active terminal
-		this.setActiveInstance(instances[0]);
+		this.activeInstance = instances[0];
 
 		// Fire events
 		this._onDidChangeInstances.fire();
@@ -658,6 +661,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
+		// TODO: Move into group service
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);
 		if (!sourceGroup || !targetGroup) {
@@ -713,7 +717,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		group.addInstance(source);
-		this.setActiveInstance(source);
+		this.activeInstance = source;
 		await this.showPanel(true);
 		// TODO: Shouldn't this happen automatically?
 		source.setVisible(true);
@@ -843,7 +847,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async focusTabs(): Promise<void> {
-		if (this._terminalInstances.length === 0) {
+		if (this.instances.length === 0) {
 			return;
 		}
 		await this.showPanel(true);
@@ -855,6 +859,7 @@ export class TerminalService implements ITerminalService {
 		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
 	}
 
+	// TODO: Remove this, it should live in group/editor servioce
 	private _getIndexFromId(terminalId: number): number {
 		let terminalIndex = -1;
 		this.instances.forEach((terminalInstance, i) => {
@@ -977,7 +982,7 @@ export class TerminalService implements ITerminalService {
 
 			if (instance && this.configHelper.config.creationTarget === TerminalLocation.TerminalView) {
 				this.showPanel(true);
-				this.setActiveInstance(instance);
+				this.activeInstance = instance;
 				return instance;
 			}
 		} else { // setDefault
@@ -1015,7 +1020,7 @@ export class TerminalService implements ITerminalService {
 		}
 		try {
 			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
-			this._terminalGroupService.setActiveInstanceByIndex(this._terminalInstances.length - 1);
+			this._terminalGroupService.setActiveInstanceByIndex(this.instances.length - 1);
 			await this.activeInstance?.focusWhenReady();
 		} catch (e) {
 			this._notificationService.error(e.message);

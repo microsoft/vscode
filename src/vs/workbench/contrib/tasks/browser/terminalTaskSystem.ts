@@ -324,7 +324,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (isTerminalInPanel && this.isTaskVisible(task)) {
 			if (this.previousPanelId) {
 				if (this.previousTerminalInstance) {
-					this.terminalService.setActiveInstance(this.previousTerminalInstance);
+					this.terminalService.activeInstance = this.previousTerminalInstance;
 				}
 				this.panelService.openPanel(this.previousPanelId);
 			} else {
@@ -339,7 +339,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}
 			}
-			this.terminalService.setActiveInstance(terminalData.terminal);
+			this.terminalService.activeInstance = terminalData.terminal;
 			if (CustomTask.is(task) || ContributedTask.is(task)) {
 				this.terminalService.showPanel(task.command.presentation!.focus);
 			}
@@ -770,7 +770,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 							if (revealProblems === RevealProblemKind.OnProblem) {
 								this.viewsService.openView(Constants.MARKERS_VIEW_ID, true);
 							} else if (reveal === RevealKind.Silent) {
-								this.terminalService.setActiveInstance(terminal!);
+								this.terminalService.activeInstance = terminal;
 								this.terminalService.showPanel(false);
 							}
 						}
@@ -839,7 +839,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					if ((reveal === RevealKind.Silent) && ((exitCode !== 0) || (watchingProblemMatcher.numberOfMatches > 0) && watchingProblemMatcher.maxMarkerSeverity &&
 						(watchingProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						try {
-							this.terminalService.setActiveInstance(terminal!);
+							this.terminalService.activeInstance = terminal;
 							this.terminalService.showPanel(false);
 						} catch (e) {
 							// If the terminal has already been disposed, then setting the active instance will fail. #99828
@@ -924,7 +924,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 					} else if (terminal && (reveal === RevealKind.Silent) && ((exitCode !== 0) || (startStopProblemMatcher.numberOfMatches > 0) && startStopProblemMatcher.maxMarkerSeverity &&
 						(startStopProblemMatcher.maxMarkerSeverity >= MarkerSeverity.Error))) {
 						try {
-							this.terminalService.setActiveInstance(terminal);
+							this.terminalService.activeInstance = terminal;
 							this.terminalService.showPanel(false);
 						} catch (e) {
 							// If the terminal has already been disposed, then setting the active instance will fail. #99828
@@ -957,7 +957,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (showProblemPanel) {
 			this.viewsService.openView(Constants.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.reveal === RevealKind.Always)) {
-			this.terminalService.setActiveInstance(terminal);
+			this.terminalService.activeInstance = terminal;
 			this.terminalService.showPanel(task.command.presentation.focus);
 		}
 		this.activeTasks[task.getMapKey()] = { terminal, task, promise };
