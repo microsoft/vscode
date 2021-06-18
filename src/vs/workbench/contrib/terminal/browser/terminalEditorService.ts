@@ -54,7 +54,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	detachInstance(instance: ITerminalInstance) {
-		console.log('detach instance', instance);
 		const editorInput = this._editorInputs.get(instance.instanceId);
 		editorInput?.detachInstance();
 		this._editorInputs.delete(instance.instanceId);
@@ -62,7 +61,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (instanceIndex !== -1) {
 			this.terminalEditorInstances.splice(instanceIndex, 1);
 		}
-		console.log('dispose input', editorInput);
 		editorInput?.dispose();
 	}
 }

@@ -177,14 +177,10 @@ export class TerminalService implements ITerminalService {
 			},
 			{
 				canHandleDiff: false,
-				canSupportResource: uri => {
-					console.log('check canSupportResource', uri);
-					return uri.scheme === Schemas.vscodeTerminal;
-				},
+				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				console.log('drag into editor, resource', resource);
 				let instance = this.getInstanceFromId(parseInt(resource.path));
 				if (instance) {
 					const sourceGroup = this.getGroupForInstance(instance);
@@ -197,7 +193,6 @@ export class TerminalService implements ITerminalService {
 				instance.target = TerminalLocation.Editor;
 				// TODO: Create the input with terminal editor service
 				this._terminalEditorService.terminalEditorInstances.push(instance);
-				// instance.detachFromElement();
 				const editor = new TerminalEditorInput(instance);
 				(this._terminalEditorService as any)._editorInputs.set(instance.instanceId, editor);
 				return {
