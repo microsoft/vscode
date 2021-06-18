@@ -22,6 +22,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
+export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
@@ -246,6 +247,16 @@ export interface ITerminalEditorService {
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
+}
+
+/**
+ * This service is responsible for managing terminal groups, that is the terminals that are hosted
+ * within the terminal panel, not in an editor.
+ */
+export interface ITerminalGroupService {
+	readonly _serviceBrand: undefined;
+
+	readonly terminalInstances: ITerminalInstance[];
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
