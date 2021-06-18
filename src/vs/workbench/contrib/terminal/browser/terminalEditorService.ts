@@ -68,7 +68,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			pinned: true,
 			forceReload: true
 		});
-		this.instances.push(instance);
 	}
 
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput {
@@ -78,6 +77,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this._instanceDisposables.set(instance.instanceId, [
 			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
 		]);
+		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
 		return input;
 	}

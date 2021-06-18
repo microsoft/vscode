@@ -223,8 +223,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	readonly instances: ITerminalInstance[];
-
 	createEditor(instance: ITerminalInstance): Promise<void>;
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
