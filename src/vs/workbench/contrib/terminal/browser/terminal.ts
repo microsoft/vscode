@@ -116,7 +116,7 @@ export interface ITerminalService {
 	activeGroupIndex: number;
 	configHelper: ITerminalConfigHelper;
 	terminalInstances: ITerminalInstance[];
-	terminalGroups: ITerminalGroup[];
+	readonly terminalGroups: readonly ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
@@ -176,7 +176,7 @@ export interface ITerminalService {
 	/**
 	 * Moves a terminal instance's group to the target instance group's position.
 	 */
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	// moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance): Promise<void>;
@@ -259,7 +259,23 @@ export interface ITerminalGroupService {
 	readonly instances: readonly ITerminalInstance[];
 	readonly groups: readonly ITerminalGroup[];
 
-	createGroup(): ITerminalGroup;
+	readonly onDidDisposeGroup: Event<ITerminalGroup>;
+	readonly onDidChangeGroups: Event<void>;
+	readonly onDidChangeInstances: Event<void>;
+	readonly onPanelOrientationChanged: Event<Orientation>;
+
+	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
+	// removeGroup(group: ITerminalGroup): void;
+
+	/**
+	 * Moves a terminal instance's group to the target instance group's position.
+	 * @param source The source instance to move.
+	 * @param target The target instance to move the source instance to.
+	 */
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
+
+	setContainer(container: HTMLElement): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

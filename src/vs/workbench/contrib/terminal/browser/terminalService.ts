@@ -28,10 +28,9 @@ import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/termina
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalInstance, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
@@ -48,13 +47,14 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
+	private get _terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroupService.groups; }
+
 	private _isShuttingDown: boolean;
 	private _terminalFocusContextKey: IContextKey<boolean>;
 	private _terminalCountContextKey: IContextKey<number>;
 	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _terminalShellTypeContextKey: IContextKey<string>;
 	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
-	private _terminalGroups: ITerminalGroup[] = [];
 	private _backgroundedTerminalInstances: ITerminalInstance[] = [];
 	private _findState: FindReplaceState;
 	private _activeGroupIndex: number;
@@ -68,7 +68,6 @@ export class TerminalService implements ITerminalService {
 	private _profilesReadyBarrier: AutoOpenBarrier;
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _configHelper: TerminalConfigHelper;
-	private _terminalContainer: HTMLElement | undefined;
 	private _remoteTerminalsInitPromise: Promise<void> | undefined;
 	private _localTerminalsInitPromise: Promise<void> | undefined;
 	private _connectionState: TerminalConnectionState;
@@ -76,7 +75,7 @@ export class TerminalService implements ITerminalService {
 	private _editable: { instance: ITerminalInstance, data: IEditableData } | undefined;
 
 	public get activeGroupIndex(): number { return this._activeGroupIndex; }
-	public get terminalGroups(): ITerminalGroup[] { return this._terminalGroups; }
+	public get terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroups; }
 	public get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
 	get profilesReady(): Promise<void> { return this._profilesReadyBarrier.wait().then(() => { }); }
@@ -150,6 +149,7 @@ export class TerminalService implements ITerminalService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -514,7 +514,8 @@ export class TerminalService implements ITerminalService {
 		const activeGroupIndex = activeGroup ? this._terminalGroups.indexOf(activeGroup) : -1;
 		const wasActiveGroup = group === activeGroup;
 		if (index !== -1) {
-			this._terminalGroups.splice(index, 1);
+			// TODO: Remove cast
+			(this._terminalGroups as ITerminalGroup[]).splice(index, 1);
 			this._onGroupsChanged.fire();
 		}
 
@@ -709,15 +710,16 @@ export class TerminalService implements ITerminalService {
 		}
 
 		oldGroup.removeInstance(instance);
+		this._terminalGroupService.createGroup(instance);
 
-		const newGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
-		newGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		this._terminalGroups.push(newGroup);
+		// const newGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
+		// newGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		// this._terminalGroups.push(newGroup);
 
-		newGroup.addDisposable(newGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		newGroup.addDisposable(newGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-		this._onInstancesChanged.fire();
-		this._onGroupsChanged.fire();
+		// newGroup.addDisposable(newGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+		// newGroup.addDisposable(newGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		// this._onInstancesChanged.fire();
+		// this._onGroupsChanged.fire();
 	}
 
 	joinInstances(instances: ITerminalInstance[]): void {
@@ -735,12 +737,13 @@ export class TerminalService implements ITerminalService {
 
 		// Create a new group if needed
 		if (!candidateGroup) {
-			candidateGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-			candidateGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-			this._terminalGroups.push(candidateGroup);
-			candidateGroup.addDisposable(candidateGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			candidateGroup.addDisposable(candidateGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
-			this._onGroupsChanged.fire();
+			candidateGroup = this._terminalGroupService.createGroup();
+			// candidateGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+			// candidateGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			// this._terminalGroups.push(candidateGroup);
+			// candidateGroup.addDisposable(candidateGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			// candidateGroup.addDisposable(candidateGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+			// this._onGroupsChanged.fire();
 		}
 
 		const wasActiveGroup = this.getActiveGroup() === candidateGroup;
@@ -768,19 +771,6 @@ export class TerminalService implements ITerminalService {
 		if (!wasActiveGroup) {
 			this._onActiveGroupChanged.fire();
 		}
-	}
-
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void {
-		const sourceGroup = this.getGroupForInstance(source);
-		const targetGroup = this.getGroupForInstance(target);
-		if (!sourceGroup || !targetGroup) {
-			return;
-		}
-		const sourceGroupIndex = this._terminalGroups.indexOf(sourceGroup);
-		const targetGroupIndex = this._terminalGroups.indexOf(targetGroup);
-		this._terminalGroups.splice(sourceGroupIndex, 1);
-		this._terminalGroups.splice(targetGroupIndex, 0, sourceGroup);
-		this._onInstancesChanged.fire();
 	}
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void {
@@ -834,13 +824,13 @@ export class TerminalService implements ITerminalService {
 			group = this.getGroupForInstance(target);
 		}
 
-		// TODO: Share code with joinInstances - move into terminal group service
 		if (!group) {
-			group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
-			group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-			this._terminalGroups.push(group);
-			group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+			group = this._terminalGroupService.createGroup();
+			// group = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, undefined);
+			// group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			// this._terminalGroups.push(group);
+			// group.addDisposable(group.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			// group.addDisposable(group.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 		}
 
 		group.addInstance(source);
@@ -856,7 +846,7 @@ export class TerminalService implements ITerminalService {
 
 		// Fire events
 		this._onInstancesChanged.fire();
-		this._onGroupsChanged.fire();
+		// this._onGroupsChanged.fire();
 		this._onActiveGroupChanged.fire();
 	}
 
@@ -1245,17 +1235,18 @@ export class TerminalService implements ITerminalService {
 			this._initInstanceListeners(instance);
 			this._onInstancesChanged.fire();
 		} else {
-			const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
-			this._terminalGroups.push(terminalGroup);
-			terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
+			// const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, shellLaunchConfig);
+			// this._terminalGroups.push(terminalGroup);
+			// terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 
-			instance = terminalGroup.terminalInstances[0];
+			instance = group.terminalInstances[0];
 
-			terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-			terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+			// terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+			// terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
 			this._initInstanceListeners(instance);
 			this._onInstancesChanged.fire();
-			this._onGroupsChanged.fire();
+			// this._onGroupsChanged.fire();
 		}
 
 		if (this.terminalInstances.length === 1) {
@@ -1269,15 +1260,18 @@ export class TerminalService implements ITerminalService {
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
 		this._backgroundedTerminalInstances.splice(this._backgroundedTerminalInstances.indexOf(instance), 1);
 		instance.shellLaunchConfig.hideFromUser = false;
-		const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
-		this._terminalGroups.push(terminalGroup);
-		terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
-		terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
-		terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+		this._terminalGroupService.createGroup(instance);
+		// const terminalGroup = this._instantiationService.createInstance(TerminalGroup, this._terminalContainer, instance);
+		// this._terminalGroups.push(terminalGroup);
+		// terminalGroup.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
+		// terminalGroup.addDisposable(terminalGroup.onDisposed(this._onGroupDisposed.fire, this._onGroupDisposed));
+		// terminalGroup.addDisposable(terminalGroup.onInstancesChanged(this._onInstancesChanged.fire, this._onInstancesChanged));
+
+		// Make active automatically if it's the first instance
 		if (this.terminalInstances.length === 1) {
-			// It's the first instance so it should be made active automatically
 			this.setActiveInstanceByIndex(0);
 		}
+
 		this._onInstancesChanged.fire();
 		this._onGroupsChanged.fire();
 	}
@@ -1311,8 +1305,7 @@ export class TerminalService implements ITerminalService {
 
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;
-		this._terminalContainer = terminalContainer;
-		this._terminalGroups.forEach(group => group.attachToElement(terminalContainer));
+		this._terminalGroupService.setContainer(terminalContainer);
 	}
 
 	hidePanel(): void {

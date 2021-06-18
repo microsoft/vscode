@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -519,6 +519,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 
 	constructor(
 		@ITerminalService private _terminalService: ITerminalService,
+		@ITerminalGroupService private _terminalGroupService: ITerminalGroupService,
 		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
 	) { }
 
@@ -609,7 +610,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		}
 
 		for (const instance of sourceInstances) {
-			this._terminalService.moveGroup(instance, targetInstance);
+			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
 				this._terminalService.setActiveInstance(instance);
 				focused = true;
