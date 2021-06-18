@@ -270,7 +270,7 @@ class ExtHostTreeView<T> extends Disposable {
 					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise!);
 				}
 				if (Array.isArray(current.element)) {
-					result.elements = [...result.elements, ...current.element];
+					result.elements.push(...current.element);
 				} else {
 					result.elements.push(current.element);
 				}
