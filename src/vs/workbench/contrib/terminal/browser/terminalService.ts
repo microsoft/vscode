@@ -263,8 +263,10 @@ export class TerminalService implements ITerminalService {
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
-		// Track the latest active terminal for each host so that when one becomes undefined (eg.
-		// the last terminal editor is closed)
+		// Track the latest active terminal for each host so that when one becomes undefined, the
+		// TerminalService's active terminal is set to the last active terminal from the other host.
+		// This means if the last terminal editor is closed such that it becomes undefined, the last
+		// active group's terminal will be used as the active terminal if available.
 		this._hostActiveTerminals.set(host, undefined);
 		host.onDidChangeActiveInstance(instance => {
 			this._hostActiveTerminals.set(host, instance);
