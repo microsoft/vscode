@@ -181,7 +181,7 @@ export class TerminalService implements ITerminalService {
 					instance = this.createInstance({});
 				}
 				return {
-					editor: this._terminalEditorService.createEditorInput(instance),
+					editor: this._terminalEditorService.getOrCreateEditorInput(instance),
 					options: {
 						...options,
 						pinned: true,
@@ -596,7 +596,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		sourceGroup.removeInstance(source);
-		this._terminalEditorService.createEditor(source);
+		this._terminalEditorService.openEditor(source);
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
@@ -1017,7 +1017,7 @@ export class TerminalService implements ITerminalService {
 		let instance: ITerminalInstance;
 		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
-			this._terminalEditorService.createEditor(instance);
+			this._terminalEditorService.openEditor(instance);
 			this._initInstanceListeners(instance);
 			this._onDidChangeInstances.fire();
 		} else {

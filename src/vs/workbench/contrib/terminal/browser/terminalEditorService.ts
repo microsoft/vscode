@@ -66,15 +66,19 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 	}
 
-	async createEditor(instance: ITerminalInstance): Promise<void> {
-		const input = this.createEditorInput(instance);
+	async openEditor(instance: ITerminalInstance): Promise<void> {
+		const input = this.getOrCreateEditorInput(instance);
 		await this._editorService.openEditor(input, {
 			pinned: true,
 			forceReload: true
 		});
 	}
 
-	createEditorInput(instance: ITerminalInstance): TerminalEditorInput {
+	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
+		const cachedEditor = this._editorInputs.get(instance.instanceId);
+		if (cachedEditor) {
+			return cachedEditor;
+		}
 		const input = new TerminalEditorInput(instance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);

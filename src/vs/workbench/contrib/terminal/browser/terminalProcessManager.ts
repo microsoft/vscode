@@ -339,7 +339,6 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			// Error
 			return result;
 		}
-
 		return undefined;
 	}
 
