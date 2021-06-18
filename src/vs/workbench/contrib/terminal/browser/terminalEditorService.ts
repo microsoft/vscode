@@ -50,14 +50,15 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	set activeInstance(value: ITerminalInstance | undefined) {
-		const oldActiveIndex = this._activeInstanceIndex;
+		const oldActiveInstance = this.activeInstance;
 		if (value === undefined) {
 			this._activeInstanceIndex = -1;
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === value);
 		}
-		if (oldActiveIndex !== this._activeInstanceIndex) {
-			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		const newActiveInstance = this.activeInstance;
+		if (oldActiveInstance !== newActiveInstance) {
+			this._onDidChangeActiveInstance.fire(newActiveInstance);
 		}
 	}
 
