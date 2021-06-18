@@ -215,6 +215,7 @@ export class TerminalService implements ITerminalService {
 			}
 		});
 		this._terminalGroupService.onDidDisposeInstance(this._onInstanceDisposed.fire, this._onInstanceDisposed);
+		this._terminalGroupService.onDidChangeInstances(this._onInstancesChanged.fire, this._onInstancesChanged);
 
 		this._handleInstanceContextKeys();
 		this._processSupportContextKey = KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED.bindTo(this._contextKeyService);
@@ -584,6 +585,7 @@ export class TerminalService implements ITerminalService {
 		return instance;
 	}
 
+	// TODO: Move to group service
 	unsplitInstance(instance: ITerminalInstance): void {
 		const oldGroup = this.getGroupForInstance(instance);
 		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
@@ -594,6 +596,7 @@ export class TerminalService implements ITerminalService {
 		this._terminalGroupService.createGroup(instance);
 	}
 
+	// TODO: Move to group service
 	joinInstances(instances: ITerminalInstance[]): void {
 		// Find the group of the first instance that is the only instance in the group, if one exists
 		let candidateInstance: ITerminalInstance | undefined = undefined;

@@ -67,9 +67,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		// TODO: Move panel orientation change into this file so it's not fired many times
 		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 		this.groups.push(group);
-		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
-		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
+		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
+		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));
 		if (group.terminalInstances.length > 0) {
 			this._onDidChangeInstances.fire();
 		}
