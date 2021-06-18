@@ -221,10 +221,10 @@ export interface ITerminalService extends ITerminalInstanceHost {
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService {
+export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalEditorInstances: ITerminalInstance[];
+	readonly instances: ITerminalInstance[];
 
 	createEditor(instance: ITerminalInstance): Promise<void>;
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput;

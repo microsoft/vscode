@@ -48,6 +48,7 @@ export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
 	private get _terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroupService.groups; }
+	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _isShuttingDown: boolean;
 	private _terminalFocusContextKey: IContextKey<boolean>;
@@ -183,7 +184,7 @@ export class TerminalService implements ITerminalService {
 				} else {
 					instance = this.createInstance({});
 				}
-				this._terminalEditorService.terminalEditorInstances.push(instance);
+				this._terminalEditorService.instances.push(instance);
 				return {
 					editor: this._terminalEditorService.createEditorInput(instance),
 					options: {
@@ -196,6 +197,7 @@ export class TerminalService implements ITerminalService {
 		);
 
 		this._forwardInstanceHostEvents(this._terminalGroupService);
+		this._forwardInstanceHostEvents(this._terminalEditorService);
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -261,9 +263,22 @@ export class TerminalService implements ITerminalService {
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
-		host.onDidDisposeInstance(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance);
-		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
 		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
+		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
+		// Track the latest active terminal for each host so that when one becomes undefined (eg.
+		// the last terminal editor is closed)
+		this._hostActiveTerminals.set(host, undefined);
+		host.onDidChangeActiveInstance(instance => {
+			this._hostActiveTerminals.set(host, instance);
+			if (instance === undefined) {
+				for (const active of this._hostActiveTerminals.values()) {
+					if (active) {
+						instance = active;
+					}
+				}
+			}
+			this._onDidChangeActiveInstance.fire(instance);
+		});
 	}
 
 	async safeDisposeTerminal(instance: ITerminalInstance): Promise<void> {
@@ -745,7 +760,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.path === e.uri.path);
+			sourceInstance = this._terminalEditorService.instances.find(instance => instance.resource.path === e.uri.path);
 			if (sourceInstance) {
 				this.moveToTerminalView(sourceInstance, instance, e.side);
 			}
