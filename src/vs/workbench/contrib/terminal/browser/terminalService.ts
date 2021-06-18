@@ -497,10 +497,9 @@ export class TerminalService implements ITerminalService {
 		this._onActiveGroupChanged.fire();
 	}
 
-	public getActiveInstance(): ITerminalInstance | null {
-		// TODO: Change return type to undefined
+	getActiveInstance(): ITerminalInstance | undefined {
 		// TODO: Get the active instance from the latest activated group or editor
-		return this._terminalGroupService.activeInstance || null;
+		return this._terminalGroupService.activeInstance;
 		// const group = this.getActiveGroup();
 		// if (!group) {
 		// 	return null;

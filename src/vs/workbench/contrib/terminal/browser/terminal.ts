@@ -164,7 +164,7 @@ export interface ITerminalService {
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getGroupLabels(): string[];
-	getActiveInstance(): ITerminalInstance | null;
+	getActiveInstance(): ITerminalInstance | undefined;
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;

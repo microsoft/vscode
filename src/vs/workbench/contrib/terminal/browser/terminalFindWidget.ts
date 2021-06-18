@@ -30,7 +30,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	find(previous: boolean) {
 		const instance = this._terminalService.getActiveInstance();
-		if (instance !== null) {
+		if (instance) {
 			if (previous) {
 				instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 			} else {
@@ -50,7 +50,7 @@ export class TerminalFindWidget extends SimpleFindWidget {
 	protected _onInputChanged() {
 		// Ignore input changes for now
 		const instance = this._terminalService.getActiveInstance();
-		if (instance !== null) {
+		if (instance) {
 			return instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue(), incremental: true });
 		}
 		return false;

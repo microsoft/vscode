@@ -494,7 +494,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon) {
+function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon) {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
@@ -510,7 +510,7 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	return `${label} $(${primaryStatus.icon.id})`;
 }
 
-function getSingleTabTooltip(instance: ITerminalInstance | null): string {
+function getSingleTabTooltip(instance: ITerminalInstance | undefined): string {
 	if (!instance) {
 		return '';
 	}
