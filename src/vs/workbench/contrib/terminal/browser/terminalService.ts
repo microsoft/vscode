@@ -83,8 +83,7 @@ export class TerminalService implements ITerminalService {
 	}
 	get configHelper(): ITerminalConfigHelper { return this._configHelper; }
 	get instances(): ITerminalInstance[] {
-		// TODO: Also return editors here
-		return this._terminalGroups.reduce((p, c) => p.concat(c.terminalInstances), <ITerminalInstance[]>[]);
+		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
 
 	private _activeInstance: ITerminalInstance | undefined;

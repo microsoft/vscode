@@ -16,7 +16,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	groups: ITerminalGroup[] = [];
 	activeGroupIndex: number = -1;
-	instances: ITerminalInstance[] = [];
+	get instances(): ITerminalInstance[] {
+		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
+	}
 	activeInstanceIndex: number = -1;
 
 	private _container: HTMLElement | undefined;
@@ -65,12 +67,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	private _getIndexFromId(terminalId: number): number {
-		let terminalIndex = -1;
-		this.instances.forEach((terminalInstance, i) => {
-			if (terminalInstance.instanceId === terminalId) {
-				terminalIndex = i;
-			}
-		});
+		let terminalIndex = this.instances.findIndex(e => e.instanceId === terminalId);
 		if (terminalIndex === -1) {
 			throw new Error(`Terminal with ID ${terminalId} does not exist (has it already been disposed?)`);
 		}
