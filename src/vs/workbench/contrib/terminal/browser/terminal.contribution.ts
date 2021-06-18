@@ -39,10 +39,11 @@ import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/t
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
-import { TerminalInputSerializer, TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
+import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
 
 // Register services
