@@ -26,8 +26,8 @@ export class GettingStartedInput extends EditorInput {
 		return GettingStartedInput.RESOURCE;
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(other, editorId)) {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
 			return true;
 		}
 

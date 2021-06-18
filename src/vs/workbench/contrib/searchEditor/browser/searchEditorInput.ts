@@ -55,6 +55,10 @@ export class SearchEditorInput extends EditorInput {
 		return SearchEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return this.typeId;
+	}
+
 	override get capabilities(): EditorInputCapabilities {
 		let capabilities = EditorInputCapabilities.Singleton;
 		if (!this.backingUri) {
@@ -216,8 +220,8 @@ export class SearchEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(other, editorId)) {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
 			return true;
 		}
 

@@ -129,13 +129,13 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.revert(group, options);
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.typeId === editorId;
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId === otherInput.options?.override;
 		}
 
 		if (otherInput instanceof SideBySideEditorInput) {

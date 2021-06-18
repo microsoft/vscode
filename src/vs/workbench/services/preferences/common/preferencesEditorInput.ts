@@ -25,12 +25,16 @@ export class PreferencesEditorInput extends SideBySideEditorInput {
 		return PreferencesEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return this.typeId;
+	}
+
 	override getTitle(verbosity: Verbosity): string {
 		return this.primary.getTitle(verbosity);
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		return super.matches(otherInput, editorId) || this.primary.matches(otherInput, editorId);
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		return super.matches(otherInput) || this.primary.matches(otherInput);
 	}
 }
 
@@ -51,11 +55,11 @@ export class DefaultPreferencesEditorInput extends TextResourceEditorInput {
 		return DefaultPreferencesEditorInput.ID;
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
 		if (other instanceof DefaultPreferencesEditorInput) {
 			return true;
 		}
-		if (!super.matches(other, editorId)) {
+		if (!super.matches(other)) {
 			return false;
 		}
 		return true;
@@ -86,8 +90,8 @@ export class SettingsEditor2Input extends EditorInput {
 		this._settingsModel = _preferencesService.createSettings2EditorModel();
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		return super.matches(otherInput, editorId) || otherInput instanceof SettingsEditor2Input;
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		return super.matches(otherInput) || otherInput instanceof SettingsEditor2Input;
 	}
 
 	override get typeId(): string {

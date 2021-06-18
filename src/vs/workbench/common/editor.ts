@@ -441,6 +441,13 @@ export interface IEditorInput extends IDisposable {
 	readonly typeId: string;
 
 	/**
+	 * Identifies the type of editor this input represents
+	 * This ID is registered with the {@link EditorOverrideService} to allow
+	 * for resolving an untyped input to a typed one
+	 */
+	readonly editorId: string | undefined;
+
+	/**
 	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
@@ -557,7 +564,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns if the other object matches this input.
 	 */
-	matches(other: unknown): boolean;
+	matches(other: IEditorInput | IResourceEditorInputType): boolean;
 
 	/**
 	 * Returns if this editor is disposed.

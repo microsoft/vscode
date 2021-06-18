@@ -42,8 +42,8 @@ export class ExtensionsInput extends EditorInput {
 		return localize('extensionsInputName', "Extension: {0}", this.extension.displayName);
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(other, editorId)) {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
 			return true;
 		}
 

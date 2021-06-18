@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -71,6 +71,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override get typeId(): string {
 		return NotebookEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return this.viewType;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -234,15 +238,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}
 		if (otherInput instanceof NotebookEditorInput) {
 			return this.viewType === otherInput.viewType && isEqual(this.resource, otherInput.resource);
-		} else {
-			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.viewType === editorId;
 		}
+		return false;
 	}
 }
 

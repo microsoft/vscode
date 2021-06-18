@@ -19,6 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * The base editor input for the diff editor. It is made up of two editor inputs, the original version
@@ -30,6 +31,10 @@ export class DiffEditorInput extends SideBySideEditorInput {
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
@@ -150,8 +155,8 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (!super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (!super.matches(otherInput)) {
 			return false;
 		}
 

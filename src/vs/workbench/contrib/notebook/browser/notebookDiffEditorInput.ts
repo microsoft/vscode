@@ -59,6 +59,10 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return this.modifiedInput.resource;
 	}
 
+	override get editorId() {
+		return this.viewType;
+	}
+
 	constructor(
 		name: string | undefined,
 		description: string | undefined,
@@ -117,13 +121,13 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput, editorId) && this.secondary.matches(otherInput.originalInput, editorId) && this.viewType === editorId;
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId === otherInput.options?.override;
 		}
 
 		if (otherInput instanceof NotebookDiffEditorInput) {

@@ -39,8 +39,8 @@ export class RuntimeExtensionsInput extends EditorInput {
 		return nls.localize('extensionsInputName', "Running Extensions");
 	}
 
-	override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(other, editorId)) {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
 			return true;
 		}
 		return other instanceof RuntimeExtensionsInput;

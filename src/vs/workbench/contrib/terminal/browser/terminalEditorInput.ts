@@ -7,6 +7,7 @@ import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -16,6 +17,10 @@ export class TerminalEditorInput extends EditorInput {
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return TerminalEditor.ID;
 	}
 
 	private readonly _terminalInstance: ITerminalInstance;

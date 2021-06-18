@@ -411,8 +411,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

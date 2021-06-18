@@ -93,8 +93,8 @@ export class WebviewInput extends EditorInput {
 		this._iconManager.setIcons(this.id, value);
 	}
 
-	public override matches(other: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		return super.matches(other, editorId) || other === this;
+	public override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		return super.matches(other) || other === this;
 	}
 
 	public get group(): GroupIdentifier | undefined {

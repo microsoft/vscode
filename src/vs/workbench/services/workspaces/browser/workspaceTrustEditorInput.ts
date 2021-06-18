@@ -26,8 +26,8 @@ export class WorkspaceTrustEditorInput extends EditorInput {
 		path: `workspaceTrustEditor`
 	});
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		return super.matches(otherInput, editorId) || otherInput instanceof WorkspaceTrustEditorInput;
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		return super.matches(otherInput) || otherInput instanceof WorkspaceTrustEditorInput;
 	}
 
 	override getName(): string {

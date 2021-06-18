@@ -14,6 +14,7 @@ import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -24,6 +25,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override get typeId(): string {
 		return UntitledTextEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
@@ -134,8 +139,8 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

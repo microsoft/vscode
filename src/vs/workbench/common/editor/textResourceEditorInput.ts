@@ -17,6 +17,7 @@ import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResource
 import { IReference } from 'vs/base/common/lifecycle';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -104,6 +105,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 
 	override get typeId(): string {
 		return TextResourceEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private cachedModel: TextResourceEditorModel | undefined = undefined;
@@ -201,8 +206,8 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		return model;
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
-		if (super.matches(otherInput, editorId)) {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBaseResourceEditorInput, IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 /**
@@ -34,6 +34,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	abstract get typeId(): string;
 
 	abstract get resource(): URI | undefined;
+
+	get editorId(): string | undefined {
+		return undefined;
+	}
 
 	get capabilities(): EditorInputCapabilities {
 		return EditorInputCapabilities.Readonly;
@@ -107,13 +111,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return this;
 	}
 
-	matches(otherInput: IEditorInput | IResourceEditorInputType, editorId?: string): boolean {
+	matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
 		if (otherInput instanceof EditorInput) {
 			return this === otherInput;
-		} else if (!isResourceDiffEditorInput(otherInput)) {
-			return isEqual(this.resource, otherInput.resource) && this.typeId === editorId;
+		} else {
+			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.editorId === (otherInput as IResourceEditorInputType).options?.override;
 		}
-		return false;
 	}
 
 	/**
