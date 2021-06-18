@@ -24,7 +24,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILink, LinkedText, parseLinkedText } from 'vs/base/common/linkedText';
-import { walkthroughsExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
+import { walkthroughsExtensionPoint, startEntriesExtensionPoint } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedExtensionPoint';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { dirname } from 'vs/base/common/path';
 import { coalesce, flatten } from 'vs/base/common/arrays';
@@ -249,9 +249,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this.memento = new Memento('gettingStartedService', this.storageService);
 		this.stepProgress = this.memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 
+		startEntriesExtensionPoint.setHandler((_, { added, removed }) => {
+			added.forEach(e => this.registerExtensionNewContributions(e.description));
+			removed.forEach(e => this.unregisterExtensionNewContributions(e.description));
+		});
+
 		walkthroughsExtensionPoint.setHandler((_, { added, removed }) => {
-			added.forEach(e => this.registerExtensionContributions(e.description));
-			removed.forEach(e => this.unregisterExtensionContributions(e.description));
+			added.forEach(e => this.registerExtensionWalkthroughContributions(e.description));
+			removed.forEach(e => this.unregisterExtensionWalkthroughContributions(e.description));
 		});
 
 		this._register(this.commandService.onDidExecuteCommand(command => this.progressByEvent(`onCommand:${command.commandId}`)));
@@ -471,7 +476,20 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidChangeStep.fire(this.getStepProgress(existingStep));
 	}
 
-	private async registerExtensionContributions(extension: IExtensionDescription) {
+	private async registerExtensionNewContributions(extension: IExtensionDescription) {
+		extension.contributes?.startEntries?.forEach(entry => {
+			this.registerNewMenuItem({
+				sourceExtensionId: extension.identifier.value,
+				action: { runCommand: entry.command },
+				description: entry.description,
+				title: entry.title,
+				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
+				from: extension.displayName ?? extension.name,
+			});
+		});
+	}
+
+	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
 			: FileAccess.asFileUri(joinPath(extension.extensionLocation, path));
@@ -496,17 +514,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (!(extension.contributes?.walkthroughs?.length)) {
 			return;
 		}
-
-		extension.contributes.startEntries?.forEach(entry => {
-			this.registerNewMenuItem({
-				sourceExtensionId: extension.identifier.value,
-				action: { runCommand: entry.command },
-				description: entry.description,
-				title: entry.title,
-				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
-				from: extension.name,
-			});
-		});
 
 		let sectionToOpen: string | undefined;
 		let sectionToOpenIndex = Math.min(); // '+Infinity';
@@ -616,9 +623,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._onDidAddNewEntry.fire();
 	}
 
-	private unregisterExtensionContributions(extension: IExtensionDescription) {
-		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
-
+	private unregisterExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		if (!(extension.contributes?.walkthroughs?.length)) {
 			return;
 		}
@@ -632,6 +637,14 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 			this.gettingStartedContributions.delete(categoryID);
 			this._onDidRemoveCategory.fire();
 		});
+	}
+
+	private unregisterExtensionNewContributions(extension: IExtensionDescription) {
+		if (!(extension.contributes?.startEntries?.length)) {
+			return;
+		}
+
+		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
