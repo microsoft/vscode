@@ -591,7 +591,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	setActiveInstance(terminalInstance: ITerminalInstance): void {
-		if (this.configHelper.config.creationTarget === TerminalLocation.Editor) {
+		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
 			return;
 		}
 		// If this was a hideFromUser terminal created by the API this was triggered by show,
@@ -956,7 +956,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
-		if (this.configHelper.config.creationTarget === TerminalLocation.Editor) {
+		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
 			return;
 		}
 		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
@@ -1103,11 +1103,11 @@ export class TerminalService implements ITerminalService {
 					// create split, only valid if there's an active instance
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
-					instance = this.createTerminal({ target: this.configHelper.config.creationTarget, config: value.profile, cwd });
+					instance = this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });
 				}
 			}
 
-			if (instance && this.configHelper.config.creationTarget === TerminalLocation.TerminalView) {
+			if (instance && this.configHelper.config.defaultLocation === TerminalLocation.TerminalView) {
 				this.showPanel(true);
 				this.setActiveInstance(instance);
 				return instance;
@@ -1245,7 +1245,7 @@ export class TerminalService implements ITerminalService {
 		}
 
 		let instance: ITerminalInstance;
-		if (options?.target === TerminalLocation.Editor || this.configHelper.config.creationTarget === TerminalLocation.Editor) {
+		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
 			this._terminalEditorService.createEditor(instance);
 			this._initInstanceListeners(instance);
