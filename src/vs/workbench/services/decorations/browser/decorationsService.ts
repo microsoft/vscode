@@ -366,7 +366,7 @@ export class DecorationsService implements IDecorationsService {
 		Event.debounce<URI | URI[], FileDecorationChangeEvent>(
 			this._onDidChangeDecorationsDelayed.event,
 			FileDecorationChangeEvent.debouncer,
-			undefined, undefined, 500
+			undefined, undefined
 		)
 	);
 
