@@ -47,6 +47,8 @@ import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteA
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
 
+	private _activeInstance: ITerminalInstance | undefined;
+	get activeInstance(): ITerminalInstance | undefined { return this._activeInstance; }
 	private get _terminalGroups(): readonly ITerminalGroup[] { return this._terminalGroupService.groups; }
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
@@ -277,6 +279,7 @@ export class TerminalService implements ITerminalService {
 					}
 				}
 			}
+			this._activeInstance = instance;
 			this._onDidChangeActiveInstance.fire(instance);
 		});
 	}
@@ -522,11 +525,6 @@ export class TerminalService implements ITerminalService {
 
 	refreshActiveGroup(): void {
 		this._onActiveGroupChanged.fire();
-	}
-
-	get activeInstance(): ITerminalInstance | undefined {
-		// TODO: Get the active instance from the latest activated group or editor
-		return this._terminalGroupService.activeInstance;
 	}
 
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void {
