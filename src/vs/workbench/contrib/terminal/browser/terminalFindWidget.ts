@@ -30,12 +30,13 @@ export class TerminalFindWidget extends SimpleFindWidget {
 
 	find(previous: boolean) {
 		const instance = this._terminalService.activeInstance;
-		if (instance) {
-			if (previous) {
-				instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-			} else {
-				instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
-			}
+		if (!instance) {
+			return;
+		}
+		if (previous) {
+			instance.findPrevious(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
+		} else {
+			instance.findNext(this.inputValue, { regex: this._getRegexValue(), wholeWord: this._getWholeWordValue(), caseSensitive: this._getCaseSensitiveValue() });
 		}
 	}
 
