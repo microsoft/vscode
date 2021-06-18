@@ -256,7 +256,10 @@ export interface ITerminalEditorService {
 export interface ITerminalGroupService {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalInstances: ITerminalInstance[];
+	readonly instances: readonly ITerminalInstance[];
+	readonly groups: readonly ITerminalGroup[];
+
+	createGroup(): ITerminalGroup;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {
