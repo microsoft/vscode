@@ -509,13 +509,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				await viewModel.ensureMarkupCells(event.data.cells);
+				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
-				viewModel.ensureMarkupCells([event.data.cell]);
+				viewModel.ensureMarkupCell(event.data.cell);
 				break;
 
 			case 'showMarkupCell':
@@ -952,16 +952,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			return cell;
 		}
 
-		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
-			await Promise.all(update.map(async info => {
-				let cell = this._markupCells.get(info.cellId);
-				if (cell) {
-					cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-					await cell.updateContentAndRender(info.content);
-				} else {
-					cell = await this.createMarkupCell(info, info.offset, info.visible);
-				}
-			}));
+		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
+			let cell = this._markupCells.get(info.cellId);
+			if (cell) {
+				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
+				await cell.updateContentAndRender(info.content);
+			} else {
+				cell = await this.createMarkupCell(info, info.offset, info.visible);
+			}
 		}
 
 		public deleteMarkupCell(id: string) {

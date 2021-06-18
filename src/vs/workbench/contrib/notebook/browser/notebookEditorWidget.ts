@@ -2565,7 +2565,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
 
 				this._pendingOutputHeightAcks.clear();
-			}, 10);
+			}, -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
 		}
 	}
 

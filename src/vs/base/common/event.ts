@@ -49,24 +49,21 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event and a `map` function, returns another event which maps each element
-	 * through the mapping function.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
 	}
 
 	/**
-	 * Given an event and an `each` function, returns another identical event and calls
-	 * the `each` function per each element.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
 	}
 
 	/**
-	 * Given an event and a `filter` function, returns another event which emits those
-	 * elements for which the `filter` function returns `true`.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
@@ -93,8 +90,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event and a `merge` function, returns another event which maps each element
-	 * and the cumulative result through the `merge` function. Similar to `map`, but with memory.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
 		let output: O | undefined = initial;
@@ -106,11 +102,9 @@ export namespace Event {
 	}
 
 	/**
-	 * Given a chain of event processing functions (filter, map, etc), each
-	 * function will be invoked per event & per listener. Snapshotting an event
-	 * chain allows each function to be invoked just once per event.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function snapshot<T>(event: Event<T>): Event<T> {
+	function snapshot<T>(event: Event<T>): Event<T> {
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
@@ -125,66 +119,52 @@ export namespace Event {
 	}
 
 	/**
-	 * Debounces the provided event, given a `merge` function.
-	 *
-	 * @param event The input event.
-	 * @param merge The reducing function.
-	 * @param delay The debouncing delay in millis.
-	 * @param leading Whether the event should fire in the leading phase of the timeout.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
-	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false): Event<O> {
+	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
+		let subscription: IDisposable;
 		let output: O | undefined = undefined;
 		let handle: any = undefined;
 		let numDebouncedCalls = 0;
 
-		return (listener, thisArgs, disposables?) => {
+		const emitter = new Emitter<O>({
+			leakWarningThreshold,
+			onFirstListenerAdd() {
+				subscription = event(cur => {
+					numDebouncedCalls++;
+					output = merge(output, cur);
 
-			const subscription = event(cur => {
-				numDebouncedCalls++;
-				output = merge(output, cur);
-
-				if (leading && !handle) {
-					listener.call(thisArgs, output);
-					output = undefined;
-				}
-
-				clearTimeout(handle);
-				handle = setTimeout(() => {
-					const _output = output;
-					output = undefined;
-					handle = undefined;
-					if (!leading || numDebouncedCalls > 1) {
-						listener.call(thisArgs, _output!);
+					if (leading && !handle) {
+						emitter.fire(output);
+						output = undefined;
 					}
 
-					numDebouncedCalls = 0;
-				}, delay);
-			}, undefined, disposables);
+					clearTimeout(handle);
+					handle = setTimeout(() => {
+						const _output = output;
+						output = undefined;
+						handle = undefined;
+						if (!leading || numDebouncedCalls > 1) {
+							emitter.fire(_output!);
+						}
 
-			// unlisten from actual event and stop timeouts
-			return combinedDisposable(
-				subscription,
-				toDisposable(() => clearTimeout(handle))
-			);
-		};
+						numDebouncedCalls = 0;
+					}, delay);
+				});
+			},
+			onLastListenerRemove() {
+				subscription.dispose();
+			}
+		});
+
+		return emitter.event;
 	}
 
 	/**
-	 * Given an event, it returns another event which fires only once and as soon as
-	 * the input event emits. The event data is the number of millis it took for the
-	 * event to fire.
-	 */
-	export function stopwatch<T>(event: Event<T>): Event<number> {
-		const start = new Date().getTime();
-		return map(once(event), _ => new Date().getTime() - start);
-	}
-
-	/**
-	 * Given an event, it returns another event which fires only when the event
-	 * element changes.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
 		let firstCall = true;
@@ -199,8 +179,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event, it returns another event which fires only when the event
-	 * element changes.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
 		return [
@@ -210,26 +189,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Buffers the provided event until a first listener comes
-	 * along, at which point fire all the events at once and
-	 * pipe the event from then on.
-	 *
-	 * ```typescript
-	 * const emitter = new Emitter<number>();
-	 * const event = emitter.event;
-	 * const bufferedEvent = buffer(event);
-	 *
-	 * emitter.fire(1);
-	 * emitter.fire(2);
-	 * emitter.fire(3);
-	 * // nothing...
-	 *
-	 * const listener = bufferedEvent(num => console.log(num));
-	 * // 1, 2, 3
-	 *
-	 * emitter.fire(4);
-	 * // 4
-	 * ```
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function buffer<T>(event: Event<T>, nextTick = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
@@ -332,6 +292,9 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function chain<T>(event: Event<T>): IChainableEvent<T> {
 		return new ChainableEvent(event);
 	}
@@ -362,24 +325,6 @@ export namespace Event {
 		const result = new Emitter<T>({ onFirstListenerAdd, onLastListenerRemove });
 
 		return result.event;
-	}
-
-	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
-		const emitter = new Emitter<undefined>();
-		let shouldEmit = false;
-
-		promise
-			.then(undefined, () => null)
-			.then(() => {
-				if (!shouldEmit) {
-					setTimeout(() => emitter.fire(undefined), 0);
-				} else {
-					emitter.fire(undefined);
-				}
-			});
-
-		shouldEmit = true;
-		return emitter.event;
 	}
 
 	export function toPromise<T>(event: Event<T>): Promise<T> {
@@ -694,6 +639,28 @@ export class PauseableEmitter<T> extends Emitter<T> {
 				super.fire(event);
 			}
 		}
+	}
+}
+
+export class DebounceEmitter<T> extends PauseableEmitter<T> {
+
+	private readonly _delay: number;
+	private _handle: any | undefined;
+
+	constructor(options: EmitterOptions & { merge: (input: T[]) => T, delay?: number }) {
+		super(options);
+		this._delay = options.delay ?? 100;
+	}
+
+	override fire(event: T): void {
+		if (!this._handle) {
+			this.pause();
+			this._handle = setTimeout(() => {
+				this._handle = undefined;
+				this.resume();
+			}, this._delay);
+		}
+		super.fire(event);
 	}
 }
 

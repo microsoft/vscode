@@ -3,12 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class TerminalEditorService implements ITerminalEditorService {
+export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
 
 	terminalEditorInstances: ITerminalInstance[] = [];
@@ -18,6 +19,8 @@ export class TerminalEditorService implements ITerminalEditorService {
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService
 	) {
+		super();
+
 		// TODO: Multiplex instance events
 	}
 
@@ -51,12 +54,13 @@ export class TerminalEditorService implements ITerminalEditorService {
 	}
 
 	detachInstance(instance: ITerminalInstance) {
-		const editor = this._editorInputs.get(instance.instanceId);
-		editor?.detachInstance();
+		const editorInput = this._editorInputs.get(instance.instanceId);
+		editorInput?.detachInstance();
+		this._editorInputs.delete(instance.instanceId);
 		const instanceIndex = this.terminalEditorInstances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
 			this.terminalEditorInstances.splice(instanceIndex, 1);
 		}
-		editor?.dispose();
+		editorInput?.dispose();
 	}
 }

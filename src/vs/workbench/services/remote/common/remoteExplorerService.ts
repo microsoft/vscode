@@ -145,6 +145,7 @@ export function mapHasAddressLocalhostOrAllInterfaces<T>(map: Map<string, T>, ho
 export enum OnPortForward {
 	Notify = 'notify',
 	OpenBrowser = 'openBrowser',
+	OpenBrowserOnce = 'openBrowserOnce',
 	OpenPreview = 'openPreview',
 	Silent = 'silent',
 	Ignore = 'ignore'
@@ -328,6 +329,7 @@ export class PortsAttributes extends Disposable {
 		switch (providedAction) {
 			case ProvidedOnAutoForward.Notify: return OnPortForward.Notify;
 			case ProvidedOnAutoForward.OpenBrowser: return OnPortForward.OpenBrowser;
+			case ProvidedOnAutoForward.OpenBrowserOnce: return OnPortForward.OpenBrowserOnce;
 			case ProvidedOnAutoForward.OpenPreview: return OnPortForward.OpenPreview;
 			case ProvidedOnAutoForward.Silent: return OnPortForward.Silent;
 			case ProvidedOnAutoForward.Ignore: return OnPortForward.Ignore;

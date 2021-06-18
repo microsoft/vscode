@@ -290,7 +290,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	// Terminal URI
 	const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
 	if (terminalResources.length) {
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
+		event.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
 	}
 
 	// Editors: enables cross window DND of editors

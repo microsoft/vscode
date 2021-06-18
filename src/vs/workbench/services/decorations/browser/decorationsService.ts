@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, DebounceEmitter } from 'vs/base/common/event';
 import { IDecorationsService, IDecoration, IResourceDecorationChangeEvent, IDecorationsProvider, IDecorationData } from './decorations';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { IDisposable, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -20,6 +20,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { hash } from 'vs/base/common/hash';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { iconRegistry } from 'vs/base/common/codicons';
+import { asArray } from 'vs/base/common/arrays';
 
 class DecorationRule {
 
@@ -212,25 +213,26 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
 	private readonly _data = TernarySearchTree.forUris<true>(_uri => true); // events ignore all path casings
 
+	constructor(all: URI | URI[]) {
+		for (let uri of asArray(all)) {
+			this._data.set(uri, true);
+		}
+	}
+
 	affectsResource(uri: URI): boolean {
 		return this._data.get(uri) ?? this._data.findSuperstr(uri) !== undefined;
 	}
 
-	static debouncer(last: FileDecorationChangeEvent | undefined, current: URI | URI[]): FileDecorationChangeEvent {
-		if (!last) {
-			last = new FileDecorationChangeEvent();
-		}
-		if (Array.isArray(current)) {
-			// many
-			for (const uri of current) {
-				last._data.set(uri, true);
+	static merge(all: (URI | URI[])[]): URI[] {
+		let res: URI[] = [];
+		for (let uriOrArray of all) {
+			if (Array.isArray(uriOrArray)) {
+				res = res.concat(uriOrArray);
+			} else {
+				res.push(uriOrArray);
 			}
-		} else {
-			// one
-			last._data.set(current, true);
 		}
-
-		return last;
+		return res;
 	}
 }
 
@@ -357,24 +359,19 @@ export class DecorationsService implements IDecorationsService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _data = new LinkedList<DecorationProviderWrapper>();
-	private readonly _onDidChangeDecorationsDelayed = new Emitter<URI | URI[]>();
+	private readonly _onDidChangeDecorationsDelayed = new DebounceEmitter<URI | URI[]>({ merge: FileDecorationChangeEvent.merge });
 	private readonly _onDidChangeDecorations = new Emitter<IResourceDecorationChangeEvent>();
 	private readonly _decorationStyles: DecorationStyles;
 
-	readonly onDidChangeDecorations: Event<IResourceDecorationChangeEvent> = Event.any(
-		this._onDidChangeDecorations.event,
-		Event.debounce<URI | URI[], FileDecorationChangeEvent>(
-			this._onDidChangeDecorationsDelayed.event,
-			FileDecorationChangeEvent.debouncer,
-			undefined, undefined, 500
-		)
-	);
+	readonly onDidChangeDecorations = this._onDidChangeDecorations.event;
 
 	constructor(
 		@IThemeService themeService: IThemeService,
 		@IUriIdentityService private readonly _uriIdentityService: IUriIdentityService,
 	) {
 		this._decorationStyles = new DecorationStyles(themeService);
+
+		this._onDidChangeDecorationsDelayed.event(event => { this._onDidChangeDecorations.fire(new FileDecorationChangeEvent(event)); });
 	}
 
 	dispose(): void {
