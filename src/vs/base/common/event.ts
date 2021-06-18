@@ -669,6 +669,28 @@ export class PauseableEmitter<T> extends Emitter<T> {
 	}
 }
 
+export class DebounceEmitter<T> extends PauseableEmitter<T> {
+
+	private readonly _delay: number;
+	private _handle: any | undefined;
+
+	constructor(options: EmitterOptions & { merge: (input: T[]) => T, delay?: number }) {
+		super(options);
+		this._delay = options.delay ?? 100;
+	}
+
+	override fire(event: T): void {
+		if (!this._handle) {
+			this.pause();
+			this._handle = setTimeout(() => {
+				this._handle = undefined;
+				this.resume();
+			}, this._delay);
+		}
+		super.fire(event);
+	}
+}
+
 export class EventMultiplexer<T> implements IDisposable {
 
 	private readonly emitter: Emitter<T>;

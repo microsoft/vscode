@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event, Emitter, EventBufferer, EventMultiplexer, PauseableEmitter, Relay } from 'vs/base/common/event';
+import { Event, Emitter, EventBufferer, EventMultiplexer, PauseableEmitter, Relay, DebounceEmitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { errorHandler, setUnexpectedErrorHandler } from 'vs/base/common/errors';
 import { AsyncEmitter, IWaitUntil, timeout } from 'vs/base/common/async';
@@ -249,6 +249,29 @@ suite('Event', function () {
 
 		await timeout(1);
 		assert.deepStrictEqual(calls, [1, 1]);
+	});
+
+	test('DebounceEmitter', async function () {
+		let callCount = 0;
+		let sum = 0;
+		const emitter = new DebounceEmitter<number>({
+			merge: arr => {
+				callCount += 1;
+				return arr.reduce((p, c) => p + c);
+			}
+		});
+
+		emitter.event(e => { sum = e; });
+
+		const p = Event.toPromise(emitter.event);
+
+		emitter.fire(1);
+		emitter.fire(2);
+
+		await p;
+
+		assert.strictEqual(callCount, 1);
+		assert.strictEqual(sum, 3);
 	});
 
 	test('Emitter - In Order Delivery', function () {
