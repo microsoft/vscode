@@ -1457,8 +1457,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			await terminalService.doWithActiveInstance(async t => terminalService.unsplitInstance(t));
+			await accessor.get(ITerminalService).doWithActiveInstance(async t => accessor.get(ITerminalGroupService).unsplitInstance(t));
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1479,7 +1478,7 @@ export function registerTerminalActions() {
 			if (instances?.length === 1) {
 				const group = terminalService.getGroupForInstance(instances[0]);
 				if (group && group?.terminalInstances.length > 1) {
-					terminalService.unsplitInstance(instances[0]);
+					accessor.get(ITerminalGroupService).unsplitInstance(instances[0]);
 				}
 			}
 		}
@@ -1494,10 +1493,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
-				terminalService.joinInstances(instances);
+				accessor.get(ITerminalGroupService).joinInstances(instances);
 			}
 		}
 	});

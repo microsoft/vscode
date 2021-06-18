@@ -229,6 +229,61 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
+	unsplitInstance(instance: ITerminalInstance): void {
+		const oldGroup = this.getGroupForInstance(instance);
+		if (!oldGroup || oldGroup.terminalInstances.length < 2) {
+			return;
+		}
+
+		oldGroup.removeInstance(instance);
+		this.createGroup(instance);
+	}
+
+	joinInstances(instances: ITerminalInstance[]): void {
+		// Find the group of the first instance that is the only instance in the group, if one exists
+		let candidateInstance: ITerminalInstance | undefined = undefined;
+		let candidateGroup: ITerminalGroup | undefined = undefined;
+		for (const instance of instances) {
+			const group = this.getGroupForInstance(instance);
+			if (group?.terminalInstances.length === 1) {
+				candidateInstance = instance;
+				candidateGroup = group;
+				break;
+			}
+		}
+
+		// Create a new group if needed
+		if (!candidateGroup) {
+			candidateGroup = this.createGroup();
+		}
+
+		const wasActiveGroup = this.activeGroup === candidateGroup;
+
+		// Unsplit all other instances and add them to the new group
+		for (const instance of instances) {
+			if (instance === candidateInstance) {
+				continue;
+			}
+
+			const oldGroup = this.getGroupForInstance(instance);
+			if (!oldGroup) {
+				// Something went wrong, don't join this one
+				continue;
+			}
+			oldGroup.removeInstance(instance);
+			candidateGroup.addInstance(instance);
+		}
+
+		// Set the active terminal
+		this.activeInstance = instances[0];
+
+		// Fire events
+		this._onDidChangeInstances.fire();
+		if (!wasActiveGroup) {
+			this._onDidChangeActiveGroup.fire(this.activeGroup);
+		}
+	}
+
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined {
 		return this.groups.find(group => group.terminalInstances.indexOf(instance) !== -1);
 	}
