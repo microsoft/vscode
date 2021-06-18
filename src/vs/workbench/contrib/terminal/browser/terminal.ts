@@ -242,7 +242,7 @@ export interface ITerminalEditorService {
 
 	readonly terminalEditorInstances: ITerminalInstance[];
 
-	createEditor(instance: ITerminalInstance): Promise<void>;
+	getOrCreateEditor(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 }

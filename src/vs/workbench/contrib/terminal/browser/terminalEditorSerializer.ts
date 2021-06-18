@@ -9,13 +9,11 @@ import { IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class TerminalInputSerializer implements IEditorInputSerializer {
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@IEditorService private readonly _editorService: IEditorService
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
 	public canSerialize(editorInput: TerminalEditorInput): boolean {
@@ -34,7 +32,7 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
 		const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
-		const editor = instantiationService.createInstance(TerminalEditorInput, terminal);
+		const editor = this._terminalEditorService.getOrCreateEditor(terminal);
 		terminal.onExit(() => editor.dispose());
 		return editor;
 	}

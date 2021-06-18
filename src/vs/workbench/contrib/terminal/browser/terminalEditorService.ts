@@ -21,15 +21,20 @@ export class TerminalEditorService implements ITerminalEditorService {
 		// TODO: Multiplex instance events
 	}
 
-	async createEditor(instance: ITerminalInstance): Promise<void> {
+	getOrCreateEditor(instance: ITerminalInstance): TerminalEditorInput {
+		const revivedEditor = this._editorInputs.get(instance.instanceId);
+		if (revivedEditor) {
+			return revivedEditor;
+		}
 		instance.target = TerminalLocation.Editor;
-		const input = new TerminalEditorInput(instance);
-		this._editorInputs.set(instance.instanceId, input);
-		await this._editorService.openEditor(input, {
+		const editor = new TerminalEditorInput(instance);
+		this._editorService.openEditor(editor, {
 			pinned: true,
 			forceReload: true
 		});
 		this.terminalEditorInstances.push(instance);
+		this._editorInputs.set(instance.instanceId, editor);
+		return editor;
 	}
 
 	detachActiveEditorInstance(): ITerminalInstance {
@@ -46,12 +51,12 @@ export class TerminalEditorService implements ITerminalEditorService {
 	}
 
 	detachInstance(instance: ITerminalInstance) {
-		const editorInputs = this._editorInputs.get(instance.instanceId);
-		editorInputs?.detachInstance();
+		const editor = this._editorInputs.get(instance.instanceId);
+		editor?.detachInstance();
 		const instanceIndex = this.terminalEditorInstances.findIndex(e => e === instance);
 		if (instanceIndex !== -1) {
 			this.terminalEditorInstances.splice(instanceIndex, 1);
 		}
-		editorInputs?.dispose();
+		editor?.dispose();
 	}
 }
