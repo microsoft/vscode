@@ -14,7 +14,7 @@ import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollec
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -66,6 +66,7 @@ export class TerminalViewPane extends ViewPane {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -130,7 +131,7 @@ export class TerminalViewPane extends ViewPane {
 
 		this._register(this.onDidChangeBodyVisibility(visible => {
 			if (visible) {
-				const hadTerminals = !!this._terminalService.terminalGroups.length;
+				const hadTerminals = !!this._terminalGroupService.groups.length;
 				if (this._terminalService.isProcessSupportRegistered) {
 					if (this._terminalsInitialized) {
 						if (!hadTerminals) {
@@ -143,14 +144,14 @@ export class TerminalViewPane extends ViewPane {
 				}
 
 				if (hadTerminals) {
-					this._terminalService.getActiveGroup()?.setVisible(visible);
+					this._terminalGroupService.activeGroup?.setVisible(visible);
 				} else {
 					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
 				this._terminalService.showPanel(true);
 			} else {
-				this._terminalService.getActiveGroup()?.setVisible(false);
+				this._terminalGroupService.activeGroup?.setVisible(false);
 			}
 		}));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
@@ -282,11 +283,11 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	private _focus() {
-		this._terminalService.getActiveInstance()?.focusWhenReady();
+		this._terminalService.activeInstance?.focusWhenReady();
 	}
 
 	override shouldShowWelcome(): boolean {
-		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.terminalInstances.length === 0;
+		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.instances.length === 0;
 		return this._isWelcomeShowing;
 	}
 }
@@ -315,16 +316,16 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	constructor(
 		action: IAction,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextViewService contextViewService: IContextViewService
 	) {
-		super(null, action, getTerminalSelectOpenItems(_terminalService), _terminalService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
-		this._register(_terminalService.onInstancesChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onGroupsChanged(() => this._updateItems(), this));
+		super(null, action, getTerminalSelectOpenItems(_terminalService, _terminalGroupService), _terminalGroupService.activeGroupIndex, contextViewService, { ariaLabel: nls.localize('terminals', 'Open Terminals.'), optionsAsChildren: true });
+		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onActiveGroupChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onActiveInstanceChanged(() => this._updateItems(), this));
+		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
 		this._register(_terminalService.onInstanceTitleChanged(() => this._updateItems(), this));
-		this._register(_terminalService.onGroupDisposed(() => this._updateItems(), this));
+		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
 		this._register(attachSelectBoxStyler(this.selectBox, this._themeService));
@@ -339,15 +340,15 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 	}
 
 	private _updateItems(): void {
-		const options = getTerminalSelectOpenItems(this._terminalService);
-		this.setOptions(options, this._terminalService.activeGroupIndex);
+		const options = getTerminalSelectOpenItems(this._terminalService, this._terminalGroupService);
+		this.setOptions(options, this._terminalGroupService.activeGroupIndex);
 	}
 }
 
-function getTerminalSelectOpenItems(terminalService: ITerminalService): ISelectOptionItem[] {
+function getTerminalSelectOpenItems(terminalService: ITerminalService, terminalGroupService: ITerminalGroupService): ISelectOptionItem[] {
 	let items: ISelectOptionItem[];
 	if (terminalService.connectionState === TerminalConnectionState.Connected) {
-		items = terminalService.getGroupLabels().map(label => {
+		items = terminalGroupService.getGroupLabels().map(label => {
 			return { text: label };
 		});
 	} else {
@@ -377,8 +378,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		super(new MenuItemAction(
 			{
 				id: action.id,
-				title: getSingleTabLabel(_terminalService.getActiveInstance()),
-				tooltip: getSingleTabTooltip(_terminalService.getActiveInstance())
+				title: getSingleTabLabel(_terminalService.activeInstance),
+				tooltip: getSingleTabTooltip(_terminalService.activeInstance)
 			},
 			{
 				id: TerminalCommandId.Split,
@@ -391,15 +392,15 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		), keybindingService, notificationService);
 
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
-		this._register(this._terminalService.onActiveInstanceChanged(() => this.updateLabel()));
+		this._register(this._terminalService.onDidChangeActiveInstance(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
-			if (e === this._terminalService.getActiveInstance()) {
+			if (e === this._terminalService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
 			}
 		}));
 		this._register(this._terminalService.onInstanceIconChanged(e => {
-			if (e === this._terminalService.getActiveInstance()) {
+			if (e === this._terminalService.activeInstance) {
 				this.updateLabel();
 			}
 		}));
@@ -426,14 +427,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			// Middle click kills
 			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.AUXCLICK, e => {
 				if (e.button === 1) {
-					this._terminalService.getActiveInstance()?.dispose();
+					this._terminalService.activeInstance?.dispose();
 					e.preventDefault();
 				}
 			}));
 		}
 		if (this.label) {
 			const label = this.label;
-			const instance = this._terminalService.getActiveInstance();
+			const instance = this._terminalService.activeInstance;
 			if (!instance) {
 				dom.reset(label, '');
 				return;
@@ -492,7 +493,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	}
 }
 
-function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon) {
+function getSingleTabLabel(instance: ITerminalInstance | undefined, icon?: ThemeIcon) {
 	// Don't even show the icon if there is no title as the icon would shift around when the title
 	// is added
 	if (!instance || !instance.title) {
@@ -508,7 +509,7 @@ function getSingleTabLabel(instance: ITerminalInstance | null, icon?: ThemeIcon)
 	return `${label} $(${primaryStatus.icon.id})`;
 }
 
-function getSingleTabTooltip(instance: ITerminalInstance | null): string {
+function getSingleTabTooltip(instance: ITerminalInstance | undefined): string {
 	if (!instance) {
 		return '';
 	}
@@ -523,7 +524,8 @@ class TerminalThemeIconStyle extends Themable {
 	constructor(
 		container: HTMLElement,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalService private readonly _terminalService: ITerminalService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		super(_themeService);
 		this._registerListeners();
@@ -536,8 +538,8 @@ class TerminalThemeIconStyle extends Themable {
 	private _registerListeners(): void {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onInstancesChanged(() => this.updateStyles()));
-		this._register(this._terminalService.onGroupsChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
+		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
@@ -548,7 +550,7 @@ class TerminalThemeIconStyle extends Themable {
 		let css = '';
 
 		// Add icons
-		for (const instance of this._terminalService.terminalInstances) {
+		for (const instance of this._terminalService.instances) {
 			const icon = instance.icon;
 			if (!icon) {
 				continue;
@@ -567,7 +569,7 @@ class TerminalThemeIconStyle extends Themable {
 		}
 
 		// Add colors
-		for (const instance of this._terminalService.terminalInstances) {
+		for (const instance of this._terminalService.instances) {
 			const colorClass = getColorClass(instance);
 			if (!colorClass || !instance.color) {
 				continue;

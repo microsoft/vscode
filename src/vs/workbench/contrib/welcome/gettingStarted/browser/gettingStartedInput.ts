@@ -8,6 +8,8 @@ import { localize } from 'vs/nls';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { URI } from 'vs/base/common/uri';
 import { Schemas } from 'vs/base/common/network';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput } from 'vs/workbench/common/editor';
 
 export const gettingStartedInputTypeId = 'workbench.editors.gettingStartedInput';
 
@@ -24,7 +26,11 @@ export class GettingStartedInput extends EditorInput {
 		return GettingStartedInput.RESOURCE;
 	}
 
-	override matches(other: unknown) {
+	override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
+
 		if (other instanceof GettingStartedInput) {
 			return other.selectedCategory === this.selectedCategory;
 		}

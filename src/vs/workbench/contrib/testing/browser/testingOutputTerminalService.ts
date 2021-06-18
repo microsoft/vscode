@@ -56,7 +56,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 		// If a result terminal is currently active and we start a new test run,
 		// stream live results there automatically.
 		resultService.onResultsChanged(evt => {
-			const active = this.terminalService.getActiveInstance();
+			const active = this.terminalService.activeInstance;
 			if (!('started' in evt) || !active) {
 				return;
 			}
@@ -77,7 +77,7 @@ export class TestingOutputTerminalService implements ITestingOutputTerminalServi
 	 * @inheritdoc
 	 */
 	public async open(result: ITestResult | undefined): Promise<void> {
-		const testOutputPtys = this.terminalService.terminalInstances
+		const testOutputPtys = this.terminalService.instances
 			.map(t => {
 				const output = this.outputTerminals.get(t);
 				return output ? [t, output] as const : undefined;

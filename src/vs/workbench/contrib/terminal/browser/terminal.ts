@@ -22,6 +22,7 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
+export const ITerminalGroupService = createDecorator<ITerminalGroupService>('terminalGroupService');
 export const ITerminalInstanceService = createDecorator<ITerminalInstanceService>('terminalInstanceService');
 export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('remoteTerminalService');
 
@@ -63,10 +64,11 @@ export const enum Direction {
 }
 
 export interface ITerminalGroup {
-	activeInstance: ITerminalInstance | null;
+	activeInstance: ITerminalInstance | undefined;
 	terminalInstances: ITerminalInstance[];
 	title: string;
 
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
 	readonly onDisposed: Event<ITerminalGroup>;
 	readonly onInstancesChanged: Event<void>;
 	readonly onPanelOrientationChanged: Event<Orientation>;
@@ -109,44 +111,32 @@ export interface ICreateTerminalOptions {
 	target?: TerminalLocation;
 }
 
-export interface ITerminalService {
+export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	activeGroupIndex: number;
+	/** Gets all terminal instances, including editor and terminal view (group) instances. */
+	readonly instances: readonly ITerminalInstance[];
 	configHelper: ITerminalConfigHelper;
-	terminalInstances: ITerminalInstance[];
-	terminalGroups: ITerminalGroup[];
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
 	readonly availableProfiles: ITerminalProfile[];
 	readonly profilesReady: Promise<void>;
 
 	initializeTerminals(): Promise<void>;
-	onActiveGroupChanged: Event<void>;
+	onActiveGroupChanged: Event<ITerminalGroup | undefined>;
 	onGroupDisposed: Event<ITerminalGroup>;
-	/**
-	 * An event that fires when a terminal group is created, disposed of, or shown (in the case of a background group)
-	 */
-	onGroupsChanged: Event<void>;
 	onInstanceCreated: Event<ITerminalInstance>;
-	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	/**
-	 * An event that fires when a terminal instance is created, disposed of, or shown (in the case of a background terminal)
-	 */
-	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<ITerminalInstance | undefined>;
 	onInstanceIconChanged: Event<ITerminalInstance | undefined>;
 	onInstanceColorChanged: Event<ITerminalInstance | undefined>;
 	onInstancePrimaryStatusChanged: Event<ITerminalInstance>;
-	onActiveInstanceChanged: Event<ITerminalInstance | undefined>;
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
-	onPanelOrientationChanged: Event<Orientation>;
 
 	/**
 	 * Creates a terminal.
@@ -163,20 +153,9 @@ export interface ITerminalService {
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
-	getGroupLabels(): string[];
-	getActiveInstance(): ITerminalInstance | null;
-	setActiveInstance(terminalInstance: ITerminalInstance): void;
-	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(): ITerminalInstance;
 	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig, cwd?: string | URI): ITerminalInstance | null;
 	splitInstance(instance: ITerminalInstance, profile: ITerminalProfile): ITerminalInstance | null;
-	unsplitInstance(instance: ITerminalInstance): void;
-	joinInstances(instances: ITerminalInstance[]): void;
-	/**
-	 * Moves a terminal instance's group to the target instance group's position.
-	 */
-	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
-	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source?: ITerminalInstance): Promise<void>;
 
@@ -186,11 +165,6 @@ export interface ITerminalService {
 	 * @param callback The callback that fires with the active terminal
 	 */
 	doWithActiveInstance<T>(callback: (terminal: ITerminalInstance) => T): T | void;
-
-	getActiveGroup(): ITerminalGroup | null;
-	setActiveGroupToNext(): void;
-	setActiveGroupToPrevious(): void;
-	setActiveGroupByIndex(groupIndex: number): void;
 
 	/**
 	 * Fire the onActiveTabChanged event, this will trigger the terminal dropdown to be updated,
@@ -221,15 +195,12 @@ export interface ITerminalService {
 
 	showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined>;
 
-	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
-
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 
 	requestStartExtensionTerminal(proxy: ITerminalProcessExtHostProxy, cols: number, rows: number): Promise<ITerminalLaunchError | undefined>;
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean;
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
-	instanceIsSplit(instance: ITerminalInstance): boolean;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 }
 
@@ -237,15 +208,77 @@ export interface ITerminalService {
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService {
+export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
-	readonly terminalEditorInstances: ITerminalInstance[];
+	/** Gets all _terminal editor_ instances. */
+	readonly instances: readonly ITerminalInstance[];
 
 	createEditor(instance: ITerminalInstance): Promise<void>;
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
+}
+
+/**
+ * This service is responsible for managing terminal groups, that is the terminals that are hosted
+ * within the terminal panel, not in an editor.
+ */
+export interface ITerminalGroupService extends ITerminalInstanceHost {
+	readonly _serviceBrand: undefined;
+
+	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
+	readonly instances: readonly ITerminalInstance[];
+	readonly groups: readonly ITerminalGroup[];
+	activeGroup: ITerminalGroup | undefined;
+	readonly activeGroupIndex: number;
+	readonly activeInstanceIndex: number;
+
+	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
+	readonly onDidDisposeGroup: Event<ITerminalGroup>;
+	/** Fires when a group is created, disposed of, or shown (in the case of a background group). */
+	readonly onDidChangeGroups: Event<void>;
+
+	readonly onPanelOrientationChanged: Event<Orientation>;
+
+	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
+	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
+
+	/**
+	 * Moves a terminal instance's group to the target instance group's position.
+	 * @param source The source instance to move.
+	 * @param target The target instance to move the source instance to.
+	 */
+	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+
+	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
+	unsplitInstance(instance: ITerminalInstance): void;
+	joinInstances(instances: ITerminalInstance[]): void;
+	instanceIsSplit(instance: ITerminalInstance): boolean;
+
+	getGroupLabels(): string[];
+	setActiveGroupByIndex(index: number): void;
+	setActiveGroupToNext(): void;
+	setActiveGroupToPrevious(): void;
+
+	setActiveInstanceByIndex(terminalIndex: number): void;
+
+	setContainer(container: HTMLElement): void;
+}
+
+/**
+ * An interface that indicates the implementer hosts terminal instances, exposing a common set of
+ * properties and events.
+ */
+export interface ITerminalInstanceHost {
+	readonly activeInstance: ITerminalInstance | undefined;
+	readonly instances: readonly ITerminalInstance[];
+
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
+	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
+	readonly onDidChangeInstances: Event<void>;
+
+	setActiveInstance(instance: ITerminalInstance): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

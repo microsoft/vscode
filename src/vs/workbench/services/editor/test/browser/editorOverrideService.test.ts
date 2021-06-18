@@ -30,9 +30,6 @@ suite('EditorOverrideService', () => {
 	}
 
 	test('Simple Override', async () => {
-		await new Promise((resolve) => {
-			setTimeout(resolve, 500);
-		});
 		const [part, service] = await createEditorOverrideService();
 		const registeredEditor = service.registerEditor('*.test',
 			{

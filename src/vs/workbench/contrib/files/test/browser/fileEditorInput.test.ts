@@ -53,7 +53,6 @@ suite('Files - FileEditorInput', () => {
 		assert(input.matches(input));
 		assert(input.matches(otherInputSame));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert.ok(input.getName());
 		assert.ok(input.getDescription());
 		assert.ok(input.getTitle(Verbosity.SHORT));
@@ -218,7 +217,6 @@ suite('Files - FileEditorInput', () => {
 		const input3 = createFileInput(toResource.call(this, '/foo/bar/other.js'));
 		const input2Upper = createFileInput(toResource.call(this, '/foo/bar/UPDATEFILE.js'));
 
-		assert.strictEqual(input1.matches(null), false);
 		assert.strictEqual(input1.matches(input1), true);
 		assert.strictEqual(input1.matches(input2), true);
 		assert.strictEqual(input1.matches(input3), false);
@@ -340,7 +338,7 @@ suite('Files - FileEditorInput', () => {
 		}
 
 		const inputDeserialized = editorSerializer.deserialize(instantiationService, inputSerialized);
-		assert.strictEqual(input.matches(inputDeserialized), true);
+		assert.strictEqual(inputDeserialized ? input.matches(inputDeserialized) : false, true);
 
 		const preferredResource = toResource.call(this, '/foo/bar/UPDATEfile.js');
 		const inputWithPreferredResource = createFileInput(toResource.call(this, '/foo/bar/updatefile.js'), preferredResource);

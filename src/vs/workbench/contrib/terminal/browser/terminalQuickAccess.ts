@@ -7,13 +7,14 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { killTerminalIcon, renameTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+let terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 
 export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPickerQuickAccessItem> {
 
@@ -22,16 +23,16 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super(TerminalQuickAccessProvider.PREFIX, { canAcceptInBackground: true });
 	}
-
 	protected _getPicks(filter: string): Array<IPickerQuickAccessItem | IQuickPickSeparator> {
-		const terminalPicks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
-
-		const terminalGroups = this._terminalService.terminalGroups;
+		terminalPicks = [];
+		terminalPicks.push({ type: 'separator', label: 'panel' });
+		const terminalGroups = this._terminalGroupService.groups;
 		for (let groupIndex = 0; groupIndex < terminalGroups.length; groupIndex++) {
 			const terminalGroup = terminalGroups[groupIndex];
 			for (let terminalIndex = 0; terminalIndex < terminalGroup.terminalInstances.length; terminalIndex++) {
@@ -44,12 +45,12 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 		}
 
 		if (terminalPicks.length > 0) {
-			terminalPicks.push({ type: 'separator' });
+			terminalPicks.push({ type: 'separator', label: 'editor' });
 		}
 
-		const terminalEditors = this._terminalEditorService.terminalEditorInstances;
+		const terminalEditors = this._terminalEditorService.instances;
 		for (let editorIndex = 0; editorIndex < terminalEditors.length; editorIndex++) {
-			const pick = this._createPick(terminalEditors[editorIndex], terminalPicks.length + editorIndex, filter);
+			const pick = this._createPick(terminalEditors[editorIndex], editorIndex, filter);
 			if (pick) {
 				terminalPicks.push(pick);
 			}
@@ -78,7 +79,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 
 	private _createPick(terminal: ITerminalInstance, terminalIndex: number, filter: string, groupIndex?: number): IPickerQuickAccessItem | undefined {
 		const iconId = getIconId(terminal);
-		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) .${terminalIndex + 1}: ${terminal.title}`;
+		const label = groupIndex ? `$(${iconId}) ${groupIndex + 1}.${terminalIndex + 1}: ${terminal.title}` : `$(${iconId}) ${terminalIndex + 1}: ${terminal.title}`;
 		const iconClasses: string[] = [];
 		const colorClass = getColorClass(terminal);
 		if (colorClass) {
@@ -117,11 +118,12 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 					return TriggerAction.NO_ACTION;
 				},
 				accept: (keyMod, event) => {
-					if (terminal.target === TerminalLocation.TerminalView) {
-						this._terminalService.showPanel(!event.inBackground);
-						this._terminalService.setActiveInstance(terminal);
-					} else {
+					if (terminal.target === TerminalLocation.Editor) {
 						this._terminalEditorService.createEditor(terminal);
+						this._terminalEditorService.setActiveInstance(terminal);
+					} else {
+						this._terminalService.showPanel(!event.inBackground);
+						this._terminalGroupService.setActiveInstance(terminal);
 					}
 				}
 			};
