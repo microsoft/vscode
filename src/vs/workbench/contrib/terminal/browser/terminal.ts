@@ -114,6 +114,8 @@ export interface ICreateTerminalOptions {
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
+	/** Gets all terminal instances, including editor and terminal view (group) instances. */
+	readonly instances: readonly ITerminalInstance[];
 	configHelper: ITerminalConfigHelper;
 	isProcessSupportRegistered: boolean;
 	readonly connectionState: TerminalConnectionState;
@@ -135,7 +137,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	onDidRegisterProcessSupport: Event<void>;
 	onDidChangeConnectionState: Event<void>;
 	onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
-	onPanelOrientationChanged: Event<Orientation>;
 
 	/**
 	 * Creates a terminal.
@@ -210,6 +211,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
+	/** Gets all _terminal editor_ instances. */
+	readonly instances: readonly ITerminalInstance[];
+
 	createEditor(instance: ITerminalInstance): Promise<void>;
 	createEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
@@ -223,6 +227,8 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 export interface ITerminalGroupService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
+	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
+	readonly instances: readonly ITerminalInstance[];
 	readonly groups: readonly ITerminalGroup[];
 	activeGroup: ITerminalGroup | undefined;
 	readonly activeGroupIndex: number;

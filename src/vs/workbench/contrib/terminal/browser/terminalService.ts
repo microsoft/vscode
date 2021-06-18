@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce, throttle } from 'vs/base/common/decorators';
@@ -124,8 +123,6 @@ export class TerminalService implements ITerminalService {
 	get onDidChangeConnectionState(): Event<void> { return this._onDidChangeConnectionState.event; }
 	private readonly _onDidChangeAvailableProfiles = new Emitter<ITerminalProfile[]>();
 	get onDidChangeAvailableProfiles(): Event<ITerminalProfile[]> { return this._onDidChangeAvailableProfiles.event; }
-	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
-	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -196,7 +193,6 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
-		this._terminalGroupService.onPanelOrientationChanged(this._onPanelOrientationChanged.fire, this.onPanelOrientationChanged);
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
