@@ -14,7 +14,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
+import { getRemoteAuthority, isVirtualResource } from 'vs/platform/remote/common/remoteHosts';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustInfo, IWorkspaceTrustUriInfo, IWorkspaceTrustRequestService, IWorkspaceTrustTransitionParticipant, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
@@ -166,7 +166,6 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private registerListeners(): void {
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(async () => await this.updateWorkspaceTrust()));
-		this._register(this.workspaceService.onDidChangeWorkbenchState(async () => await this.updateWorkspaceTrust()));
 		this._register(this.storageService.onDidChangeValue(async changeEvent => {
 			/* This will only execute if storage was changed by a user action in a separate window */
 			if (changeEvent.key === this.storageKey && JSON.stringify(this._trustStateInfo) !== JSON.stringify(this.loadTrustInfo())) {
@@ -340,6 +339,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return { trusted: true, uri };
 		}
 
+		if (this.isTrustedByRemote(uri)) {
+			return { trusted: true, uri };
+		}
+
 		let resultState = false;
 		let maxLength = -1;
 
@@ -368,6 +371,10 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 					continue;
 				}
 
+				if (this.isTrustedByRemote(uri)) {
+					continue;
+				}
+
 				const foundItem = this._trustStateInfo.uriTrustInfo.find(trustInfo => this.uriIdentityService.extUri.isEqual(trustInfo.uri, uri));
 				if (!foundItem) {
 					this._trustStateInfo.uriTrustInfo.push({ uri, trusted: true });
@@ -389,6 +396,18 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 
 	private isTrustedVirtualResource(uri: URI): boolean {
 		return isVirtualResource(uri) && uri.scheme !== 'vscode-vfs';
+	}
+
+	private isTrustedByRemote(uri: URI): boolean {
+		if (!this.environmentService.remoteAuthority) {
+			return false;
+		}
+
+		if (!this._remoteAuthority) {
+			return false;
+		}
+
+		return (getRemoteAuthority(uri) === this._remoteAuthority.authority.authority) && !!this._remoteAuthority.options?.isTrusted;
 	}
 
 	private set isTrusted(value: boolean) {
@@ -527,6 +546,11 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 	async getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
 		// Return trusted when workspace trust is disabled
 		if (!this.workspaceTrustEnabled) {
+			return { trusted: true, uri };
+		}
+
+		// Uri is trusted automatically by the remote
+		if (this.isTrustedByRemote(uri)) {
 			return { trusted: true, uri };
 		}
 

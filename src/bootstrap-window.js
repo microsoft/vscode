@@ -82,7 +82,7 @@
 		}
 
 		// Enable ASAR support
-		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot, true);
 
 		// Get the nls configuration into the process.env as early as possible
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();

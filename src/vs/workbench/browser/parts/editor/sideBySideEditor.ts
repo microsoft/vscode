@@ -166,7 +166,7 @@ export class SideBySideEditor extends EditorPane {
 	}
 
 	private async updateInput(oldInput: EditorInput | undefined, newInput: SideBySideEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
-		if (!newInput.matches(oldInput)) {
+		if (!oldInput || !newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
 			}

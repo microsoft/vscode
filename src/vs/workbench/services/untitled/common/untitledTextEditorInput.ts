@@ -3,17 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IUntitledTextResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IUntitledTextResourceEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -24,6 +25,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 
 	override get typeId(): string {
 		return UntitledTextEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private modelResolve: Promise<void> | undefined = undefined;
@@ -134,7 +139,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		};
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

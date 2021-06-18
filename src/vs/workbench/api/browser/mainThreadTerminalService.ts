@@ -63,20 +63,20 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			this._onInstanceDimensionsChanged(instance);
 		}));
 
-		this._toDispose.add(_terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
+		this._toDispose.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.add(_terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.add(_terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceMaximumDimensionsChanged(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._toDispose.add(_terminalService.onInstanceRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
-		this._toDispose.add(_terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
+		this._toDispose.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
 		this._toDispose.add(_terminalService.onInstanceTitleChanged(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
 
 		// Set initial ext host state
-		this._terminalService.terminalInstances.forEach(t => {
+		this._terminalService.instances.forEach(t => {
 			this._onTerminalOpened(t);
 			t.processReady.then(() => this._onTerminalProcessIdReady(t));
 		});
-		const activeInstance = this._terminalService.getActiveInstance();
+		const activeInstance = this._terminalService.activeInstance;
 		if (activeInstance) {
 			this._proxy.$acceptActiveTerminalChanged(activeInstance.instanceId);
 		}
@@ -145,7 +145,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		};
 		let terminal: ITerminalInstance | undefined;
 		if (launchConfig.isSplitTerminal) {
-			const activeInstance = this._terminalService.getActiveInstance();
+			const activeInstance = this._terminalService.activeInstance;
 			if (activeInstance) {
 				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
 			}
@@ -166,7 +166,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	public $hide(id: TerminalIdentifier): void {
 		const rendererId = this._getTerminalId(id);
-		const instance = this._terminalService.getActiveInstance();
+		const instance = this._terminalService.activeInstance;
 		if (instance && instance.instanceId === rendererId) {
 			this._terminalService.hidePanel();
 		}
@@ -186,7 +186,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				this._onTerminalData(id, data);
 			});
 			// Send initial events if they exist
-			this._terminalService.terminalInstances.forEach(t => {
+			this._terminalService.instances.forEach(t => {
 				t.initialDataEvents?.forEach(d => this._onTerminalData(t.instanceId, d));
 			});
 		}
@@ -382,9 +382,9 @@ class TerminalDataEventTracker extends Disposable {
 
 		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
-		this._terminalService.terminalInstances.forEach(instance => this._registerInstance(instance));
+		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
 		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
-		this._register(this._terminalService.onInstanceDisposed(instance => this._bufferer.stopBuffering(instance.instanceId)));
+		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
 	}
 
 	private _registerInstance(instance: ITerminalInstance): void {

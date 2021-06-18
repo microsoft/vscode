@@ -39,7 +39,6 @@ suite('Diff editor input', () => {
 		assert.strictEqual(diffInput.modifiedInput, otherInput);
 		assert(diffInput.matches(diffInput));
 		assert(!diffInput.matches(otherInput));
-		assert(!diffInput.matches(null));
 
 		diffInput.dispose();
 		assert.strictEqual(counter, 0);

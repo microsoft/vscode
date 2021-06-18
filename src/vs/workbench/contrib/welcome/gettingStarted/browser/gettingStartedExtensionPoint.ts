@@ -12,7 +12,6 @@ const titleTranslated = localize('title', "Title");
 export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWalkthrough[]>({
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
-		doNotSuggest: true,
 		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
 		type: 'array',
 		items: {
@@ -201,7 +200,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		doNotSuggest: true,
 		description: localize('startEntries', "Contribute commands to the `Welcome: New...` picker."),
 		type: 'array',
 		items: {
