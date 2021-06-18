@@ -20,7 +20,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.quickinput.waitForQuickInputElements(names => names.length === 2);
 		});
 
-		it('verifies problems view', async function () {
+		it.skip('verifies problems view', async function () {
 			const app = this.app as Application;
 			await app.workbench.quickaccess.openFile('style.css');
 			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
@@ -32,7 +32,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			await app.workbench.problems.hideProblemsView();
 		});
 
-		it('verifies settings', async function () {
+		it.skip('verifies settings', async function () {
 			const app = this.app as Application;
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 			await app.workbench.quickaccess.openFile('style.css');
