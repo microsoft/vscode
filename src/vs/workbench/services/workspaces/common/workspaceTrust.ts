@@ -150,10 +150,12 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 				});
 		}
 
-		// Save empty workspace state
+		// Empty workspace - save initial state to memento
 		if (this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY) {
 			this._workspaceTrustInitializedPromise.then(() => {
-				this.isTrusted = this.isWorkpaceTrusted();
+				if (this._storedTrustState.isEmptyWorkspaceTrusted === undefined) {
+					this._storedTrustState.isEmptyWorkspaceTrusted = this.isWorkpaceTrusted();
+				}
 			});
 		}
 	}
