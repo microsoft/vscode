@@ -184,7 +184,8 @@ export class TerminalService implements ITerminalService {
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				let instance = this.getInstanceFromId(parseInt(resource.path));
+				console.log('drag into editor, resource', resource);
+				let instance = this.getInstanceFromId(parseInt(resource.fragment));
 				if (instance) {
 					const sourceGroup = this.getGroupForInstance(instance);
 					if (sourceGroup) {
@@ -194,6 +195,8 @@ export class TerminalService implements ITerminalService {
 					instance = this.createInstance({});
 				}
 				instance.target = TerminalLocation.Editor;
+				// TODO: Create the input with terminal editor service
+				this._terminalEditorService.terminalEditorInstances.push(instance);
 				// instance.detachFromElement();
 				return {
 					editor: new TerminalEditorInput(instance),
@@ -871,13 +874,13 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
 			// View terminals
-			let sourceInstance = this.getInstanceFromId(parseInt(e.uri.path));
+			let sourceInstance = this.getInstanceFromId(parseInt(e.uri.fragment));
 			if (sourceInstance) {
 				this.moveInstance(sourceInstance, instance, e.side);
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.toString() === e.uri.toString());
+			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.fragment === e.uri.fragment);
 			if (sourceInstance) {
 				this.moveToTerminalView(sourceInstance);
 			}

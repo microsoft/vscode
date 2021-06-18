@@ -525,7 +525,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	getDragURI(instance: ITerminalInstance): string | null {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: instance.instanceId.toString()
+			fragment: instance.instanceId.toString()
 		}).toString();
 	}
 
