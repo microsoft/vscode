@@ -37,11 +37,14 @@ import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/comm
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
-import { formatMessageForTerminal } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 
 export class TerminalService implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -148,6 +151,7 @@ export class TerminalService implements ITerminalService {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
@@ -163,6 +167,41 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+		editorOverrideService.registerEditor(
+			`**`,
+			{
+				id: TerminalEditor.ID,
+				label: terminalStrings.terminal,
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canHandleDiff: false,
+				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
+				singlePerResource: true
+			},
+			(resource, options, group) => {
+				let instance = this.getInstanceFromId(parseInt(resource.path));
+				if (instance) {
+					const sourceGroup = this.getGroupForInstance(instance);
+					if (sourceGroup) {
+						sourceGroup.removeInstance(instance);
+					}
+				} else {
+					instance = this.createInstance({});
+				}
+				this._terminalEditorService.terminalEditorInstances.push(instance);
+				return {
+					editor: this._terminalEditorService.createEditorInput(instance),
+					options: {
+						...options,
+						pinned: true,
+						forceReload: true
+					}
+				};
+			}
+		);
+
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -834,7 +873,7 @@ export class TerminalService implements ITerminalService {
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.toString() === e.uri.toString());
+			sourceInstance = this._terminalEditorService.terminalEditorInstances.find(instance => instance.resource.path === e.uri.path);
 			if (sourceInstance) {
 				this.moveToTerminalView(sourceInstance);
 			}
