@@ -3156,7 +3156,7 @@ declare namespace monaco.editor {
 		matchBrackets?: 'never' | 'near' | 'always';
 		/**
 		 * Enable rendering of whitespace.
-		 * Defaults to none.
+		 * Defaults to 'selection'.
 		 */
 		renderWhitespace?: 'none' | 'boundary' | 'selection' | 'trailing' | 'all';
 		/**
@@ -3818,6 +3818,13 @@ declare namespace monaco.editor {
 		 * Enable or disable the rendering of automatic inline completions.
 		*/
 		enabled?: boolean;
+		/**
+		 * Configures the mode.
+		 * Use `prefix` to only show ghost text if the text to replace is a prefix of the suggestion text.
+		 * Use `subwordDiff` to only show ghost text if the replace text is a subword of the suggestion text and diffing should be used to compute the ghost text.
+		 * Defaults to `prefix`.
+		*/
+		mode?: 'prefix' | 'subwordDiff';
 	}
 
 	export type InternalInlineSuggestOptions = Readonly<Required<IInlineSuggestOptions>>;
@@ -3858,6 +3865,10 @@ declare namespace monaco.editor {
 		 * Enable or disable the rendering of the suggestion preview.
 		 */
 		preview?: boolean;
+		/**
+		 * Configures the mode of the preview. Defaults to `subwordDiff`.
+		*/
+		previewMode?: 'prefix' | 'subwordDiff';
 		/**
 		 * Show details inline with the label. Defaults to true.
 		 */
@@ -5669,7 +5680,7 @@ declare namespace monaco.languages {
 		/**
 		 * The parameters without the return type. Render after `name`.
 		 */
-		parameters?: string;
+		signature?: string;
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
 		 */

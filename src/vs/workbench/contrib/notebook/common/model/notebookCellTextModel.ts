@@ -18,11 +18,11 @@ import { NotebookCellOutputTextModel } from 'vs/workbench/contrib/notebook/commo
 import { CellInternalMetadataChangedEvent, CellKind, ICell, ICellOutput, IOutputDto, NotebookCellInternalMetadata, NotebookCellMetadata, NotebookCellOutputsSplice, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookCellTextModel extends Disposable implements ICell {
-	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice[]>();
-	onDidChangeOutputs: Event<NotebookCellOutputsSplice[]> = this._onDidChangeOutputs.event;
+	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice>();
+	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
-	private _onDidChangeContent = new Emitter<'content' | 'language'>();
-	onDidChangeContent: Event<'content' | 'language'> = this._onDidChangeContent.event;
+	private _onDidChangeContent = new Emitter<'content' | 'language' | 'mime'>();
+	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
 	private _onDidChangeMetadata = new Emitter<void>();
 	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
@@ -87,6 +87,19 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
 		this._onDidChangeContent.fire('language');
+	}
+
+	public get mime(): string | undefined {
+		return this._mime;
+	}
+
+	public set mime(newMime: string | undefined) {
+		if (this._mime === newMime) {
+			return;
+		}
+		this._mime = newMime;
+		this._hash = null;
+		this._onDidChangeContent.fire('mime');
 	}
 
 	private _textBuffer!: model.IReadonlyTextBuffer;
@@ -161,6 +174,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public handle: number,
 		private _source: string,
 		private _language: string,
+		private _mime: string | undefined,
 		public cellKind: CellKind,
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
@@ -197,7 +211,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	}
 
 	private _getPersisentMetadata() {
-		let filteredMetadata: { [key: string]: any } = {};
+		let filteredMetadata: { [key: string]: any; } = {};
 		const transientCellMetadata = this.transientOptions.transientCellMetadata;
 
 		const keys = new Set([...Object.keys(this.metadata)]);
@@ -220,13 +234,9 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		return new Range(1, 1, lineCount, this.textBuffer.getLineLength(lineCount) + 1);
 	}
 
-	spliceNotebookCellOutputs(splices: NotebookCellOutputsSplice[]): void {
-		if (splices.length > 0) {
-			splices.reverse().forEach(splice => {
-				this.outputs.splice(splice[0], splice[1], ...splice[2]);
-			});
-			this._onDidChangeOutputs.fire(splices);
-		}
+	spliceNotebookCellOutputs(splice: NotebookCellOutputsSplice): void {
+		this.outputs.splice(splice.start, splice.deleteCount, ...splice.newOutputs);
+		this._onDidChangeOutputs.fire(splice);
 	}
 	override dispose() {
 		dispose(this._outputs);
@@ -243,6 +253,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 	return {
 		source: cell.getValue(),
 		language: cell.language,
+		mime: cell.mime,
 		cellKind: cell.cellKind,
 		outputs: cell.outputs.map(output => ({
 			outputs: output.outputs,

@@ -7,7 +7,7 @@ import * as fs from 'fs';
 import { createHash } from 'crypto';
 import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { writeFileSync, rimraf, RimRafMode, Promises } from 'vs/base/node/pfs';
+import { writeFileSync, RimRafMode, Promises } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -313,7 +313,7 @@ export class BackupMainService implements IBackupMainService {
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
 			if (await Promises.exists(backupPath)) {
-				await rimraf(backupPath, RimRafMode.MOVE);
+				await Promises.rm(backupPath, RimRafMode.MOVE);
 			}
 		} catch (error) {
 			this.logService.error(`Backup: Could not delete stale backup: ${error.toString()}`);

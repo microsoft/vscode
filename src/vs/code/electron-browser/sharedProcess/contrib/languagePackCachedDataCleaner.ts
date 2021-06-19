@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { join } from 'vs/base/common/path';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -80,7 +80,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 
 				this.logService.info(`[language pack cache cleanup]: Removing unused language pack: ${entry}`);
 
-				await rimraf(join(cacheDir, entry));
+				await Promises.rm(join(cacheDir, entry));
 			}
 
 			const now = Date.now();
@@ -97,7 +97,7 @@ export class LanguagePackCachedDataCleaner extends Disposable {
 					if (stat.isDirectory() && (now - stat.mtime.getTime()) > this._DataMaxAge) {
 						this.logService.info(`[language pack cache cleanup]: Removing language pack cache folder: ${join(packEntry, entry)}`);
 
-						await rimraf(candidate);
+						await Promises.rm(candidate);
 					}
 				}
 			}

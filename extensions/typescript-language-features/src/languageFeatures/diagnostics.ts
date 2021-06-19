@@ -137,7 +137,7 @@ class DiagnosticSettings {
 		const currentSettings = this.get(language);
 		const newSettings = f(currentSettings);
 		this._languageSettings.set(language, newSettings);
-		return areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
+		return !areLanguageDiagnosticSettingsEqual(currentSettings, newSettings);
 	}
 }
 

@@ -228,7 +228,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return false;
 		}
 
-		return identifier.editor.matches(editor.input);
+		return editor.input ? identifier.editor.matches(editor.input) : false;
 	}
 
 	private onDidFilesChange(event: FileChangesEvent | FileOperationEvent): void {

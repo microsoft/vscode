@@ -30,7 +30,7 @@ import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEd
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
-import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, getCellUndoRedoComparisonKey, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
@@ -72,14 +72,15 @@ import 'vs/workbench/contrib/notebook/browser/contrib/marker/markerProvider';
 import 'vs/workbench/contrib/notebook/browser/contrib/navigation/arrow';
 import 'vs/workbench/contrib/notebook/browser/contrib/outline/notebookOutline';
 import 'vs/workbench/contrib/notebook/browser/contrib/profile/notebookProfile';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/statusBarProviders';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/contributedStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/statusBar/executionStatusBarItemController';
-import 'vs/workbench/contrib/notebook/browser/contrib/status/editorStatus';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/statusBarProviders';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/contributedStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import 'vs/workbench/contrib/notebook/browser/contrib/editorStatusBar/editorStatusBar';
 import 'vs/workbench/contrib/notebook/browser/contrib/undoRedo/notebookUndoRedo';
 import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperations';
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
+import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
@@ -121,10 +122,10 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		assertType(input instanceof NotebookDiffEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			originalResource: input.originalResource,
-			name: input.name,
-			originalName: input.originalName,
-			textDiffName: input.textDiffName,
+			originalResource: input.originalInput.resource,
+			name: input.getName(),
+			originalName: input.originalInput.getName(),
+			textDiffName: input.getName(),
 			viewType: input.viewType,
 		});
 	}
@@ -135,14 +136,12 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+		const { resource, originalResource, name, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
-			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
-			viewType);
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
 		return input;
 	}
 
@@ -200,9 +199,21 @@ export class NotebookContribution extends Disposable implements IWorkbenchContri
 
 		this._register(undoRedoService.registerUriComparisonKeyComputer(CellUri.scheme, {
 			getComparisonKey: (uri: URI): string => {
-				return getCellUndoRedoComparisonKey(uri, undoRedoPerCell);
+				if (undoRedoPerCell) {
+					return uri.toString();
+				}
+				return NotebookContribution._getCellUndoRedoComparisonKey(uri);
 			}
 		}));
+	}
+
+	private static _getCellUndoRedoComparisonKey(uri: URI) {
+		const data = CellUri.parse(uri);
+		if (!data) {
+			return uri.toString();
+		}
+
+		return data.notebook.toString();
 	}
 }
 
@@ -657,16 +668,22 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
 			tags: ['notebookLayout']
 		},
 		[InsertToolbarLocation]: {
-			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
+			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
 			type: 'string',
 			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+			enumDescriptions: [
+				nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
+				nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
+				nls.localize('insertToolbarLocation.both', "Both toolbars."),
+				nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
+			],
 			default: 'both',
 			tags: ['notebookLayout']
 		},
@@ -683,9 +700,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the markdown header folding arrow is shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
+			enumDescriptions: [
+				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
+			],
 			default: 'mouseover',
 			tags: ['notebookLayout']
 		},
@@ -698,7 +719,7 @@ configurationRegistry.registerConfiguration({
 		[ConsolidatedRunButton]: {
 			description: nls.localize('notebook.consolidatedRunButton.description', "Control whether extra actions are shown in a dropdown next to the run button."),
 			type: 'boolean',
-			default: true,
+			default: false,
 			tags: ['notebookLayout']
 		},
 		[NotebookCellEditorOptionsCustomizations]: editorOptionsCustomizationSchema

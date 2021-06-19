@@ -32,7 +32,7 @@ import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, op
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { ContributedEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -81,8 +81,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 				id: SearchEditorInput.ID,
 				label: localize('promptOpenWith.searchEditor.displayName', "Search Editor"),
 				detail: DEFAULT_EDITOR_ASSOCIATION.providerDisplayName,
-				describes: (editor) => editor instanceof SearchEditorInput,
-				priority: ContributedEditorPriority.default,
+				priority: RegisteredEditorPriority.default,
 			},
 			{
 				singlePerResource: true,
@@ -507,7 +506,7 @@ registerAction2(class OpenSearchEditorAction extends Action2 {
 	constructor() {
 		super({
 			id: 'search.action.openNewEditorFromView',
-			title: localize('search.openNewEditor', "Open New Search Editor from View"),
+			title: localize('search.openNewEditor', "Open New Search Editor"),
 			category,
 			icon: searchNewEditorIcon,
 			menu: [{

@@ -6,7 +6,7 @@
 
 import * as assert from 'assert';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
-import { MarkdownString, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypeConverters';
+import { MarkdownString, NotebookCellOutputItem, NotebookData } from 'vs/workbench/api/common/extHostTypeConverters';
 import { isEmptyObject } from 'vs/base/common/types';
 import { forEach } from 'vs/base/common/collections';
 import { LogLevel as _MainLogLevel } from 'vs/platform/log/common/log';
@@ -81,6 +81,20 @@ suite('ExtHostTypeConverter', function () {
 				assert.strictEqual(entry.value.scheme, 'command');
 			}
 		});
+	});
+
+	test('Notebook metadata is ignored when using Notebook Serializer #125716', function () {
+
+		const d = new extHostTypes.NotebookData([]);
+		d.cells.push(new extHostTypes.NotebookCellData(extHostTypes.NotebookCellKind.Code, 'hello', 'fooLang'));
+		d.metadata = { custom: { foo: 'bar', bar: 123 } };
+
+		const dto = NotebookData.from(d);
+
+		assert.strictEqual(dto.cells.length, 1);
+		assert.strictEqual(dto.cells[0].language, 'fooLang');
+		assert.strictEqual(dto.cells[0].source, 'hello');
+		assert.deepStrictEqual(dto.metadata, d.metadata);
 	});
 
 	test('NotebookCellOutputItem', function () {

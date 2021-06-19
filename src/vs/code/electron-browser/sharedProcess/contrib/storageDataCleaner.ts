@@ -5,7 +5,7 @@
 
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { join } from 'vs/base/common/path';
-import { Promises, rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBackupWorkspacesFormat } from 'vs/platform/backup/node/backup';
@@ -52,7 +52,7 @@ export class StorageDataCleaner extends Disposable {
 				if (emptyWorkspaces.indexOf(storageFolder) === -1) {
 					this.logService.info(`[storage cleanup]: Deleting storage folder ${storageFolder}.`);
 
-					await rimraf(join(this.environmentService.workspaceStorageHome.fsPath, storageFolder));
+					await Promises.rm(join(this.environmentService.workspaceStorageHome.fsPath, storageFolder));
 				}
 			}));
 		} catch (error) {

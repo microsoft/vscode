@@ -9,7 +9,7 @@
  * distribution and CANNOT be used in published extensions.
  *
  * To test these API in local environment:
- * - Use Insiders release of VS Code.
+ * - Use Insiders release of 'VS Code'.
  * - Add `"enableProposedApi": true` to your package.json.
  * - Copy this file to your project.
  */
@@ -92,6 +92,7 @@ declare module 'vscode' {
 		localAddressPort?: number;
 		label?: string;
 		public?: boolean;
+		protocol?: string;
 	}
 
 	export interface TunnelDescription {
@@ -99,6 +100,8 @@ declare module 'vscode' {
 		//The complete local address(ex. localhost:1234)
 		localAddress: { port: number, host: string; } | string;
 		public?: boolean;
+		// If protocol is not provided it is assumed to be http, regardless of the localAddress.
+		protocol?: string;
 	}
 
 	export interface Tunnel extends TunnelDescription {
@@ -147,8 +150,8 @@ declare module 'vscode' {
 		/**
 		 * Resolve the authority part of the current opened `vscode-remote://` URI.
 		 *
-		 * This method will be invoked once during the startup of VS Code and again each time
-		 * VS Code detects a disconnection.
+		 * This method will be invoked once during the startup of the editor and again each time
+		 * the editor detects a disconnection.
 		 *
 		 * @param authority The authority part of the current opened `vscode-remote://` URI.
 		 * @param context A context indicating if this is the first call or a subsequent call.
@@ -226,6 +229,7 @@ declare module 'vscode' {
 		tildify?: boolean;
 		normalizeDriveLetter?: boolean;
 		workspaceSuffix?: string;
+		workspaceTooltip?: string;
 		authorityPrefix?: string;
 		stripPathStartingSeparator?: boolean;
 	}
@@ -438,11 +442,11 @@ declare module 'vscode' {
 		/**
 		 * Additional information regarding the state of the completed search.
 		 *
-		 * Messages with "Information" tyle support links in markdown syntax:
+		 * Messages with "Information" style support links in markdown syntax:
 		 * - Click to [run a command](command:workbench.action.OpenQuickPick)
 		 * - Click to [open a website](https://aka.ms)
 		 *
-		 * Commands may optionally return { triggerSearch: true } to signal to VS Code that the original search should run be agian.
+		 * Commands may optionally return { triggerSearch: true } to signal to the editor that the original search should run be again.
 		 */
 		message?: TextSearchCompleteMessage | TextSearchCompleteMessage[];
 	}
@@ -553,7 +557,7 @@ declare module 'vscode' {
 	/**
 	 * A FileSearchProvider provides search results for files in the given folder that match a query string. It can be invoked by quickopen or other extensions.
 	 *
-	 * A FileSearchProvider is the more powerful of two ways to implement file search in VS Code. Use a FileSearchProvider if you wish to search within a folder for
+	 * A FileSearchProvider is the more powerful of two ways to implement file search in the editor. Use a FileSearchProvider if you wish to search within a folder for
 	 * all files that match the user's query.
 	 *
 	 * The FileSearchProvider will be invoked on every keypress in quickopen. When `workspace.findFiles` is called, it will be invoked with an empty query string,
@@ -898,45 +902,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Terminal icon https://github.com/microsoft/vscode/issues/120538
-
-	export interface TerminalOptions {
-		/**
-		 * The icon path or {@link ThemeIcon} for the terminal.
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	export interface ExtensionTerminalOptions {
-		/**
-		 * A themeIcon, Uri, or light and dark Uris to use as the terminal tab icon
-		 */
-		readonly iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
-	}
-
-	//#endregion
-
-	//#region Terminal profile provider https://github.com/microsoft/vscode/issues/120369
-
-	export namespace window {
-		/**
-		 * Registers a provider for a contributed terminal profile.
-		 * @param id The ID of the contributed terminal profile.
-		 * @param provider The terminal profile provider.
-		 */
-		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
-	}
-
-	export interface TerminalProfileProvider {
-		/**
-		 * Provide terminal profile options for the requested terminal.
-		 * @param token A cancellation token that indicates the result is no longer needed.
-		 */
-		provideProfileOptions(token: CancellationToken): ProviderResult<TerminalOptions | ExtensionTerminalOptions>;
-	}
-
-	//#endregion
-
 	// eslint-disable-next-line vscode-dts-region-comments
 	//#region @jrieken -> exclusive document filters
 
@@ -953,7 +918,22 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region Custom Tree View Drag and Drop https://github.com/microsoft/vscode/issues/32592
+	/**
+	 * A data provider that provides tree data
+	 */
+	export interface TreeDataProvider<T> {
+		/**
+		 * An optional event to signal that an element or root has changed.
+		 * This will trigger the view to update the changed element/root and its children recursively (if shown).
+		 * To signal that root has changed, do not pass any argument or pass `undefined` or `null`.
+		 */
+		onDidChangeTreeData2?: Event<T | T[] | undefined | null | void>;
+	}
+
 	export interface TreeViewOptions<T> {
+		/**
+		* An optional interface to implement drag and drop in the tree view.
+		*/
 		dragAndDropController?: DragAndDropController<T>;
 	}
 
@@ -987,7 +967,7 @@ declare module 'vscode' {
 		 * Handle when the underlying resource for a custom editor is renamed.
 		 *
 		 * This allows the webview for the editor be preserved throughout the rename. If this method is not implemented,
-		 * VS Code will destory the previous custom editor and create a replacement one.
+		 * the editor will destroy the previous custom editor and create a replacement one.
 		 *
 		 * @param newDocument New text document to use for the custom editor.
 		 * @param existingWebviewPanel Webview panel for the custom editor.
@@ -1352,7 +1332,7 @@ declare module 'vscode' {
 		/**
 		 * Delete the current backup.
 		 *
-		 * This is called by VS Code when it is clear the current backup is no longer needed, such as when a new backup
+		 * This is called by the editor when it is clear the current backup is no longer needed, such as when a new backup
 		 * is made or when the file is saved.
 		 */
 		delete(): void;
@@ -1427,18 +1407,22 @@ declare module 'vscode' {
 
 	export interface CompletionItemLabel {
 		/**
-		 * The function or variable. Rendered leftmost.
+		 * The name of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
 		 */
 		name: string;
 
 		/**
-		 * The parameters without the return type. Render after `name`.
+		 * The signature of this completion item. Will be rendered right after the
+		 * {@link CompletionItemLabel.name name}.
 		 */
-		parameters?: string;
+		signature?: string;
 
 		/**
 		 * The fully qualified name, like package name or file path. Rendered after `signature`.
 		 */
+		//todo@API find better name
 		qualifier?: string;
 
 		/**
@@ -1882,7 +1866,7 @@ declare module 'vscode' {
 		 * disambiguate multiple sets of results in a test run. It is useful if
 		 * tests are run across multiple platforms, for example.
 		 * @param persist Whether the results created by the run should be
-		 * persisted in VS Code. This may be false if the results are coming from
+		 * persisted in the editor. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
 		 */
 		export function createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
@@ -1901,7 +1885,7 @@ declare module 'vscode' {
 		export function createTestItem<T = void, TChildren = any>(options: TestItemOptions): TestItem<T, TChildren>;
 
 		/**
-		 * List of test results stored by VS Code, sorted in descnding
+		 * List of test results stored by the editor, sorted in descending
 		 * order by their `completedAt` time.
 		 * @stability experimental
 		 */
@@ -1941,7 +1925,7 @@ declare module 'vscode' {
 		readonly onDidDiscoverInitialTests: Event<void>;
 
 		/**
-		 * Dispose of the observer, allowing VS Code to eventually tell test
+		 * Dispose of the observer, allowing the editor to eventually tell test
 		 * providers that they no longer need to update tests.
 		 */
 		dispose(): void;
@@ -2010,10 +1994,13 @@ declare module 'vscode' {
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
-		 * @param options Options for this test run
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
+		 * @param request Request information for the test run
+		 * @param cancellationToken Token that signals the used asked to abort the
+		 * test run. If cancellation is requested on this token, all {@link TestRun}
+		 * instances associated with the request will be
+		 * automatically cancelled as well.
 		 */
-		runTests(options: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+		runTests(request: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
 	}
 
 	/**
@@ -2028,7 +2015,7 @@ declare module 'vscode' {
 		tests: TestItem<T>[];
 
 		/**
-		 * An array of tests the user has marked as excluded in VS Code. May be
+		 * An array of tests the user has marked as excluded in the editor. May be
 		 * omitted if no exclusions were requested. Test controllers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
@@ -2052,13 +2039,19 @@ declare module 'vscode' {
 		readonly name?: string;
 
 		/**
+		 * A cancellation token which will be triggered when the test run is
+		 * canceled from the UI.
+		 */
+		readonly token: CancellationToken;
+
+		/**
 		 * Updates the state of the test in the run. Calling with method with nodes
 		 * outside the {@link TestRunRequest.tests} or in the
 		 * {@link TestRunRequest.exclude} array will no-op.
 		 *
 		 * @param test The test to update
 		 * @param state The state to assign to the test
-		 * @param duration Optionally sets how long the test took to run
+		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
 		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
@@ -2069,8 +2062,7 @@ declare module 'vscode' {
 		 * or in the {@link TestRunRequest.exclude} array will no-op.
 		 *
 		 * @param test The test to update
-		 * @param state The state to assign to the test
-		 *
+		 * @param message The message to add
 		 */
 		appendMessage(test: TestItem<T>, message: TestMessage): void;
 
@@ -2332,7 +2324,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * TestResults can be provided to VS Code in {@link test.publishTestResult},
+	 * TestResults can be provided to the editor in {@link test.publishTestResult},
 	 * or read from it in {@link test.testResults}.
 	 *
 	 * The results contain a 'snapshot' of the tests at the point when the test
@@ -2435,7 +2427,7 @@ declare module 'vscode' {
 	 * if an opener should be selected automatically or if the user should be prompted to
 	 * select an opener.
 	 *
-	 * VS Code will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
+	 * The editor will try to use the best available opener, as sorted by `ExternalUriOpenerPriority`.
 	 * If there are multiple potential "best" openers for a URI, then the user will be prompted
 	 * to select an opener.
 	 */
@@ -2450,21 +2442,21 @@ declare module 'vscode' {
 
 		/**
 		 * The opener can open the uri but will not cause a prompt on its own
-		 * since VS Code always contributes a built-in `Default` opener.
+		 * since the editor always contributes a built-in `Default` opener.
 		 */
 		Option = 1,
 
 		/**
 		 * The opener can open the uri.
 		 *
-		 * VS Code's built-in opener has `Default` priority. This means that any additional `Default`
+		 * The editor's built-in opener has `Default` priority. This means that any additional `Default`
 		 * openers will cause the user to be prompted to select from a list of all potential openers.
 		 */
 		Default = 2,
 
 		/**
 		 * The opener can open the uri and should be automatically selected over any
-		 * default openers, include the built-in one from VS Code.
+		 * default openers, include the built-in one from the editor.
 		 *
 		 * A preferred opener will be automatically selected if no other preferred openers
 		 * are available. If multiple preferred openers are available, then the user
@@ -2477,7 +2469,7 @@ declare module 'vscode' {
 	 * Handles opening uris to external resources, such as http(s) links.
 	 *
 	 * Extensions can implement an `ExternalUriOpener` to open `http` links to a webserver
-	 * inside of VS Code instead of having the link be opened by the web browser.
+	 * inside of the editor instead of having the link be opened by the web browser.
 	 *
 	 * Currently openers may only be registered for `http` and `https` uris.
 	 */
@@ -2568,11 +2560,11 @@ declare module 'vscode' {
 		 * Allows using openers contributed by extensions through  `registerExternalUriOpener`
 		 * when opening the resource.
 		 *
-		 * If `true`, VS Code will check if any contributed openers can handle the
+		 * If `true`, the editor will check if any contributed openers can handle the
 		 * uri, and fallback to the default opener behavior.
 		 *
 		 * If it is string, this specifies the id of the `ExternalUriOpener`
-		 * that should be used if it is available. Use `'default'` to force VS Code's
+		 * that should be used if it is available. Use `'default'` to force the editor's
 		 * standard external opener to be used.
 		 */
 		readonly allowContributedOpeners?: boolean | string;
@@ -2601,7 +2593,7 @@ declare module 'vscode' {
 		 *
 		 * If the extension is running remotely, this function automatically establishes a port forwarding tunnel
 		 * from the local machine to `target` on the remote and returns a local uri to the tunnel. The lifetime of
-		 * the port forwarding tunnel is managed by VS Code and the tunnel can be closed by the user.
+		 * the port forwarding tunnel is managed by the editor and the tunnel can be closed by the user.
 		 *
 		 * *Note* that uris passed through `openExternal` are automatically resolved and you should not call `asExternalUri` on them.
 		 *
@@ -2638,7 +2630,7 @@ declare module 'vscode' {
 		 * #### Any other scheme
 		 *
 		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
-		 * a URI which, when handled, will make VS Code open the workspace.
+		 * a URI which, when handled, will make the editor open the workspace.
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */
@@ -2695,7 +2687,8 @@ declare module 'vscode' {
 		OpenBrowser = 2,
 		OpenPreview = 3,
 		Silent = 4,
-		Ignore = 5
+		Ignore = 5,
+		OpenBrowserOnce = 6
 	}
 
 	export class PortAttributes {
@@ -2730,7 +2723,7 @@ declare module 'vscode' {
 		/**
 		 * If your extension listens on ports, consider registering a PortAttributesProvider to provide information
 		 * about the ports. For example, a debug extension may know about debug ports in it's debuggee. By providing
-		 * this information with a PortAttributesProvider the extension can tell VS Code that these ports should be
+		 * this information with a PortAttributesProvider the extension can tell the editor that these ports should be
 		 * ignored, since they don't need to be user facing.
 		 *
 		 * @param portSelector If registerPortAttributesProvider is called after you start your process then you may already
@@ -2895,6 +2888,47 @@ declare module 'vscode' {
 		 * The stored keys.
 		 */
 		readonly keys: readonly string[];
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
+
+	export interface StatusBarItem {
+
+		/**
+		 * Will be merged into StatusBarItem#tooltip
+		 */
+		tooltip2: string | MarkdownString | undefined;
+
+	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/126280 @mjbvz
+
+	export interface NotebookCellData {
+		/**
+		 * Mime type determines how the cell's `value` is interpreted.
+		 *
+		 * The mime selects which notebook renders is used to render the cell.
+		 *
+		 * If not set, internally the cell is treated as having a mime type of `text/plain`.
+		 * Cells that set `language` to `markdown` instead are treated as `text/markdown`.
+		 */
+		mime?: string;
+	}
+
+	export interface NotebookCell {
+		/**
+		 * Mime type determines how the markup cell's `value` is interpreted.
+		 *
+		 * The mime selects which notebook renders is used to render the cell.
+		 *
+		 * If not set, internally the cell is treated as having a mime type of `text/plain`.
+		 * Cells that set `language` to `markdown` instead are treated as `text/markdown`.
+		 */
+		mime: string | undefined;
 	}
 
 	//#endregion

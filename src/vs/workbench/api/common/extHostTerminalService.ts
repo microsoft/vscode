@@ -43,7 +43,7 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	getDefaultShell(useAutomationShell: boolean): string;
 	getDefaultShellArgs(useAutomationShell: boolean): string[] | string;
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
-	registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
+	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	getEnvironmentVariableCollection(extension: IExtensionDescription, persistent?: boolean): vscode.EnvironmentVariableCollection;
 }
 
@@ -584,12 +584,12 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		});
 	}
 
-	public registerProfileProvider(id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
+	public registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable {
 		if (this._profileProviders.has(id)) {
 			throw new Error(`Terminal profile provider "${id}" already registered`);
 		}
 		this._profileProviders.set(id, provider);
-		this._proxy.$registerProfileProvider(id);
+		this._proxy.$registerProfileProvider(id, extension.identifier.value);
 		return new VSCodeDisposable(() => {
 			this._profileProviders.delete(id);
 			this._proxy.$unregisterProfileProvider(id);
@@ -598,18 +598,18 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 
 	public async $createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void> {
 		const token = new CancellationTokenSource().token;
-		const options = await this._profileProviders.get(id)?.provideProfileOptions(token);
+		const profile = await this._profileProviders.get(id)?.provideTerminalProfile(token);
 		if (token.isCancellationRequested) {
 			return;
 		}
-		if (!options) {
+		if (!profile || !('options' in profile)) {
 			throw new Error(`No terminal profile options provided for id "${id}"`);
 		}
-		if ('pty' in options) {
-			this.createExtensionTerminal(options, { isSplitTerminal });
+		if ('pty' in profile.options) {
+			this.createExtensionTerminal(profile.options, { isSplitTerminal });
 			return;
 		}
-		this.createTerminalFromOptions(options, { isSplitTerminal });
+		this.createTerminalFromOptions(profile.options, { isSplitTerminal });
 	}
 
 	public async $provideLinks(terminalId: number, line: string): Promise<ITerminalLinkDto[]> {

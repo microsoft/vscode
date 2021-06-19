@@ -6,6 +6,8 @@
 import { mapFind } from 'vs/base/common/arrays';
 import { DeferredPromise, isThenable, RunOnceScheduler } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { assertNever } from 'vs/base/common/types';
 import { ExtHostTestItemEvent, ExtHostTestItemEventType, getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
@@ -50,8 +52,8 @@ export class OwnedTestCollection {
 	 * Creates a new test collection for a specific hierarchy for a workspace
 	 * or document observation.
 	 */
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new SingleUseTestCollection(this.createIdMap(treeIdCounter++), publishDiff);
+	public createForHierarchy() {
+		return new SingleUseTestCollection(this.createIdMap(treeIdCounter++));
 	}
 
 	protected createIdMap(id: number): IReference<TestTree<OwnedCollectionTestItem>> {
@@ -198,14 +200,23 @@ export class SingleUseTestCollection implements IDisposable {
 	protected readonly testItemToInternal = new Map<TestItemRaw, OwnedCollectionTestItem>();
 	protected diff: TestsDiff = [];
 	private readonly debounceSendDiff = new RunOnceScheduler(() => this.flushDiff(), 200);
+	private readonly diffOpEmitter = new Emitter<TestsDiff>();
+
+	/**
+	 * Fires when an operation happens that should result in a diff.
+	 */
+	public readonly onDidGenerateDiff = this.diffOpEmitter.event;
 
 	public get treeId() {
 		return this.testIdToInternal.object.id;
 	}
 
+	public get roots() {
+		return Iterable.filter(this.testItemToInternal.values(), t => t.parent === null);
+	}
+
 	constructor(
 		private readonly testIdToInternal: IReference<TestTree<OwnedCollectionTestItem>>,
-		private readonly publishDiff: (diff: TestsDiff) => void,
 	) { }
 
 	/**
@@ -370,7 +381,6 @@ export class SingleUseTestCollection implements IDisposable {
 		this.pushDiff([TestDiffOpType.Add, { parent: parentId, src, expand, item: internal.item }]);
 
 		const api = getPrivateApiFor(actual);
-		api.parent = parent?.actual;
 		api.bus.event(this.onTestItemEvent.bind(this, internal));
 
 		// important that this comes after binding the event bus otherwise we
@@ -481,10 +491,28 @@ export class SingleUseTestCollection implements IDisposable {
 		}
 	}
 
+	/**
+	 * Immediately emits any pending diffs on the collection.
+	 */
 	public flushDiff() {
 		const diff = this.collectDiff();
 		if (diff.length) {
-			this.publishDiff(diff);
+			this.diffOpEmitter.fire(diff);
 		}
+	}
+
+	/**
+	 * Returns a diff sufficient to "revive" the collection to its current
+	 * state.
+	 */
+	public reviveDiff() {
+		this.flushDiff(); // flush to synchronize so we don't later replay unsent data
+
+		const diff: TestsDiff = [];
+		for (const { parent, src, expand, item } of this.testItemToInternal.values()) {
+			diff.push([TestDiffOpType.Add, { parent, src, expand, item }]);
+		}
+
+		return diff;
 	}
 }

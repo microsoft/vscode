@@ -51,12 +51,12 @@ import { HierarchicalByNameProjection } from 'vs/workbench/contrib/testing/brows
 import { IActionableTestTreeElement, isActionableTestTreeElement, ITestTreeProjection, TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { testingHiddenIcon, testingStatesToIcons } from 'vs/workbench/contrib/testing/browser/icons';
 import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilter } from 'vs/workbench/contrib/testing/browser/testingExplorerFilter';
-import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
-import { TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
+import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
 import { TestIdPath, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
+import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
@@ -70,8 +70,10 @@ export class TestingExplorerView extends ViewPane {
 	private filterActionBar = this._register(new MutableDisposable());
 	private readonly currentSubscription = new MutableDisposable<IReference<TestSubscriptionListener>>();
 	private container!: HTMLElement;
+	private treeHeader!: HTMLElement;
 	private discoveryProgress = this._register(new MutableDisposable<UnmanagedProgress>());
-	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);;
+	private readonly location = TestingContextKeys.explorerLocation.bindTo(this.contextKeyService);
+	private readonly dimensions = { width: 0, height: 0 };
 
 	constructor(
 		options: IViewletViewOptions,
@@ -92,7 +94,7 @@ export class TestingExplorerView extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 		this.location.set(viewDescriptorService.getViewLocationById(Testing.ExplorerViewId) ?? ViewContainerLocation.Sidebar);
 
-		const relayout = this._register(new RunOnceScheduler(() => this.viewModel?.layout(), 1));
+		const relayout = this._register(new RunOnceScheduler(() => this.layoutBody(), 1));
 		this._register(this.onDidChangeViewWelcomeState(() => {
 			if (!this.shouldShowWelcome()) {
 				relayout.schedule();
@@ -124,14 +126,20 @@ export class TestingExplorerView extends ViewPane {
 		super.renderBody(container);
 
 		this.container = dom.append(container, dom.$('.test-explorer'));
+		this.treeHeader = dom.append(this.container, dom.$('.test-explorer-header'));
 
 		if (this.location.get() === ViewContainerLocation.Sidebar) {
 			this.filterActionBar.value = this.createFilterActionBar();
 		}
 
-		const messagesContainer = dom.append(this.container, dom.$('.test-explorer-messages'));
+		const messagesContainer = dom.append(this.treeHeader, dom.$('.test-explorer-messages'));
 		this._register(this.testProgressService.onTextChange(text => {
+			const hadText = !!messagesContainer.innerText;
 			messagesContainer.innerText = text;
+
+			if (!hadText) {
+				this.layoutBody();
+			}
 		}));
 
 		const progress = new MutableDisposable<UnmanagedProgress>();
@@ -185,7 +193,7 @@ export class TestingExplorerView extends ViewPane {
 	}
 
 	private createFilterActionBar() {
-		const bar = new ActionBar(this.container, {
+		const bar = new ActionBar(this.treeHeader, {
 			actionViewItemProvider: action => this.getActionViewItem(action),
 			triggerKeys: { keyDown: false, keys: [] },
 		});
@@ -205,10 +213,12 @@ export class TestingExplorerView extends ViewPane {
 	/**
 	 * @override
 	 */
-	protected override layoutBody(height: number, width: number): void {
+	protected override layoutBody(height = this.dimensions.height, width = this.dimensions.width): void {
 		super.layoutBody(height, width);
+		this.dimensions.height = height;
+		this.dimensions.width = width;
 		this.container.style.height = `${height}px`;
-		this.viewModel.layout();
+		this.viewModel.layout(height - this.treeHeader.clientHeight, width);
 	}
 
 	private createSubscription(): IReference<TestSubscriptionListener> {
@@ -432,8 +442,8 @@ export class TestingExplorerViewModel extends Disposable {
 	/**
 	 * Re-layout the tree.
 	 */
-	public layout(): void {
-		this.tree.layout(); // The tree will measure its container
+	public layout(height?: number, width?: number): void {
+		this.tree.layout(height, width);
 	}
 
 	/**
@@ -830,10 +840,7 @@ class TestExplorerActionRunner extends ActionRunner {
 }
 
 const getLabelForTestTreeElement = (element: IActionableTestTreeElement) => {
-	let label = localize({
-		key: 'testing.treeElementLabel',
-		comment: ['label then the unit tests state, for example "Addition Tests (Running)"'],
-	}, '{0} ({1})', element.label, testStateNames[element.state]);
+	let label = labelForTestInState(element.label, element.state);
 
 	if (element instanceof TestItemTreeElement) {
 		if (element.duration !== undefined) {
@@ -1071,15 +1078,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	}
 }
 
-const formatDuration = (ms: number) => {
-	if (ms < 10) {
-		return `${ms.toPrecision(2)}ms`;
-	} else if (ms < 1000) {
-		return `${ms.toPrecision(3)}ms`;
-	} else {
-		return `${(ms / 1000).toPrecision(3)}s`;
-	}
-};
+const formatDuration = (ms: number) => ms < 10 ? ms.toFixed(1) : ms.toFixed(0);
 
 class WorkspaceFolderRenderer extends ActionableItemTemplateData<TestTreeWorkspaceFolder> {
 	public static readonly ID = 'workspaceFolder';

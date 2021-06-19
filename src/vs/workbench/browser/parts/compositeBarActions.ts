@@ -22,7 +22,6 @@ import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
-import { domEvent } from 'vs/base/browser/event';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
@@ -395,15 +394,15 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 
 		this.updateTitle();
 		if (this.useCustomHover) {
-			this.hoverDisposables.add(domEvent(this.container, EventType.MOUSE_OVER, true)(() => {
+			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
 				if (!this.showHoverScheduler.isScheduled()) {
-					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 150);
+					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 500);
 				}
-			}));
-			this.hoverDisposables.add(domEvent(this.container, EventType.MOUSE_LEAVE, true)(() => {
+			}, true));
+			this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
 				this.hover.value = undefined;
 				this.showHoverScheduler.cancel();
-			}));
+			}, true));
 			this.hoverDisposables.add(toDisposable(() => {
 				this.hover.value = undefined;
 				this.showHoverScheduler.cancel();

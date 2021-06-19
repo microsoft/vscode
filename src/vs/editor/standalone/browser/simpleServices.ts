@@ -768,6 +768,10 @@ export class SimpleUriLabelService implements ILabelService {
 	public getHostLabel(): string {
 		return '';
 	}
+
+	public getHostTooltip(): string | undefined {
+		return undefined;
+	}
 }
 
 export class SimpleLayoutService implements ILayoutService {

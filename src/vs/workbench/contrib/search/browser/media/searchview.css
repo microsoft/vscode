@@ -156,11 +156,6 @@
 	padding: 0 22px 8px;
 }
 
-.search-view .messages .message .providerMessage {
-	display: inline-block;
-	margin-left: 4px;
-}
-
 .search-view .message p:first-child {
 	margin-top: 0px;
 	margin-bottom: 0px;
@@ -304,4 +299,15 @@
 
 .monaco-workbench.vs .search-panel .search-view .monaco-inputbox {
 	border: 1px solid transparent;
+}
+
+/* shared with search editor's message element */
+.text-search-provider-messages .providerMessage {
+	padding-top: 4px;
+}
+
+.text-search-provider-messages .providerMessage .codicon {
+	position: relative;
+	top: 3px;
+	padding-right: 3px;
 }

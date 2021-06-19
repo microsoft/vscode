@@ -28,8 +28,8 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
 		return Iterable.first(this.testIdsToInternal.values())!;
 	}
 
-	public override createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new TestSingleUseCollection(this.createIdMap(0), publishDiff);
+	public override createForHierarchy() {
+		return new TestSingleUseCollection(this.createIdMap(0));
 	}
 }
 
@@ -39,7 +39,7 @@ export class TestOwnedTestCollection extends OwnedTestCollection {
  */
 export const getInitializedMainTestCollection = async (root = testStubs.nested()) => {
 	const c = new MainThreadTestCollection(0, async (t, l) => singleUse.expand(t.testId, l));
-	const singleUse = new TestSingleUseCollection({ object: new TestTree(0), dispose: () => undefined }, () => undefined);
+	const singleUse = new TestSingleUseCollection({ object: new TestTree(0), dispose: () => undefined });
 	singleUse.addRoot(root, 'provider');
 	await singleUse.expand('id-root', Infinity);
 	c.apply(singleUse.collectDiff());

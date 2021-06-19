@@ -38,12 +38,13 @@ import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewIte
 import { Dimension } from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 
 export class OutputViewPane extends ViewPane {
 
 	private readonly editor: OutputEditor;
 	private channelId: string | undefined;
-	private editorPromise: Promise<OutputEditor> | null = null;
+	private editorPromise: CancelablePromise<OutputEditor> | null = null;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
@@ -147,8 +148,16 @@ export class OutputViewPane extends ViewPane {
 		this.channelId = channel.id;
 		const descriptor = this.outputService.getChannelDescriptor(channel.id);
 		CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(!!descriptor?.file && descriptor?.log);
-		this.editorPromise = this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), CancellationToken.None)
-			.then(() => this.editor);
+
+		const input = this.createInput(channel);
+		if (!this.editor.input || !input.matches(this.editor.input)) {
+			if (this.editorPromise) {
+				this.editorPromise.cancel();
+			}
+			this.editorPromise = createCancelablePromise(token => this.editor.setInput(this.createInput(channel), { preserveFocus: true }, Object.create(null), token)
+				.then(() => this.editor));
+		}
+
 	}
 
 	private clearInput(): void {
@@ -224,7 +233,7 @@ export class OutputEditor extends AbstractTextResourceEditor {
 
 	override async setInput(input: TextResourceEditorInput, options: ITextEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		const focus = !(options && options.preserveFocus);
-		if (input.matches(this.input)) {
+		if (this.input && input.matches(this.input)) {
 			return;
 		}
 

@@ -299,6 +299,12 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
+export function isResourceDiffEditorInput(editor: IResourceEditorInputType): editor is IResourceDiffEditorInput {
+	const candidate = editor as IResourceDiffEditorInput;
+
+	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
+}
+
 export const enum Verbosity {
 	SHORT,
 	MEDIUM,
@@ -435,6 +441,13 @@ export interface IEditorInput extends IDisposable {
 	readonly typeId: string;
 
 	/**
+	 * Identifies the type of editor this input represents
+	 * This ID is registered with the {@link EditorOverrideService} to allow
+	 * for resolving an untyped input to a typed one
+	 */
+	readonly editorId: string | undefined;
+
+	/**
 	 * Returns the optional associated resource of this input.
 	 *
 	 * This resource should be unique for all editors of the same
@@ -551,7 +564,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns if the other object matches this input.
 	 */
-	matches(other: unknown): boolean;
+	matches(other: IEditorInput | IResourceEditorInputType): boolean;
 
 	/**
 	 * Returns if this editor is disposed.
@@ -835,24 +848,30 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getOriginalUri(editor: IEditorInput | undefined | null): URI | undefined;
-	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getOriginalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getOriginalUri(editor: IEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
 
 		// Optionally support side-by-side editors
-		if (options?.supportSideBySide && isSideBySideEditorInput(editor)) {
+		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
+		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
+		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
-					primary: this.getOriginalUri(editor.primary, { filterByScheme: options.filterByScheme }),
-					secondary: this.getOriginalUri(editor.secondary, { filterByScheme: options.filterByScheme })
+					primary: this.getOriginalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
+					secondary: this.getOriginalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
 				};
 			}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
+			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+		}
+
+		if (isResourceDiffEditorInput(editor)) {
+			return;
 		}
 
 		// Original URI is the `preferredResource` of an editor if any
@@ -877,24 +896,30 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getCanonicalUri(editor: IEditorInput | undefined | null): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getCanonicalUri(editor: IEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
 
 		// Optionally support side-by-side editors
-		if (options?.supportSideBySide && isSideBySideEditorInput(editor)) {
+		const primaryEditor = isSideBySideEditorInput(editor) ? editor.primary : isResourceDiffEditorInput(editor) ? editor.modifiedInput : undefined;
+		const secondaryEditor = isSideBySideEditorInput(editor) ? editor.secondary : isResourceDiffEditorInput(editor) ? editor.originalInput : undefined;
+		if (options?.supportSideBySide && primaryEditor && secondaryEditor) {
 			if (options?.supportSideBySide === SideBySideEditor.BOTH) {
 				return {
-					primary: this.getCanonicalUri(editor.primary, { filterByScheme: options.filterByScheme }),
-					secondary: this.getCanonicalUri(editor.secondary, { filterByScheme: options.filterByScheme })
+					primary: this.getCanonicalUri(primaryEditor, { filterByScheme: options.filterByScheme }),
+					secondary: this.getCanonicalUri(secondaryEditor, { filterByScheme: options.filterByScheme })
 				};
 			}
 
-			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? editor.primary : editor.secondary;
+			editor = options.supportSideBySide === SideBySideEditor.PRIMARY ? primaryEditor : secondaryEditor;
+		}
+
+		if (isResourceDiffEditorInput(editor)) {
+			return;
 		}
 
 		// Canonical URI is the `resource` of an editor

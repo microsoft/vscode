@@ -13,7 +13,7 @@ import { Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent, IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Event, Emitter, EventBufferer } from 'vs/base/common/event';
-import { domEvent, stopEvent } from 'vs/base/browser/event';
+import { DomEmitter, stopEvent } from 'vs/base/browser/event';
 import { IListVirtualDelegate, IListRenderer, IListEvent, IListContextMenuEvent, IListMouseEvent, IListTouchEvent, IListGestureEvent, IIdentityProvider, IKeyboardNavigationLabelProvider, IListDragAndDrop, IListDragOverReaction, ListError, IKeyboardNavigationDelegate } from './list';
 import { ListView, IListViewOptions, IListViewDragAndDrop, IListViewAccessibilityProvider, IListViewOptionsUpdate } from './listView';
 import { Color } from 'vs/base/common/color';
@@ -257,7 +257,7 @@ class KeyboardController<T> implements IDisposable {
 	) {
 		const multipleSelectionSupport = options.multipleSelectionSupport !== false;
 
-		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
+		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event)
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -394,7 +394,7 @@ class TypeLabelController<T> implements IDisposable {
 			return;
 		}
 
-		const onChar = Event.chain(domEvent(this.view.domNode, 'keydown'))
+		const onChar = Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.filter(() => this.automaticKeyboardNavigation || this.triggered)
 			.map(event => new StandardKeyboardEvent(event))
@@ -477,7 +477,7 @@ class DOMFocusController<T> implements IDisposable {
 		private list: List<T>,
 		private view: ListView<T>
 	) {
-		const onKeyDown = Event.chain(domEvent(view.domNode, 'keydown'))
+		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event)
 			.filter(e => !isInputElement(e.target as HTMLElement))
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -755,6 +755,10 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
+		if (styles.listActiveSelectionIconForeground) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important; }`);
+		}
+
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
 				.monaco-drag-image,
@@ -772,6 +776,10 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listInactiveFocusForeground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listInactiveSelectionIconForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listInactiveFocusBackground) {
@@ -884,9 +892,11 @@ export interface IListStyles {
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
+	listActiveSelectionIconForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionIconForeground?: Color;
 	listInactiveSelectionForeground?: Color;
 	listInactiveFocusForeground?: Color;
 	listInactiveFocusBackground?: Color;
@@ -909,9 +919,11 @@ const defaultStyles: IListStyles = {
 	listFocusBackground: Color.fromHex('#7FB0D0'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listInactiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D'),
 	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),
@@ -1184,14 +1196,14 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		let didJustPressContextMenuKey = false;
 
-		const fromKeyDown = Event.chain(domEvent(this.view.domNode, 'keydown'))
+		const fromKeyDown = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
 			.map(stopEvent)
 			.filter(() => false)
 			.event as Event<any>;
 
-		const fromKeyUp = Event.chain(domEvent(this.view.domNode, 'keyup'))
+		const fromKeyUp = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event)
 			.forEach(() => didJustPressContextMenuKey = false)
 			.map(e => new StandardKeyboardEvent(e))
 			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
@@ -1213,12 +1225,12 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);
 	}
 
-	get onKeyDown(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keydown'); }
-	get onKeyUp(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keyup'); }
-	get onKeyPress(): Event<KeyboardEvent> { return domEvent(this.view.domNode, 'keypress'); }
+	@memoize get onKeyDown(): Event<KeyboardEvent> { return this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event; }
+	@memoize get onKeyUp(): Event<KeyboardEvent> { return this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event; }
+	@memoize get onKeyPress(): Event<KeyboardEvent> { return this.disposables.add(new DomEmitter(this.view.domNode, 'keypress')).event; }
 
-	readonly onDidFocus: Event<void>;
-	readonly onDidBlur: Event<void>;
+	@memoize get onDidFocus(): Event<void> { return Event.signal(this.disposables.add(new DomEmitter(this.view.domNode, 'focus', true)).event); }
+	@memoize get onDidBlur(): Event<void> { return Event.signal(this.disposables.add(new DomEmitter(this.view.domNode, 'blur', true)).event); }
 
 	private readonly _onDidDispose = new Emitter<void>();
 	readonly onDidDispose: Event<void> = this._onDidDispose.event;
@@ -1276,9 +1288,6 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 		this.disposables.add(this.anchor);
 		this.disposables.add(this.view);
 		this.disposables.add(this._onDidDispose);
-
-		this.onDidFocus = Event.map(domEvent(this.view.domNode, 'focus', true), () => null!);
-		this.onDidBlur = Event.map(domEvent(this.view.domNode, 'blur', true), () => null!);
 
 		this.disposables.add(new DOMFocusController(this, this.view));
 

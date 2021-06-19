@@ -131,6 +131,11 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	return [focusedStat];
 }
 
+export interface IExplorerViewContainerDelegate {
+	willOpenElement(event?: UIEvent): void;
+	didOpenElement(event?: UIEvent): void;
+}
+
 export class ExplorerView extends ViewPane {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -164,6 +169,7 @@ export class ExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		private readonly delegate: IExplorerViewContainerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -439,7 +445,12 @@ export class ExplorerView extends ViewPane {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				try {
+					this.delegate.willOpenElement(e.browserEvent);
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				} finally {
+					this.delegate.didOpenElement();
+				}
 			}
 		}));
 
@@ -487,12 +498,13 @@ export class ExplorerView extends ViewPane {
 	}
 
 	private setContextKeys(stat: ExplorerItem | null | undefined): void {
-		const isSingleFolder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER;
-		const resource = stat ? stat.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : null;
+		const folders = this.contextService.getWorkspace().folders;
+		const resource = stat ? stat.resource : folders[folders.length - 1].uri;
+		stat = stat || this.explorerService.findClosest(resource);
 		this.resourceContext.set(resource);
-		this.folderContext.set((isSingleFolder && !stat) || !!stat && stat.isDirectory);
+		this.folderContext.set(!!stat && stat.isDirectory);
 		this.readonlyContext.set(!!stat && stat.isReadonly);
-		this.rootContext.set(!stat || (stat && stat.isRoot));
+		this.rootContext.set(!!stat && stat.isRoot);
 
 		if (resource) {
 			const overrides = resource ? this.editorOverrideService.getEditorIds(resource) : [];

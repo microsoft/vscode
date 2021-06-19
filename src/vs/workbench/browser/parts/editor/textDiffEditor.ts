@@ -332,7 +332,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditorPan
 
 		// Clear view state if input is disposed or we are configured to not storing any state
 		if (input.isDisposed() || (!this.shouldRestoreTextEditorViewState(input) && (!this.group || !this.group.contains(input)))) {
-			super.clearTextEditorViewState([resource], this.group);
+			super.clearTextEditorViewState(resource, this.group);
 		}
 
 		// Otherwise save it

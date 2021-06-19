@@ -8,10 +8,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
-import { dirname } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
-import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
 import { IBulkEditService, ResourceEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -31,7 +29,7 @@ import { CellEditState, CellFindMatch, CellFindMatchWithIndex, CellFocusMode, IC
 import { NotebookCellSelectionCollection } from 'vs/workbench/contrib/notebook/browser/viewModel/cellSelectionCollection';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookMetadataChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -145,7 +143,6 @@ export interface NotebookViewModelOptions {
 export class NotebookViewModel extends Disposable implements EditorFoldingStateDelegate {
 	private _localStore: DisposableStore = this._register(new DisposableStore());
 	private _handleToViewCellMapping = new Map<number, CellViewModel>();
-	private _options: NotebookViewModelOptions;
 	get options(): NotebookViewModelOptions { return this._options; }
 	private readonly _onDidChangeOptions = this._register(new Emitter<void>());
 	get onDidChangeOptions(): Event<void> { return this._onDidChangeOptions.event; }
@@ -234,6 +231,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		private _notebook: NotebookTextModel,
 		readonly viewContext: ViewContext,
 		private _layoutInfo: NotebookLayoutInfo | null,
+		private _options: NotebookViewModelOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
@@ -244,7 +242,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		MODEL_ID++;
 		this.id = '$notebookViewModel' + MODEL_ID;
 		this._instanceId = strings.singleLetterHash(MODEL_ID);
-		this._options = { isReadOnly: false };
 
 		const compute = (changes: NotebookCellTextModelSplice<ICell>[], synchronous: boolean) => {
 			const diffs = changes.map(splice => {
@@ -379,7 +376,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		return this._selectionCollection.selections;
 	}
 
-	setFocus(focused: boolean) {
+	setEditorFocus(focused: boolean) {
 		this._focused = focused;
 	}
 
@@ -403,10 +400,6 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 		} else {
 			return { start: end, end: start };
 		}
-	}
-
-	setSelections(focus: ICellRange, selections: ICellRange[]) {
-		this.updateSelectionsState({ kind: SelectionStateType.Index, focus, selections }, 'model');
 	}
 
 	// selection change from list view's `setFocus` and `setSelection` should always use `source: view` to prevent events breaking the list view focus/selection change transaction
@@ -786,6 +779,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 					{
 						cellKind: type,
 						language: language,
+						mime: undefined,
 						outputs: outputs,
 						metadata: metadata,
 						source: source
@@ -929,6 +923,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			if (newLinesContents) {
 				const language = cell.language;
 				const kind = cell.cellKind;
+				const mime = cell.mime;
 
 				const textModel = await cell.resolveTextModel();
 				await this._bulkEditService.apply(
@@ -942,6 +937,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 								cells: newLinesContents.slice(1).map(line => ({
 									cellKind: kind,
 									language,
+									mime,
 									source: line,
 									outputs: [],
 									metadata: {}
@@ -1182,13 +1178,12 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 }
 
-export type CellViewModel = CodeCellViewModel | MarkdownCellViewModel;
+export type CellViewModel = CodeCellViewModel | MarkupCellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel) {
 	if (cell.cellKind === CellKind.Code) {
 		return instantiationService.createInstance(CodeCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel.viewContext);
 	} else {
-		const mdRenderer = instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookViewModel.uri) });
-		return instantiationService.createInstance(MarkdownCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel, notebookViewModel.viewContext, mdRenderer);
+		return instantiationService.createInstance(MarkupCellViewModel, notebookViewModel.viewType, cell, notebookViewModel.layoutInfo, notebookViewModel, notebookViewModel.viewContext);
 	}
 }

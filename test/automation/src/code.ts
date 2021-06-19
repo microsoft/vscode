@@ -123,18 +123,19 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 	copyExtension(options.extensionsPath, 'vscode-notebook-tests');
 
 	if (options.web) {
-		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath);
+		await launch(options.userDataDir, options.workspacePath, options.codePath, options.extensionsPath, Boolean(options.verbose));
 		connectDriver = connectPlaywrightDriver.bind(connectPlaywrightDriver, options.browser);
 		return connect(connectDriver, child, '', handle, options.logger);
 	}
 
-	const env = process.env;
+	const env = { ...process.env };
 	const codePath = options.codePath;
 	const outPath = codePath ? getBuildOutPath(codePath) : getDevOutPath();
 
 	const args = [
 		options.workspacePath,
 		'--skip-release-notes',
+		'--skip-welcome',
 		'--disable-telemetry',
 		'--no-cached-data',
 		'--disable-updates',
@@ -143,6 +144,7 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		'--disable-workspace-trust',
 		`--extensions-dir=${options.extensionsPath}`,
 		`--user-data-dir=${options.userDataDir}`,
+		`--logsPath=${path.join(repoPath, '.build', 'logs', 'smoke-tests')}`,
 		'--driver', handle
 	];
 
@@ -235,7 +237,7 @@ async function poll<T>(
 			} else {
 				lastError = 'Did not pass accept function';
 			}
-		} catch (e) {
+		} catch (e: any) {
 			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 

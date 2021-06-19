@@ -69,10 +69,10 @@ export interface IMainThreadTestCollection extends AbstractIncrementalTestCollec
  * Iterates through the item and its parents to the root.
  */
 export const getCollectionItemParents = function* (collection: IMainThreadTestCollection, item: InternalTestItem) {
-	let p: InternalTestItem | undefined = item;
-	while (p) {
-		yield p;
-		p = p.parent ? collection.getNodeById(p.parent) : undefined;
+	let i: InternalTestItem | undefined = item;
+	while (i) {
+		yield i;
+		i = i.parent ? collection.getNodeById(i.parent) : undefined;
 	}
 };
 
@@ -161,9 +161,13 @@ export interface ITestService {
 	readonly onShouldSubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
 	readonly onShouldUnsubscribe: Event<{ resource: ExtHostTestingResource, uri: URI; }>;
 	readonly onDidChangeProviders: Event<{ delta: number; }>;
+	/**
+	 * Fires when the user requests to cancel a test run -- or all runs, if no
+	 * runId is given.
+	 */
+	readonly onCancelTestRun: Event<{ runId: string | undefined; }>;
 	readonly providers: number;
 	readonly subscriptions: ReadonlyArray<{ resource: ExtHostTestingResource, uri: URI; }>;
-	readonly testRuns: Iterable<RunTestsRequest>;
 
 	/**
 	 * Set of test IDs the user asked to exclude.
@@ -199,9 +203,9 @@ export interface ITestService {
 	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
 
 	/**
-	 * Cancels an ongoign test run request.
+	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.
 	 */
-	cancelTestRun(req: RunTestsRequest): void;
+	cancelTestRun(runId?: string): void;
 
 	publishDiff(resource: ExtHostTestingResource, uri: URI, diff: TestsDiff): void;
 	subscribeToDiffs(resource: ExtHostTestingResource, uri: URI, acceptDiff?: TestDiffListener): IReference<IMainThreadTestCollection>;

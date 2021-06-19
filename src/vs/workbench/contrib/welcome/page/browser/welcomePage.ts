@@ -49,6 +49,7 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { GettingStartedInput, gettingStartedInputTypeId } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { welcomeButtonBackground, welcomeButtonHoverBackground, welcomePageBackground } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 
 const configurationKey = 'workbench.startupEditor';
@@ -56,7 +57,6 @@ const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
-	private experimentManagementComplete: Promise<void>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -68,23 +68,13 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
-
-		// Run immediately to minimize time spent waiting for exp service.
-		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
 	}
 
-	private async manageDefaultValuesForGettingStartedExperiment() {
-		const config = this.configurationService.inspect(configurationKey);
-
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
-			return;
-		}
-	}
-
 	private async run() {
-		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService);
+		const enabled = isWelcomePageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			const hasBackups = await this.workingCopyBackupService.hasBackups();
 			if (hasBackups) { return; }
@@ -133,10 +123,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async openWelcome() {
-		await this.experimentManagementComplete;
-
 		const startupEditorSetting = this.configurationService.getValue(configurationKey);
-		const startupEditorTypeID = (startupEditorSetting === 'gettingStarted' || startupEditorSetting === 'gettingStartedInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
+		const startupEditorTypeID = (startupEditorSetting === 'welcomePage' || startupEditorSetting === 'welcomePageInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
@@ -152,7 +140,11 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 }
 
-function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService) {
+function isWelcomePageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
+	if (environmentService.skipWelcome) {
+		return false;
+	}
+
 	const startupEditor = configurationService.inspect<string>(configurationKey);
 	if (!startupEditor.userValue && !startupEditor.workspaceValue) {
 		const welcomeEnabled = configurationService.inspect(oldConfigurationKey);
@@ -164,9 +156,9 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
 	}
 	return startupEditor.value === 'welcomePage'
-		|| startupEditor.value === 'gettingStarted'
+		|| startupEditor.value === 'legacy_welcomePage'
 		|| startupEditor.userValue === 'readme'
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'welcomePageInEmptyWorkbench' || startupEditor.value === 'gettingStartedInEmptyWorkbench'));
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
 export class WelcomePageAction extends Action {

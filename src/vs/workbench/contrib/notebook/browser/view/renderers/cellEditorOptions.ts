@@ -10,13 +10,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IEditorOptions, LineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { getNotebookEditorFromEditorPane, ICellViewModel, INotebookEditor, NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE, NOTEBOOK_CELL_LINE_NUMBERS, NOTEBOOK_EDITOR_FOCUSED, NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
+import { INotebookActionContext, NotebookAction, NOTEBOOK_ACTIONS_CATEGORY } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
@@ -58,7 +58,7 @@ export class CellEditorOptions extends Disposable {
 		}));
 
 		this._register(notebookOptions.onDidChangeOptions(e => {
-			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations) {
+			if (e.cellStatusBarVisibility || e.editorTopPadding || e.editorOptionsCustomizations || e.cellBreakpointMargin) {
 				this._recomputeOptions();
 			}
 		}));
@@ -93,7 +93,9 @@ export class CellEditorOptions extends Disposable {
 		const renderLiNumbers = this.configurationService.getValue<'on' | 'off'>('notebook.lineNumbers') === 'on';
 		const lineNumbers: LineNumbersType = renderLiNumbers ? 'on' : 'off';
 		const editorOptions = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: this.language }));
-		const editorOptionsOverrideRaw = this.notebookOptions.getLayoutConfiguration().editorOptionsCustomizations ?? {};
+		const layoutConfig = this.notebookOptions.getLayoutConfiguration();
+		const cellBreakpointMargin = layoutConfig.cellBreakpointMarginActive;
+		const editorOptionsOverrideRaw = layoutConfig.editorOptionsCustomizations ?? {};
 		let editorOptionsOverride: { [key: string]: any; } = {};
 		for (let key in editorOptionsOverrideRaw) {
 			if (key.indexOf('editor.') === 0) {
@@ -106,7 +108,8 @@ export class CellEditorOptions extends Disposable {
 			... { lineNumbers },
 			...editorOptionsOverride,
 			...{ padding: { top: 12, bottom: 12 } },
-			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false
+			readonly: this.notebookEditor.viewModel?.options.isReadOnly ?? false,
+			glyphMargin: cellBreakpointMargin
 		};
 
 		if (!computed.folding) {
@@ -130,13 +133,6 @@ export class CellEditorOptions extends Disposable {
 					{ top: 12, bottom: 12 }
 			}
 		};
-	}
-
-	setGlyphMargin(gm: boolean): void {
-		if (gm !== this._value.glyphMargin) {
-			this._value.glyphMargin = gm;
-			this._onDidChange.fire();
-		}
 	}
 
 	setLineNumbers(lineNumbers: 'on' | 'off' | 'inherit'): void {
@@ -254,5 +250,39 @@ registerAction2(class ToggleActiveLineNumberAction extends Action2 {
 				cell.lineNumbers = 'on';
 			}
 		}
+	}
+});
+
+registerAction2(class ToggleCellBreakpointMargin extends NotebookAction {
+	constructor() {
+		super({
+			id: 'notebook.toggleBreakpointMargin',
+			title: localize('notebookActions.toggleBreakpointMargin', "Toggle Cell Breakpoint Margin"),
+			menu: [{
+				id: MenuId.EditorTitle,
+				group: 'notebookLayout',
+				order: 3,
+				when: ContextKeyExpr.and(
+					NOTEBOOK_IS_ACTIVE_EDITOR,
+					ContextKeyExpr.notEquals('config.notebook.globalToolbar', true)
+				)
+			}, {
+				id: MenuId.NotebookToolbar,
+				group: 'notebookLayout',
+				order: 3,
+				when: ContextKeyExpr.equals('config.notebook.globalToolbar', true)
+			}],
+			category: NOTEBOOK_ACTIONS_CATEGORY,
+			f1: true,
+			toggled: {
+				condition: NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE,
+				title: { value: localize('notebook.showBreakpointMargin', "Show Breakpoints"), original: 'Show Breakpoints' },
+			}
+		});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookActionContext): Promise<void> {
+		const opts = context.notebookEditor.notebookOptions;
+		opts.setCellBreakpointMarginActive(!opts.getLayoutConfiguration().cellBreakpointMarginActive);
 	}
 });
