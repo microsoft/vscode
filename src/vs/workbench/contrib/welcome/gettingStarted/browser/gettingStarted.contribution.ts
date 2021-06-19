@@ -21,7 +21,6 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } fr
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import product from 'vs/platform/product/common/product';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorOverride } from 'vs/platform/editor/common/editor';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -269,16 +268,3 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
-if (product.quality !== 'stable') {
-	configurationRegistry.registerConfiguration({
-		...workbenchConfigurationNodeBase,
-		properties: {
-			'workbench.welcomePage.experimental.startEntryContributions': {
-				scope: ConfigurationScope.APPLICATION,
-				type: 'boolean',
-				default: false,
-				description: localize('workbench.welcomePage.experimental.startEntryContributions', "When enabled, allow extensions to contribute items to the \"Start\" section of the welcome page. Experimental, subject to breakage as api changes.")
-			}
-		}
-	});
-}
