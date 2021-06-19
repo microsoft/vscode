@@ -255,7 +255,7 @@ export class KeybindingResolver {
 
 		const itemMatchingContext = context &&
 			Array.from(items).reverse().find(item => context.contextMatchesRules(item.when));
-		return itemMatchingContext ?? items[items.length - 1];
+		return itemMatchingContext ?? items[0];
 	}
 
 	public resolve(context: IContext, currentChord: string | null, keypress: string): IResolveResult | null {
