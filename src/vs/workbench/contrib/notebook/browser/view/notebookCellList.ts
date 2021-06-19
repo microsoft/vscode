@@ -469,7 +469,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return viewIndex;
 		}
 
-		const modelIndex = this.hiddenRangesPrefixSum.getAccumulatedValue(viewIndex - 1);
+		const modelIndex = this.hiddenRangesPrefixSum.getPrefixSum(viewIndex - 1);
 		return modelIndex;
 	}
 
@@ -486,9 +486,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
 				// it's already after the last hidden range
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 			return undefined;
 		} else {
@@ -504,7 +504,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		let modelIndex = topModelIndex;
 
 		while (index <= bottomViewIndex) {
-			const accu = this.hiddenRangesPrefixSum!.getAccumulatedValue(index);
+			const accu = this.hiddenRangesPrefixSum!.getPrefixSum(index);
 			if (accu === modelIndex + 1) {
 				// no hidden area after it
 				if (stack.length) {
@@ -575,8 +575,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 		}
 
@@ -591,8 +591,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const viewIndexInfo = this.hiddenRangesPrefixSum.getIndexOf(modelIndex);
 
 		if (viewIndexInfo.remainder !== 0) {
-			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalValue()) {
-				return modelIndex - (this.hiddenRangesPrefixSum.getTotalValue() - this.hiddenRangesPrefixSum.getCount());
+			if (modelIndex >= this.hiddenRangesPrefixSum.getTotalSum()) {
+				return modelIndex - (this.hiddenRangesPrefixSum.getTotalSum() - this.hiddenRangesPrefixSum.getCount());
 			}
 		}
 
@@ -1177,6 +1177,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (styles.listActiveSelectionForeground) {
 			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
+		}
+
+		if (styles.listActiveSelectionIconForeground) {
+			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important };`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {

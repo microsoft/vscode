@@ -67,7 +67,7 @@ const configurationKey = 'workbench.startupEditor';
 
 const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
-export const inGettingStartedContext = new RawContextKey('inGettingStarted', false);
+export const inWelcomeContext = new RawContextKey('inWelcome', false);
 
 type GettingStartedActionClassification = {
 	command: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
@@ -150,13 +150,13 @@ export class GettingStartedPage extends EditorPane {
 			{
 				role: 'document',
 				tabindex: 0,
-				'aria-label': localize('gettingStartedLabel', "Getting Started. Overview of how to get up to speed with your editor.")
+				'aria-label': localize('welcomeAriaLabel', "Overview of how to get up to speed with your editor.")
 			});
 		this.stepMediaComponent = $('.getting-started-media');
 		this.stepMediaComponent.id = generateUuid();
 
 		this.contextService = this._register(contextService.createScoped(this.container));
-		inGettingStartedContext.bindTo(this.contextService).set(true);
+		inWelcomeContext.bindTo(this.contextService).set(true);
 
 		this.gettingStartedCategories = this.gettingStartedService.getCategories();
 		this._register(this.dispatchListeners);
@@ -269,77 +269,78 @@ export class GettingStartedPage extends EditorPane {
 			const [command, argument] = (element.getAttribute('x-dispatch') ?? '').split(':');
 			if (command) {
 				this.dispatchListeners.add(addDisposableListener(element, 'click', (e) => {
-
-					this.commandService.executeCommand('workbench.action.keepEditor');
-					this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
-					(async () => {
-						switch (command) {
-							case 'scrollPrev': {
-								this.scrollPrev();
-								break;
-							}
-							case 'skip': {
-								this.runSkip();
-								break;
-							}
-							case 'showMoreRecents': {
-								this.commandService.executeCommand('workbench.action.openRecent');
-								break;
-							}
-							case 'configureVisibility': {
-								await this.configureCategoryVisibility();
-								break;
-							}
-							case 'openFolder': {
-								this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
-								break;
-							}
-							case 'selectCategory': {
-								const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
-								if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
-								if (selectedCategory.content.type === 'startEntry') {
-									this.commandService.executeCommand(selectedCategory.content.command);
-								} else {
-									this.scrollToCategory(argument);
-								}
-								break;
-							}
-							case 'hideCategory': {
-								this.hideCategory(argument);
-								break;
-							}
-							// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
-							case 'selectTask': {
-								this.selectStep(argument);
-								break;
-							}
-							case 'toggleStepCompletion': {
-								this.toggleStepCompletion(argument);
-								break;
-							}
-							case 'allDone': {
-								this.markAllStepsComplete();
-								break;
-							}
-							case 'nextSection': {
-								const next = this.currentCategory?.next;
-								if (next) {
-									this.scrollToCategory(next);
-								} else {
-									console.error('Error scrolling to next section of', this.currentCategory);
-								}
-								break;
-							}
-							default: {
-								console.error('Dispatch to', command, argument, 'not defined');
-								break;
-							}
-						}
-					})();
 					e.stopPropagation();
+					this.runDispatchCommand(command, argument);
 				}));
 			}
 		});
+	}
+
+	private async runDispatchCommand(command: string, argument: string) {
+		this.commandService.executeCommand('workbench.action.keepEditor');
+		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command, argument });
+		switch (command) {
+			case 'scrollPrev': {
+				this.scrollPrev();
+				break;
+			}
+			case 'skip': {
+				this.runSkip();
+				break;
+			}
+			case 'showMoreRecents': {
+				this.commandService.executeCommand('workbench.action.openRecent');
+				break;
+			}
+			case 'configureVisibility': {
+				await this.configureCategoryVisibility();
+				break;
+			}
+			case 'openFolder': {
+				this.commandService.executeCommand(isMacintosh ? 'workbench.action.files.openFileFolder' : 'workbench.action.files.openFolder');
+				break;
+			}
+			case 'selectCategory': {
+				const selectedCategory = this.gettingStartedCategories.find(category => category.id === argument);
+				if (!selectedCategory) { throw Error('Could not find category with ID ' + argument); }
+				if (selectedCategory.content.type === 'startEntry') {
+					this.commandService.executeCommand(selectedCategory.content.command);
+				} else {
+					this.scrollToCategory(argument);
+				}
+				break;
+			}
+			case 'hideCategory': {
+				this.hideCategory(argument);
+				break;
+			}
+			// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
+			case 'selectTask': {
+				this.selectStep(argument);
+				break;
+			}
+			case 'toggleStepCompletion': {
+				this.toggleStepCompletion(argument);
+				break;
+			}
+			case 'allDone': {
+				this.markAllStepsComplete();
+				break;
+			}
+			case 'nextSection': {
+				const next = this.currentCategory?.next;
+				if (next) {
+					this.scrollToCategory(next);
+				} else {
+					console.error('Error scrolling to next section of', this.currentCategory);
+				}
+				break;
+			}
+			default: {
+				console.error('Dispatch to', command, argument, 'not defined');
+				break;
+			}
+		}
 	}
 
 	private hideCategory(categoryId: string) {
@@ -724,11 +725,11 @@ export class GettingStartedPage extends EditorPane {
 	private async buildCategoriesSlide() {
 		const showOnStartupCheckbox = $('input.checkbox', { id: 'showOnStartup', type: 'checkbox' }) as HTMLInputElement;
 
-		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'gettingStarted';
+		showOnStartupCheckbox.checked = this.configurationService.getValue(configurationKey) === 'welcomePage';
 		this._register(addDisposableListener(showOnStartupCheckbox, 'click', () => {
 			if (showOnStartupCheckbox.checked) {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupChecked', argument: undefined });
-				this.configurationService.updateValue(configurationKey, 'gettingStarted');
+				this.configurationService.updateValue(configurationKey, 'welcomePage');
 			} else {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'showOnStartupUnchecked', argument: undefined });
 				this.configurationService.updateValue(configurationKey, 'none');
@@ -740,10 +741,6 @@ export class GettingStartedPage extends EditorPane {
 			$('p.subtitle.description', {}, localize({ key: 'gettingStarted.editingEvolved', comment: ['Shown as subtitle on the Welcome page.'] }, "Editing evolved"))
 		);
 
-		const footer = $('.footer', {},
-			$('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-			$('p.configureVisibility', {}, $('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configureVisibility', "Configure Welcome Page Content")))
-		);
 
 		const leftColumn = $('.categories-column.categories-column-left', {},);
 		const rightColumn = $('.categories-column.categories-column-right', {},);
@@ -752,15 +749,20 @@ export class GettingStartedPage extends EditorPane {
 		const recentList = this.buildRecentlyOpenedList();
 		const gettingStartedList = this.buildGettingStartedWalkthroughsList();
 
+		const footer = $('.footer');
+
 		const layoutLists = () => {
 			if (gettingStartedList.itemCount) {
 				reset(leftColumn, startList.getDomElement(), recentList.getDomElement());
 				reset(rightColumn, gettingStartedList.getDomElement());
+				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))));
 				recentList.setLimit(5);
 			}
 			else {
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
+				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
+					$('p.configureVisibility', {}, $('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configureVisibility', "Show Hidden Walkthroughs"))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -948,6 +950,11 @@ export class GettingStartedPage extends EditorPane {
 		});
 		gettingStartedList.setEntries(this.gettingStartedCategories);
 
+
+		const domEl = gettingStartedList.getDomElement();
+		const filterEl = $('button.button-link', { 'tabindex': '0', 'x-dispatch': 'configureVisibility' }, $('.filter-icon.codicon.codicon-filter'));
+		gettingStartedList.register(addDisposableListener(filterEl, 'click', () => this.runDispatchCommand('configureVisibility', '')));
+		domEl.querySelector('h2')?.appendChild(filterEl);
 		return gettingStartedList;
 	}
 
@@ -1439,8 +1446,10 @@ registerThemingParticipant((theme, collector) => {
 	}
 	const activeLink = theme.getColor(textLinkActiveForeground);
 	if (activeLink) {
-		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:not(.codicon-close):hover,
-			.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:hover { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer a:active { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover { color: ${activeLink}; }`);
+		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer button.button-link:hover .codicon { color: ${activeLink}; }`);
 	}
 	const focusColor = theme.getColor(focusBorder);
 	if (focusColor) {

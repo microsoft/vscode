@@ -9,7 +9,6 @@ const enabledSetting = 'markdown.math.enabled';
 export function activate(context: vscode.ExtensionContext) {
 	function isEnabled(): boolean {
 		const config = vscode.workspace.getConfiguration('markdown');
-		console.log(config.get<boolean>('math.enabled', true));
 		return config.get<boolean>('math.enabled', true);
 	}
 

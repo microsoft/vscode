@@ -203,7 +203,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 	const dimensionUpdater = new class {
 		private readonly pending = new Map<string, webviewMessages.DimensionUpdate>();
 
-		update(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
+		updateHeight(id: string, height: number, options: { init?: boolean; isOutput?: boolean }) {
 			if (!this.pending.size) {
 				setTimeout(() => {
 					this.updateImmediately();
@@ -232,7 +232,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		private readonly _observer: ResizeObserver;
 
-		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean }>();
+		private readonly _observedElements = new WeakMap<Element, { id: string, output: boolean, lastKnownHeight: number }>();
 
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
@@ -248,19 +248,18 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
-							let height = 0;
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
-								height = entry.contentRect.height + style.outputNodePadding * 2;
+								entry.target.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
-							dimensionUpdater.update(observedElementInfo.id, height, {
-								isOutput: true
-							});
-						} else {
-							dimensionUpdater.update(observedElementInfo.id, entry.target.clientHeight, {
-								isOutput: false
+						}
+
+						const clientHeight = entry.target.clientHeight;
+						if (observedElementInfo.lastKnownHeight !== clientHeight) {
+							observedElementInfo.lastKnownHeight = clientHeight;
+							dimensionUpdater.updateHeight(observedElementInfo.id, clientHeight, {
+								isOutput: observedElementInfo.output
 							});
 						}
 					}
@@ -273,7 +272,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				return;
 			}
 
-			this._observedElements.set(container, { id, output });
+			this._observedElements.set(container, { id, output, lastKnownHeight: -1 });
 			this._observer.observe(container);
 		}
 	};
@@ -469,7 +468,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		readonly mime: string;
 		metadata: unknown;
-		metadata2: unknown;
 
 		text(): string;
 		json(): any;
@@ -511,13 +509,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				await viewModel.ensureMarkupCells(event.data.cells);
+				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
-				viewModel.ensureMarkupCells([event.data.cell]);
+				viewModel.ensureMarkupCell(event.data.cell);
 				break;
 
 			case 'showMarkupCell':
@@ -579,7 +577,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 								element: outputNode,
 								mime: content.mimeType,
 								metadata: content.metadata,
-								metadata2: content.metadata2,
 								data() {
 									return content.valueBytes;
 								},
@@ -601,23 +598,19 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 					resizeObserver.observe(outputNode, outputId, true);
 
-					if (content.type === RenderOutputType.Html) {
-						domEval(outputNode);
-					}
-
 					const clientHeight = outputNode.clientHeight;
 					const cps = document.defaultView!.getComputedStyle(outputNode);
 					if (clientHeight !== 0 && cps.padding === '0px') {
 						// we set padding to zero if the output height is zero (then we can have a zero-height output DOM node)
 						// thus we need to ensure the padding is accounted when updating the init height of the output
-						dimensionUpdater.update(outputId, clientHeight + style.outputNodePadding * 2, {
+						dimensionUpdater.updateHeight(outputId, clientHeight + style.outputNodePadding * 2, {
 							isOutput: true,
 							init: true,
 						});
 
-						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 					} else {
-						dimensionUpdater.update(outputId, outputNode.clientHeight, {
+						dimensionUpdater.updateHeight(outputId, outputNode.clientHeight, {
 							isOutput: true,
 							init: true,
 						});
@@ -669,8 +662,9 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				break;
 			}
 			case 'ack-dimension': {
-				const { cellId, outputId, height } = event.data;
-				viewModel.updateOutputHeight(cellId, outputId, height);
+				for (const { cellId, outputId, height } of event.data.updates) {
+					viewModel.updateOutputHeight(cellId, outputId, height);
+				}
 				break;
 			}
 			case 'preload':
@@ -910,7 +904,23 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
 			if (!renderers.length) {
-				throw new Error('Could not find renderer');
+				const errorContainer = document.createElement('div');
+
+				const error = document.createElement('div');
+				error.className = 'no-renderer-error';
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				error.innerText = errorText;
+
+				const cellText = document.createElement('div');
+				cellText.innerText = info.text();
+
+				errorContainer.appendChild(error);
+				errorContainer.appendChild(cellText);
+
+				element.innerText = '';
+				element.appendChild(errorContainer);
+
+				return;
 			}
 
 			await Promise.all(renderers.map(x => x.load()));
@@ -927,7 +937,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		private readonly _markupCells = new Map<string, MarkupCell>();
 		private readonly _outputCells = new Map<string, OutputCell>();
 
-		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number): Promise<MarkupCell> {
+		private async createMarkupCell(init: webviewMessages.IMarkupCellInitialization, top: number, visible: boolean): Promise<MarkupCell> {
 			const existing = this._markupCells.get(init.cellId);
 			if (existing) {
 				console.error(`Trying to create markup that already exists: ${init.cellId}`);
@@ -935,22 +945,21 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			}
 
 			const cell = new MarkupCell(init.cellId, init.mime, init.content, top);
+			cell.element.style.visibility = visible ? 'visible' : 'hidden';
 			this._markupCells.set(init.cellId, cell);
 
 			await cell.ready;
 			return cell;
 		}
 
-		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
-			await Promise.all(update.map(async info => {
-				let cell = this._markupCells.get(info.cellId);
-				if (cell) {
-					await cell.updateContentAndRender(info.content);
-				} else {
-					cell = await this.createMarkupCell(info, info.offset);
-				}
+		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
+			let cell = this._markupCells.get(info.cellId);
+			if (cell) {
 				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-			}));
+				await cell.updateContentAndRender(info.content);
+			} else {
+				cell = await this.createMarkupCell(info, info.offset, info.visible);
+			}
 		}
 
 		public deleteMarkupCell(id: string) {
@@ -1096,7 +1105,6 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		// deprecated fields
 		public readonly metadata = undefined;
-		public readonly metadata2 = undefined;
 		public readonly outputId?: string | undefined;
 
 		text() { return this._content; }
@@ -1170,7 +1178,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				});
 			}
 
-			dimensionUpdater.update(this.id, this.element.clientHeight, {
+			dimensionUpdater.updateHeight(this.id, this.element.clientHeight, {
 				isOutput: false
 			});
 		}
@@ -1195,7 +1203,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 		}
 
 		private async updateMarkupDimensions() {
-			dimensionUpdater.update(this.id, this.element.clientHeight, {
+			dimensionUpdater.updateHeight(this.id, this.element.clientHeight, {
 				isOutput: false
 			});
 		}
@@ -1291,7 +1299,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			this.element.style.visibility = 'visible';
 			this.element.style.top = `${top}px`;
 
-			dimensionUpdater.update(outputId, outputContainer.clientHeight, {
+			dimensionUpdater.updateHeight(outputId, outputContainer.clientHeight, {
 				isOutput: true,
 			});
 		}

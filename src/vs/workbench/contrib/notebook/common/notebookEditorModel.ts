@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { IEditorInput, IRevertOptions, ISaveOptions } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { Emitter, Event } from 'vs/base/common/event';
-import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookDataDto, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { ICellDto2, INotebookEditorModel, INotebookLoadOptions, IResolvedNotebookEditorModel, NotebookCellsChangeType, NotebookData, NotebookDocumentBackupData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
@@ -559,7 +559,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 				this._onDidChangeContent.fire({
 					isRedoing: false, //todo@rebornix forward this information from notebook model
 					isUndoing: false,
-					isEmpty: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
+					isInitial: false, //_notebookModel.cells.length === 0 // todo@jrieken non transient metadata?
 				});
 				break;
 			}
@@ -578,7 +578,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 
 	async snapshot(token: CancellationToken): Promise<VSBufferReadableStream> {
 
-		const data: NotebookDataDto = {
+		const data: NotebookData = {
 			metadata: filter(this._notebookModel.metadata, key => !this._notebookSerializer.options.transientDocumentMetadata[key]),
 			cells: [],
 		};
@@ -587,6 +587,7 @@ export class NotebookFileWorkingCopyModel implements IStoredFileWorkingCopyModel
 			const cellData: ICellDto2 = {
 				cellKind: cell.cellKind,
 				language: cell.language,
+				mime: cell.mime,
 				source: cell.getValue(),
 				outputs: [],
 				internalMetadata: cell.internalMetadata

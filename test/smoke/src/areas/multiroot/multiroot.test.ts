@@ -38,16 +38,9 @@ async function createWorkspaceFile(workspacePath: string): Promise<string> {
 
 export function setup(opts: minimist.ParsedArgs) {
 	describe('Multiroot', () => {
-		beforeSuite(opts);
-
-		before(async function () {
-			const app = this.app as Application;
-
-			const workspaceFilePath = await createWorkspaceFile(app.workspacePathOrFolder);
-
-			// restart with preventing additional windows from restoring
-			// to ensure the window after restart is the multi-root workspace
-			await app.restart({ workspaceOrFolder: workspaceFilePath });
+		beforeSuite(opts, async opts => {
+			const workspacePath = await createWorkspaceFile(opts.workspacePath);
+			return { ...opts, workspacePath };
 		});
 
 		afterSuite();

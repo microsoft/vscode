@@ -647,7 +647,7 @@ export class TabsTitleControl extends TitleControl {
 	private registerTabListeners(tab: HTMLElement, index: number, tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): IDisposable {
 		const disposables = new DisposableStore();
 
-		const handleClickOrTouch = (e: MouseEvent | GestureEvent): void => {
+		const handleClickOrTouch = (e: MouseEvent | GestureEvent, preserveFocus: boolean): void => {
 			tab.blur(); // prevent flicker of focus outline on tab until editor got focus
 
 			if (e instanceof MouseEvent && e.button !== 0) {
@@ -665,7 +665,7 @@ export class TabsTitleControl extends TitleControl {
 			// Open tabs editor
 			const input = this.group.getEditorByIndex(index);
 			if (input) {
-				this.group.openEditor(input);
+				this.group.openEditor(input, { preserveFocus });
 			}
 
 			return undefined;
@@ -681,8 +681,8 @@ export class TabsTitleControl extends TitleControl {
 		};
 
 		// Open on Click / Touch
-		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e)));
-		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e)));
+		disposables.add(addDisposableListener(tab, EventType.MOUSE_DOWN, e => handleClickOrTouch(e, false)));
+		disposables.add(addDisposableListener(tab, TouchEventType.Tap, (e: GestureEvent) => handleClickOrTouch(e, true))); // Preserve focus on touch #125470
 
 		// Touch Scroll Support
 		disposables.add(addDisposableListener(tab, TouchEventType.Change, (e: GestureEvent) => {

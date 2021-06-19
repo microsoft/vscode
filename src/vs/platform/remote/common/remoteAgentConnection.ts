@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Client, PersistentProtocol, ISocket, ProtocolConstants, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, PersistentProtocol, ISocket, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { generateUuid } from 'vs/base/common/uuid';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -584,7 +584,6 @@ abstract class PersistentConnection extends Disposable {
 		this._options.logService.info(`${logPrefix} starting reconnecting loop. You can get more information with the trace log level.`);
 		this._onDidStateChange.fire(new ConnectionLostEvent(this.reconnectionToken, this.protocol.getMillisSinceLastIncomingData()));
 		const TIMES = [0, 5, 5, 10, 10, 10, 10, 10, 30];
-		const disconnectStartTime = Date.now();
 		let attempt = -1;
 		do {
 			attempt++;
@@ -622,7 +621,8 @@ abstract class PersistentConnection extends Disposable {
 					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);
 					break;
 				}
-				if (Date.now() - disconnectStartTime > ProtocolConstants.ReconnectionGraceTime) {
+				if (attempt > 360) {
+					// ReconnectionGraceTime is 3hrs, with 30s between attempts that yields a maximum of 360 attempts
 					this._options.logService.error(`${logPrefix} An error occurred while reconnecting, but it will be treated as a permanent error because the reconnection grace time has expired! Will give up now! Error:`);
 					this._options.logService.error(err);
 					PersistentConnection.triggerPermanentFailure(this.protocol.getMillisSinceLastIncomingData(), attempt + 1, false);

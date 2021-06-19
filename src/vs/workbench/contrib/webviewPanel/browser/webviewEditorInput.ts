@@ -9,6 +9,7 @@ import { EditorInputCapabilities, GroupIdentifier, IEditorInput, Verbosity } fro
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewIconManager, WebviewIcons } from 'vs/workbench/contrib/webviewPanel/browser/webviewIconManager';
+import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export class WebviewInput extends EditorInput {
 
@@ -92,8 +93,8 @@ export class WebviewInput extends EditorInput {
 		this._iconManager.setIcons(this.id, value);
 	}
 
-	public override matches(other: IEditorInput): boolean {
-		return other === this;
+	public override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		return super.matches(other) || other === this;
 	}
 
 	public get group(): GroupIdentifier | undefined {

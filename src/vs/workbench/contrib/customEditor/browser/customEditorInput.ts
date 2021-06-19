@@ -23,7 +23,7 @@ import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/co
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { IWebviewService, WebviewOverlay } from 'vs/workbench/contrib/webview/browser/webview';
 import { IWebviewWorkbenchService, LazilyResolvedWebviewEditorInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewWorkbenchService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 
 export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
@@ -121,6 +121,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override get typeId(): string {
 		return CustomEditorInput.typeId;
+	}
+
+	public override get editorId() {
+		return this.viewType;
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
@@ -237,7 +241,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return decorateFileEditorLabel(label, { orphaned, readonly });
 	}
 
-	public override matches(other: IEditorInput): boolean {
+	public override matches(other: IEditorInput | IResourceEditorInputType): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
 			&& isEqual(this.resource, other.resource));

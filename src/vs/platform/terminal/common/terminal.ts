@@ -38,6 +38,7 @@ export const enum TerminalSettingId {
 	TabsEnabled = 'terminal.integrated.tabs.enabled',
 	TabsHideCondition = 'terminal.integrated.tabs.hideCondition',
 	TabsShowActiveTerminal = 'terminal.integrated.tabs.showActiveTerminal',
+	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
@@ -60,6 +61,7 @@ export const enum TerminalSettingId {
 	CursorWidth = 'terminal.integrated.cursorWidth',
 	Scrollback = 'terminal.integrated.scrollback',
 	DetectLocale = 'terminal.integrated.detectLocale',
+	DefaultLocation = 'terminal.integrated.defaultLocation',
 	GpuAcceleration = 'terminal.integrated.gpuAcceleration',
 	RightClickBehavior = 'terminal.integrated.rightClickBehavior',
 	Cwd = 'terminal.integrated.cwd',
@@ -478,7 +480,7 @@ export interface ITerminalChildProcess {
 	/**
 	 * Detach the process from the UI and await reconnect.
 	 */
-	detach?(): void;
+	detach?(): Promise<void>;
 
 	/**
 	 * Shutdown the terminal process.

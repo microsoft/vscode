@@ -23,7 +23,7 @@ import { registerColors } from 'vs/workbench/contrib/terminal/common/terminalCol
 import { setupTerminalCommands } from 'vs/workbench/contrib/terminal/browser/terminalCommands';
 import { TerminalService } from 'vs/workbench/contrib/terminal/browser/terminalService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IRemoteTerminalService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { IQuickAccessRegistry, Extensions as QuickAccessExtensions } from 'vs/platform/quickinput/common/quickAccess';
@@ -37,9 +37,19 @@ import { isIOS, isWindows } from 'vs/base/common/platform';
 import { setupTerminalMenus } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { TerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 import { registerTerminalPlatformConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { EditorExtensions, IEditorInputFactoryRegistry } from 'vs/workbench/common/editor';
+import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { TerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminalEditorService';
+import { TerminalInputSerializer } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
+import { TerminalGroupService } from 'vs/workbench/contrib/terminal/browser/terminalGroupService';
 
 // Register services
 registerSingleton(ITerminalService, TerminalService, true);
+registerSingleton(ITerminalEditorService, TerminalEditorService, true);
+registerSingleton(ITerminalGroupService, TerminalGroupService, true);
 registerSingleton(IRemoteTerminalService, RemoteTerminalService);
 registerSingleton(ITerminalInstanceService, TerminalInstanceService, true);
 
@@ -61,6 +71,18 @@ CommandsRegistry.registerCommand({ id: quickAccessNavigatePreviousInTerminalPick
 // Register configurations
 registerTerminalPlatformConfiguration();
 registerTerminalConfiguration();
+
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(TerminalEditorInput.ID, TerminalInputSerializer);
+Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
+	EditorDescriptor.create(
+		TerminalEditor,
+		TerminalEditor.ID,
+		terminalStrings.terminal
+	),
+	[
+		new SyncDescriptor(TerminalEditorInput)
+	]
+);
 
 // Register views
 const VIEW_CONTAINER = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({

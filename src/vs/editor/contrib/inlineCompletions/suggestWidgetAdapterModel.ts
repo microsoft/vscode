@@ -22,6 +22,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	private isSuggestWidgetVisible: boolean = false;
 	private currentGhostText: GhostText | undefined = undefined;
 	private _isActive: boolean = false;
+	private isShiftKeyPressed = false;
 
 	public override minReservedLineCount: number = 0;
 
@@ -81,6 +82,20 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 				suggestController.stopForceRenderingAbove();
 			}
 		}));
+
+		// See the command acceptAlternativeSelectedSuggestion that is bound to shift+tab
+		this._register(editor.onKeyDown(e => {
+			if (e.shiftKey && !this.isShiftKeyPressed) {
+				this.isShiftKeyPressed = true;
+				this.updateFromSuggestion();
+			}
+		}));
+		this._register(editor.onKeyUp(e => {
+			if (e.shiftKey && this.isShiftKeyPressed) {
+				this.isShiftKeyPressed = false;
+				this.updateFromSuggestion();
+			}
+		}));
 	}
 
 	public override setExpanded(expanded: boolean): void {
@@ -114,15 +129,18 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 			getInlineCompletion(
 				suggestController,
 				this.editor.getPosition(),
-				focusedItem
+				focusedItem,
+				this.isShiftKeyPressed
 			)
 		);
 	}
 
 	private setCurrentInlineCompletion(completion: NormalizedInlineCompletion | undefined): void {
+		const mode = this.editor.getOptions().get(EditorOption.suggest).previewMode;
+
 		this.currentGhostText = completion
 			? (
-				inlineCompletionToGhostText(completion, this.editor.getModel()) ||
+				inlineCompletionToGhostText(completion, this.editor.getModel(), mode) ||
 				// Show an invisible ghost text to reserve space
 				new GhostText(completion.range.endLineNumber, [], [], this.minReservedLineCount)
 			) : undefined;
@@ -150,7 +168,7 @@ export class SuggestWidgetAdapterModel extends BaseGhostTextWidgetModel {
 	}
 }
 
-function getInlineCompletion(suggestController: SuggestController, position: Position, suggestion: ISelectedSuggestion): NormalizedInlineCompletion {
+function getInlineCompletion(suggestController: SuggestController, position: Position, suggestion: ISelectedSuggestion, toggleMode: boolean): NormalizedInlineCompletion {
 	const item = suggestion.item;
 
 	if (Array.isArray(item.completion.additionalTextEdits)) {
@@ -173,7 +191,7 @@ function getInlineCompletion(suggestController: SuggestController, position: Pos
 		insertText = snippet.toString();
 	}
 
-	const info = suggestController.getOverwriteInfo(item, false);
+	const info = suggestController.getOverwriteInfo(item, toggleMode);
 	return {
 		text: insertText,
 		range: Range.fromPositions(

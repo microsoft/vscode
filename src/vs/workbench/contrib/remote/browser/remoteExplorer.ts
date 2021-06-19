@@ -221,6 +221,7 @@ class OnAutoForwardedAction extends Disposable {
 	private lastNotification: INotificationHandle | undefined;
 	private lastShownPort: number | undefined;
 	private doActionTunnels: RemoteTunnel[] | undefined;
+	private alreadyOpenedOnce: Set<string> = new Set();
 
 	constructor(private readonly notificationService: INotificationService,
 		private readonly remoteExplorerService: IRemoteExplorerService,
@@ -243,6 +244,13 @@ class OnAutoForwardedAction extends Disposable {
 			const attributes = (await this.remoteExplorerService.tunnelModel.getAttributes([tunnel.tunnelRemotePort]))?.get(tunnel.tunnelRemotePort)?.onAutoForward;
 			this.logService.trace(`ForwardedPorts: (OnAutoForwardedAction) onAutoForward action is ${attributes}`);
 			switch (attributes) {
+				case OnPortForward.OpenBrowserOnce: {
+					if (this.alreadyOpenedOnce.has(tunnel.localAddress)) {
+						break;
+					}
+					this.alreadyOpenedOnce.add(tunnel.localAddress);
+					// Intentionally do not break so that the open browser path can be run.
+				}
 				case OnPortForward.OpenBrowser: {
 					const address = makeAddress(tunnel.tunnelRemoteHost, tunnel.tunnelRemotePort);
 					await OpenPortInBrowserAction.run(this.remoteExplorerService.tunnelModel, this.openerService, address);
@@ -488,7 +496,15 @@ class ProcAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService);
-		this._register(configurationService.onDidChangeConfiguration(async (e) => {
+		this.initialize();
+	}
+
+	private async initialize() {
+		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
+			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
+		}
+
+		this._register(this.configurationService.onDidChangeConfiguration(async (e) => {
 			if (e.affectsConfiguration(PORT_AUTO_FORWARD_SETTING)) {
 				await this.startStopCandidateListener();
 			}
@@ -524,14 +540,13 @@ class ProcAutomaticPortForwarding extends Disposable {
 			this.portsFeatures.dispose();
 		}
 
-		if (!this.remoteExplorerService.tunnelModel.environmentTunnelsSet) {
-			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onEnvironmentTunnelsSet(() => resolve()));
-		}
-
 		// Capture list of starting candidates so we don't auto forward them later.
 		await this.setInitialCandidates();
 
-		this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		// Need to check the setting again, since it may have changed while we waited for the initial candidates to be set.
+		if (this.configurationService.getValue(PORT_AUTO_FORWARD_SETTING)) {
+			this.candidateListener = this._register(this.remoteExplorerService.tunnelModel.onCandidatesChanged(this.handleCandidateUpdate, this));
+		}
 	}
 
 	private async setInitialCandidates() {

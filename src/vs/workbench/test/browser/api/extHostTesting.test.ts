@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
-import { createDefaultDocumentTestRoot, TestItemFilteredWrapper } from 'vs/workbench/api/common/extHostTesting';
+import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { TestItemFilteredWrapper, TestRunCoordinator, TestRunDto } from 'vs/workbench/api/common/extHostTesting';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestMessage } from 'vs/workbench/api/common/extHostTypes';
 import { TestDiffOpType, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
-import { stubTest, TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/common/testStubs';
+import { expandAllStubs, stubTest, TestItemImpl, TestResultState, testStubs, testStubsChain } from 'vs/workbench/contrib/testing/common/testStubs';
 import { TestOwnedTestCollection, TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
-import { TestItem, TextDocument } from 'vscode';
+import type { TestItem, TestRunRequest, TextDocument } from 'vscode';
 
 const simplify = (item: TestItem<unknown>) => ({
 	id: item.id,
@@ -62,7 +67,8 @@ suite('ExtHost Testing', () => {
 	let owned: TestOwnedTestCollection;
 	setup(() => {
 		owned = new TestOwnedTestCollection();
-		single = owned.createForHierarchy(d => single.setDiff(d /* don't clear during testing */));
+		single = owned.createForHierarchy();
+		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
 	});
 
 	teardown(() => {
@@ -326,18 +332,7 @@ suite('ExtHost Testing', () => {
 						stubTest('c', undefined, undefined, URI.parse('file:///baz.ts')),
 					]);
 
-				// todo: this is not used, don't think it's needed anymore
-				await createDefaultDocumentTestRoot<void>(
-					{
-						createWorkspaceTestRoot: () => testsWithLocation as TestItem<void>,
-						runTests() {
-							throw new Error('no implemented');
-						}
-					},
-					textDocumentFilter,
-					undefined,
-					CancellationToken.None
-				);
+				expandAllStubs(testsWithLocation);
 			});
 
 			teardown(() => {
@@ -347,6 +342,7 @@ suite('ExtHost Testing', () => {
 			test('gets all actual properties', () => {
 				const testItem = stubTest('test1');
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testItem, textDocumentFilter);
+				wrapper.refreshMatch();
 
 				assert.strictEqual(testItem.debuggable, wrapper.debuggable);
 				assert.strictEqual(testItem.description, wrapper.description);
@@ -358,14 +354,14 @@ suite('ExtHost Testing', () => {
 			test('gets no children if nothing matches Uri filter', () => {
 				const tests = testStubs.nested();
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(tests, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
+				wrapper.refreshMatch();
 				assert.strictEqual(wrapper.children.size, 0);
 			});
 
 			test('filter is applied to children', () => {
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				wrapper.refreshMatch();
 				assert.strictEqual(wrapper.label, 'root');
-				wrapper.resolveHandler?.(CancellationToken.None);
 
 				const children = [...wrapper.children.values()];
 				assert.strictEqual(children.length, 1);
@@ -375,7 +371,7 @@ suite('ExtHost Testing', () => {
 
 			test('can get if node has matching filter', () => {
 				const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				rootWrapper.resolveHandler?.(CancellationToken.None);
+				rootWrapper.refreshMatch();
 
 				const invisible = testsWithLocation.children.get('id-b')!;
 				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
@@ -388,9 +384,9 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(visibleWrapper.hasNodeMatchingFilter, true);
 			});
 
-			test('can reset cached value of hasNodeMatchingFilter', () => {
+			test('can reset cached value of hasNodeMatchingFilter on new children', () => {
 				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
-				wrapper.resolveHandler?.(CancellationToken.None);
+				wrapper.refreshMatch();
 
 				const invisible = testsWithLocation.children.get('id-b')!;
 				const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
@@ -404,23 +400,128 @@ suite('ExtHost Testing', () => {
 				assert.strictEqual(wrapper.children.get('id-b'), invisibleWrapper);
 			});
 
-			// test('can reset cached value of hasNodeMatchingFilter of parents up to visible parent', () => {
-			// 	const rootWrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+			test('can reset cached value of hasNodeMatchingFilter on children removed', () => {
+				const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(testsWithLocation, textDocumentFilter);
+				wrapper.refreshMatch();
 
-			// 	const invisibleParent = testsWithLocation.children.get('id-b')!;
-			// 	const invisibleParentWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisibleParent, textDocumentFilter);
-			// 	const invisible = invisibleParent.children.get('id-bb')!;
-			// 	const invisibleWrapper = TestItemFilteredWrapper.getWrapperForTestItem(invisible, textDocumentFilter);
+				const itemB = testsWithLocation.children.get('id-b')!;
+				const visibleChild = stubTest('bc', undefined, undefined, URI.parse('file:///foo.ts'));
+				itemB.addChild(visibleChild);
+				assert.strictEqual(!!wrapper.children.get('id-b'), true);
 
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisible.location = location1 as any;
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, false);
-			// 	invisibleWrapper.reset();
-			// 	assert.strictEqual(invisibleParentWrapper.hasNodeMatchingFilter, true);
+				visibleChild.dispose();
+				assert.strictEqual(!!wrapper.children.get('id-b'), false);
+			});
+		});
+	});
 
-			// 	// the root should be undefined due to the reset.
-			// 	assert.strictEqual((rootWrapper as any).matchesFilter, undefined);
-			// });
+	suite('TestRunTracker', () => {
+		let proxy: MockObject<MainThreadTestingShape>;
+		let c: TestRunCoordinator;
+		let cts: CancellationTokenSource;
+
+		const req: TestRunRequest<unknown> = { tests: [], debug: false };
+		const dto = TestRunDto.fromInternal({
+			debug: false,
+			excludeExtIds: [],
+			runId: 'run-id',
+			tests: [],
+		});
+
+		setup(() => {
+			proxy = mockObject();
+			cts = new CancellationTokenSource();
+			c = new TestRunCoordinator(proxy);
+		});
+
+		test('tracks a run started from a main thread request', () => {
+			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
+			assert.strictEqual(tracker.isRunning, false);
+
+			const task1 = c.createTestRun(req, 'run1', true);
+			const task2 = c.createTestRun(req, 'run2', true);
+			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task1.appendOutput('hello');
+			assert.deepStrictEqual([['run-id', (task1 as any).taskId, VSBuffer.fromString('hello')]], proxy.$appendOutputToRun.args);
+			task1.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, false);
+		});
+
+		test('tracks a run started from an extension request', () => {
+			const task1 = c.createTestRun(req, 'hello world', false);
+
+			const tracker = Iterable.first(c.trackers)!;
+			assert.strictEqual(tracker.isRunning, true);
+			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
+				[{
+					id: tracker.id,
+					tests: [],
+					exclude: [],
+					debug: false,
+					persist: false,
+				}]
+			]);
+
+			const task2 = c.createTestRun(req, 'run2', true);
+			const task3Detached = c.createTestRun({ ...req }, 'task3Detached', true);
+
+			task1.end();
+			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
+			assert.strictEqual(tracker.isRunning, true);
+
+			task2.end();
+			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
+			assert.strictEqual(tracker.isRunning, false);
+
+			task3Detached.end();
+		});
+
+		test('adds tests to run smartly', () => {
+			const task1 = c.createTestRun(req, 'hello world', false);
+			const tracker = Iterable.first(c.trackers)!;
+			const tests = testStubs.nested();
+			const expectedArgs: unknown[][] = [];
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-aa']).pop()!, TestResultState.Passed);
+			expectedArgs.push([
+				tracker.id,
+				testStubsChain(tests, ['id-a', 'id-aa']).map(convert.TestItem.from)
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-ab']).pop()!, TestResultState.Queued);
+			expectedArgs.push([
+				tracker.id,
+				testStubsChain(tests, ['id-a', 'id-ab']).slice(1).map(convert.TestItem.from)
+			]);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.setState(testStubsChain(tests, ['id-a', 'id-ab']).pop()!, TestResultState.Passed);
+			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+		});
+
+		test('guards calls after runs are ended', () => {
+			const task = c.createTestRun(req, 'hello world', false);
+			task.end();
+
+			task.setState(testStubs.nested(), TestResultState.Passed);
+			task.appendMessage(testStubs.nested(), new TestMessage('some message'));
+			task.appendOutput('output');
+
+			assert.strictEqual(proxy.$addTestsToRun.called, false);
+			assert.strictEqual(proxy.$appendOutputToRun.called, false);
+			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
 		});
 	});
 });

@@ -59,6 +59,7 @@ export interface NotebookLayoutConfiguration {
 	fontSize: number;
 	focusIndicatorLeftMargin: number;
 	editorOptionsCustomizations: any | undefined;
+	cellBreakpointMarginActive: boolean;
 }
 
 interface NotebookOptionsChangeEvent {
@@ -77,6 +78,7 @@ interface NotebookOptionsChangeEvent {
 	dragAndDropEnabled?: boolean;
 	fontSize?: boolean;
 	editorOptionsCustomizations?: boolean;
+	cellBreakpointMargin?: boolean;
 }
 
 const defaultConfigConstants = {
@@ -91,11 +93,11 @@ const defaultConfigConstants = {
 
 const compactConfigConstants = {
 	codeCellLeftMargin: 8,
-	cellRunGutter: 32,
+	cellRunGutter: 36,
 	markdownCellTopMargin: 6,
 	markdownCellBottomMargin: 6,
 	markdownCellLeftMargin: 8,
-	markdownCellGutter: 32,
+	markdownCellGutter: 36,
 	focusIndicatorLeftMargin: 4
 };
 
@@ -129,7 +131,7 @@ export class NotebookOptions {
 			cellBottomMargin: 6,
 			cellRightMargin: 16,
 			cellStatusBarHeight: 22,
-			cellOutputPadding: 14,
+			cellOutputPadding: 12,
 			markdownPreviewPadding: 8,
 			// bottomToolbarHeight: bottomToolbarHeight,
 			// bottomToolbarGap: bottomToolbarGap,
@@ -151,7 +153,8 @@ export class NotebookOptions {
 			insertToolbarAlignment,
 			showFoldingControls,
 			fontSize,
-			editorOptionsCustomizations
+			editorOptionsCustomizations,
+			cellBreakpointMarginActive: false
 		};
 
 		this._disposables.push(this.configurationService.onDidChangeConfiguration(e => {
@@ -479,6 +482,11 @@ export class NotebookOptions {
 			bottomIndicatorTop: totalHeight - bottomToolbarGap - this._layoutConfiguration.cellBottomMargin,
 			verticalIndicatorHeight: totalHeight - bottomToolbarGap
 		};
+	}
+
+	setCellBreakpointMarginActive(active: boolean) {
+		this._layoutConfiguration.cellBreakpointMarginActive = active;
+		this._onDidChangeOptions.fire({ cellBreakpointMargin: true });
 	}
 
 	dispose() {

@@ -248,6 +248,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				canSelectMany: false,
 				defaultUri: item.uri,
 				openLabel: localize('trustUri', "Trust Folder"),
+
 				title: localize('selectTrustedUri', "Select Folder To Trust")
 			});
 
@@ -633,14 +634,6 @@ export class WorkspaceTrustEditor extends EditorPane {
 		return localize('untrustedHeader', "You are in Restricted Mode");
 	}
 
-	private getHeaderDescriptionText(trusted: boolean): string {
-		if (trusted) {
-			return localize('trustedDescription', "All features are enabled because trust has been granted to the workspace. [Learn more](https://aka.ms/vscode-workspace-trust).");
-		}
-
-		return localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing. [Learn more](https://aka.ms/vscode-workspace-trust).", product.nameShort);
-	}
-
 	private getHeaderTitleIconClassNames(trusted: boolean): string[] {
 		return shieldIcon.classNamesArray;
 	}
@@ -694,14 +687,19 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.headerTitleIcon.classList.add(...this.getHeaderTitleIconClassNames(isWorkspaceTrusted));
 		this.headerDescription.innerText = '';
 
-		const linkedText = parseLinkedText(this.getHeaderDescriptionText(isWorkspaceTrusted));
-		const p = append(this.headerDescription, $('p'));
-		for (const node of linkedText.nodes) {
+		const headerDescriptionText = append(this.headerDescription, $('div'));
+		headerDescriptionText.innerText = isWorkspaceTrusted ?
+			localize('trustedDescription', "All features are enabled because trust has been granted to the workspace.") :
+			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", product.nameShort);
+
+		const headerDescriptionActions = append(this.headerDescription, $('div'));
+		const headerDescriptionActionsText = localize('workspaceTrustEditorHeaderActions', "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
+		for (const node of parseLinkedText(headerDescriptionActionsText).nodes) {
 			if (typeof node === 'string') {
-				append(p, document.createTextNode(node));
+				append(headerDescriptionActions, document.createTextNode(node));
 			} else {
 				const link = this.instantiationService.createInstance(Link, node, {});
-				append(p, link.el);
+				append(headerDescriptionActions, link.el);
 				this.rerenderDisposables.add(link);
 			}
 		}
@@ -821,12 +819,12 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.renderLimitationsHeaderElement(untrustedContainer, untrustedTitle, untrustedSubTitle);
 		const untrustedContainerItems = this.workspaceService.getWorkbenchState() === WorkbenchState.EMPTY ?
 			[
-				localize('untrustedTasks', "Tasks are disabled"),
+				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
 				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
 			] :
 			[
-				localize('untrustedTasks', "Tasks are disabled"),
+				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
 				numSettings ? localize('untrustedSettings', "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
 				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)

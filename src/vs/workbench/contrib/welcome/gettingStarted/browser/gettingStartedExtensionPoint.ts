@@ -12,7 +12,6 @@ const titleTranslated = localize('title', "Title");
 export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IWalkthrough[]>({
 	extensionPoint: 'walkthroughs',
 	jsonSchema: {
-		doNotSuggest: true,
 		description: localize('walkthroughs', "Contribute walkthroughs to help users getting started with your extension."),
 		type: 'array',
 		items: {
@@ -142,7 +141,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 										},
 										{
 											label: 'onLink',
-											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a Getting Started step.'),
+											description: localize('walkthroughs.steps.completionEvents.onLink', 'Check off step when a given link is opened via a walkthrough step.'),
 											body: 'onLink:${2:linkId}'
 										},
 										{
@@ -201,35 +200,35 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		doNotSuggest: true,
-		description: localize('startEntries', "Contribute commands to help users start using your extension. Experimental, available in VS Code Insiders only."),
+		description: localize('startEntries', "Contribute commands to the `Welcome: New...` picker."),
 		type: 'array',
 		items: {
 			type: 'object',
-			required: ['id', 'title', 'description'],
-			defaultSnippets: [{ body: { 'id': '$1', 'title': '$2', 'description': '$3' } }],
+			required: ['title', 'command'],
+			additionalProperties: false,
+			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
 			properties: {
 				title: {
 					type: 'string',
-					description: localize('startEntries.title', "Title of start item.")
+					description: localize('startEntries.title', "Title of item.")
 				},
 				command: {
 					type: 'string',
 					description: localize('startEntries.command', "Command to run.")
 				},
+				catagory: {
+					type: 'string',
+					description: localize('startEntries.category', "Category of the new entry."),
+					enum: ['window', 'file', 'folder', 'notebook', 'terminal', 'configuration'],
+				},
 				description: {
 					type: 'string',
-					description: localize('startEntries.description', "Description of start item.")
+					description: localize('startEntries.description', "Description of item.")
 				},
 				when: {
 					type: 'string',
-					description: localize('startEntries.when', "Context key expression to control the visibility of this start item.")
+					description: localize('startEntries.when', "Context key expression to control the visibility of this item.")
 				},
-				type: {
-					type: 'string',
-					enum: ['sample-notebook', 'template-folder'],
-					description: localize('startEntries.type', "The type of start item this is, used for grouping. Supported values are `sample-notebook` or `template-folder`.")
-				}
 			}
 		}
 	}

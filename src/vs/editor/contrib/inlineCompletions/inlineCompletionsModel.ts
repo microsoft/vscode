@@ -200,6 +200,10 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 			this.scheduleAutomaticUpdate();
 		}));
 
+		this._register(InlineCompletionsProviderRegistry.onDidChange(() => {
+			this.updateSoon.schedule();
+		}));
+
 		this.scheduleAutomaticUpdate();
 	}
 
@@ -282,7 +286,8 @@ export class InlineCompletionsSession extends BaseGhostTextWidgetModel {
 
 	public get ghostText(): GhostText | undefined {
 		const currentCompletion = this.currentCompletion;
-		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel()) : undefined;
+		const mode = this.editor.getOptions().get(EditorOption.inlineSuggest).mode;
+		return currentCompletion ? inlineCompletionToGhostText(currentCompletion, this.editor.getModel(), mode) : undefined;
 	}
 
 	get currentCompletion(): LiveInlineCompletion | undefined {
@@ -479,7 +484,7 @@ export interface NormalizedInlineCompletion extends InlineCompletion {
 	range: Range;
 }
 
-export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel): GhostText | undefined {
+export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCompletion, textModel: ITextModel, mode: 'prefix' | 'subwordDiff'): GhostText | undefined {
 	if (inlineCompletion.range.startLineNumber !== inlineCompletion.range.endLineNumber) {
 		// Only single line replacements are supported.
 		return undefined;
@@ -495,6 +500,13 @@ export function inlineCompletionToGhostText(inlineCompletion: NormalizedInlineCo
 	const parts = new Array<GhostTextPart>();
 	let additionalLines = new Array<string>();
 
+	if (mode === 'prefix') {
+		const filteredChanges = changes.filter(c => c.originalLength === 0);
+		if (filteredChanges.length > 1 || filteredChanges.length === 1 && filteredChanges[0].originalStart !== valueToBeReplaced.length) {
+			// Prefixes only have a single change.
+			return undefined;
+		}
+	}
 	for (const c of changes) {
 		const insertColumn = inlineCompletion.range.startColumn + c.originalStart + c.originalLength;
 

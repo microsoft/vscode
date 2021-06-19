@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, iconForeground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
@@ -52,10 +52,10 @@ import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/outpu
 import { BackLayerWebView, INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { CellContextKeyManager } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellContextKeys';
 import { CellDragAndDropController } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellDnd';
-import { CodeCellRenderer, ListTopCellToolbar, MarkdownCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
+import { CodeCellRenderer, ListTopCellToolbar, MarkupCellRenderer, NotebookCellListDelegate } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { NotebookEventDispatcher, NotebookLayoutChangedEvent } from 'vs/workbench/contrib/notebook/browser/viewModel/eventDispatcher';
-import { MarkdownCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markdownCellViewModel';
+import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellViewModel, IModelDecorationsChangeAccessor, INotebookEditorViewState, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CellKind, ExperimentalUseMarkdownRenderer, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -72,7 +72,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookEditorToolbar } from 'vs/workbench/contrib/notebook/browser/notebookEditorToolbar';
 import { INotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/common/notebookRendererMessagingService';
-import { IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
+import { IAckOutputHeight, IMarkupCellInitialization } from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
 
 const $ = DOM.$;
 
@@ -196,6 +196,18 @@ export class ListViewInfoAccessor extends Disposable {
 	}
 }
 
+export function getDefaultNotebookCreationOptions() {
+	return {
+		menuIds: {
+			notebookToolbar: MenuId.NotebookToolbar,
+			cellTitleToolbar: MenuId.NotebookCellTitle,
+			cellInsertToolbar: MenuId.NotebookCellBetween,
+			cellTopInsertToolbar: MenuId.NotebookCellListTop,
+			cellExecuteToolbar: MenuId.NotebookCellExecute
+		}
+	};
+}
+
 export class NotebookEditorWidget extends Disposable implements INotebookEditor {
 	private static readonly EDITOR_MEMENTOS = new Map<string, EditorMemento<unknown>>();
 	private _overlayContainer!: HTMLElement;
@@ -303,6 +315,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	readonly isEmbedded: boolean;
+	private _readOnly: boolean;
 
 	public readonly scopedContextKeyService: IContextKeyService;
 	private readonly instantiationService: IInstantiationService;
@@ -330,7 +343,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		@IModeService private readonly modeService: IModeService
 	) {
 		super();
-		this.isEmbedded = creationOptions.isEmbedded || false;
+		this.isEmbedded = creationOptions.isEmbedded ?? false;
+		this._readOnly = creationOptions.isReadOnly ?? false;
 
 		this.useRenderer = !!this.configurationService.getValue<boolean>(ExperimentalUseMarkdownRenderer) && !accessibilityService.isScreenReaderOptimized();
 		this._notebookOptions = new NotebookOptions(this.configurationService);
@@ -344,7 +358,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._register(this.instantiationService.createInstance(NotebookEditorContextKeys, this));
 
 		this._kernelManger = this.instantiationService.createInstance(NotebookEditorKernelManager);
-		this._register(notebookKernelService.onDidChangeNotebookKernelBinding(e => {
+		this._register(notebookKernelService.onDidChangeSelectedNotebooks(e => {
 			if (isEqual(e.notebook, this.viewModel?.uri)) {
 				this._loadKernelPreloads();
 			}
@@ -395,6 +409,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._editorFocus = NOTEBOOK_EDITOR_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._outputFocus = NOTEBOOK_OUTPUT_FOCUSED.bindTo(this.scopedContextKeyService);
 		this._editorEditable = NOTEBOOK_EDITOR_EDITABLE.bindTo(this.scopedContextKeyService);
+
+		this._editorEditable.set(!creationOptions.isReadOnly);
 
 		let contributions: INotebookEditorContributionDescription[];
 		if (Array.isArray(this.creationOptions.contributions)) {
@@ -456,8 +472,34 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return this.viewModel?.getSelections() ?? [];
 	}
 
+	setSelections(selections: ICellRange[]) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const focus = this.viewModel.getFocus();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
+	}
+
 	getFocus() {
 		return this.viewModel?.getFocus() ?? { start: 0, end: 0 };
+	}
+
+	setFocus(focus: ICellRange) {
+		if (!this.hasModel()) {
+			return;
+		}
+
+		const selections = this.viewModel.getSelections();
+		this.viewModel.updateSelectionsState({
+			kind: SelectionStateType.Index,
+			focus: focus,
+			selections: selections
+		});
 	}
 
 	getSelectionViewModels(): ICellViewModel[] {
@@ -780,7 +822,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const getScopedContextKeyService = (container: HTMLElement) => this._list.contextKeyService.createScoped(container);
 		const renderers = [
 			this.instantiationService.createInstance(CodeCellRenderer, this, this._renderedEditors, this._dndController, getScopedContextKeyService),
-			this.instantiationService.createInstance(MarkdownCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService, { useRenderer: this.useRenderer }),
+			this.instantiationService.createInstance(MarkupCellRenderer, this, this._dndController, this._renderedEditors, getScopedContextKeyService, { useRenderer: this.useRenderer }),
 		];
 
 		renderers.forEach(renderer => {
@@ -816,6 +858,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
 					listActiveSelectionForeground: foreground,
+					listActiveSelectionIconForeground: iconForeground,
 					listFocusAndSelectionBackground: editorBackground,
 					listFocusAndSelectionForeground: foreground,
 					listFocusBackground: editorBackground,
@@ -1042,13 +1085,15 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	async setOptions(options: INotebookEditorOptions | undefined) {
+		if (options?.isReadOnly !== undefined) {
+			this._readOnly = options?.isReadOnly;
+		}
+
 		if (!this.hasModel()) {
 			return;
 		}
 
-		if (options?.isReadOnly !== undefined) {
-			this.viewModel.updateOptions({ isReadOnly: options.isReadOnly });
-		}
+		this.viewModel.updateOptions({ isReadOnly: this._readOnly });
 
 		// reveal cell if editor options tell to do so
 		if (options?.cellOptions) {
@@ -1189,7 +1234,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 
 	private async _attachModel(textModel: NotebookTextModel, viewState: INotebookEditorViewState | undefined) {
 		await this._createWebview(this.getId(), textModel.uri);
-		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo());
+		this.viewModel = this.instantiationService.createInstance(NotebookViewModel, textModel.viewType, textModel, this._viewContext, this.getLayoutInfo(), { isReadOnly: this._readOnly });
 		this._viewContext.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 
 		this._updateForOptions();
@@ -1242,12 +1287,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			outputs.forEach(output => this.hideInset(output));
 		}));
 		this._localStore.add(this._list.onDidRemoveCellsFromView(cells => {
-			const hiddenCells: MarkdownCellViewModel[] = [];
-			const deletedCells: MarkdownCellViewModel[] = [];
+			const hiddenCells: MarkupCellViewModel[] = [];
+			const deletedCells: MarkupCellViewModel[] = [];
 
 			for (const cell of cells) {
 				if (cell.cellKind === CellKind.Markup) {
-					const mdCell = cell as MarkdownCellViewModel;
+					const mdCell = cell as MarkupCellViewModel;
 					if (this.viewModel?.viewCells.find(cell => cell.handle === mdCell.handle)) {
 						// Cell has been folded but is still in model
 						hiddenCells.push(mdCell);
@@ -1258,8 +1303,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				}
 			}
 
-			this.hideMarkdownPreviews(hiddenCells);
-			this.deleteMarkdownPreviews(deletedCells);
+			this.hideMarkupPreviews(hiddenCells);
+			this.deleteMarkupPreviews(deletedCells);
 		}));
 
 		// init rendering
@@ -1321,8 +1366,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		if (cell.cellKind === CellKind.Markup) {
-			store.add((cell as MarkdownCellViewModel).onDidHideInput(() => {
-				this.hideMarkdownPreviews([(cell as MarkdownCellViewModel)]);
+			store.add((cell as MarkupCellViewModel).onDidHideInput(() => {
+				this.hideMarkupPreviews([(cell as MarkupCellViewModel)]);
 			}));
 		}
 
@@ -1510,6 +1555,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		return state;
 	}
 
+	private _allowScrollBeyondLastLine() {
+		return this._scrollBeyondLastLine && !this.isEmbedded;
+	}
+
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement): void {
 		if (!shadowElement && this._shadowElementViewInfo === null) {
 			this._dimension = dimension;
@@ -1533,12 +1582,12 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		DOM.size(this._body, dimension.width, dimension.height - (this._notebookTopToolbar?.useGlobalToolbar ? /** Toolbar height */ 26 : 0));
 		if (this._list.getRenderHeight() < dimension.height - topInserToolbarHeight) {
 			// the new dimension is larger than the list viewport, update its additional height first, otherwise the list view will move down a bit (as the `scrollBottom` will move down)
-			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
 			this._list.layout(dimension.height - topInserToolbarHeight, dimension.width);
 		} else {
 			// the new dimension is smaller than the list viewport, if we update the additional height, the `scrollBottom` will move up, which moves the whole list view upwards a bit. So we run a layout first.
 			this._list.layout(dimension.height - topInserToolbarHeight, dimension.width);
-			this._list.updateOptions({ additionalScrollHeight: this._scrollBeyondLastLine ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
+			this._list.updateOptions({ additionalScrollHeight: this._allowScrollBeyondLastLine() ? Math.max(0, (dimension.height - topInserToolbarHeight - 50)) : topInserToolbarHeight });
 		}
 
 		this._overlayContainer.style.visibility = 'visible';
@@ -1600,10 +1649,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		// a descendent of the notebook editor root.
 		const focused = DOM.isAncestor(document.activeElement, this._overlayContainer);
 		this._editorFocus.set(focused);
-		this.viewModel?.setFocus(focused);
+		this.viewModel?.setEditorFocus(focused);
 	}
 
-	hasFocus() {
+	hasEditorFocus() {
 		return this._editorFocus.get() || false;
 	}
 
@@ -1612,7 +1661,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	hasOutputTextSelection() {
-		if (!this.hasFocus()) {
+		if (!this.hasEditorFocus()) {
 			return false;
 		}
 
@@ -1832,7 +1881,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!this.hasModel()) {
 			return;
 		}
-		const { selected } = this.notebookKernelService.getMatchingKernel(this.viewModel.notebookDocument);
+		const { selected } = this.notebookKernelService.getMatchingKernel(this.textModel);
 		if (!this._webview?.isResolved()) {
 			await this._resolveWebview();
 		}
@@ -1840,7 +1889,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	get activeKernel() {
-		return this.viewModel && this._kernelManger.getSelectedOrSuggestedKernel(this.viewModel.notebookDocument);
+		return this.textModel && this._kernelManger.getSelectedOrSuggestedKernel(this.textModel);
 	}
 
 	async cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
@@ -1850,7 +1899,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this._kernelManger.cancelNotebookCells(this.viewModel.notebookDocument, cells);
+		return this._kernelManger.cancelNotebookCells(this.textModel, cells);
 	}
 
 	async executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void> {
@@ -1860,7 +1909,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		if (!cells) {
 			cells = this.viewModel.viewCells;
 		}
-		return this._kernelManger.executeNotebookCells(this.viewModel.notebookDocument, cells);
+		return this._kernelManger.executeNotebookCells(this.textModel, cells);
 	}
 
 	//#endregion
@@ -2251,7 +2300,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		};
 	}
 
-	async createMarkdownPreview(cell: MarkdownCellViewModel) {
+	async createMarkupPreview(cell: MarkupCellViewModel) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2270,7 +2319,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 
 		const cellTop = this._list.getAbsoluteTopOfElement(cell);
-		await this._webview.showMarkdownPreview({
+		await this._webview.showMarkupPreview({
 			mime: cell.mime,
 			cellHandle: cell.handle,
 			cellId: cell.id,
@@ -2280,7 +2329,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		});
 	}
 
-	async unhideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
+	async unhideMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2294,10 +2343,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.unhideMarkdownPreviews(cells.map(cell => cell.id));
+		await this._webview?.unhideMarkupPreviews(cells.map(cell => cell.id));
 	}
 
-	async hideMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
+	async hideMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2311,10 +2360,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.hideMarkdownPreviews(cells.map(cell => cell.id));
+		await this._webview?.hideMarkupPreviews(cells.map(cell => cell.id));
 	}
 
-	async deleteMarkdownPreviews(cells: readonly MarkdownCellViewModel[]) {
+	async deleteMarkupPreviews(cells: readonly MarkupCellViewModel[]) {
 		if (!this.useRenderer) {
 			// TODO: handle case where custom renderer is disabled?
 			return;
@@ -2328,7 +2377,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 			await this._resolveWebview();
 		}
 
-		await this._webview?.deleteMarkdownPreviews(cells.map(cell => cell.id));
+		await this._webview?.deleteMarkupPreviews(cells.map(cell => cell.id));
 	}
 
 	private async updateSelectedMarkdownPreviews(): Promise<void> {
@@ -2343,7 +2392,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		const selectedCells = this.getSelectionViewModels().map(cell => cell.id);
 
 		// Only show selection when there is more than 1 cell selected
-		await this._webview?.updateMarkdownPreviewSelections(selectedCells.length > 1 ? selectedCells : []);
+		await this._webview?.updateMarkupPreviewSelections(selectedCells.length > 1 ? selectedCells : []);
 	}
 
 	async createOutput(cell: CodeCellViewModel, output: IInsetRenderOutput, offset: number): Promise<void> {
@@ -2488,7 +2537,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		this._webview.removeInsets(removedItems);
 
 		const markdownUpdateItems: { id: string, top: number; }[] = [];
-		for (const cellId of this._webview.markdownPreviewMapping.keys()) {
+		for (const cellId of this._webview.markupPreviewMapping.keys()) {
 			const cell = this.viewModel?.viewCells.find(cell => cell.id === cellId);
 			if (cell) {
 				const cellTop = this._list.getAbsoluteTopOfElement(cell);
@@ -2502,55 +2551,64 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 		}
 	}
 
-	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
-		DOM.scheduleAtNextAnimationFrame(() => {
-			this.updateScrollHeight();
+	private readonly _pendingOutputHeightAcks = new Map</* outputId */ string, IAckOutputHeight>();
 
-			this._debug('ack height', height);
-			this._webview?.ackHeight(cellInfo.cellId, outputId, height);
-		}, 10);
+	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number) {
+		const wasEmpty = this._pendingOutputHeightAcks.size === 0;
+		this._pendingOutputHeightAcks.set(outputId, { cellId: cellInfo.cellId, outputId, height });
+
+		if (wasEmpty) {
+			DOM.scheduleAtNextAnimationFrame(() => {
+				this._debug('ack height');
+				this.updateScrollHeight();
+
+				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
+
+				this._pendingOutputHeightAcks.clear();
+			}, -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
+		}
 	}
 
-	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean) {
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean) {
 		const cell = this.getCellById(cellId);
-		if (cell && cell instanceof MarkdownCellViewModel) {
+		if (cell && cell instanceof MarkupCellViewModel) {
 			const { bottomToolbarGap } = this._notebookOptions.computeBottomToolbarDimensions(this.viewModel?.viewType);
 			this._debug('updateMarkdownCellHeight', cell.handle, height + bottomToolbarGap, isInit);
 			cell.renderedMarkdownHeight = height;
 		}
 	}
 
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void {
 		const cell = this.getCellById(cellId);
-		if (cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkupCellViewModel) {
 			cell.updateEditState(editState, 'setMarkdownCellEditState');
 		}
 	}
 
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number; }): void {
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this.getCellById(cellId);
-		if (cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.startExplicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number; }): void {
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		const cell = this.getCellById(cellId);
-		if (cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.explicitDrag(cell, event.dragOffsetY);
 		}
 	}
 
-	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void {
 		const cell = this.getCellById(cellId);
-		if (cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.explicitDrop(cell, event);
 		}
 	}
 
-	markdownCellDragEnd(cellId: string): void {
+	didEndDragMarkupCell(cellId: string): void {
 		const cell = this.getCellById(cellId);
-		if (cell instanceof MarkdownCellViewModel) {
+		if (cell instanceof MarkupCellViewModel) {
 			this._dndController?.endExplicitDrag(cell);
 		}
 	}
@@ -2635,8 +2693,8 @@ export const cellStatusIconRunning = registerColor('notebookStatusRunningIcon.fo
 }, nls.localize('notebookStatusRunningIcon.foreground', "The running icon color of notebook cells in the cell status bar."));
 
 export const notebookOutputContainerColor = registerColor('notebook.outputContainerBackgroundColor', {
-	dark: notebookCellBorder,
-	light: notebookCellBorder,
+	dark: null,
+	light: null,
 	hc: null
 }, nls.localize('notebook.outputContainerBackgroundColor', "The Color of the notebook output container background."));
 

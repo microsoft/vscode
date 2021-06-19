@@ -251,7 +251,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const fileSystemResources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -265,7 +265,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 
 		return resourceOrEditor;
-	})).filter(({ resource }) => fileService.canHandleResource(resource));
+	}));
+	const fileSystemResources = resources.filter(({ resource }) => fileService.canHandleResource(resource));
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
@@ -284,6 +285,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
 	if (files.length) {
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
+	}
+
+	// Terminal URI
+	const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
+	if (terminalResources.length) {
+		event.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
 	}
 
 	// Editors: enables cross window DND of editors

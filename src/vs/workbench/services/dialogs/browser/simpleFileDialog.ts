@@ -908,20 +908,22 @@ export class SimpleFileDialog {
 		return child.substring(parent.length);
 	}
 
-	private createBackItem(currFolder: URI): FileQuickPickItem | null {
+	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
-			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			if (await this.fileService.exists(parentFolder)) {
+				return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async createItems(folder: IFileStat | undefined, currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
-		const backDir = this.createBackItem(currentFolder);
+		const backDir = await this.createBackItem(currentFolder);
 		try {
 			if (!folder) {
 				folder = await this.fileService.resolve(currentFolder);

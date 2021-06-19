@@ -21,17 +21,19 @@ import { ContextKeyExpr, RawContextKey, IContextKeyService } from 'vs/platform/c
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
 import { CellViewModel, IModelDecorationsChangeAccessor, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
-import { CellKind, NotebookCellMetadata, INotebookKernel, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookCellMetadata, IOrderedMimeType, INotebookRendererInfo, ICellOutput, IOutputItemDto, INotebookCellStatusBarItem, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceRanges } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Webview } from 'vs/workbench/contrib/webview/browser/webview';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { IMenu } from 'vs/platform/actions/common/actions';
+import { IMenu, MenuId } from 'vs/platform/actions/common/actions';
 import { IEditorPane } from 'vs/workbench/common/editor';
 import { ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IConstructorSignature1 } from 'vs/platform/instantiation/common/instantiation';
 import { CellEditorStatusBar } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellWidgets';
 import { INotebookWebviewMessage } from 'vs/workbench/contrib/notebook/browser/view/renderers/backLayerWebView';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
+import { INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { isCompositeNotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
 export const NOTEBOOK_EDITOR_ID = 'workbench.editor.notebook';
 export const NOTEBOOK_DIFF_EDITOR_ID = 'workbench.editor.notebookTextDiffEditor';
@@ -51,6 +53,7 @@ export const NOTEBOOK_OUTPUT_FOCUSED = new RawContextKey<boolean>('notebookOutpu
 export const NOTEBOOK_EDITOR_EDITABLE = new RawContextKey<boolean>('notebookEditable', true);
 export const NOTEBOOK_HAS_RUNNING_CELL = new RawContextKey<boolean>('notebookHasRunningCell', false);
 export const NOTEBOOK_USE_CONSOLIDATED_OUTPUT_BUTTON = new RawContextKey<boolean>('notebookUseConsolidatedOutputButton', false);
+export const NOTEBOOK_BREAKPOINT_MARGIN_ACTIVE = new RawContextKey<boolean>('notebookBreakpointMargin', false);
 
 // Cell keys
 export const NOTEBOOK_VIEW_TYPE = new RawContextKey<string>('notebookType', undefined);
@@ -180,12 +183,12 @@ export interface ICommonNotebookEditor {
 	focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'editor' | 'container' | 'output'): void;
 	updateOutputHeight(cellInfo: ICommonCellInfo, output: IDisplayOutputViewModel, height: number, isInit: boolean, source?: string): void;
 	scheduleOutputHeightAck(cellInfo: ICommonCellInfo, outputId: string, height: number): void;
-	updateMarkdownCellHeight(cellId: string, height: number, isInit: boolean): void;
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void;
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number }): void;
-	markdownCellDrop(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean }): void;
-	markdownCellDragEnd(cellId: string): void;
+	updateMarkupCellHeight(cellId: string, height: number, isInit: boolean): void;
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void;
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void;
+	didDropMarkupCell(cellId: string, event: { dragOffsetY: number, ctrlKey: boolean, altKey: boolean; }): void;
+	didEndDragMarkupCell(cellId: string): void;
 }
 
 //#endregion
@@ -341,7 +344,15 @@ export interface INotebookEditorContributionDescription {
 
 export interface INotebookEditorCreationOptions {
 	readonly isEmbedded?: boolean;
+	readonly isReadOnly?: boolean;
 	readonly contributions?: INotebookEditorContributionDescription[];
+	readonly menuIds: {
+		notebookToolbar: MenuId;
+		cellTitleToolbar: MenuId;
+		cellInsertToolbar: MenuId;
+		cellTopInsertToolbar: MenuId;
+		cellExecuteToolbar: MenuId;
+	};
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
@@ -356,10 +367,14 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	readonly onDidChangeVisibleRanges: Event<void>;
 	readonly onDidChangeSelection: Event<void>;
 	getSelections(): ICellRange[];
+	setSelections(selections: ICellRange[]): void;
+	getFocus(): ICellRange;
+	setFocus(focus: ICellRange): void;
 	visibleRanges: ICellRange[];
 	textModel?: NotebookTextModel;
 	getId(): string;
-	hasFocus(): boolean;
+	hasEditorFocus(): boolean;
+	readonly creationOptions: INotebookEditorCreationOptions;
 
 	isEmbedded: boolean;
 
@@ -395,7 +410,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	focus(): void;
 
-	hasFocus(): boolean;
+	hasEditorFocus(): boolean;
 	hasWebviewFocus(): boolean;
 
 	hasOutputTextSelection(): boolean;
@@ -451,7 +466,7 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Focus the container of a cell (the monaco editor inside is not focused).
 	 */
-	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
+	focusNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output', options?: IFocusNotebookCellOptions): void;
 
 	focusNextNotebookCell(cell: ICellViewModel, focus: 'editor' | 'container' | 'output'): void;
 
@@ -460,12 +475,12 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	/**
 	 * Execute the given notebook cells
 	 */
-	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
+	executeNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
 
 	/**
 	 * Cancel the given notebook cells
 	 */
-	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>
+	cancelNotebookCells(cells?: Iterable<ICellViewModel>): Promise<void>;
 
 	/**
 	 * Get current active cell
@@ -477,9 +492,9 @@ export interface INotebookEditor extends ICommonNotebookEditor {
 	 */
 	layoutNotebookCell(cell: ICellViewModel, height: number): Promise<void>;
 
-	createMarkdownPreview(cell: ICellViewModel): Promise<void>;
-	unhideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
-	hideMarkdownPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	createMarkupPreview(cell: ICellViewModel): Promise<void>;
+	unhideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
+	hideMarkupPreviews(cells: readonly ICellViewModel[]): Promise<void>;
 
 	/**
 	 * Render the output in webview layer
@@ -793,14 +808,13 @@ export enum CellRevealPosition {
 export enum CellEditState {
 	/**
 	 * Default state.
-	 * For markdown cell, it's Markdown preview.
+	 * For markup cells, this is the renderer version of the markup.
 	 * For code cell, the browser focus should be on the container instead of the editor
 	 */
 	Preview,
 
-
 	/**
-	 * Eding mode. Source for markdown or code is rendered in editors and the state will be persistent.
+	 * Editing mode. Source for markup or code is rendered in editors and the state will be persistent.
 	 */
 	Editing
 }
@@ -905,7 +919,21 @@ export function getVisibleCells(cells: CellViewModel[], hiddenRanges: ICellRange
 }
 
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
-	return editorPane?.getId() === NOTEBOOK_EDITOR_ID ? editorPane.getControl() as INotebookEditor | undefined : undefined;
+	if (!editorPane) {
+		return;
+	}
+
+	if (editorPane.getId() === NOTEBOOK_EDITOR_ID) {
+		return editorPane.getControl() as INotebookEditor | undefined;
+	}
+
+	const input = editorPane.input;
+
+	if (input && isCompositeNotebookEditorInput(input)) {
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined; }).notebookEditor;
+	}
+
+	return undefined;
 }
 
 /**

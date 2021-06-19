@@ -1055,7 +1055,7 @@ declare module 'vscode' {
 		/**
 		 * A message that should be rendered when hovering over the decoration.
 		 */
-		hoverMessage?: MarkedString | MarkedString[];
+		hoverMessage?: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>;
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
@@ -1700,6 +1700,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -1726,6 +1727,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the picker open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 	}
@@ -1858,6 +1860,12 @@ declare module 'vscode' {
 		 * Indicates that this message should be modal.
 		 */
 		modal?: boolean;
+
+		/**
+		 * Human-readable detail message that is rendered less prominent. _Note_ that detail
+		 * is only shown for {@link MessageOptions.modal modal} messages.
+		 */
+		detail?: string;
 	}
 
 	/**
@@ -1900,6 +1908,7 @@ declare module 'vscode' {
 
 		/**
 		 * Set to `true` to keep the input box open when focus moves to another part of the editor or to another window.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut?: boolean;
 
@@ -2560,8 +2569,8 @@ declare module 'vscode' {
 	 * The MarkdownString represents human-readable text that supports formatting via the
 	 * markdown syntax. Standard markdown is supported, also tables, but no embedded html.
 	 *
-	 * When created with `supportThemeIcons` then rendering of {@link ThemeIcon theme icons} via
-	 * the `$(<name>)`-syntax is supported.
+	 * Rendering of {@link ThemeIcon theme icons} via the `$(<name>)`-syntax is supported
+	 * when the {@link MarkdownString.supportThemeIcons `supportThemeIcons`} is set to `true`.
 	 */
 	export class MarkdownString {
 
@@ -2579,7 +2588,7 @@ declare module 'vscode' {
 		/**
 		 * Indicates that this markdown string can contain {@link ThemeIcon ThemeIcons}, e.g. `$(zap)`.
 		 */
-		readonly supportThemeIcons?: boolean;
+		supportThemeIcons?: boolean;
 
 		/**
 		 * Creates a new markdown string with the given value.
@@ -2616,7 +2625,7 @@ declare module 'vscode' {
 	 *
 	 * @deprecated This type is deprecated, please use {@link MarkdownString `MarkdownString`} instead.
 	 */
-	export type MarkedString = MarkdownString | string | { language: string; value: string };
+	export type MarkedString = string | { language: string; value: string };
 
 	/**
 	 * A hover represents additional information for a symbol or word. Hovers are
@@ -2627,7 +2636,7 @@ declare module 'vscode' {
 		/**
 		 * The contents of this hover.
 		 */
-		contents: MarkedString[];
+		contents: Array<MarkdownString | MarkedString>;
 
 		/**
 		 * The range to which this hover applies. When missing, the
@@ -2642,7 +2651,7 @@ declare module 'vscode' {
 		 * @param contents The contents of the hover.
 		 * @param range The range to which the hover applies.
 		 */
-		constructor(contents: MarkedString | MarkedString[], range?: Range);
+		constructor(contents: MarkdownString | MarkedString | Array<MarkdownString | MarkedString>, range?: Range);
 	}
 
 	/**
@@ -5127,7 +5136,7 @@ declare module 'vscode' {
 		 *	- configuration to workspace folder when there is no workspace folder settings.
 		 *	- configuration to workspace folder when {@link WorkspaceConfiguration} is not scoped to a resource.
 		 */
-		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean, overrideInLanguage?: boolean): Thenable<void>;
+		update(section: string, value: any, configurationTarget?: ConfigurationTarget | boolean | null, overrideInLanguage?: boolean): Thenable<void>;
 
 		/**
 		 * Readable dictionary that backs this configuration.
@@ -5792,7 +5801,7 @@ declare module 'vscode' {
 	/**
 	 * A link on a terminal line.
 	 */
-	export interface TerminalLink {
+	export class TerminalLink {
 		/**
 		 * The start index of the link on {@link TerminalLinkContext.line}.
 		 */
@@ -5811,6 +5820,47 @@ declare module 'vscode' {
 		 * depending on OS, user settings, and localization.
 		 */
 		tooltip?: string;
+
+		/**
+		 * Creates a new terminal link.
+		 * @param startIndex The start index of the link on {@link TerminalLinkContext.line}.
+		 * @param length The length of the link on {@link TerminalLinkContext.line}.
+		 * @param tooltip The tooltip text when you hover over this link.
+		 *
+		 * If a tooltip is provided, is will be displayed in a string that includes instructions on
+		 * how to trigger the link, such as `{0} (ctrl + click)`. The specific instructions vary
+		 * depending on OS, user settings, and localization.
+		 */
+		constructor(startIndex: number, length: number, tooltip?: string);
+	}
+
+	/**
+	 * Provides a terminal profile for the contributed terminal profile when launched via the UI or
+	 * command.
+	 */
+	export interface TerminalProfileProvider {
+		/**
+		 * Provide the terminal profile.
+		 * @param token A cancellation token that indicates the result is no longer needed.
+		 * @returns The terminal profile.
+		 */
+		provideTerminalProfile(token: CancellationToken): ProviderResult<TerminalProfile>;
+	}
+
+	/**
+	 * A terminal profile defines how a terminal will be launched.
+	 */
+	export class TerminalProfile {
+		/**
+		 * The options that the terminal will launch with.
+		 */
+		options: TerminalOptions | ExtensionTerminalOptions;
+
+		/**
+		 * Creates a new terminal profile.
+		 * @param options The options that the terminal will launch with.
+		 */
+		constructor(options: TerminalOptions | ExtensionTerminalOptions);
 	}
 
 	/**
@@ -7605,8 +7655,8 @@ declare module 'vscode' {
 	}
 
 	/**
- * A webview based view.
- */
+	 * A webview based view.
+	 */
 	export interface WebviewView {
 		/**
 		 * Identifies the type of the webview view, such as `'hexEditor.dataView'`.
@@ -8219,7 +8269,7 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse('${vscode.env.uriScheme}://my.extension/did-authenticate'));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *
@@ -8995,6 +9045,12 @@ declare module 'vscode' {
 		export function registerTerminalLinkProvider(provider: TerminalLinkProvider): Disposable;
 
 		/**
+		 * Registers a provider for a contributed terminal profile.
+		 * @param id The ID of the contributed terminal profile.
+		 * @param provider The terminal profile provider.
+		 */
+		export function registerTerminalProfileProvider(id: string, provider: TerminalProfileProvider): Disposable;
+		/**
 		 * Register a file decoration provider.
 		 *
 		 * @param provider A {@link FileDecorationProvider}.
@@ -9385,6 +9441,11 @@ declare module 'vscode' {
 		 * a setting text style.
 		 */
 		message?: string;
+
+		/**
+		 * The icon path or {@link ThemeIcon} for the terminal.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
@@ -9401,6 +9462,11 @@ declare module 'vscode' {
 		 * control a terminal.
 		 */
 		pty: Pseudoterminal;
+
+		/**
+		 * The icon path or {@link ThemeIcon} for the terminal.
+		 */
+		iconPath?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 	}
 
 	/**
@@ -9798,6 +9864,7 @@ declare module 'vscode' {
 
 		/**
 		 * If the UI should stay open even when loosing UI focus. Defaults to false.
+		 * This setting is ignored on iPad and is always false.
 		 */
 		ignoreFocusOut: boolean;
 
@@ -11736,9 +11803,9 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * NotebookData is the raw representation of notebooks.
+	 * Raw representation of a notebook.
 	 *
-	 * Extensions are responsible to create {@link NotebookData `NotebookData`} so that the editor
+	 * Extensions are responsible for creating {@link NotebookData `NotebookData`} so that the editor
 	 * can create a {@link NotebookDocument `NotebookDocument`}.
 	 *
 	 * @see {@link NotebookSerializer}

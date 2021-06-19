@@ -31,7 +31,7 @@ export class ToggleCellToolbarPositionAction extends Action2 {
 		const editor = context && context.ui ? (context as INotebookActionContext).notebookEditor : undefined;
 		if (editor && editor.hasModel()) {
 			// from toolbar
-			const viewType = editor.viewModel.viewType;
+			const viewType = editor.textModel.viewType;
 			const configurationService = accessor.get(IConfigurationService);
 			const toolbarPosition = configurationService.getValue<string | { [key: string]: string }>(CellToolbarLocation);
 			const newConfig = this.togglePosition(viewType, toolbarPosition);

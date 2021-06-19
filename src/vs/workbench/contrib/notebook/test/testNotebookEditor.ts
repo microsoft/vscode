@@ -21,7 +21,7 @@ import { NotebookEventDispatcher } from 'vs/workbench/contrib/notebook/browser/v
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellUri, INotebookDiffEditorModel, INotebookEditorModel, IOutputDto, IResolvedNotebookEditorModel, NotebookCellMetadata, SelectionStateType, } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -45,6 +45,8 @@ import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/work
 import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
+import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { Mimes } from 'vs/base/common/mime';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -56,7 +58,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		modeService: IModeService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
 	}
 }
 
@@ -165,7 +167,7 @@ export function setupInstantiationService() {
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
 
 	const viewType = 'notebook';
 	const notebook = instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map(cell => {
@@ -179,8 +181,9 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	}), {}, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false });
 
 	const model = new NotebookEditorTestModel(notebook);
-	const viewContext = new ViewContext(new NotebookOptions(instantiationService.get(IConfigurationService)), new NotebookEventDispatcher());
-	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null);
+	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
+	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
+	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
 	const cellList = createNotebookCellList(instantiationService, viewContext);
 	cellList.attachViewModel(viewModel);
@@ -190,6 +193,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override dispose() {
 			viewModel.dispose();
 		}
+		override notebookOptions = notebookOptions;
 		override onDidChangeModel: Event<NotebookTextModel | undefined> = new Emitter<NotebookTextModel | undefined>().event;
 		override get viewModel() { return viewModel; }
 		override get textModel() { return viewModel.notebookDocument; }
@@ -198,6 +202,20 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		}
 		override getFocus() { return viewModel.getFocus(); }
 		override getSelections() { return viewModel.getSelections(); }
+		override setFocus(focus: ICellRange) {
+			viewModel.updateSelectionsState({
+				kind: SelectionStateType.Index,
+				focus: focus,
+				selections: viewModel.getSelections()
+			});
+		}
+		override setSelections(selections: ICellRange[]) {
+			viewModel.updateSelectionsState({
+				kind: SelectionStateType.Index,
+				focus: viewModel.getFocus(),
+				selections: selections
+			});
+		}
 		override getViewIndex(cell: ICellViewModel) { return listViewInfoAccessor.getViewIndex(cell); }
 		override getCellRangeFromViewRange(startIndex: number, endIndex: number) { return listViewInfoAccessor.getCellRangeFromViewRange(startIndex, endIndex); }
 		override revealCellRangeInView() { }
@@ -220,12 +238,15 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override focusElement() { }
 		override setCellEditorSelection() { }
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
+		override getOutputRenderer() { return new OutputRenderer(notebookEditor, instantiationService); }
+		override async layoutNotebookCell() { }
+		override async removeInset() { }
 	};
 
-	return notebookEditor;
+	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): IActiveNotebookEditor {
+export function createTestNotebookEditor(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditor, viewModel: NotebookViewModel; } {
 	return _createTestNotebookEditor(setupInstantiationService(), cells);
 }
 
@@ -257,25 +278,33 @@ export async function withTestNotebookDiffModel<R = any>(originalCells: [source:
 	const res = await callback(model, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => {
-			originalNotebook.dispose();
-			modifiedNotebook.dispose();
+			originalNotebook.editor.dispose();
+			originalNotebook.viewModel.dispose();
+			modifiedNotebook.editor.dispose();
+			modifiedNotebook.viewModel.dispose();
 		});
 	} else {
-		originalNotebook.dispose();
-		modifiedNotebook.dispose();
+		originalNotebook.editor.dispose();
+		originalNotebook.viewModel.dispose();
+		modifiedNotebook.editor.dispose();
+		modifiedNotebook.viewModel.dispose();
 	}
 	return res;
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
-	const instantiationService = setupInstantiationService();
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveNotebookEditor, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+	const instantiationService = accessor ?? setupInstantiationService();
 	const notebookEditor = _createTestNotebookEditor(instantiationService, cells);
 
-	const res = await callback(notebookEditor, instantiationService);
+	const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
 	if (res instanceof Promise) {
-		res.finally(() => notebookEditor.dispose());
+		res.finally(() => {
+			notebookEditor.editor.dispose();
+			notebookEditor.viewModel.dispose();
+		});
 	} else {
-		notebookEditor.dispose();
+		notebookEditor.editor.dispose();
+		notebookEditor.viewModel.dispose();
 	}
 	return res;
 }
@@ -314,4 +343,8 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 	);
 
 	return cellList;
+}
+
+export function valueBytesFromString(value: string) {
+	return new TextEncoder().encode(value);
 }

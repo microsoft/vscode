@@ -17,7 +17,7 @@ import { DiffElementViewModelBase, SideBySideDiffElementViewModel, SingleSideDif
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { CellDiffSideBySideRenderer, CellDiffSingleSideRenderer, NotebookCellTextDiffListDelegate, NotebookTextDiffList } from 'vs/workbench/contrib/notebook/browser/diff/notebookTextDiffList';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { diffDiagonalFill, diffInserted, diffRemoved, editorBackground, focusBorder, foreground, iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { INotebookEditorWorkerService } from 'vs/workbench/contrib/notebook/common/services/notebookWorkerService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -140,19 +140,19 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		}
 	}
 
-	setMarkdownCellEditState(cellId: string, editState: CellEditState): void {
+	setMarkupCellEditState(cellId: string, editState: CellEditState): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragStart(cellId: string, event: { dragOffsetY: number; }): void {
+	didStartDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDrag(cellId: string, event: { dragOffsetY: number; }): void {
+	didDragMarkupCell(cellId: string, event: { dragOffsetY: number; }): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDragEnd(cellId: string): void {
+	didEndDragMarkupCell(cellId: string): void {
 		// throw new Error('Method not implemented.');
 	}
-	markdownCellDrop(cellId: string) {
+	didDropMarkupCell(cellId: string) {
 		// throw new Error('Method not implemented.');
 	}
 
@@ -190,6 +190,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
 					listActiveSelectionForeground: foreground,
+					listActiveSelectionIconForeground: iconForeground,
 					listFocusAndSelectionBackground: editorBackground,
 					listFocusAndSelectionForeground: foreground,
 					listFocusBackground: editorBackground,
@@ -618,7 +619,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		const webview = diffSide === DiffSide.Modified ? this._modifiedWebview : this._originalWebview;
 
 		DOM.scheduleAtNextAnimationFrame(() => {
-			webview?.ackHeight(cellInfo.cellId, outputId, height);
+			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
 		}, 10);
 	}
 
@@ -679,7 +680,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		});
 	}
 
-	updateMarkdownCellHeight() {
+	updateMarkupCellHeight() {
 		// TODO
 	}
 

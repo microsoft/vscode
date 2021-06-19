@@ -6,7 +6,7 @@
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { isArray, isStringArray } from 'vs/base/common/types';
@@ -15,7 +15,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { FileSystemProviderErrorCode, markAsFileSystemProviderError } from 'vs/platform/files/common/files';
 import { RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { getPrivateApiFor, ExtHostTestItemEventType, IExtHostTestItemApi } from 'vs/workbench/api/common/extHostTestingPrivateApi';
-import { CellEditType, ICellEditOperation } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, ICellPartialMetadataEdit, IDocumentMetadataEdit } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import type * as vscode from 'vscode';
 
 function es5ClassCompat(target: Function): any {
@@ -588,9 +588,7 @@ export const enum FileEditType {
 	File = 1,
 	Text = 2,
 	Cell = 3,
-	CellOutput = 4,
 	CellReplace = 5,
-	CellOutputItem = 6
 }
 
 export interface IFileOperation {
@@ -611,7 +609,7 @@ export interface IFileTextEdit {
 export interface IFileCellEdit {
 	_type: FileEditType.Cell;
 	uri: URI;
-	edit?: ICellEditOperation;
+	edit?: ICellPartialMetadataEdit | IDocumentMetadataEdit;
 	notebookMetadata?: Record<string, any>;
 	metadata?: vscode.WorkspaceEditEntryMetadata;
 }
@@ -625,28 +623,8 @@ export interface ICellEdit {
 	cells: vscode.NotebookCellData[];
 }
 
-export interface ICellOutputEdit {
-	_type: FileEditType.CellOutput;
-	uri: URI;
-	index: number;
-	append: boolean;
-	newOutputs?: NotebookCellOutput[];
-	newMetadata?: Record<string, any>;
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-}
 
-export interface ICellOutputItemsEdit {
-	_type: FileEditType.CellOutputItem;
-	uri: URI;
-	index: number;
-	outputId: string;
-	append: boolean;
-	newOutputItems?: NotebookCellOutputItem[];
-	metadata?: vscode.WorkspaceEditEntryMetadata;
-}
-
-
-type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit | ICellOutputEdit | ICellOutputItemsEdit;
+type WorkspaceEditEntry = IFileOperation | IFileTextEdit | IFileCellEdit | ICellEdit;
 
 @es5ClassCompat
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
@@ -1019,20 +997,18 @@ export class Diagnostic {
 @es5ClassCompat
 export class Hover {
 
-	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
+	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
 
 	constructor(
-		contents: vscode.MarkdownString | vscode.MarkedString | vscode.MarkdownString[] | vscode.MarkedString[],
+		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range
 	) {
 		if (!contents) {
 			throw new Error('Illegal argument, contents must be defined');
 		}
 		if (Array.isArray(contents)) {
-			this.contents = <vscode.MarkdownString[] | vscode.MarkedString[]>contents;
-		} else if (isMarkdownString(contents)) {
-			this.contents = [contents];
+			this.contents = contents;
 		} else {
 			this.contents = [contents];
 		}
@@ -1354,6 +1330,10 @@ export class MarkdownString implements vscode.MarkdownString {
 
 	get supportThemeIcons(): boolean | undefined {
 		return this.#delegate.supportThemeIcons;
+	}
+
+	set supportThemeIcons(value: boolean | undefined) {
+		this.#delegate.supportThemeIcons = value;
 	}
 
 	appendText(value: string): vscode.MarkdownString {
@@ -1727,6 +1707,34 @@ export enum SourceControlInputBoxValidationType {
 	Error = 0,
 	Warning = 1,
 	Information = 2
+}
+
+export class TerminalLink implements vscode.TerminalLink {
+	constructor(
+		public startIndex: number,
+		public length: number,
+		public tooltip?: string
+	) {
+		if (typeof startIndex !== 'number' || startIndex < 0) {
+			throw illegalArgument('startIndex');
+		}
+		if (typeof length !== 'number' || length < 1) {
+			throw illegalArgument('length');
+		}
+		if (tooltip !== undefined && typeof tooltip !== 'string') {
+			throw illegalArgument('tooltip');
+		}
+	}
+}
+
+export class TerminalProfile implements vscode.TerminalProfile {
+	constructor(
+		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
+	) {
+		if (typeof options !== 'object') {
+			illegalArgument('options');
+		}
+	}
 }
 
 export enum TaskRevealKind {
@@ -3009,14 +3017,16 @@ export class NotebookCellData {
 	kind: NotebookCellKind;
 	value: string;
 	languageId: string;
+	mime?: string;
 	outputs?: vscode.NotebookCellOutput[];
 	metadata?: Record<string, any>;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
+		this.mime = mime;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.executionSummary = executionSummary;
@@ -3397,6 +3407,7 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 		}
 
 		api.children.set(child.id, child);
+		getPrivateApiFor(child).parent = this;
 		api.bus.fire([ExtHostTestItemEventType.NewChild, child]);
 	}
 }
@@ -3437,5 +3448,6 @@ export enum PortAutoForwardAction {
 	OpenBrowser = 2,
 	OpenPreview = 3,
 	Silent = 4,
-	Ignore = 5
+	Ignore = 5,
+	OpenBrowserOnce = 6
 }

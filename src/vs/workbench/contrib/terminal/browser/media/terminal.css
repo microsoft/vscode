@@ -17,40 +17,60 @@
 .monaco-workbench .pane-body.integrated-terminal .terminal-outer-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-groups-container,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group,
-.monaco-workbench .pane-body.integrated-terminal .terminal-split-pane {
+.monaco-workbench .pane-body.integrated-terminal .terminal-split-pane,
+.monaco-workbench .editor-instance .terminal-split-pane,
+.monaco-workbench .editor-instance .terminal-outer-container {
 	height: 100%;
 }
 
+/* Override monaco's cursor focus outline */
+.monaco-workbench .editor-instance textarea:focus {
+	outline: 0 !important;
+}
+
+.monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;
 	margin: 0 10px;
 	bottom: 2px;
 }
+
+.monaco-workbench .editor-instance .terminal-wrapper.active,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	display: block;
+}
+
+.monaco-workbench .pane-body.integrated-terminal .terminal-wrapper.active {
 	position: absolute;
 	top: 0;
 }
+
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:first-child .terminal-wrapper {
 	margin-left: 20px;
 }
+.monaco-workbench .editor-instance .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .terminal-wrapper {
 	margin-right: 20px;
 }
 
+.monaco-workbench .editor-instance .xterm a:not(.xterm-invalid-link),
 .monaco-workbench .pane-body.integrated-terminal .xterm a:not(.xterm-invalid-link) {
 	/* To support message box sizing */
 	position: relative;
 }
 
+.monaco-workbench .editor-instance  .terminal-wrapper > div,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper > div {
 	height: 100%;
 }
 
+.monaco-workbench .editor-instance  .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .xterm-viewport {
 	box-sizing: border-box;
 	margin-right: -10px;
 }
+.monaco-workbench .editor-instance  .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport,
 .monaco-workbench .pane-body.integrated-terminal .terminal-group .monaco-split-view2.horizontal .split-view-view:last-child .xterm-viewport {
 	margin-right: -20px;
 }

@@ -35,7 +35,7 @@ import {
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -61,7 +61,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from 'vs/workbench/co
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { TokenizationRegistry } from 'vs/editor/common/modes';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -1490,6 +1490,21 @@ registerAction2(class StartExtensionEditorFindPreviousAction extends Action2 {
 			extensionEditor.runFindAction(true);
 		}
 	}
+});
+
+registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+
+	const link = theme.getColor(textLinkForeground);
+	if (link) {
+		collector.addRule(`.monaco-workbench .extension-editor .subcontent a { color: ${link}; }`);
+	}
+
+	const activeLink = theme.getColor(textLinkActiveForeground);
+	if (activeLink) {
+		collector.addRule(`.monaco-workbench .extension-editor .subcontent a:hover,
+			.monaco-workbench .extension-editor .subcontent a:active { color: ${activeLink}; }`);
+	}
+
 });
 
 function getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor | null {
