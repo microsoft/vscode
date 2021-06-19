@@ -169,27 +169,62 @@ export async function formatDocumentRangesWithProvider(
 		}
 	}
 
-	const allEdits: TextEdit[] = [];
+	const computeEdits = async (range: Range) => {
+		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+			model,
+			range,
+			model.getFormattingOptions(),
+			cts.token
+		);
+		return (await workerService.computeMoreMinimalEdits(model.uri, rawEdits)) || [];
+	};
+
+	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
+		for (let edit of a) {
+			for (let otherEdit of b) {
+				if (Range.intersectRanges(edit.range, otherEdit.range)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	};
+
+	const rawEditsList: TextEdit[][] = [];
 	try {
 		for (let range of ranges) {
-			const rawEdits = await provider.provideDocumentRangeFormattingEdits(
-				model,
-				range,
-				model.getFormattingOptions(),
-				cts.token
-			);
-			const minEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
-			if (minEdits) {
-				allEdits.push(...minEdits);
-			}
+			rawEditsList.push(await computeEdits(range));
 			if (cts.token.isCancellationRequested) {
 				return true;
+			}
+		}
+
+		for (let i = 0; i < ranges.length; ++i) {
+			for (let j = i + 1; j < ranges.length; ++j) {
+				if (cts.token.isCancellationRequested) {
+					return true;
+				}
+				if (hasIntersectingEdit(rawEditsList[i], rawEditsList[j])) {
+					// Merge ranges i and j into a single range, recompute the associated edits
+					const mergedRange = Range.plusRange(ranges[i], ranges[j]);
+					const edits = await computeEdits(mergedRange);
+					ranges.splice(j, 1);
+					ranges.splice(i, 1);
+					ranges.push(mergedRange);
+					rawEditsList.splice(j, 1);
+					rawEditsList.splice(i, 1);
+					rawEditsList.push(edits);
+					// Restart scanning
+					i = 0;
+					j = 0;
+				}
 			}
 		}
 	} finally {
 		cts.dispose();
 	}
 
+	const allEdits = rawEditsList.reduce((acc, val) => acc.concat(val), []);
 	if (allEdits.length === 0) {
 		return false;
 	}
