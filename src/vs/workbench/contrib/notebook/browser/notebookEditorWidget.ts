@@ -35,7 +35,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, iconForeground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { contrastBorder, diffInserted, diffRemoved, editorBackground, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textBlockQuoteBackground, textBlockQuoteBorder, textLinkActiveForeground, textLinkForeground, textPreformatForeground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorMemento } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorMemento } from 'vs/workbench/common/editor';
@@ -852,13 +852,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				selectionNavigation: true,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
+				useActiveIcons: false,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {
 					listBackground: editorBackground,
 					listActiveSelectionBackground: editorBackground,
 					listActiveSelectionForeground: foreground,
-					listActiveSelectionIconForeground: iconForeground,
 					listFocusAndSelectionBackground: editorBackground,
 					listFocusAndSelectionForeground: foreground,
 					listFocusBackground: editorBackground,

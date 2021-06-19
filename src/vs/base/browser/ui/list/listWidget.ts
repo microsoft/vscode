@@ -755,8 +755,9 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
+		// relies on 'useActiveIcons' list option
 		if (styles.listActiveSelectionIconForeground) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-rows[useActiveIcons="true"] .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {
@@ -884,6 +885,7 @@ export interface IListOptions<T> {
 	readonly transformOptimization?: boolean;
 	readonly smoothScrolling?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
+	readonly useActiveIcons?: boolean;
 }
 
 export interface IListStyles {

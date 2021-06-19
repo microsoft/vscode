@@ -222,7 +222,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			hideTwistiesOfChildlessElements: true,
+			useActiveIcons: false
 		};
 
 		super(
@@ -244,7 +245,6 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			listFocusOutline: focusBorder,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: settingsHeaderForeground,
-			listActiveSelectionIconForeground: iconForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: settingsHeaderForeground,
 			listFocusBackground: editorBackground,

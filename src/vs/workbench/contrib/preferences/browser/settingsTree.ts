@@ -2000,6 +2000,7 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				filter: instantiationService.createInstance(SettingsTreeFilter, viewState),
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
+				useActiveIcons: false
 			},
 			contextKeyService,
 			listService,
@@ -2082,7 +2083,6 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 			listBackground: editorBackground,
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
-			listActiveSelectionIconForeground: iconForeground,
 			listFocusAndSelectionBackground: editorBackground,
 			listFocusAndSelectionForeground: foreground,
 			listFocusBackground: editorBackground,
