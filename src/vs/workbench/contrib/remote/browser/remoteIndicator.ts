@@ -8,11 +8,11 @@ import { STATUS_BAR_HOST_NAME_BACKGROUND, STATUS_BAR_HOST_NAME_FOREGROUND } from
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
-import { MenuId, IMenuService, MenuItemAction, IMenu, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
+import { MenuId, IMenuService, MenuItemAction, MenuRegistry, registerAction2, Action2, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { StatusbarAlignment, IStatusbarService, IStatusbarEntryAccessor, IStatusbarEntry } from 'vs/workbench/services/statusbar/common/statusbar';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -24,23 +24,44 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isWeb } from 'vs/base/common/platform';
 import { once } from 'vs/base/common/functional';
 import { truncate } from 'vs/base/common/strings';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { getRemoteName, getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ReloadWindowAction } from 'vs/workbench/browser/actions/windowActions';
+import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { IExtensionsViewPaneContainer, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { RemoteNameContext, VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 
+
+type ActionGroup = [string, Array<MenuItemAction | SubmenuItemAction>];
 export class RemoteStatusIndicator extends Disposable implements IWorkbenchContribution {
 
 	private static readonly REMOTE_ACTIONS_COMMAND_ID = 'workbench.action.remote.showMenu';
 	private static readonly CLOSE_REMOTE_COMMAND_ID = 'workbench.action.remote.close';
 	private static readonly SHOW_CLOSE_REMOTE_COMMAND_ID = !isWeb; // web does not have a "Close Remote" command
+	private static readonly INSTALL_REMOTE_EXTENSIONS_ID = 'workbench.action.remote.extensions';
 
 	private static readonly REMOTE_STATUS_LABEL_MAX_LENGTH = 40;
 
 	private remoteStatusEntry: IStatusbarEntryAccessor | undefined;
 
-	private readonly remoteMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService));
-	private hasRemoteActions = false;
+	private readonly legacyIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarWindowIndicatorMenu, this.contextKeyService)); // to be removed once migration completed
+	private readonly remoteIndicatorMenu = this._register(this.menuService.createMenu(MenuId.StatusBarRemoteIndicatorMenu, this.contextKeyService));
+
+	private remoteMenuActionsGroups: ActionGroup[] | undefined;
 
 	private readonly remoteAuthority = this.environmentService.remoteAuthority;
-	private connectionState: 'initializing' | 'connected' | 'disconnected' | undefined = undefined;
+
+	private virtualWorkspaceLocation: { scheme: string; authority: string } | undefined = undefined;
+
+	private connectionState: 'initializing' | 'connected' | 'reconnecting' | 'disconnected' | undefined = undefined;
 	private readonly connectionStateContextKey = new RawContextKey<'' | 'initializing' | 'disconnected' | 'connected'>('remoteConnectionState', '').bindTo(this.contextKeyService);
+
+	private loggedInvalidGroupNames: { [group: string]: boolean } = Object.create(null);
 
 	constructor(
 		@IStatusbarService private readonly statusbarService: IStatusbarService,
@@ -53,7 +74,10 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly remoteAuthorityResolverService: IRemoteAuthorityResolverService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILogService private readonly logService: ILogService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService
 	) {
 		super();
 
@@ -61,6 +85,8 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.remoteAuthority) {
 			this.connectionState = 'initializing';
 			this.connectionStateContextKey.set(this.connectionState);
+		} else {
+			this.updateVirtualWorkspaceLocation();
 		}
 
 		this.registerActions();
@@ -84,38 +110,70 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 					f1: true,
 				});
 			}
-			run = () => that.showRemoteMenu(that.remoteMenu);
+			run = () => that.showRemoteMenu();
 		});
 
 		// Close Remote Connection
-		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID && this.remoteAuthority) {
+		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
 			registerAction2(class extends Action2 {
 				constructor() {
 					super({
 						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
 						category,
 						title: { value: nls.localize('remote.close', "Close Remote Connection"), original: 'Close Remote Connection' },
+						f1: true,
+						precondition: ContextKeyExpr.or(RemoteNameContext, VirtualWorkspaceContext)
+					});
+				}
+				run = () => that.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: null });
+			});
+			if (this.remoteAuthority) {
+				MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+					group: '6_close',
+					command: {
+						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
+						title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
+					},
+					order: 3.5
+				});
+			}
+		}
+
+		if (this.extensionGalleryService.isEnabled()) {
+			registerAction2(class extends Action2 {
+				constructor() {
+					super({
+						id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
+						category,
+						title: { value: nls.localize('remote.install', "Install Remote Development Extensions"), original: 'Install Remote Development Extensions' },
 						f1: true
 					});
 				}
-				run = () => that.remoteAuthority && that.hostService.openWindow({ forceReuseWindow: true });
-			});
-
-			MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-				group: '6_close',
-				command: {
-					id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-					title: nls.localize({ key: 'miCloseRemote', comment: ['&& denotes a mnemonic'] }, "Close Re&&mote Connection")
-				},
-				order: 3.5
+				run = (accessor: ServicesAccessor, input: string) => {
+					const viewletService = accessor.get(IViewletService);
+					return viewletService.openViewlet(VIEWLET_ID, true).then(viewlet => {
+						if (viewlet) {
+							(viewlet?.getViewPaneContainer() as IExtensionsViewPaneContainer).search(`tag:"remote-menu"`);
+							viewlet.focus();
+						}
+					});
+				};
 			});
 		}
+
+
 	}
 
 	private registerListeners(): void {
 
 		// Menu changes
-		this._register(this.remoteMenu.onDidChange(() => this.updateRemoteActions()));
+		const updateRemoteActions = () => {
+			this.remoteMenuActionsGroups = undefined;
+			this.updateRemoteStatusIndicator();
+		};
+
+		this._register(this.legacyIndicatorMenu.onDidChange(updateRemoteActions));
+		this._register(this.remoteIndicatorMenu.onDidChange(updateRemoteActions));
 
 		// Update indicator when formatter changes as it may have an impact on the remote label
 		this._register(this.labelService.onDidChangeFormatters(() => this.updateRemoteStatusIndicator()));
@@ -133,18 +191,29 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				this._register(connection.onDidStateChange((e) => {
 					switch (e.type) {
 						case PersistentConnectionEventType.ConnectionLost:
-						case PersistentConnectionEventType.ReconnectionPermanentFailure:
 						case PersistentConnectionEventType.ReconnectionRunning:
 						case PersistentConnectionEventType.ReconnectionWait:
-							this.setDisconnected(true);
+							this.setState('reconnecting');
+							break;
+						case PersistentConnectionEventType.ReconnectionPermanentFailure:
+							this.setState('disconnected');
 							break;
 						case PersistentConnectionEventType.ConnectionGain:
-							this.setDisconnected(false);
+							this.setState('connected');
 							break;
 					}
 				}));
 			}
+		} else {
+			this._register(this.workspaceContextService.onDidChangeWorkbenchState(() => {
+				this.updateVirtualWorkspaceLocation();
+				this.updateRemoteStatusIndicator();
+			}));
 		}
+	}
+
+	private updateVirtualWorkspaceLocation() {
+		this.virtualWorkspaceLocation = getVirtualWorkspaceLocation(this.workspaceContextService.getWorkspace());
 	}
 
 	private async updateWhenInstalledExtensionsRegistered(): Promise<void> {
@@ -158,9 +227,9 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				try {
 					await this.remoteAuthorityResolverService.resolveAuthority(remoteAuthority);
 
-					this.setDisconnected(false);
+					this.setState('connected');
 				} catch (error) {
-					this.setDisconnected(true);
+					this.setState('disconnected');
 				}
 			})();
 		}
@@ -168,70 +237,118 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		this.updateRemoteStatusIndicator();
 	}
 
-	private setDisconnected(isDisconnected: boolean): void {
-		const newState = isDisconnected ? 'disconnected' : 'connected';
+	private setState(newState: 'disconnected' | 'connected' | 'reconnecting'): void {
 		if (this.connectionState !== newState) {
 			this.connectionState = newState;
-			this.connectionStateContextKey.set(this.connectionState);
+
+			// simplify context key which doesn't support `connecting`
+			if (this.connectionState === 'reconnecting') {
+				this.connectionStateContextKey.set('disconnected');
+			} else {
+				this.connectionStateContextKey.set(this.connectionState);
+			}
 
 			this.updateRemoteStatusIndicator();
 		}
 	}
 
-	private updateRemoteActions() {
-		const newHasWindowActions = this.remoteMenu.getActions().length > 0;
-		if (newHasWindowActions !== this.hasRemoteActions) {
-			this.hasRemoteActions = newHasWindowActions;
-
-			this.updateRemoteStatusIndicator();
+	private validatedGroup(group: string) {
+		if (!group.match(/^(remote|virtualfs)_(\d\d)_(([a-z][a-z0-9+\-.]*)_(.*))$/)) {
+			if (!this.loggedInvalidGroupNames[group]) {
+				this.loggedInvalidGroupNames[group] = true;
+				this.logService.warn(`Invalid group name used in "statusBar/remoteIndicator" menu contribution: ${group}. Entries ignored. Expected format: 'remote_$ORDER_$REMOTENAME_$GROUPING or 'virtualfs_$ORDER_$FILESCHEME_$GROUPING.`);
+			}
+			return false;
 		}
+		return true;
+	}
+
+	private getRemoteMenuActions(doNotUseCache?: boolean): ActionGroup[] {
+		if (!this.remoteMenuActionsGroups || doNotUseCache) {
+			this.remoteMenuActionsGroups = this.remoteIndicatorMenu.getActions().filter(a => this.validatedGroup(a[0])).concat(this.legacyIndicatorMenu.getActions());
+		}
+		return this.remoteMenuActionsGroups;
 	}
 
 	private updateRemoteStatusIndicator(): void {
 
-		// Remote indicator: show if provided via options
+		// Remote Indicator: show if provided via options
 		const remoteIndicator = this.environmentService.options?.windowIndicator;
 		if (remoteIndicator) {
 			this.renderRemoteStatusIndicator(truncate(remoteIndicator.label, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH), remoteIndicator.tooltip, remoteIndicator.command);
+			return;
 		}
 
 		// Remote Authority: show connection state
-		else if (this.remoteAuthority) {
+		if (this.remoteAuthority) {
 			const hostLabel = this.labelService.getHostLabel(Schemas.vscodeRemote, this.remoteAuthority) || this.remoteAuthority;
 			switch (this.connectionState) {
 				case 'initializing':
 					this.renderRemoteStatusIndicator(nls.localize('host.open', "Opening Remote..."), nls.localize('host.open', "Opening Remote..."), undefined, true /* progress */);
 					break;
+				case 'reconnecting':
+					this.renderRemoteStatusIndicator(`${nls.localize('host.reconnecting', "Reconnecting to {0}...", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, undefined, undefined, true);
+					break;
 				case 'disconnected':
-					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`, nls.localize('host.tooltipDisconnected', "Disconnected from {0}", hostLabel));
+					this.renderRemoteStatusIndicator(`$(alert) ${nls.localize('disconnectedFrom', "Disconnected from {0}", truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH))}`);
 					break;
 				default:
-					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, nls.localize('host.tooltip', "Editing on {0}", hostLabel));
+					const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+					const hostNameTooltip = this.labelService.getHostTooltip(Schemas.vscodeRemote, this.remoteAuthority);
+					if (hostNameTooltip) {
+						tooltip.appendMarkdown(hostNameTooltip);
+					} else {
+						tooltip.appendText(nls.localize({ key: 'host.tooltip', comment: ['{0} is a remote host name, e.g. Dev Container'] }, "Editing on {0}", hostLabel));
+					}
+					this.renderRemoteStatusIndicator(`$(remote) ${truncate(hostLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+			}
+			return;
+		} else if (this.virtualWorkspaceLocation) {
+			// Workspace with label: indicate editing source
+			const workspaceLabel = this.labelService.getHostLabel(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
+			if (workspaceLabel) {
+				const tooltip = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
+				const hostNameTooltip = this.labelService.getHostTooltip(this.virtualWorkspaceLocation.scheme, this.virtualWorkspaceLocation.authority);
+				if (hostNameTooltip) {
+					tooltip.appendMarkdown(hostNameTooltip);
+				} else {
+					tooltip.appendText(nls.localize({ key: 'workspace.tooltip', comment: ['{0} is a remote workspace name, e.g. GitHub'] }, "Editing on {0}", workspaceLabel));
+				}
+				if (!isWeb) {
+					tooltip.appendMarkdown('\n\n');
+					tooltip.appendMarkdown(nls.localize(
+						{ key: 'workspace.tooltip2', comment: ['[features are not available]({1}) is a link. Only translate `features are not available`. Do not change brackets and parentheses or {0}'] },
+						"Some [features are not available]({0}) for resources located on a virtual file system.",
+						`command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`
+					));
+				}
+				this.renderRemoteStatusIndicator(`$(remote) ${truncate(workspaceLabel, RemoteStatusIndicator.REMOTE_STATUS_LABEL_MAX_LENGTH)}`, tooltip);
+				return;
 			}
 		}
-
-		// Remote Extensions Installed: offer the indicator to show actions
-		else if (this.remoteMenu.getActions().length > 0) {
+		// Remote actions: offer menu
+		if (this.getRemoteMenuActions().length > 0) {
 			this.renderRemoteStatusIndicator(`$(remote)`, nls.localize('noHost.tooltip', "Open a Remote Window"));
+			return;
 		}
 
 		// No Remote Extensions: hide status indicator
-		else {
-			dispose(this.remoteStatusEntry);
-			this.remoteStatusEntry = undefined;
-		}
+		dispose(this.remoteStatusEntry);
+		this.remoteStatusEntry = undefined;
 	}
 
-	private renderRemoteStatusIndicator(text: string, tooltip?: string, command?: string, showProgress?: boolean): void {
+	private renderRemoteStatusIndicator(text: string, tooltip?: string | IMarkdownString, command?: string, showProgress?: boolean): void {
 		const name = nls.localize('remoteHost', "Remote Host");
-		if (typeof command !== 'string' && this.remoteMenu.getActions().length > 0) {
+		if (typeof command !== 'string' && this.getRemoteMenuActions().length > 0) {
 			command = RemoteStatusIndicator.REMOTE_ACTIONS_COMMAND_ID;
 		}
 
+		const ariaLabel = getCodiconAriaLabel(text);
 		const properties: IStatusbarEntry = {
+			name,
 			backgroundColor: themeColorFromId(STATUS_BAR_HOST_NAME_BACKGROUND),
 			color: themeColorFromId(STATUS_BAR_HOST_NAME_FOREGROUND),
-			ariaLabel: name,
+			ariaLabel,
 			text,
 			showProgress,
 			tooltip,
@@ -241,50 +358,118 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 		if (this.remoteStatusEntry) {
 			this.remoteStatusEntry.update(properties);
 		} else {
-			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', name, StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
+			this.remoteStatusEntry = this.statusbarService.addEntry(properties, 'status.host', StatusbarAlignment.LEFT, Number.MAX_VALUE /* first entry */);
 		}
 	}
 
-	private showRemoteMenu(menu: IMenu) {
-		const actions = menu.getActions();
-
-		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
-		for (let actionGroup of actions) {
-			if (items.length) {
-				items.push({ type: 'separator' });
+	private showRemoteMenu() {
+		const getCategoryLabel = (action: MenuItemAction) => {
+			if (action.item.category) {
+				return typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
 			}
+			return undefined;
+		};
 
-			for (let action of actionGroup[1]) {
-				if (action instanceof MenuItemAction) {
-					let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
-					if (action.item.category) {
-						const category = typeof action.item.category === 'string' ? action.item.category : action.item.category.value;
-						label = nls.localize('cat.title', "{0}: {1}", category, label);
+		const matchCurrentRemote = () => {
+			if (this.remoteAuthority) {
+				return new RegExp(`^remote_\\d\\d_${getRemoteName(this.remoteAuthority)}_`);
+			} else if (this.virtualWorkspaceLocation) {
+				return new RegExp(`^virtualfs_\\d\\d_${this.virtualWorkspaceLocation.scheme}_`);
+			}
+			return undefined;
+		};
+
+		const computeItems = () => {
+			let actionGroups = this.getRemoteMenuActions(true);
+
+			const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
+
+			const currentRemoteMatcher = matchCurrentRemote();
+			if (currentRemoteMatcher) {
+				// commands for the current remote go first
+				actionGroups = actionGroups.sort((g1, g2) => {
+					const isCurrentRemote1 = currentRemoteMatcher.test(g1[0]);
+					const isCurrentRemote2 = currentRemoteMatcher.test(g2[0]);
+					if (isCurrentRemote1 !== isCurrentRemote2) {
+						return isCurrentRemote1 ? -1 : 1;
 					}
-
-					items.push({
-						type: 'item',
-						id: action.item.id,
-						label
-					});
-				}
+					return g1[0].localeCompare(g2[0]);
+				});
 			}
-		}
 
-		if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID && this.remoteAuthority) {
-			if (items.length) {
-				items.push({ type: 'separator' });
+			let lastCategoryName: string | undefined = undefined;
+
+			for (let actionGroup of actionGroups) {
+				let hasGroupCategory = false;
+				for (let action of actionGroup[1]) {
+					if (action instanceof MenuItemAction) {
+						if (!hasGroupCategory) {
+							const category = getCategoryLabel(action);
+							if (category !== lastCategoryName) {
+								items.push({ type: 'separator', label: category });
+								lastCategoryName = category;
+							}
+							hasGroupCategory = true;
+						}
+						let label = typeof action.item.title === 'string' ? action.item.title : action.item.title.value;
+						items.push({
+							type: 'item',
+							id: action.item.id,
+							label
+						});
+					}
+				}
 			}
 
 			items.push({
-				type: 'item',
-				id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
-				label: nls.localize('closeRemote.title', 'Close Remote Connection')
+				type: 'separator'
 			});
-		}
+
+			let entriesBeforeConfig = items.length;
+
+			if (RemoteStatusIndicator.SHOW_CLOSE_REMOTE_COMMAND_ID) {
+				if (this.remoteAuthority) {
+					items.push({
+						type: 'item',
+						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
+						label: nls.localize('closeRemoteConnection.title', 'Close Remote Connection')
+					});
+
+					if (this.connectionState === 'disconnected') {
+						items.push({
+							type: 'item',
+							id: ReloadWindowAction.ID,
+							label: nls.localize('reloadWindow', 'Reload Window')
+						});
+					}
+				} else if (this.virtualWorkspaceLocation) {
+					items.push({
+						type: 'item',
+						id: RemoteStatusIndicator.CLOSE_REMOTE_COMMAND_ID,
+						label: nls.localize('closeVirtualWorkspace.title', 'Close Remote Workspace')
+					});
+				}
+			}
+
+			if (!this.remoteAuthority && !this.virtualWorkspaceLocation && this.extensionGalleryService.isEnabled()) {
+				items.push({
+					id: RemoteStatusIndicator.INSTALL_REMOTE_EXTENSIONS_ID,
+					label: nls.localize('installRemotes', "Install Additional Remote Extensions..."),
+
+					alwaysShow: true
+				});
+			}
+
+			if (items.length === entriesBeforeConfig) {
+				items.pop(); // remove the separator again
+			}
+
+			return items;
+		};
 
 		const quickPick = this.quickInputService.createQuickPick();
-		quickPick.items = items;
+		quickPick.items = computeItems();
+		quickPick.sortByLabel = false;
 		quickPick.canSelectMany = false;
 		once(quickPick.onDidAccept)((_ => {
 			const selectedItems = quickPick.selectedItems;
@@ -294,6 +479,13 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 
 			quickPick.hide();
 		}));
+
+		// refresh the items when actions change
+		const legacyItemUpdater = this.legacyIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(legacyItemUpdater.dispose);
+
+		const itemUpdater = this.remoteIndicatorMenu.onDidChange(() => quickPick.items = computeItems());
+		quickPick.onDidHide(itemUpdater.dispose);
 
 		quickPick.show();
 	}

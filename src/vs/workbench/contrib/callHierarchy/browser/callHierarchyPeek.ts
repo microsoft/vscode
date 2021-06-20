@@ -27,7 +27,6 @@ import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions,
 import { registerThemingParticipant, themeColorFromId, IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Color } from 'vs/base/common/color';
 import { TreeMouseEventTarget, ITreeNode } from 'vs/base/browser/ui/tree/tree';
@@ -102,7 +101,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._disposables.add(this._previewDisposable);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		LayoutInfo.store(this._layoutInfo, this._storageService);
 		this._splitView.dispose();
 		this._tree.dispose();
@@ -125,7 +124,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		});
 	}
 
-	protected _fillHead(container: HTMLElement): void {
+	protected override _fillHead(container: HTMLElement): void {
 		super._fillHead(container, true);
 
 		const menu = this._menuService.createMenu(CallHierarchyTreePeekWidget.TitleMenu, this._contextKeyService);
@@ -138,13 +137,6 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		this._disposables.add(menu);
 		this._disposables.add(menu.onDidChange(updateToolbar));
 		updateToolbar();
-	}
-
-	protected _getActionBarOptions(): IActionBarOptions {
-		return {
-			...super._getActionBarOptions(),
-			orientation: ActionsOrientation.HORIZONTAL
-		};
 	}
 
 	protected _fillBody(parent: HTMLElement): void {
@@ -305,6 +297,7 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 
 		// update: editor and editor highlights
 		const options: IModelDecorationOptions = {
+			description: 'call-hierarchy-decoration',
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 			className: 'call-decoration',
 			overviewRuler: {
@@ -418,13 +411,13 @@ export class CallHierarchyTreePeekWidget extends peekView.PeekViewWidget {
 		}
 	}
 
-	protected _onWidth(width: number) {
+	protected override _onWidth(width: number) {
 		if (this._dim) {
 			this._doLayoutBody(this._dim.height, width);
 		}
 	}
 
-	protected _doLayoutBody(height: number, width: number): void {
+	protected override _doLayoutBody(height: number, width: number): void {
 		if (this._dim.height !== height || this._dim.width !== width) {
 			super._doLayoutBody(height, width);
 			this._dim = new Dimension(width, height);

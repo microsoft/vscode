@@ -3,75 +3,65 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Emitter } from 'vs/base/common/event';
-import { StorageScope, logStorage, IS_NEW_KEY, AbstractStorageService } from 'vs/platform/storage/common/storage';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Event } from 'vs/base/common/event';
+import { StorageScope, IS_NEW_KEY, AbstractStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceInitializationPayload } from 'vs/platform/workspaces/common/workspaces';
-import { IFileService, FileChangeType } from 'vs/platform/files/common/files';
-import { IStorage, Storage, IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
-import { URI } from 'vs/base/common/uri';
+import { IStorage, Storage, IStorageDatabase, IUpdateRequest, InMemoryStorageDatabase } from 'vs/base/parts/storage/common/storage';
+import { Promises } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 import { joinPath } from 'vs/base/common/resources';
-import { runWhenIdle, RunOnceScheduler } from 'vs/base/common/async';
-import { VSBuffer } from 'vs/base/common/buffer';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
 
 export class BrowserStorageService extends AbstractStorageService {
+
+	private static BROWSER_DEFAULT_FLUSH_INTERVAL = 5 * 1000; // every 5s because async operations are not permitted on shutdown
 
 	private globalStorage: IStorage | undefined;
 	private workspaceStorage: IStorage | undefined;
 
-	private globalStorageDatabase: FileStorageDatabase | undefined;
-	private workspaceStorageDatabase: FileStorageDatabase | undefined;
-
-	private globalStorageFile: URI | undefined;
-	private workspaceStorageFile: URI | undefined;
-
-	private initializePromise: Promise<void> | undefined;
-
-	private readonly periodicFlushScheduler = this._register(new RunOnceScheduler(() => this.doFlushWhenIdle(), 5000 /* every 5s */));
-	private runWhenIdleDisposable: IDisposable | undefined = undefined;
+	private globalStorageDatabase: IIndexedDBStorageDatabase | undefined;
+	private workspaceStorageDatabase: IIndexedDBStorageDatabase | undefined;
 
 	get hasPendingUpdate(): boolean {
-		return (!!this.globalStorageDatabase && this.globalStorageDatabase.hasPendingUpdate) || (!!this.workspaceStorageDatabase && this.workspaceStorageDatabase.hasPendingUpdate);
+		return Boolean(this.globalStorageDatabase?.hasPendingUpdate || this.workspaceStorageDatabase?.hasPendingUpdate);
 	}
 
 	constructor(
+		private readonly payload: IWorkspaceInitializationPayload,
+		@ILogService private readonly logService: ILogService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService
 	) {
-		super();
+		super({ flushInterval: BrowserStorageService.BROWSER_DEFAULT_FLUSH_INTERVAL });
 	}
 
-	initialize(payload: IWorkspaceInitializationPayload): Promise<void> {
-		if (!this.initializePromise) {
-			this.initializePromise = this.doInitialize(payload);
-		}
-
-		return this.initializePromise;
+	private getId(scope: StorageScope): string {
+		return scope === StorageScope.GLOBAL ? 'global' : this.payload.id;
 	}
 
-	private async doInitialize(payload: IWorkspaceInitializationPayload): Promise<void> {
+	protected async doInitialize(): Promise<void> {
 
-		// Ensure state folder exists
-		const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
-		await this.fileService.createFolder(stateRoot);
+		// Create Storage in Parallel
+		const [workspaceStorageDatabase, globalStorageDatabase] = await Promises.settled([
+			IndexedDBStorageDatabase.create(this.getId(StorageScope.WORKSPACE), this.logService),
+			IndexedDBStorageDatabase.create(this.getId(StorageScope.GLOBAL), this.logService)
+		]);
 
 		// Workspace Storage
-		this.workspaceStorageFile = joinPath(stateRoot, `${payload.id}.json`);
-
-		this.workspaceStorageDatabase = this._register(new FileStorageDatabase(this.workspaceStorageFile, false /* do not watch for external changes */, this.fileService));
+		this.workspaceStorageDatabase = this._register(workspaceStorageDatabase);
 		this.workspaceStorage = this._register(new Storage(this.workspaceStorageDatabase));
 		this._register(this.workspaceStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.WORKSPACE, key)));
 
 		// Global Storage
-		this.globalStorageFile = joinPath(stateRoot, 'global.json');
-		this.globalStorageDatabase = this._register(new FileStorageDatabase(this.globalStorageFile, true /* watch for external changes */, this.fileService));
+		this.globalStorageDatabase = this._register(globalStorageDatabase);
 		this.globalStorage = this._register(new Storage(this.globalStorageDatabase));
 		this._register(this.globalStorage.onDidChangeStorage(key => this.emitDidChangeValue(StorageScope.GLOBAL, key)));
 
 		// Init both
-		await Promise.all([
+		await Promises.settled([
 			this.workspaceStorage.init(),
 			this.globalStorage.init()
 		]);
@@ -79,6 +69,7 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" the application
 		const firstOpen = this.globalStorage.getBoolean(IS_NEW_KEY);
 		if (firstOpen === undefined) {
+			await this.migrateOldStorage(StorageScope.GLOBAL); // TODO@bpasero remove browser storage migration
 			this.globalStorage.set(IS_NEW_KEY, true);
 		} else if (firstOpen) {
 			this.globalStorage.set(IS_NEW_KEY, false);
@@ -87,95 +78,66 @@ export class BrowserStorageService extends AbstractStorageService {
 		// Check to see if this is the first time we are "opening" this workspace
 		const firstWorkspaceOpen = this.workspaceStorage.getBoolean(IS_NEW_KEY);
 		if (firstWorkspaceOpen === undefined) {
+			await this.migrateOldStorage(StorageScope.WORKSPACE); // TODO@bpasero remove browser storage migration
 			this.workspaceStorage.set(IS_NEW_KEY, true);
 		} else if (firstWorkspaceOpen) {
 			this.workspaceStorage.set(IS_NEW_KEY, false);
 		}
-
-		// In the browser we do not have support for long running unload sequences. As such,
-		// we cannot ask for saving state in that moment, because that would result in a
-		// long running operation.
-		// Instead, periodically ask customers to save save. The library will be clever enough
-		// to only save state that has actually changed.
-		this.periodicFlushScheduler.schedule();
 	}
 
-	get(key: string, scope: StorageScope, fallbackValue: string): string;
-	get(key: string, scope: StorageScope): string | undefined;
-	get(key: string, scope: StorageScope, fallbackValue?: string): string | undefined {
-		return this.getStorage(scope).get(key, fallbackValue);
+	private async migrateOldStorage(scope: StorageScope): Promise<void> {
+		try {
+			const stateRoot = joinPath(this.environmentService.userRoamingDataHome, 'state');
+
+			if (scope === StorageScope.GLOBAL) {
+				const globalStorageFile = joinPath(stateRoot, 'global.json');
+				const globalItemsRaw = await this.fileService.readFile(globalStorageFile);
+				const globalItems = new Map<string, string>(JSON.parse(globalItemsRaw.value.toString()));
+
+				for (const [key, value] of globalItems) {
+					this.globalStorage?.set(key, value);
+				}
+
+				await this.fileService.del(globalStorageFile);
+			} else if (scope === StorageScope.WORKSPACE) {
+				const workspaceStorageFile = joinPath(stateRoot, `${this.payload.id}.json`);
+				const workspaceItemsRaw = await this.fileService.readFile(workspaceStorageFile);
+				const workspaceItems = new Map<string, string>(JSON.parse(workspaceItemsRaw.value.toString()));
+
+				for (const [key, value] of workspaceItems) {
+					this.workspaceStorage?.set(key, value);
+				}
+
+				await this.fileService.del(workspaceStorageFile);
+			}
+		} catch (error) {
+			// ignore
+		}
 	}
 
-	getBoolean(key: string, scope: StorageScope, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope): boolean | undefined;
-	getBoolean(key: string, scope: StorageScope, fallbackValue?: boolean): boolean | undefined {
-		return this.getStorage(scope).getBoolean(key, fallbackValue);
+	protected getStorage(scope: StorageScope): IStorage | undefined {
+		return scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage;
 	}
 
-	getNumber(key: string, scope: StorageScope, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope): number | undefined;
-	getNumber(key: string, scope: StorageScope, fallbackValue?: number): number | undefined {
-		return this.getStorage(scope).getNumber(key, fallbackValue);
-	}
-
-	protected doStore(key: string, value: string | boolean | number | undefined | null, scope: StorageScope): void {
-		this.getStorage(scope).set(key, value);
-	}
-
-	protected doRemove(key: string, scope: StorageScope): void {
-		this.getStorage(scope).delete(key);
-	}
-
-	private getStorage(scope: StorageScope): IStorage {
-		return assertIsDefined(scope === StorageScope.GLOBAL ? this.globalStorage : this.workspaceStorage);
-	}
-
-	async logStorage(): Promise<void> {
-		const [globalStorage, workspaceStorage, globalStorageFile, workspaceStorageFile] = assertAllDefined(this.globalStorage, this.workspaceStorage, this.globalStorageFile, this.workspaceStorageFile);
-
-		const result = await Promise.all([
-			globalStorage.items,
-			workspaceStorage.items
-		]);
-
-		return logStorage(result[0], result[1], globalStorageFile.toString(), workspaceStorageFile.toString());
+	protected getLogDetails(scope: StorageScope): string | undefined {
+		return this.getId(scope);
 	}
 
 	async migrate(toWorkspace: IWorkspaceInitializationPayload): Promise<void> {
 		throw new Error('Migrating storage is currently unsupported in Web');
 	}
 
-	protected async doFlush(): Promise<void> {
-		await Promise.all([
-			this.getStorage(StorageScope.GLOBAL).whenFlushed(),
-			this.getStorage(StorageScope.WORKSPACE).whenFlushed()
-		]);
-	}
-
-	private doFlushWhenIdle(): void {
-
-		// Dispose any previous idle runner
-		dispose(this.runWhenIdleDisposable);
-
-		// Run when idle
-		this.runWhenIdleDisposable = runWhenIdle(() => {
-
-			// this event will potentially cause new state to be stored
-			// since new state will only be created while the document
-			// has focus, one optimization is to not run this when the
-			// document has no focus, assuming that state has not changed
-			//
-			// another optimization is to not collect more state if we
-			// have a pending update already running which indicates
-			// that the connection is either slow or disconnected and
-			// thus unhealthy.
-			if (document.hasFocus() && !this.hasPendingUpdate) {
-				this.flush();
-			}
-
-			// repeat
-			this.periodicFlushScheduler.schedule();
-		});
+	protected override shouldFlushWhenIdle(): boolean {
+		// this flush() will potentially cause new state to be stored
+		// since new state will only be created while the document
+		// has focus, one optimization is to not run this when the
+		// document has no focus, assuming that state has not changed
+		//
+		// another optimization is to not collect more state if we
+		// have a pending update already running which indicates
+		// that the connection is either slow or disconnected and
+		// thus unhealthy.
+		return document.hasFocus() && !this.hasPendingUpdate;
 	}
 
 	close(): void {
@@ -190,150 +152,213 @@ export class BrowserStorageService extends AbstractStorageService {
 		this.dispose();
 	}
 
-	dispose(): void {
-		dispose(this.runWhenIdleDisposable);
-		this.runWhenIdleDisposable = undefined;
+	async clear(): Promise<void> {
 
-		super.dispose();
+		// Clear key/values
+		for (const scope of [StorageScope.GLOBAL, StorageScope.WORKSPACE]) {
+			for (const target of [StorageTarget.USER, StorageTarget.MACHINE]) {
+				for (const key of this.keys(scope, target)) {
+					this.remove(key, scope);
+				}
+			}
+
+			await this.getStorage(scope)?.whenFlushed();
+		}
+
+		// Clear databases
+		await Promises.settled([
+			this.globalStorageDatabase?.clear() ?? Promise.resolve(),
+			this.workspaceStorageDatabase?.clear() ?? Promise.resolve()
+		]);
 	}
 }
 
-export class FileStorageDatabase extends Disposable implements IStorageDatabase {
+interface IIndexedDBStorageDatabase extends IStorageDatabase, IDisposable {
 
-	private readonly _onDidChangeItemsExternal = this._register(new Emitter<IStorageItemsChangeEvent>());
-	readonly onDidChangeItemsExternal = this._onDidChangeItemsExternal.event;
+	/**
+	 * Whether an update in the DB is currently pending
+	 * (either update or delete operation).
+	 */
+	readonly hasPendingUpdate: boolean;
 
-	private cache: Map<string, string> | undefined;
+	/**
+	 * For testing only.
+	 */
+	clear(): Promise<void>;
+}
 
-	private pendingUpdate: Promise<void> = Promise.resolve();
+class InMemoryIndexedDBStorageDatabase extends InMemoryStorageDatabase implements IIndexedDBStorageDatabase {
 
-	private _hasPendingUpdate = false;
-	get hasPendingUpdate(): boolean {
-		return this._hasPendingUpdate;
+	readonly hasPendingUpdate = false;
+
+	async clear(): Promise<void> {
+		(await this.getItems()).clear();
 	}
 
-	private isWatching = false;
+	dispose(): void {
+		// No-op
+	}
+}
 
-	constructor(
-		private readonly file: URI,
-		private readonly watchForExternalChanges: boolean,
-		@IFileService private readonly fileService: IFileService
+export class IndexedDBStorageDatabase extends Disposable implements IIndexedDBStorageDatabase {
+
+	static async create(id: string, logService: ILogService): Promise<IIndexedDBStorageDatabase> {
+		try {
+			const database = new IndexedDBStorageDatabase(id, logService);
+			await database.whenConnected;
+
+			return database;
+		} catch (error) {
+			logService.error(`[IndexedDB Storage ${id}] create(): ${toErrorMessage(error, true)}`);
+
+			return new InMemoryIndexedDBStorageDatabase();
+		}
+	}
+
+	private static readonly STORAGE_DATABASE_PREFIX = 'vscode-web-state-db-';
+	private static readonly STORAGE_OBJECT_STORE = 'ItemTable';
+
+	readonly onDidChangeItemsExternal = Event.None; // IndexedDB currently does not support observers (https://github.com/w3c/IndexedDB/issues/51)
+
+	private pendingUpdate: Promise<void> | undefined = undefined;
+	get hasPendingUpdate(): boolean { return !!this.pendingUpdate; }
+
+	private readonly name: string;
+	private readonly whenConnected: Promise<IDBDatabase>;
+
+	private constructor(
+		id: string,
+		private readonly logService: ILogService
 	) {
 		super();
+
+		this.name = `${IndexedDBStorageDatabase.STORAGE_DATABASE_PREFIX}${id}`;
+		this.whenConnected = this.connect();
 	}
 
-	private async ensureWatching(): Promise<void> {
-		if (this.isWatching || !this.watchForExternalChanges) {
-			return;
-		}
+	private connect(): Promise<IDBDatabase> {
+		return new Promise<IDBDatabase>((resolve, reject) => {
+			const request = window.indexedDB.open(this.name);
 
-		const exists = await this.fileService.exists(this.file);
-		if (this.isWatching || !exists) {
-			return; // file must exist to be watched
-		}
+			// Create `ItemTable` object-store when this DB is new
+			request.onupgradeneeded = () => {
+				request.result.createObjectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+			};
 
-		this.isWatching = true;
+			// IndexedDB opened successfully
+			request.onsuccess = () => resolve(request.result);
 
-		this._register(this.fileService.watch(this.file));
-		this._register(this.fileService.onDidFilesChange(e => {
-			if (document.hasFocus()) {
-				return; // optimization: ignore changes from ourselves by checking for focus
-			}
-
-			if (!e.contains(this.file, FileChangeType.UPDATED)) {
-				return; // not our file
-			}
-
-			this.onDidStorageChangeExternal();
-		}));
+			// Fail on error (we will then fallback to in-memory DB)
+			request.onerror = () => reject(request.error);
+		});
 	}
 
-	private async onDidStorageChangeExternal(): Promise<void> {
-		const items = await this.doGetItemsFromFile();
+	getItems(): Promise<Map<string, string>> {
+		return new Promise<Map<string, string>>(async resolve => {
+			const items = new Map<string, string>();
 
-		// pervious cache, diff for changes
-		let changed = new Map<string, string>();
-		let deleted = new Set<string>();
-		if (this.cache) {
-			items.forEach((value, key) => {
-				const existingValue = this.cache?.get(key);
-				if (existingValue !== value) {
-					changed.set(key, value);
+			// Open a IndexedDB Cursor to iterate over key/values
+			const db = await this.whenConnected;
+			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readonly');
+			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+			const cursor = objectStore.openCursor();
+			if (!cursor) {
+				return resolve(items); // this means the `ItemTable` was empty
+			}
+
+			// Iterate over rows of `ItemTable` until the end
+			cursor.onsuccess = () => {
+				if (cursor.result) {
+
+					// Keep cursor key/value in our map
+					if (typeof cursor.result.value === 'string') {
+						items.set(cursor.result.key.toString(), cursor.result.value);
+					}
+
+					// Advance cursor to next row
+					cursor.result.continue();
+				} else {
+					resolve(items); // reached end of table
 				}
-			});
+			};
 
-			this.cache.forEach((_, key) => {
-				if (!items.has(key)) {
-					deleted.add(key);
-				}
-			});
-		}
+			const onError = (error: Error | null) => {
+				this.logService.error(`[IndexedDB Storage ${this.name}] getItems(): ${toErrorMessage(error, true)}`);
 
-		// no previous cache, consider all as changed
-		else {
-			changed = items;
-		}
+				resolve(items);
+			};
 
-		// Update cache
-		this.cache = items;
-
-		// Emit as event as needed
-		if (changed.size > 0 || deleted.size > 0) {
-			this._onDidChangeItemsExternal.fire({ changed, deleted });
-		}
-	}
-
-	async getItems(): Promise<Map<string, string>> {
-		if (!this.cache) {
-			try {
-				this.cache = await this.doGetItemsFromFile();
-			} catch (error) {
-				this.cache = new Map();
-			}
-		}
-
-		return this.cache;
-	}
-
-	private async doGetItemsFromFile(): Promise<Map<string, string>> {
-		await this.pendingUpdate;
-
-		const itemsRaw = await this.fileService.readFile(this.file);
-
-		this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
-
-		return new Map(JSON.parse(itemsRaw.value.toString()));
+			// Error handlers
+			cursor.onerror = () => onError(cursor.error);
+			transaction.onerror = () => onError(transaction.error);
+		});
 	}
 
 	async updateItems(request: IUpdateRequest): Promise<void> {
-		const items = await this.getItems();
-
-		if (request.insert) {
-			request.insert.forEach((value, key) => items.set(key, value));
+		this.pendingUpdate = this.doUpdateItems(request);
+		try {
+			await this.pendingUpdate;
+		} finally {
+			this.pendingUpdate = undefined;
 		}
-
-		if (request.delete) {
-			request.delete.forEach(key => items.delete(key));
-		}
-
-		await this.pendingUpdate;
-
-		this.pendingUpdate = (async () => {
-			try {
-				this._hasPendingUpdate = true;
-
-				await this.fileService.writeFile(this.file, VSBuffer.fromString(JSON.stringify(Array.from(items.entries()))));
-
-				this.ensureWatching(); // now that the file must exist, ensure we watch it for changes
-			} finally {
-				this._hasPendingUpdate = false;
-			}
-		})();
-
-		return this.pendingUpdate;
 	}
 
-	close(): Promise<void> {
-		return this.pendingUpdate;
+	private async doUpdateItems(request: IUpdateRequest): Promise<void> {
+
+		// Return early if the request is empty
+		const toInsert = request.insert;
+		const toDelete = request.delete;
+		if ((!toInsert && !toDelete) || (toInsert?.size === 0 && toDelete?.size === 0)) {
+			return;
+		}
+
+		// Update `ItemTable` with inserts and/or deletes
+		return new Promise<void>(async (resolve, reject) => {
+			const db = await this.whenConnected;
+
+			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
+
+			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+
+			// Inserts
+			if (toInsert) {
+				for (const [key, value] of toInsert) {
+					objectStore.put(value, key);
+				}
+			}
+
+			// Deletes
+			if (toDelete) {
+				for (const key of toDelete) {
+					objectStore.delete(key);
+				}
+			}
+		});
+	}
+
+	async close(): Promise<void> {
+		const db = await this.whenConnected;
+
+		// Wait for pending updates to having finished
+		await this.pendingUpdate;
+
+		// Finally, close IndexedDB
+		return db.close();
+	}
+
+	clear(): Promise<void> {
+		return new Promise<void>(async (resolve, reject) => {
+			const db = await this.whenConnected;
+
+			const transaction = db.transaction(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE, 'readwrite');
+			transaction.oncomplete = () => resolve();
+			transaction.onerror = () => reject(transaction.error);
+
+			// Clear every row in the `ItemTable`
+			const objectStore = transaction.objectStore(IndexedDBStorageDatabase.STORAGE_OBJECT_STORE);
+			objectStore.clear();
+		});
 	}
 }

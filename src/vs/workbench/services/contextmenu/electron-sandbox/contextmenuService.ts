@@ -25,12 +25,16 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { coalesce } from 'vs/base/common/arrays';
+import { Emitter } from 'vs/base/common/event';
 
 export class ContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
 
 	private impl: IContextMenuService;
+
+	private readonly _onDidShowContextMenu = this._register(new Emitter<void>());
+	readonly onDidShowContextMenu = this._onDidShowContextMenu.event;
 
 	constructor(
 		@INotificationService notificationService: INotificationService,
@@ -56,12 +60,15 @@ export class ContextMenuService extends Disposable implements IContextMenuServic
 
 	showContextMenu(delegate: IContextMenuDelegate): void {
 		this.impl.showContextMenu(delegate);
+		this._onDidShowContextMenu.fire();
 	}
 }
 
 class NativeContextMenuService extends Disposable implements IContextMenuService {
 
 	declare readonly _serviceBrand: undefined;
+
+	readonly onDidShowContextMenu = new Emitter<void>().event;
 
 	constructor(
 		@INotificationService private readonly notificationService: INotificationService,
@@ -118,7 +125,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		}
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
+	private createMenu(delegate: IContextMenuDelegate, entries: readonly IAction[], onHide: () => void, submenuIds = new Set<string>()): IContextMenuItem[] {
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 		return coalesce(entries.map(entry => this.createMenuItem(delegate, entry, actionRunner, onHide, submenuIds)));
 	}
@@ -193,12 +200,10 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 		const context = delegate.getActionsContext ? delegate.getActionsContext(event) : undefined;
 
 		const runnable = actionRunner.run(actionToRun, context);
-		if (runnable) {
-			try {
-				await runnable;
-			} catch (error) {
-				this.notificationService.error(error);
-			}
+		try {
+			await runnable;
+		} catch (error) {
+			this.notificationService.error(error);
 		}
 	}
 }

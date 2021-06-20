@@ -75,7 +75,7 @@ export class WatchExpressionsView extends ViewPane {
 		this.watchItemType = CONTEXT_WATCH_ITEM_TYPE.bindTo(contextKeyService);
 	}
 
-	renderBody(container: HTMLElement): void {
+	override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.element.classList.add('debug-pane');
@@ -163,12 +163,12 @@ export class WatchExpressionsView extends ViewPane {
 		}));
 	}
 
-	layoutBody(height: number, width: number): void {
+	override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
-	focus(): void {
+	override focus(): void {
 		this.tree.domFocus();
 	}
 
@@ -194,14 +194,16 @@ export class WatchExpressionsView extends ViewPane {
 
 	private onContextMenu(e: ITreeContextMenuEvent<IExpression>): void {
 		const element = e.element;
+		const selection = this.tree.getSelection();
+
 		this.watchItemType.set(element instanceof Expression ? 'expression' : element instanceof Variable ? 'variable' : undefined);
 		const actions: IAction[] = [];
-		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: false }, actions);
+		const actionsDisposable = createAndFillInContextMenuActions(this.menu, { arg: element, shouldForwardArgs: true }, actions);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
 			getActions: () => actions,
-			getActionsContext: () => element,
+			getActionsContext: () => element && selection.includes(element) ? selection : element ? [element] : [],
 			onHide: () => dispose(actionsDisposable)
 		});
 	}

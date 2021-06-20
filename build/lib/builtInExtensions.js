@@ -18,8 +18,8 @@ const ansiColors = require("ansi-colors");
 const mkdirp = require('mkdirp');
 const root = path.dirname(path.dirname(__dirname));
 const productjson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../product.json'), 'utf8'));
-const builtInExtensions = productjson.builtInExtensions;
-const webBuiltInExtensions = productjson.webBuiltInExtensions;
+const builtInExtensions = productjson.builtInExtensions || [];
+const webBuiltInExtensions = productjson.webBuiltInExtensions || [];
 const controlFilePath = path.join(os.homedir(), '.vscode-oss-dev', 'extensions', 'control.json');
 const ENABLE_LOGGING = !process.env['VSCODE_BUILD_BUILTIN_EXTENSIONS_SILENCE_PLEASE'];
 function log(...messages) {
@@ -56,6 +56,13 @@ function syncMarketplaceExtension(extension) {
         .on('end', () => log(ansiColors.blue('[marketplace]'), extension.name, ansiColors.green('✔︎')));
 }
 function syncExtension(extension, controlState) {
+    if (extension.platforms) {
+        const platforms = new Set(extension.platforms);
+        if (!platforms.has(process.platform)) {
+            log(ansiColors.gray('[skip]'), `${extension.name}@${extension.version}: Platform '${process.platform}' not supported: [${extension.platforms}]`, ansiColors.green('✔︎'));
+            return es.readArray([]);
+        }
+    }
     switch (controlState) {
         case 'disabled':
             log(ansiColors.blue('[disabled]'), ansiColors.gray(extension.name));

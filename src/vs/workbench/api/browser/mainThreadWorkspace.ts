@@ -16,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IRequestService } from 'vs/platform/request/common/request';
+import { WorkspaceTrustRequestOptions, IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { isUntitledWorkspace } from 'vs/platform/workspaces/common/workspaces';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
@@ -45,19 +46,22 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IWorkspaceTrustRequestService private readonly _workspaceTrustRequestService: IWorkspaceTrustRequestService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostWorkspace);
 		const workspace = this._contextService.getWorkspace();
 		// The workspace file is provided be a unknown file system provider. It might come
 		// from the extension host. So initialize now knowing that `rootPath` is undefined.
 		if (workspace.configuration && !isNative && !fileService.canHandleResource(workspace.configuration)) {
-			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace));
+			this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted());
 		} else {
-			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace)));
+			this._contextService.getCompleteWorkspace().then(workspace => this._proxy.$initializeWorkspace(this.getWorkspaceData(workspace), this.isWorkspaceTrusted()));
 		}
 		this._contextService.onDidChangeWorkspaceFolders(this._onDidChangeWorkspace, this, this._toDispose);
 		this._contextService.onDidChangeWorkbenchState(this._onDidChangeWorkspace, this, this._toDispose);
+		this._workspaceTrustManagementService.onDidChangeTrust(this._onDidGrantWorkspaceTrust, this, this._toDispose);
 	}
 
 	dispose(): void {
@@ -201,5 +205,19 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 
 	$resolveProxy(url: string): Promise<string | undefined> {
 		return this._requestService.resolveProxy(url);
+	}
+
+	// --- trust ---
+
+	$requestWorkspaceTrust(options?: WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._workspaceTrustRequestService.requestWorkspaceTrust(options);
+	}
+
+	private isWorkspaceTrusted(): boolean {
+		return this._workspaceTrustManagementService.isWorkpaceTrusted();
+	}
+
+	private _onDidGrantWorkspaceTrust(): void {
+		this._proxy.$onDidGrantWorkspaceTrust();
 	}
 }

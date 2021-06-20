@@ -6,7 +6,7 @@
 import 'vs/css!./media/timelinePane';
 import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { IAction, ActionRunner, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { debounce } from 'vs/base/common/decorators';
@@ -36,14 +36,15 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuEntryActionViewItem, createAndFillInContextMenuActions, SubmenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { MenuItemAction, IMenuService, MenuId, registerAction2, Action2, MenuRegistry, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
+import { createAndFillInContextMenuActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { IMenuService, MenuId, registerAction2, Action2, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 const ItemHeight = 22;
 
@@ -215,7 +216,7 @@ class LoadMoreCommand {
 	}
 }
 
-export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true);
+export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('timelineFollowActiveEditor', true, true);
 
 export class TimelinePane extends ViewPane {
 	static readonly TITLE = localize('timeline', "Timeline");
@@ -238,12 +239,12 @@ export class TimelinePane extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
-		@IKeybindingService protected keybindingService: IKeybindingService,
-		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IContextKeyService protected contextKeyService: IContextKeyService,
-		@IConfigurationService protected configurationService: IConfigurationService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IEditorService protected editorService: IEditorService,
 		@ICommandService protected commandService: ICommandService,
 		@IProgressService private readonly progressService: IProgressService,
@@ -796,12 +797,12 @@ export class TimelinePane extends ViewPane {
 		this.refresh();
 	}
 
-	focus(): void {
+	override focus(): void {
 		super.focus();
 		this.tree.domFocus();
 	}
 
-	setExpanded(expanded: boolean): boolean {
+	override setExpanded(expanded: boolean): boolean {
 		const changed = super.setExpanded(expanded);
 
 		if (changed && this.isBodyVisible()) {
@@ -815,7 +816,7 @@ export class TimelinePane extends ViewPane {
 		return changed;
 	}
 
-	setVisible(visible: boolean): void {
+	override setVisible(visible: boolean): void {
 		if (visible) {
 			this.visibilityDisposables = new DisposableStore();
 
@@ -833,18 +834,18 @@ export class TimelinePane extends ViewPane {
 		}
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this.tree.layout(height, width);
 	}
 
-	protected renderHeaderTitle(container: HTMLElement): void {
+	protected override renderHeaderTitle(container: HTMLElement): void {
 		super.renderHeaderTitle(container, this.title);
 
 		container.classList.add('timeline-view');
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this.$container = container;
@@ -888,6 +889,7 @@ export class TimelinePane extends ViewPane {
 				}
 			},
 			keyboardNavigationLabelProvider: new TimelineKeyboardNavigationLabelProvider(),
+			multipleSelectionSupport: true,
 			overrideStyles: {
 				listBackground: this.getBackgroundColor(),
 			}
@@ -900,14 +902,26 @@ export class TimelinePane extends ViewPane {
 				return;
 			}
 
-			const item = e.element;
+			const selection = this.tree.getSelection();
+			let item;
+			if (selection.length === 1) {
+				item = selection[0];
+			}
+
 			if (item === null) {
 				return;
 			}
 
 			if (isTimelineItem(item)) {
 				if (item.command) {
-					this.commandService.executeCommand(item.command.id, ...(item.command.arguments || []));
+					let args = item.command.arguments ?? [];
+					if (item.command.id === API_OPEN_EDITOR_COMMAND_ID || item.command.id === API_OPEN_DIFF_EDITOR_COMMAND_ID) {
+						// Some commands owned by us should receive the
+						// `IOpenEvent` as context to open properly
+						args = [...args, e];
+					}
+
+					this.commandService.executeCommand(item.command.id, ...args);
 				}
 			}
 			else if (isLoadMoreCommand(item)) {
@@ -1037,13 +1051,14 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<any> {
+	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
-			return action.run();
+			await action.run();
+			return;
 		}
 
-		return action.run(...[
+		await action.run(...[
 			{
 				$mid: 11,
 				handle: item.handle,
@@ -1085,15 +1100,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
-		this.actionViewItemProvider = (action: IAction) => {
-			if (action instanceof MenuItemAction) {
-				return this.instantiationService.createInstance(MenuEntryActionViewItem, action);
-			} else if (action instanceof SubmenuItemAction) {
-				return this.instantiationService.createInstance(SubmenuEntryActionViewItem, action);
-			}
-
-			return undefined;
-		};
+		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 	}
 
 	private uri: URI | undefined;
@@ -1231,18 +1238,18 @@ class TimelinePaneCommands extends Disposable {
 	}
 
 	private getActions(menuId: MenuId, context: { key: string, value?: string }): { primary: IAction[]; secondary: IAction[]; } {
-		const scoped = this.contextKeyService.createScoped();
-		scoped.createKey('view', this.pane.id);
-		scoped.createKey(context.key, context.value);
+		const contextKeyService = this.contextKeyService.createOverlay([
+			['view', this.pane.id],
+			[context.key, context.value],
+		]);
 
-		const menu = this.menuService.createMenu(menuId, scoped);
+		const menu = this.menuService.createMenu(menuId, contextKeyService);
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
+		createAndFillInContextMenuActions(menu, { shouldForwardArgs: true }, result, 'inline');
 
 		menu.dispose();
-		scoped.dispose();
 
 		return result;
 	}

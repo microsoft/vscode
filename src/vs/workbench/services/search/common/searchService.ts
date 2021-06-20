@@ -4,22 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as arrays from 'vs/base/common/arrays';
+import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { canceled } from 'vs/base/common/errors';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
 import { StopWatch } from 'vs/base/common/stopwatch';
-import { URI as uri } from 'vs/base/common/uri';
+import { URI, URI as uri } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType, isFileMatch, isProgressMessage } from 'vs/workbench/services/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -38,7 +40,8 @@ export class SearchService extends Disposable implements ISearchService {
 		private readonly telemetryService: ITelemetryService,
 		private readonly logService: ILogService,
 		private readonly extensionService: IExtensionService,
-		private readonly fileService: IFileService
+		private readonly fileService: IFileService,
+		private readonly uriIdentityService: IUriIdentityService,
 	) {
 		super();
 	}
@@ -142,13 +145,15 @@ export class SearchService extends Disposable implements ISearchService {
 			if (!completes.length) {
 				return {
 					limitHit: false,
-					results: []
+					results: [],
+					messages: [],
 				};
 			}
 
-			return <ISearchComplete>{
+			return {
 				limitHit: completes[0] && completes[0].limitHit,
 				stats: completes[0].stats,
+				messages: arrays.coalesce(arrays.flatten(completes.map(i => i.messages))).filter(arrays.uniqueFilter(message => message.type + message.text + message.trusted)),
 				results: arrays.flatten(completes.map((c: ISearchComplete) => c.results))
 			};
 		})();
@@ -419,10 +424,20 @@ export class SearchService extends Disposable implements ISearchService {
 	}
 
 	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>();
+		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
+			const canonicalToOriginalResources = new ResourceMap<URI>();
+			for (let editorInput of this.editorService.editors) {
+				const canonical = EditorResourceAccessor.getCanonicalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
+				const original = EditorResourceAccessor.getOriginalUri(editorInput, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+				if (canonical) {
+					canonicalToOriginalResources.set(canonical, original ?? canonical);
+				}
+			}
+
 			const models = this.modelService.getModels();
 			models.forEach((model) => {
 				const resource = model.uri;
@@ -434,8 +449,8 @@ export class SearchService extends Disposable implements ISearchService {
 					return;
 				}
 
-				// Skip files that are not opened as text file
-				if (!this.editorService.isOpen({ resource })) {
+				const originalResource = canonicalToOriginalResources.get(resource);
+				if (!originalResource) {
 					return;
 				}
 
@@ -446,16 +461,16 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Block walkthrough, webview, etc.
-				if (resource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(resource)) {
+				if (originalResource.scheme !== Schemas.untitled && !this.fileService.canHandleResource(originalResource)) {
 					return;
 				}
 
 				// Exclude files from the git FileSystemProvider, e.g. to prevent open staged files from showing in search results
-				if (resource.scheme === 'git') {
+				if (originalResource.scheme === 'git') {
 					return;
 				}
 
-				if (!this.matches(resource, query)) {
+				if (!this.matches(originalResource, query)) {
 					return; // respect user filters
 				}
 
@@ -468,13 +483,13 @@ export class SearchService extends Disposable implements ISearchService {
 						matches = matches.slice(0, askMax - 1);
 					}
 
-					const fileMatch = new FileMatch(resource);
-					localResults.set(resource, fileMatch);
+					const fileMatch = new FileMatch(originalResource);
+					localResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					localResults.set(resource, null);
+					localResults.set(originalResource, null);
 				}
 			});
 		}
@@ -499,56 +514,3 @@ export class SearchService extends Disposable implements ISearchService {
 			.then(() => { });
 	}
 }
-
-export class RemoteSearchService extends SearchService {
-	constructor(
-		@IModelService modelService: IModelService,
-		@IEditorService editorService: IEditorService,
-		@ITelemetryService telemetryService: ITelemetryService,
-		@ILogService logService: ILogService,
-		@IExtensionService extensionService: IExtensionService,
-		@IFileService fileService: IFileService
-	) {
-		super(modelService, editorService, telemetryService, logService, extensionService, fileService);
-	}
-}
-
-registerSingleton(ISearchService, RemoteSearchService, true);
-
-export type ValueCallback<T = any> = (value: T | Promise<T>) => void;
-export class DeferredPromise<T> {
-
-	private completeCallback!: ValueCallback<T>;
-	private errorCallback!: (err: any) => void;
-
-	public p: Promise<T>;
-
-	constructor() {
-		this.p = new Promise<T>((c, e) => {
-			this.completeCallback = c;
-			this.errorCallback = e;
-		});
-	}
-
-	public complete(value: T) {
-		return new Promise<void>(resolve => {
-			this.completeCallback(value);
-			resolve();
-		});
-	}
-
-	public error(err: any) {
-		return new Promise<void>(resolve => {
-			this.errorCallback(err);
-			resolve();
-		});
-	}
-
-	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(canceled());
-			resolve();
-		});
-	}
-}
-

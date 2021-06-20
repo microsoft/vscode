@@ -10,8 +10,8 @@ import { IAddress } from 'vs/platform/remote/common/remoteAgentConnection';
 import { extractLocalHostUriMetaDataForPortMapping, ITunnelService, RemoteTunnel } from 'vs/platform/remote/common/tunnel';
 
 export interface IWebviewPortMapping {
-	webviewPort: number;
-	extensionHostPort: number;
+	readonly webviewPort: number;
+	readonly extensionHostPort: number;
 }
 
 /**
@@ -60,9 +60,9 @@ export class WebviewPortMappingManager implements IDisposable {
 		return undefined;
 	}
 
-	dispose() {
+	async dispose() {
 		for (const tunnel of this._tunnels.values()) {
-			tunnel.dispose();
+			await tunnel.dispose();
 		}
 		this._tunnels.clear();
 	}

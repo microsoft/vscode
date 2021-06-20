@@ -9,7 +9,6 @@ import { IDisposable, dispose, Disposable, DisposableStore, toDisposable } from 
 import { Action } from 'vs/base/common/actions';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { Event } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IListService, WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -22,7 +21,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { IColorMapping } from 'vs/platform/theme/common/styler';
-import { Renderer, Delegate } from 'vs/workbench/contrib/extensions/browser/extensionsList';
+import { Delegate, Renderer } from 'vs/workbench/contrib/extensions/browser/extensionsList';
 import { listFocusForeground, listFocusBackground } from 'vs/platform/theme/common/colorRegistry';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -38,13 +37,14 @@ export class ExtensionsGridView extends Disposable {
 
 	constructor(
 		parent: HTMLElement,
+		delegate: Delegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 		this.element = dom.append(parent, dom.$('.extensions-grid-view'));
 		this.renderer = this.instantiationService.createInstance(Renderer, { onFocus: Event.None, onBlur: Event.None });
-		this.delegate = new Delegate();
-		this.disposableStore = new DisposableStore();
+		this.delegate = delegate;
+		this.disposableStore = this._register(new DisposableStore());
 	}
 
 	setExtensions(extensions: IExtension[]): void {
@@ -55,7 +55,6 @@ export class ExtensionsGridView extends Disposable {
 	private renderExtension(extension: IExtension, index: number): void {
 		const extensionContainer = dom.append(this.element, dom.$('.extension-container'));
 		extensionContainer.style.height = `${this.delegate.getHeight()}px`;
-		extensionContainer.style.width = `275px`;
 		extensionContainer.setAttribute('tabindex', '0');
 
 		const template = this.renderer.renderTemplate(extensionContainer);
@@ -167,8 +166,7 @@ export class ExtensionRenderer implements IListRenderer<ITreeNode<IExtensionData
 
 	public renderElement(node: ITreeNode<IExtensionData>, index: number, data: IExtensionTemplateData): void {
 		const extension = node.element.extension;
-		const onError = Event.once(domEvent(data.icon, 'error'));
-		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
+		data.extensionDisposables.push(dom.addDisposableListener(data.icon, 'error', () => data.icon.src = extension.iconUrlFallback, { once: true }));
 		data.icon.src = extension.iconUrl;
 
 		if (!data.icon.complete) {
@@ -226,7 +224,7 @@ class OpenExtensionAction extends Action {
 		this._extension = extension;
 	}
 
-	run(sideByside: boolean): Promise<any> {
+	override run(sideByside: boolean): Promise<any> {
 		if (this._extension) {
 			return this.extensionsWorkdbenchService.open(this._extension, { sideByside });
 		}
@@ -272,7 +270,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 				accessibilityProvider: <IListAccessibilityProvider<IExtensionData>>{
 					getAriaLabel(extensionData: IExtensionData): string {
 						const extension = extensionData.extension;
-						return localize('extension-arialabel', "{0}, {1}, {2}, press enter for extension details.", extension.displayName, extension.version, extension.publisherDisplayName);
+						return localize('extension.arialabel', "{0}, {1}, {2}, {3}", extension.displayName, extension.version, extension.publisherDisplayName, extension.description);
 					},
 					getWidgetAriaLabel(): string {
 						return localize('extensions', "Extensions");

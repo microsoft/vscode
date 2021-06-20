@@ -3,9 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IAction, IActionRunner, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IContextMenuEvent {
 	readonly shiftKey?: boolean;
@@ -16,10 +17,10 @@ export interface IContextMenuEvent {
 
 export interface IContextMenuDelegate {
 	getAnchor(): HTMLElement | { x: number; y: number; width?: number; height?: number; };
-	getActions(): IAction[];
+	getActions(): readonly IAction[];
 	getCheckedActionsRepresentation?(action: IAction): 'radio' | 'checkbox';
 	getActionViewItem?(action: IAction): IActionViewItem | undefined;
-	getActionsContext?(event?: IContextMenuEvent): any;
+	getActionsContext?(event?: IContextMenuEvent): unknown;
 	getKeyBinding?(action: IAction): ResolvedKeybinding | undefined;
 	getMenuClassName?(): string;
 	onHide?(didCancel: boolean): void;

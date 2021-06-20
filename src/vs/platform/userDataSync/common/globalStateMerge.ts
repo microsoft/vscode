@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as objects from 'vs/base/common/objects';
-import { IStorageValue } from 'vs/platform/userDataSync/common/userDataSync';
+import { IStorageValue, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILogService } from 'vs/platform/log/common/log';
 
@@ -30,15 +30,17 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 	const local: { added: IStringDictionary<IStorageValue>, removed: string[], updated: IStringDictionary<IStorageValue> } = { added: {}, removed: [], updated: {} };
 	const remote: IStringDictionary<IStorageValue> = objects.deepClone(remoteStorage);
 
+	const isFirstTimeSync = !baseStorage;
+
 	// Added in local
 	for (const key of baseToLocal.added.values()) {
-		// Skip if local was not synced before and remote also has the key
-		// In this case, remote gets precedence
-		if (!baseStorage && baseToRemote.added.has(key)) {
+		// If syncing for first time remote value gets precedence always,
+		// except for sync service type key - local value takes precedence for this key
+		if (key !== SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToRemote.added.has(key)) {
 			continue;
-		} else {
-			remote[key] = localStorage[key];
 		}
+
+		remote[key] = localStorage[key];
 	}
 
 	// Updated in local
@@ -70,6 +72,12 @@ export function merge(localStorage: IStringDictionary<IStorageValue>, remoteStor
 		if (localValue && localValue.value === remoteValue.value) {
 			continue;
 		}
+
+		// Local sync service type value takes precedence if syncing for first time
+		if (key === SYNC_SERVICE_URL_TYPE && isFirstTimeSync && baseToLocal.added.has(key)) {
+			continue;
+		}
+
 		if (localValue) {
 			local.updated[key] = remoteValue;
 		} else {

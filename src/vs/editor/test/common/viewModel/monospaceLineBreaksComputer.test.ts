@@ -75,7 +75,7 @@ function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, 
 	const lineBreakData = getLineBreakData(factory, tabSize, breakAfter, 2, wrappingIndent, text, null);
 	const actualAnnotatedText = toAnnotatedText(text, lineBreakData);
 
-	assert.equal(actualAnnotatedText, annotatedText);
+	assert.strictEqual(actualAnnotatedText, annotatedText);
 
 	return lineBreakData;
 }
@@ -125,11 +125,11 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 
 	function assertLineBreakDataEqual(a: LineBreakData | null, b: LineBreakData | null): void {
 		if (!a || !b) {
-			assert.deepEqual(a, b);
+			assert.deepStrictEqual(a, b);
 			return;
 		}
-		assert.deepEqual(a.breakOffsets, b.breakOffsets);
-		assert.deepEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
+		assert.deepStrictEqual(a.breakOffsets, b.breakOffsets);
+		assert.deepStrictEqual(a.wrappedTextIndentLength, b.wrappedTextIndentLength);
 		for (let i = 0; i < a.breakOffsetsVisibleColumn.length; i++) {
 			const diff = a.breakOffsetsVisibleColumn[i] - b.breakOffsetsVisibleColumn[i];
 			assert.ok(diff < 0.001);
@@ -138,25 +138,25 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 
 	function assertIncrementalLineBreaks(factory: ILineBreaksComputerFactory, text: string, tabSize: number, breakAfter1: number, annotatedText1: string, breakAfter2: number, annotatedText2: string, wrappingIndent = WrappingIndent.None, columnsForFullWidthChar: number = 2): void {
 		// sanity check the test
-		assert.equal(text, parseAnnotatedText(annotatedText1).text);
-		assert.equal(text, parseAnnotatedText(annotatedText2).text);
+		assert.strictEqual(text, parseAnnotatedText(annotatedText1).text);
+		assert.strictEqual(text, parseAnnotatedText(annotatedText2).text);
 
 		// check that the direct mapping is ok for 1
 		const directLineBreakData1 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, null);
-		assert.equal(toAnnotatedText(text, directLineBreakData1), annotatedText1);
+		assert.strictEqual(toAnnotatedText(text, directLineBreakData1), annotatedText1);
 
 		// check that the direct mapping is ok for 2
 		const directLineBreakData2 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, null);
-		assert.equal(toAnnotatedText(text, directLineBreakData2), annotatedText2);
+		assert.strictEqual(toAnnotatedText(text, directLineBreakData2), annotatedText2);
 
 		// check that going from 1 to 2 is ok
 		const lineBreakData2from1 = getLineBreakData(factory, tabSize, breakAfter2, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData1);
-		assert.equal(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
+		assert.strictEqual(toAnnotatedText(text, lineBreakData2from1), annotatedText2);
 		assertLineBreakDataEqual(lineBreakData2from1, directLineBreakData2);
 
 		// check that going from 2 to 1 is ok
 		const lineBreakData1from2 = getLineBreakData(factory, tabSize, breakAfter1, columnsForFullWidthChar, wrappingIndent, text, directLineBreakData2);
-		assert.equal(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
+		assert.strictEqual(toAnnotatedText(text, lineBreakData1from2), annotatedText1);
 		assertLineBreakDataEqual(lineBreakData1from2, directLineBreakData1);
 	}
 
@@ -266,7 +266,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('issue #35162: wrappingIndent not consistently working', () => {
 		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
 		let mapper = assertLineBreaks(factory, 4, 24, '                t h i s |i s |a l |o n |g l |i n |e', WrappingIndent.Indent);
-		assert.equal(mapper!.wrappedTextIndentLength, '                    '.length);
+		assert.strictEqual(mapper!.wrappedTextIndentLength, '                    '.length);
 	});
 
 	test('issue #75494: surrogate pairs', () => {
@@ -287,7 +287,7 @@ suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
 	test('MonospaceLineBreaksComputer - WrappingIndent.DeepIndent', () => {
 		let factory = new MonospaceLineBreaksComputerFactory('', '\t ');
 		let mapper = assertLineBreaks(factory, 4, 26, '        W e A r e T e s t |i n g D e |e p I n d |e n t a t |i o n', WrappingIndent.DeepIndent);
-		assert.equal(mapper!.wrappedTextIndentLength, '                '.length);
+		assert.strictEqual(mapper!.wrappedTextIndentLength, '                '.length);
 	});
 
 	test('issue #33366: Word wrap algorithm behaves differently around punctuation', () => {

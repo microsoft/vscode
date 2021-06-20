@@ -10,21 +10,19 @@ import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Memento } from 'vs/workbench/common/memento';
-import { CustomEditorDescriptor, CustomEditorInfo, CustomEditorPriority } from 'vs/workbench/contrib/customEditor/common/customEditor';
+import { CustomEditorDescriptor, CustomEditorInfo } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from 'vs/workbench/contrib/customEditor/common/extensionPoint';
-import { DEFAULT_EDITOR_ID } from 'vs/workbench/services/editor/common/editorOpenWith';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
-const builtinProviderDisplayName = nls.localize('builtinProviderDisplayName', "Built-in");
-
 export const defaultCustomEditor = new CustomEditorInfo({
-	id: DEFAULT_EDITOR_ID,
+	id: 'default',
 	displayName: nls.localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: builtinProviderDisplayName,
+	providerDisplayName: nls.localize('builtinProviderDisplayName', "Built-in"),
 	selector: [
 		{ filenamePattern: '*' }
 	],
-	priority: CustomEditorPriority.default,
+	priority: RegisteredEditorPriority.default,
 });
 
 export class ContributedCustomEditors extends Disposable {
@@ -61,7 +59,7 @@ export class ContributedCustomEditors extends Disposable {
 				this.add(new CustomEditorInfo({
 					id: webviewEditorContribution.viewType,
 					displayName: webviewEditorContribution.displayName,
-					providerDisplayName: extension.description.isBuiltin ? builtinProviderDisplayName : extension.description.displayName || extension.description.identifier.value,
+					providerDisplayName: extension.description.isBuiltin ? nls.localize('builtinProviderDisplayName', "Built-in") : extension.description.displayName || extension.description.identifier.value,
 					selector: webviewEditorContribution.selector || [],
 					priority: getPriorityFromContribution(webviewEditorContribution, extension.description),
 				}));
@@ -102,17 +100,17 @@ export class ContributedCustomEditors extends Disposable {
 function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
-): CustomEditorPriority {
+): RegisteredEditorPriority {
 	switch (contribution.priority) {
-		case CustomEditorPriority.default:
-		case CustomEditorPriority.option:
+		case RegisteredEditorPriority.default:
+		case RegisteredEditorPriority.option:
 			return contribution.priority;
 
-		case CustomEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
-			return extension.isBuiltin ? CustomEditorPriority.builtin : CustomEditorPriority.default;
+			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 
 		default:
-			return CustomEditorPriority.default;
+			return RegisteredEditorPriority.default;
 	}
 }

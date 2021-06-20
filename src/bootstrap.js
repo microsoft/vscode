@@ -43,8 +43,9 @@
 
 	/**
 	 * @param {string | undefined} appRoot
+	 * @param {boolean} alwaysAddASARPath
 	 */
-	function enableASARSupport(appRoot) {
+	function enableASARSupport(appRoot, alwaysAddASARPath) {
 		if (!path || !Module || typeof process === 'undefined') {
 			console.warn('enableASARSupport() is only available in node.js environments'); // TODO@sandbox ASAR is currently non-sandboxed only
 			return;
@@ -69,11 +70,16 @@
 		Module._resolveLookupPaths = function (request, parent) {
 			const paths = originalResolveLookupPaths(request, parent);
 			if (Array.isArray(paths)) {
+				let asarPathAdded = false;
 				for (let i = 0, len = paths.length; i < len; i++) {
 					if (paths[i] === NODE_MODULES_PATH) {
+						asarPathAdded = true;
 						paths.splice(i, 0, NODE_MODULES_ASAR_PATH);
 						break;
 					}
+				}
+				if (alwaysAddASARPath && !asarPathAdded) {
+					paths.push(NODE_MODULES_ASAR_PATH);
 				}
 			}
 
@@ -170,34 +176,41 @@
 		return nlsConfig;
 	}
 
-	function safeGlobals() {
+	/**
+	 * @returns {typeof import('./vs/base/parts/sandbox/electron-sandbox/globals') | undefined}
+	 */
+	function safeSandboxGlobals() {
 		const globals = (typeof self === 'object' ? self : typeof global === 'object' ? global : {});
 
 		return globals.vscode;
 	}
 
 	/**
-	 * @returns {NodeJS.Process | undefined}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/globals').ISandboxNodeProcess | NodeJS.Process}
 	 */
 	function safeProcess() {
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.process; // Native environment (sandboxed)
+		}
+
 		if (typeof process !== 'undefined') {
 			return process; // Native environment (non-sandboxed)
 		}
 
-		const globals = safeGlobals();
-		if (globals) {
-			return globals.process; // Native environment (sandboxed)
-		}
+		return undefined;
 	}
 
 	/**
-	 * @returns {Electron.IpcRenderer | undefined}
+	 * @returns {import('./vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer | undefined}
 	 */
 	function safeIpcRenderer() {
-		const globals = safeGlobals();
-		if (globals) {
-			return globals.ipcRenderer;
+		const sandboxGlobals = safeSandboxGlobals();
+		if (sandboxGlobals) {
+			return sandboxGlobals.ipcRenderer;
 		}
+
+		return undefined;
 	}
 
 	/**
@@ -236,7 +249,7 @@
 	}
 
 	//#endregion
-	
+
 
 	//#region ApplicationInsights
 

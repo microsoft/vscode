@@ -38,7 +38,7 @@ suite('MainThreadDiagnostics', function () {
 			},
 			markerService,
 			new class extends mock<IUriIdentityService>() {
-				asCanonicalUri(uri: URI) { return uri; }
+				override asCanonicalUri(uri: URI) { return uri; }
 			}
 		);
 
@@ -53,8 +53,8 @@ suite('MainThreadDiagnostics', function () {
 			source: 'me'
 		}]]]);
 
-		assert.equal(markerService.read().length, 1);
+		assert.strictEqual(markerService.read().length, 1);
 		diag.dispose();
-		assert.equal(markerService.read().length, 0);
+		assert.strictEqual(markerService.read().length, 0);
 	});
 });

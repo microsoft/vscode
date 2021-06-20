@@ -17,6 +17,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { flatten, tail } from 'vs/base/common/arrays';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 interface IFileOperation {
 	uris: URI[];
@@ -75,7 +76,7 @@ class RenameOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		await this._workingCopyFileService.move(moves, this._undoRedoInfo, token);
+		await this._workingCopyFileService.move(moves, token, this._undoRedoInfo);
 		return new RenameOperation(undoes, { isUndoing: true }, this._workingCopyFileService, this._fileService);
 	}
 
@@ -124,7 +125,7 @@ class CopyOperation implements IFileOperation {
 		}
 
 		// (2) perform the actual copy and use the return stats to build undo edits
-		const stats = await this._workingCopyFileService.copy(copies, this._undoRedoInfo, token);
+		const stats = await this._workingCopyFileService.copy(copies, token, this._undoRedoInfo);
 		const undoes: DeleteEdit[] = [];
 
 		for (let i = 0; i < stats.length; i++) {
@@ -158,6 +159,7 @@ class CreateOperation implements IFileOperation {
 		@IFileService private readonly _fileService: IFileService,
 		@IWorkingCopyFileService private readonly _workingCopyFileService: IWorkingCopyFileService,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@ITextFileService private readonly _textFileService: ITextFileService
 	) { }
 
 	get uris() {
@@ -177,17 +179,19 @@ class CreateOperation implements IFileOperation {
 			if (edit.options.folder) {
 				folderCreates.push({ resource: edit.newUri });
 			} else {
-				fileCreates.push({ resource: edit.newUri, contents: edit.contents, overwrite: edit.options.overwrite });
+				// If the contents are part of the edit they include the encoding, thus use them. Otherwise get the encoding for a new empty file.
+				const encodedReadable = typeof edit.contents !== 'undefined' ? edit.contents : await this._textFileService.getEncodedReadable(edit.newUri);
+				fileCreates.push({ resource: edit.newUri, contents: encodedReadable, overwrite: edit.options.overwrite });
 			}
 			undoes.push(new DeleteEdit(edit.newUri, edit.options, !edit.options.folder && !edit.contents));
 		}
 
-		if (fileCreates.length === 0 && folderCreates.length === 0) {
+		if (folderCreates.length === 0 && fileCreates.length === 0) {
 			return new Noop();
 		}
 
-		await this._workingCopyFileService.createFolder(folderCreates, this._undoRedoInfo, token);
-		await this._workingCopyFileService.create(fileCreates, this._undoRedoInfo, token);
+		await this._workingCopyFileService.createFolder(folderCreates, token, this._undoRedoInfo);
+		await this._workingCopyFileService.create(fileCreates, token, this._undoRedoInfo);
 
 		return this._instaService.createInstance(DeleteOperation, undoes, { isUndoing: true });
 	}
@@ -261,7 +265,7 @@ class DeleteOperation implements IFileOperation {
 			return new Noop();
 		}
 
-		await this._workingCopyFileService.delete(deletes, this._undoRedoInfo, token);
+		await this._workingCopyFileService.delete(deletes, token, this._undoRedoInfo);
 
 		if (undoes.length === 0) {
 			return new Noop();
@@ -282,7 +286,8 @@ class FileUndoRedoElement implements IWorkspaceUndoRedoElement {
 
 	constructor(
 		readonly label: string,
-		readonly operations: IFileOperation[]
+		readonly operations: IFileOperation[],
+		readonly confirmBeforeUndo: boolean
 	) {
 		this.resources = (<URI[]>[]).concat(...operations.map(op => op.uris));
 	}
@@ -314,6 +319,7 @@ export class BulkFileEdits {
 		private readonly _label: string,
 		private readonly _undoRedoGroup: UndoRedoGroup,
 		private readonly _undoRedoSource: UndoRedoSource | undefined,
+		private readonly _confirmBeforeUndo: boolean,
 		private readonly _progress: IProgress<void>,
 		private readonly _token: CancellationToken,
 		private readonly _edits: ResourceFileEdit[],
@@ -384,6 +390,6 @@ export class BulkFileEdits {
 			this._progress.report(undefined);
 		}
 
-		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations), this._undoRedoGroup, this._undoRedoSource);
+		this._undoRedoService.pushElement(new FileUndoRedoElement(this._label, undoOperations, this._confirmBeforeUndo), this._undoRedoGroup, this._undoRedoSource);
 	}
 }

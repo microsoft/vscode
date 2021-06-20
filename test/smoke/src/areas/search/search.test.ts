@@ -4,14 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
+import minimist = require('minimist');
 import { Application } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
+	// https://github.com/microsoft/vscode/issues/115244
 	describe('Search', () => {
+		beforeSuite(opts);
+
 		after(function () {
 			const app = this.app as Application;
 			cp.execSync('git checkout . --quiet', { cwd: app.workspacePathOrFolder });
-			cp.execSync('git reset --hard origin/master --quiet', { cwd: app.workspacePathOrFolder });
+			cp.execSync('git reset --hard HEAD --quiet', { cwd: app.workspacePathOrFolder });
+		});
+
+		afterSuite();
+
+		// https://github.com/microsoft/vscode/issues/124146
+		it.skip /* https://github.com/microsoft/vscode/issues/124335 */('has a tooltp with a keybinding', async function () {
+			const app = this.app as Application;
+			const tooltip: string = await app.workbench.search.getSearchTooltip();
+			if (!/Search \(.+\)/.test(tooltip)) {
+				throw Error(`Expected search tooltip to contain keybinding but got ${tooltip}`);
+			}
 		});
 
 		it('searches for body & checks for correct result number', async function () {
@@ -34,7 +50,7 @@ export function setup() {
 			await app.workbench.search.hideQueryDetails();
 		});
 
-		it('dismisses result & checks for correct result number', async function () {
+		it.skip('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch('app.js');
@@ -53,11 +69,14 @@ export function setup() {
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
-			await app.workbench.search.waitForNoResultText();
+			await app.workbench.search.waitForResultText('0 results in 0 files');
 		});
 	});
 
 	describe('Quick Access', () => {
+		beforeSuite(opts);
+		afterSuite();
+
 		it('quick access search produces correct result', async function () {
 			const app = this.app as Application;
 			const expectedNames = [

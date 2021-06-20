@@ -5,12 +5,13 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { withRandomFileEditor } from './testUtils';
+import { closeAllEditors, withRandomFileEditor } from './testUtils';
 import * as vscode from 'vscode';
 import { parsePartialStylesheet, getFlatNode } from '../util';
 import { isValidLocationForEmmetAbbreviation } from '../abbreviationActions';
 
 suite('Tests for partial parse of Stylesheets', () => {
+	teardown(closeAllEditors);
 
 	function isValid(doc: vscode.TextDocument, range: vscode.Range, syntax: string): boolean {
 		const rootNode = parsePartialStylesheet(doc, range.end);
@@ -43,10 +44,10 @@ p {
 
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'css'), true);
+				assert.strictEqual(isValid(doc, range, 'css'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'css'), false);
+				assert.strictEqual(isValid(doc, range, 'css'), false);
 			});
 
 			return Promise.resolve();
@@ -60,7 +61,7 @@ p {
 /* .foo { op.3
 dn	{
 */
-	@
+	bgc
 } bg
 `;
 		return withRandomFileEditor(sassContents, '.scss', (_, doc) => {
@@ -69,11 +70,11 @@ dn	{
 				new vscode.Range(2, 3, 2, 7),		// Line commented selector
 				new vscode.Range(3, 3, 3, 7),		// Block commented selector
 				new vscode.Range(4, 0, 4, 2),		// dn inside block comment
-				new vscode.Range(6, 1, 6, 2),		// @ inside a rule whose opening brace is commented
+				new vscode.Range(6, 1, 6, 2),		// bgc inside a rule whose opening brace is commented
 				new vscode.Range(7, 2, 7, 4)		// bg after ending of badly constructed block
 			];
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), false);
+				assert.strictEqual(isValid(doc, range, 'scss'), false);
 			});
 			return Promise.resolve();
 		});
@@ -108,10 +109,10 @@ comment */
 				new vscode.Range(10, 2, 10, 3)		// p after ending of block
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'css'), true);
+				assert.strictEqual(isValid(doc, range, 'css'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'css'), false);
+				assert.strictEqual(isValid(doc, range, 'css'), false);
 			});
 			return Promise.resolve();
 		});
@@ -143,10 +144,10 @@ comment */
 				new vscode.Range(6, 3, 6, 4)		// In selector
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), true);
+				assert.strictEqual(isValid(doc, range, 'scss'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), false);
+				assert.strictEqual(isValid(doc, range, 'scss'), false);
 			});
 			return Promise.resolve();
 		});
@@ -175,10 +176,10 @@ comment */
 				new vscode.Range(1, 66, 1, 68)		// Outside any ruleset
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), true);
+				assert.strictEqual(isValid(doc, range, 'scss'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), false);
+				assert.strictEqual(isValid(doc, range, 'scss'), false);
 			});
 			return Promise.resolve();
 		});
@@ -210,10 +211,10 @@ p.#{dn} {
 				new vscode.Range(3, 1, 3, 2),		// # inside ruleset
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), true);
+				assert.strictEqual(isValid(doc, range, 'scss'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), false);
+				assert.strictEqual(isValid(doc, range, 'scss'), false);
 			});
 			return Promise.resolve();
 		});
@@ -248,10 +249,10 @@ ment */{
 				new vscode.Range(6, 3, 6, 4)		// In c inside block comment
 			];
 			rangesForEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), true);
+				assert.strictEqual(isValid(doc, range, 'scss'), true);
 			});
 			rangesNotEmmet.forEach(range => {
-				assert.equal(isValid(doc, range, 'scss'), false);
+				assert.strictEqual(isValid(doc, range, 'scss'), false);
 			});
 			return Promise.resolve();
 		});

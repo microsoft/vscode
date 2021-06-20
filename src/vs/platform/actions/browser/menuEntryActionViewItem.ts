@@ -3,33 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createCSSRule, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { IdGenerator } from 'vs/base/common/idGenerator';
+import 'vs/css!./menuEntryActionViewItem';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { ICommandAction, IMenu, IMenuActionOptions, MenuItemAction, SubmenuItemAction, Icon } from 'vs/platform/actions/common/actions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
-import { isWindows, isLinux } from 'vs/base/common/platform';
+import { isWindows, isLinux, OS } from 'vs/base/common/platform';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string): IDisposable {
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, isPrimaryGroup);
+	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
 	const groups = menu.getActions(options);
+	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
+
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, isPrimaryGroup);
+	fillInActions(groups, target, false, isPrimaryAction, primaryMaxCount, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 	return asDisposable(groups);
 }
 
@@ -43,32 +46,74 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 	return disposables;
 }
 
-function fillInActions(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, useAlternativeActions: boolean, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
-	for (let tuple of groups) {
-		let [group, actions] = tuple;
-		if (useAlternativeActions) {
-			actions = actions.map(a => (a instanceof MenuItemAction) && !!a.alt ? a.alt : a);
+
+function fillInActions(
+	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
+	useAlternativeActions: boolean,
+	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
+	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
+	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
+	useSeparatorsInPrimaryActions: boolean = false
+): void {
+
+	let primaryBucket: IAction[];
+	let secondaryBucket: IAction[];
+	if (Array.isArray(target)) {
+		primaryBucket = target;
+		secondaryBucket = target;
+	} else {
+		primaryBucket = target.primary;
+		secondaryBucket = target.secondary;
+	}
+
+	const submenuInfo = new Set<{ group: string, action: SubmenuAction, index: number }>();
+
+	for (const [group, actions] of groups) {
+
+		let target: IAction[];
+		if (isPrimaryAction(group)) {
+			target = primaryBucket;
+			if (target.length > 0 && useSeparatorsInPrimaryActions) {
+				target.push(new Separator());
+			}
+		} else {
+			target = secondaryBucket;
+			if (target.length > 0) {
+				target.push(new Separator());
+			}
 		}
 
-		if (isPrimaryGroup(group)) {
-			const to = Array.isArray(target) ? target : target.primary;
-
-			to.unshift(...actions);
-		} else {
-			const to = Array.isArray(target) ? target : target.secondary;
-
-			if (to.length > 0) {
-				to.push(new Separator());
+		for (let action of actions) {
+			if (useAlternativeActions) {
+				action = action instanceof MenuItemAction && action.alt ? action.alt : action;
 			}
-
-			to.push(...actions);
+			const newLen = target.push(action);
+			// keep submenu info for later inlining
+			if (action instanceof SubmenuAction) {
+				submenuInfo.add({ group, action, index: newLen - 1 });
+			}
 		}
 	}
+
+	// ask the outside if submenu should be inlined or not. only ask when
+	// there would be enough space
+	for (const { group, action, index } of submenuInfo) {
+		const target = isPrimaryAction(group) ? primaryBucket : secondaryBucket;
+
+		// inlining submenus with length 0 or 1 is easy,
+		// larger submenus need to be checked with the overall limit
+		const submenuActions = action.actions;
+		if ((submenuActions.length <= 1 || target.length + submenuActions.length - 2 <= primaryMaxCount) && shouldInlineSubmenu(action, group, target.length)) {
+			target.splice(index, 1, ...submenuActions);
+		}
+	}
+
+	// overflow items from the primary group into the secondary bucket
+	if (primaryBucket !== secondaryBucket && primaryBucket.length > primaryMaxCount) {
+		const overflow = primaryBucket.splice(primaryMaxCount, primaryBucket.length - primaryMaxCount);
+		secondaryBucket.unshift(...overflow, new Separator());
+	}
 }
-
-const ids = new IdGenerator('menu-item-action-item-icon-');
-
-const ICON_PATH_TO_CSS_RULES = new Map<string /* path*/, string /* CSS rule */>();
 
 export class MenuEntryActionViewItem extends ActionViewItem {
 
@@ -77,7 +122,7 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private readonly _altKey: ModifierKeyEmitter;
 
 	constructor(
-		readonly _action: MenuItemAction,
+		_action: MenuItemAction,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService
 	) {
@@ -85,22 +130,30 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
-	protected get _commandAction(): IAction {
-		return this._wantsAltCommand && (<MenuItemAction>this._action).alt || this._action;
+	protected get _menuItemAction(): MenuItemAction {
+		return <MenuItemAction>this._action;
 	}
 
-	onClick(event: MouseEvent): void {
+	protected get _commandAction(): MenuItemAction {
+		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
+	}
+
+	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.actionRunner.run(this._commandAction, this._context)
-			.then(undefined, err => this._notificationService.error(err));
+		try {
+			await this.actionRunner.run(this._commandAction, this._context);
+		} catch (err) {
+			this._notificationService.error(err);
+		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
+		container.classList.add('menu-entry');
 
-		this._updateItemClass(this._action.item);
+		this._updateItemClass(this._menuItemAction.item);
 
 		let mouseOver = false;
 
@@ -116,50 +169,60 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}
 		};
 
-		if (this._action.alt) {
+		if (this._menuItemAction.alt) {
 			this._register(this._altKey.event(value => {
 				alternativeKeyDown = value.altKey || ((isWindows || isLinux) && value.shiftKey);
 				updateAltState();
 			}));
 		}
 
-		this._register(domEvent(container, 'mouseleave')(_ => {
+		this._register(addDisposableListener(container, 'mouseleave', _ => {
 			mouseOver = false;
 			updateAltState();
 		}));
 
-		this._register(domEvent(container, 'mouseenter')(e => {
+		this._register(addDisposableListener(container, 'mouseenter', _ => {
 			mouseOver = true;
 			updateAltState();
 		}));
 	}
 
-	updateLabel(): void {
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this._commandAction.label;
 		}
 	}
 
-	updateTooltip(): void {
+	override updateTooltip(): void {
 		if (this.label) {
 			const keybinding = this._keybindingService.lookupKeybinding(this._commandAction.id);
 			const keybindingLabel = keybinding && keybinding.getLabel();
 
 			const tooltip = this._commandAction.tooltip || this._commandAction.label;
-			this.label.title = keybindingLabel
+			let title = keybindingLabel
 				? localize('titleAndKb', "{0} ({1})", tooltip, keybindingLabel)
 				: tooltip;
+			if (!this._wantsAltCommand && this._menuItemAction.alt) {
+				const altTooltip = this._menuItemAction.alt.tooltip || this._menuItemAction.alt.label;
+				const altKeybinding = this._keybindingService.lookupKeybinding(this._menuItemAction.alt.id);
+				const altKeybindingLabel = altKeybinding && altKeybinding.getLabel();
+				const altTitleSection = altKeybindingLabel
+					? localize('titleAndKb', "{0} ({1})", altTooltip, altKeybindingLabel)
+					: altTooltip;
+				title += `\n[${UILabelProvider.modifierLabels[OS].altKey}] ${altTitleSection}`;
+			}
+			this.label.title = title;
 		}
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		if (this.options.icon) {
-			if (this._commandAction !== this._action) {
-				if (this._action.alt) {
-					this._updateItemClass(this._action.alt.item);
+			if (this._commandAction !== this._menuItemAction) {
+				if (this._menuItemAction.alt) {
+					this._updateItemClass(this._menuItemAction.alt.item);
 				}
-			} else if ((<MenuItemAction>this._action).alt) {
-				this._updateItemClass(this._action.item);
+			} else if (this._menuItemAction.alt) {
+				this._updateItemClass(this._menuItemAction.item);
 			}
 		}
 	}
@@ -167,46 +230,39 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 	private _updateItemClass(item: ICommandAction): void {
 		this._itemClassDispose.value = undefined;
 
+		const { element, label } = this;
+		if (!element || !label) {
+			return;
+		}
+
 		const icon = this._commandAction.checked && (item.toggled as { icon?: Icon })?.icon ? (item.toggled as { icon: Icon }).icon : item.icon;
+
+		if (!icon) {
+			return;
+		}
 
 		if (ThemeIcon.isThemeIcon(icon)) {
 			// theme icons
-			const iconClass = ThemeIcon.asClassName(icon);
-			if (this.label && iconClass) {
-				this.label.classList.add(...iconClass.split(' '));
-				this._itemClassDispose.value = toDisposable(() => {
-					if (this.label) {
-						this.label.classList.remove(...iconClass.split(' '));
-					}
-				});
+			const iconClasses = ThemeIcon.asClassNameArray(icon);
+			label.classList.add(...iconClasses);
+			this._itemClassDispose.value = toDisposable(() => {
+				label.classList.remove(...iconClasses);
+			});
+
+		} else {
+			// icon path/url
+			if (icon.light) {
+				label.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
 			}
-
-		} else if (icon) {
-			// icon path
-			let iconClass: string;
-
-			if (icon.dark?.scheme) {
-
-				const iconPathMapKey = icon.dark.toString();
-
-				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					iconClass = ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!;
-				} else {
-					iconClass = ids.nextId();
-					createCSSRule(`.icon.${iconClass}`, `background-image: ${asCSSUrl(icon.light || icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: ${asCSSUrl(icon.dark)}`);
-					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
-				}
-
-				if (this.label) {
-					this.label.classList.add('icon', ...iconClass.split(' '));
-					this._itemClassDispose.value = toDisposable(() => {
-						if (this.label) {
-							this.label.classList.remove('icon', ...iconClass.split(' '));
-						}
-					});
-				}
+			if (icon.dark) {
+				label.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
 			}
+			label.classList.add('icon');
+			this._itemClassDispose.value = toDisposable(() => {
+				label.classList.remove('icon');
+				label.style.removeProperty('--menu-entry-icon-light');
+				label.style.removeProperty('--menu-entry-icon-dark');
+			});
 		}
 	}
 }
@@ -215,29 +271,41 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
 
 	constructor(
 		action: SubmenuItemAction,
-		@INotificationService _notificationService: INotificationService,
-		@IContextMenuService _contextMenuService: IContextMenuService
+		@IContextMenuService contextMenuService: IContextMenuService
 	) {
-		let classNames: string | string[] | undefined;
+		super(action, { getActions: () => action.actions }, contextMenuService, {
+			menuAsChild: true,
+			classNames: ThemeIcon.isThemeIcon(action.item.icon) ? ThemeIcon.asClassName(action.item.icon) : undefined,
+		});
+	}
 
-		if (action.item.icon) {
-			if (ThemeIcon.isThemeIcon(action.item.icon)) {
-				classNames = ThemeIcon.asClassName(action.item.icon)!;
-			} else if (action.item.icon.dark?.scheme) {
-				const iconPathMapKey = action.item.icon.dark.toString();
-
-				if (ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
-					classNames = ['icon', ICON_PATH_TO_CSS_RULES.get(iconPathMapKey)!];
-				} else {
-					const className = ids.nextId();
-					classNames = ['icon', className];
-					createCSSRule(`.icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.light || action.item.icon.dark)}`);
-					createCSSRule(`.vs-dark .icon.${className}, .hc-black .icon.${className}`, `background-image: ${asCSSUrl(action.item.icon.dark)}`);
-					ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, className);
+	override render(container: HTMLElement): void {
+		super.render(container);
+		if (this.element) {
+			container.classList.add('menu-entry');
+			const { icon } = (<SubmenuItemAction>this._action).item;
+			if (icon && !ThemeIcon.isThemeIcon(icon)) {
+				this.element.classList.add('icon');
+				if (icon.light) {
+					this.element.style.setProperty('--menu-entry-icon-light', asCSSUrl(icon.light));
+				}
+				if (icon.dark) {
+					this.element.style.setProperty('--menu-entry-icon-dark', asCSSUrl(icon.dark));
 				}
 			}
 		}
+	}
+}
 
-		super(action, action.actions, _contextMenuService, { classNames: classNames, menuAsChild: true });
+/**
+ * Creates action view items for menu actions or submenu actions.
+ */
+export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
+	if (action instanceof MenuItemAction) {
+		return instaService.createInstance(MenuEntryActionViewItem, action);
+	} else if (action instanceof SubmenuItemAction) {
+		return instaService.createInstance(SubmenuEntryActionViewItem, action);
+	} else {
+		return undefined;
 	}
 }

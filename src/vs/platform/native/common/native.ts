@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, SaveDialogOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogReturnValue, MouseInputEvent } from 'vs/base/parts/sandbox/common/electronTypes';
-import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme } from 'vs/platform/windows/common/windows';
+import { IOpenedWindow, IWindowOpenable, IOpenEmptyWindowOptions, IOpenWindowOptions, IColorScheme, IPartsSplash } from 'vs/platform/windows/common/windows';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { URI } from 'vs/base/common/uri';
@@ -45,11 +45,13 @@ export interface ICommonNativeHostService {
 	readonly onDidFocusWindow: Event<number>;
 	readonly onDidBlurWindow: Event<number>;
 
+	readonly onDidChangeDisplay: Event<void>;
+
 	readonly onDidResumeOS: Event<unknown>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
-	readonly onDidChangePassword: Event<void>;
+	readonly onDidChangePassword: Event<{ service: string, account: string }>;
 
 	// Window
 	getWindows(): Promise<IOpenedWindow[]>;
@@ -69,6 +71,8 @@ export interface ICommonNativeHostService {
 	minimizeWindow(): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
+
+	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
 	/**
 	 * Make the window focused.
@@ -95,10 +99,10 @@ export interface ICommonNativeHostService {
 	setRepresentedFilename(path: string): Promise<void>;
 	setDocumentEdited(edited: boolean): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
-	moveItemToTrash(fullPath: string, deleteOnFail?: boolean): Promise<boolean>;
+	moveItemToTrash(fullPath: string): Promise<void>;
 
 	isAdmin(): Promise<boolean>;
-	writeElevated(source: URI, target: URI, options?: { overwriteReadonly?: boolean }): Promise<void>;
+	writeElevated(source: URI, target: URI, options?: { unlock?: boolean }): Promise<void>;
 
 	getOSProperties(): Promise<IOSProperties>;
 	getOSStatistics(): Promise<IOSStatistics>;
@@ -125,6 +129,10 @@ export interface ICommonNativeHostService {
 	toggleWindowTabsBar(): Promise<void>;
 	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void>;
 
+	// macOS Shell command
+	installShellCommand(): Promise<void>;
+	uninstallShellCommand(): Promise<void>;
+
 	// Lifecycle
 	notifyReady(): Promise<void>
 	relaunch(options?: { addArgs?: string[], removeArgs?: string[] }): Promise<void>;
@@ -137,6 +145,7 @@ export interface ICommonNativeHostService {
 	// Development
 	openDevTools(options?: OpenDevToolsOptions): Promise<void>;
 	toggleDevTools(): Promise<void>;
+	toggleSharedProcessWindow(): Promise<void>;
 	sendInputEvent(event: MouseInputEvent): Promise<void>;
 
 	// Connectivity

@@ -8,14 +8,14 @@ import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IExtHostContext, ExtHostContext, MainThreadLogShape, MainContext } from 'vs/workbench/api/common/extHost.protocol';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { FileLogService } from 'vs/platform/log/common/fileLogService';
+import { FileLogger } from 'vs/platform/log/common/fileLog';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { basename } from 'vs/base/common/path';
 
 @extHostNamedCustomer(MainContext.MainThreadLog)
 export class MainThreadLogService implements MainThreadLogShape {
 
-	private readonly _loggers = new Map<string, FileLogService>();
+	private readonly _loggers = new Map<string, FileLogger>();
 	private readonly _logListener: IDisposable;
 
 	constructor(
@@ -40,7 +40,7 @@ export class MainThreadLogService implements MainThreadLogShape {
 		const uri = URI.revive(file);
 		let logger = this._loggers.get(uri.toString());
 		if (!logger) {
-			logger = this._instaService.createInstance(FileLogService, basename(file.path), URI.revive(file), this._logService.getLevel());
+			logger = this._instaService.createInstance(FileLogger, basename(file.path), URI.revive(file), this._logService.getLevel());
 			this._loggers.set(uri.toString(), logger);
 		}
 		logger.log(level, message);

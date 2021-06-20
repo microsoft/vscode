@@ -393,15 +393,24 @@ function trivia3(pattern: string, options: IGlobOptions): ParsedStringPattern {
 }
 
 // common patterns: **/something/else just need endsWith check, something/else just needs and equals check
-function trivia4and5(path: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
-	const nativePath = paths.sep !== paths.posix.sep ? path.replace(ALL_FORWARD_SLASHES, paths.sep) : path;
+function trivia4and5(targetPath: string, pattern: string, matchPathEnds: boolean): ParsedStringPattern {
+	const usingPosixSep = paths.sep === paths.posix.sep;
+	const nativePath = usingPosixSep ? targetPath : targetPath.replace(ALL_FORWARD_SLASHES, paths.sep);
 	const nativePathEnd = paths.sep + nativePath;
-	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (path, basename) {
-		return typeof path === 'string' && (path === nativePath || path.endsWith(nativePathEnd)) ? pattern : null;
-	} : function (path, basename) {
-		return typeof path === 'string' && path === nativePath ? pattern : null;
+	const targetPathEnd = paths.posix.sep + targetPath;
+
+	const parsedPattern: ParsedStringPattern = matchPathEnds ? function (testPath, basename) {
+		return typeof testPath === 'string' &&
+			((testPath === nativePath || testPath.endsWith(nativePathEnd))
+				|| !usingPosixSep && (testPath === targetPath || testPath.endsWith(targetPathEnd)))
+			? pattern : null;
+	} : function (testPath, basename) {
+		return typeof testPath === 'string' &&
+			(testPath === nativePath
+				|| (!usingPosixSep && testPath === targetPath))
+			? pattern : null;
 	};
-	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + path];
+	parsedPattern.allPaths = [(matchPathEnds ? '*/' : './') + targetPath];
 	return parsedPattern;
 }
 

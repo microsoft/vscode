@@ -4,41 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mapFind } from 'vs/base/common/arrays';
-import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { throttle } from 'vs/base/common/decorators';
-import { Emitter } from 'vs/base/common/event';
+import { disposableTimeout } from 'vs/base/common/async';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { Emitter, Event } from 'vs/base/common/event';
 import { once } from 'vs/base/common/functional';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Iterable } from 'vs/base/common/iterator';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { deepFreeze } from 'vs/base/common/objects';
 import { isDefined } from 'vs/base/common/types';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ExtHostTestingResource, ExtHostTestingShape, MainContext, MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentData } from 'vs/workbench/api/common/extHostDocumentData';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
-import { TestItem } from 'vs/workbench/api/common/extHostTypeConverters';
-import { Disposable, RequiredTestItem } from 'vs/workbench/api/common/extHostTypes';
+import { ExtHostTestItemEventType, getPrivateApiFor } from 'vs/workbench/api/common/extHostTestingPrivateApi';
+import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
+import { TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { AbstractIncrementalTestCollection, EMPTY_TEST_RESULT, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, RunTestForProviderRequest, RunTestsResult, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { OwnedTestCollection, SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
+import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestItem, RunTestForProviderRequest, TestDiffOpType, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
-const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
 
 export class ExtHostTesting implements ExtHostTestingShape {
-	private readonly providers = new Map<string, vscode.TestProvider>();
+	private readonly resultsChangedEmitter = new Emitter<void>();
+	private readonly controllers = new TestControllers();
 	private readonly proxy: MainThreadTestingShape;
 	private readonly ownedTests = new OwnedTestCollection();
-	private readonly testSubscriptions = new Map<string, {
-		collection: SingleUseTestCollection;
-		store: IDisposable;
-		subscribeFn: (id: string, provider: vscode.TestProvider) => void;
-	}>();
+	private readonly runTracker: TestRunCoordinator;
+	private readonly subscriptions: TestSubscriptions;
+	private readonly mainThreadSubscriptions = new Map<string, IDisposable>();
 
 	private workspaceObservers: WorkspaceFolderTestObserverFactory;
 	private textDocumentObservers: TextDocumentTestObserverFactory;
 
-	constructor(@IExtHostRpcService rpc: IExtHostRpcService, @IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors, @IExtHostWorkspace private readonly workspace: IExtHostWorkspace) {
+	public onResultsChanged = this.resultsChangedEmitter.event;
+	public results: ReadonlyArray<vscode.TestRunResult> = [];
+
+	constructor(
+		@IExtHostRpcService rpc: IExtHostRpcService,
+		@IInstantiationService instantionService: IInstantiationService,
+		@IExtHostDocumentsAndEditors documents: IExtHostDocumentsAndEditors,
+	) {
 		this.proxy = rpc.getProxy(MainContext.MainThreadTesting);
+
+		this.subscriptions = instantionService.createInstance(TestSubscriptions, this.ownedTests, this.controllers);
+		this.runTracker = new TestRunCoordinator(this.proxy);
 		this.workspaceObservers = new WorkspaceFolderTestObserverFactory(this.proxy);
 		this.textDocumentObservers = new TextDocumentTestObserverFactory(this.proxy, documents);
 	}
@@ -46,22 +60,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public registerTestProvider<T extends vscode.TestItem>(provider: vscode.TestProvider<T>): vscode.Disposable {
-		const providerId = generateUuid();
-		this.providers.set(providerId, provider);
-		this.proxy.$registerTestProvider(providerId);
+	public registerTestController<T>(extensionId: string, controller: vscode.TestController<T>): vscode.Disposable {
+		const controllerId = generateUuid();
+		const registration = this.controllers.register(controllerId, controller);
+		this.proxy.$registerTestController(controllerId);
 
-		// give the ext a moment to register things rather than synchronously invoking within activate()
-		const toSubscribe = [...this.testSubscriptions.keys()];
-		setTimeout(() => {
-			for (const subscription of toSubscribe) {
-				this.testSubscriptions.get(subscription)?.subscribeFn(providerId, provider);
-			}
-		}, 0);
-
-		return new Disposable(() => {
-			this.providers.delete(providerId);
-			this.proxy.$unregisterTestProvider(providerId);
+		return toDisposable(() => {
+			registration.dispose();
+			this.proxy.$unregisterTestController(controllerId);
 		});
 	}
 
@@ -82,19 +88,41 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunOptions<vscode.TestItem>, token = CancellationToken.None) {
-		await this.proxy.$runTests({
-			tests: req.tests
-				// Find workspace items first, then owned tests, then document tests.
-				// If a test instance exists in both the workspace and document, prefer
-				// the workspace because it's less ephemeral.
-				.map(test => this.workspaceObservers.getMirroredTestDataByReference(test)
-					?? mapFind(this.testSubscriptions.values(), c => c.collection.getTestByReference(test))
-					?? this.textDocumentObservers.getMirroredTestDataByReference(test))
+	public async runTests(req: vscode.TestRunRequest<unknown>, token = CancellationToken.None) {
+		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem<unknown>>) =>
+			tests
+				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
-				.map(item => ({ providerId: item.providerId, testId: item.id })),
+				.map(t => ({ src: t.src, testId: t.item.extId }));
+
+		await this.proxy.$runTests({
+			exclude: req.exclude ? testListToProviders(req.exclude).map(t => t.testId) : undefined,
+			tests: testListToProviders(req.tests),
 			debug: req.debug
 		}, token);
+	}
+
+	/**
+	 * Implements vscode.test.createTestRun
+	 */
+	public createTestRun<T>(request: vscode.TestRunRequest<T>, name: string | undefined, persist = true): vscode.TestRun<T> {
+		return this.runTracker.createTestRun(request, name, persist);
+	}
+
+	/**
+	 * Updates test results shown to extensions.
+	 * @override
+	 */
+	public $publishTestResults(results: ISerializedTestResults[]): void {
+		this.results = Object.freeze(
+			results
+				.map(r => deepFreeze(Convert.TestResults.to(r)))
+				.concat(this.results)
+				.sort((a, b) => b.completedAt - a.completedAt)
+				.slice(0, 32),
+		);
+
+		this.resultsChangedEmitter.fire();
 	}
 
 	/**
@@ -103,65 +131,31 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 */
 	public async $subscribeToTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
 		const uri = URI.revive(uriComponents);
-		const subscriptionKey = getTestSubscriptionKey(resource, uri);
-		if (this.testSubscriptions.has(subscriptionKey)) {
-			return;
+		const { disposable, info } = await this.subscriptions.subscribeToTests(resource, uri);
+		this.mainThreadSubscriptions.set(getTestSubscriptionKey(resource, uri), disposable);
+
+		if (info) {
+			this.proxy.$publishDiff(resource, uri, info.collection.reviveDiff());
+			info.collection.onDidGenerateDiff(diff => this.proxy.$publishDiff(resource, uri, diff));
+
+			// note: we don't increment the count initially -- this is done by the
+			// main thread, incrementing once per extension host. We just push the
+			// diff to signal that roots have been discovered.
+			info.initialSubscribeP.then(() => info.collection.pushDiff([TestDiffOpType.IncrementPendingExtHosts, -1]));
 		}
+	}
 
-		let method: undefined | ((p: vscode.TestProvider) => vscode.TestHierarchy<vscode.TestItem> | undefined);
-		if (resource === ExtHostTestingResource.TextDocument) {
-			const document = this.documents.getDocument(uri);
-			if (document) {
-				method = p => p.createDocumentTestHierarchy?.(document.document);
-			}
-		} else {
-			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
-			if (folder) {
-				method = p => p.createWorkspaceTestHierarchy?.(folder);
-			}
+	/**
+	 * Expands the nodes in the test tree. If levels is less than zero, it will
+	 * be treated as infinite.
+	 * @override
+	 */
+	public async $expandTest(test: TestIdWithSrc, levels: number) {
+		const collection = this.subscriptions.getCollectionById(test.src.tree);
+		if (collection) {
+			await collection.expand(test.testId, levels < 0 ? Infinity : levels);
+			collection.flushDiff();
 		}
-
-		if (!method) {
-			return;
-		}
-
-		let delta = 0;
-		const updateCountScheduler = new RunOnceScheduler(() => {
-			if (delta !== 0) {
-				this.proxy.$updateDiscoveringCount(resource, uri, delta);
-				delta = 0;
-			}
-		}, 5);
-
-		const updateDelta = (amount: number) => {
-			delta += amount;
-			updateCountScheduler.schedule();
-		};
-
-		const subscribeFn = (id: string, provider: vscode.TestProvider) => {
-			try {
-				const hierarchy = method!(provider);
-				if (!hierarchy) {
-					return;
-				}
-
-				updateDelta(1);
-				disposable.add(hierarchy);
-				collection.addRoot(hierarchy.root, id);
-				hierarchy.onDidDiscoverInitialTests(() => updateDelta(-1));
-				hierarchy.onDidChangeTest(e => collection.onItemChange(e, id));
-			} catch (e) {
-				console.error(e);
-			}
-		};
-
-		const disposable = new DisposableStore();
-		const collection = disposable.add(this.ownedTests.createForHierarchy(diff => this.proxy.$publishDiff(resource, uriComponents, diff)));
-		for (const [id, provider] of this.providers) {
-			subscribeFn(id, provider);
-		}
-
-		this.testSubscriptions.set(subscriptionKey, { store: disposable, collection, subscribeFn });
 	}
 
 	/**
@@ -171,8 +165,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	public $unsubscribeFromTests(resource: ExtHostTestingResource, uriComponents: UriComponents) {
 		const uri = URI.revive(uriComponents);
 		const subscriptionKey = getTestSubscriptionKey(resource, uri);
-		this.testSubscriptions.get(subscriptionKey)?.store.dispose();
-		this.testSubscriptions.delete(subscriptionKey);
+		this.mainThreadSubscriptions.get(subscriptionKey)?.dispose();
+		this.mainThreadSubscriptions.delete(subscriptionKey);
 	}
 
 	/**
@@ -193,227 +187,478 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * providers to be run.
 	 * @override
 	 */
-	public async $runTestsForProvider(req: RunTestForProviderRequest, cancellation: CancellationToken): Promise<RunTestsResult> {
-		const provider = this.providers.get(req.providerId);
-		if (!provider || !provider.runTests) {
-			return EMPTY_TEST_RESULT;
+	public async $runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void> {
+		const controller = this.controllers.get(req.tests[0].src.controller);
+		if (!controller) {
+			return;
 		}
 
-		const tests = req.ids.map(id => this.ownedTests.getTestById(id)?.actual).filter(isDefined);
-		if (!tests.length) {
-			return EMPTY_TEST_RESULT;
+		const includeTests = req.tests
+			.map(({ testId, src }) => this.ownedTests.getTestById(testId, src?.tree))
+			.filter(isDefined)
+			.map(([_tree, test]) => test);
+
+		const excludeTests = req.excludeExtIds
+			.map(id => this.ownedTests.getTestById(id))
+			.filter(isDefined)
+			.filter(([tree, exclude]) =>
+				includeTests.some(include => tree.comparePositions(include, exclude) === TestPosition.IsChild),
+			);
+
+		if (!includeTests.length) {
+			return;
 		}
+
+		const publicReq: vscode.TestRunRequest<unknown> = {
+			tests: includeTests.map(t => TestItemFilteredWrapper.unwrap(t.actual)),
+			exclude: excludeTests.map(([, t]) => TestItemFilteredWrapper.unwrap(t.actual)),
+			debug: req.debug,
+		};
+
+		const tracker = this.runTracker.prepareForMainThreadTestRun(publicReq, TestRunDto.fromInternal(req), token);
 
 		try {
-			await provider.runTests({ tests, debug: req.debug }, cancellation);
-			return EMPTY_TEST_RESULT;
-		} catch (e) {
-			console.error(e); // so it appears to attached debuggers
-			throw e;
+			await controller.runTests(publicReq, token);
+		} finally {
+			if (tracker.isRunning && !token.isCancellationRequested) {
+				await Event.toPromise(tracker.onEnd);
+			}
+
+			this.runTracker.cancelRunById(req.runId);
+		}
+	}
+
+	/**
+	 * Cancels an ongoing test run.
+	 */
+	public $cancelExtensionTestRun(runId: string | undefined) {
+		if (runId === undefined) {
+			this.runTracker.cancelAllRuns();
+		} else {
+			this.runTracker.cancelRunById(runId);
+		}
+	}
+
+	public $lookupTest(req: TestIdWithSrc): Promise<InternalTestItem | undefined> {
+		const owned = this.ownedTests.getTestById(req.testId);
+		if (!owned) {
+			return Promise.resolve(undefined);
+		}
+
+		const { actual, discoverCts, expandLevels, ...item } = owned[1];
+		return Promise.resolve(item);
+	}
+
+	/**
+	 * Gets the internal test item associated with the reference from the extension.
+	 */
+	private getInternalTestForReference(test: vscode.TestItem<unknown>) {
+		// Find workspace items first, then owned tests, then document tests.
+		// If a test instance exists in both the workspace and document, prefer
+		// the workspace because it's less ephemeral.
+		return this.workspaceObservers.getMirroredTestDataByReference(test)
+			?? this.subscriptions.getCollectionTestByReference(test)
+			?? this.textDocumentObservers.getMirroredTestDataByReference(test);
+	}
+}
+
+class TestRunTracker<T> extends Disposable {
+	private readonly task = new Set<TestRunImpl<T>>();
+	private readonly sharedTestIds = new Set<string>();
+	private readonly cts: CancellationTokenSource;
+	private readonly endEmitter = this._register(new Emitter<void>());
+	private disposed = false;
+
+	/**
+	 * Fires when a test ends, and no more tests are left running.
+	 */
+	public readonly onEnd = this.endEmitter.event;
+
+	/**
+	 * Gets whether there are any tests running.
+	 */
+	public get isRunning() {
+		return this.task.size > 0;
+	}
+
+	/**
+	 * Gets the run ID.
+	 */
+	public get id() {
+		return this.dto.id;
+	}
+
+	constructor(private readonly dto: TestRunDto, private readonly proxy: MainThreadTestingShape, parentToken?: CancellationToken) {
+		super();
+		this.cts = this._register(new CancellationTokenSource(parentToken));
+		this._register(this.cts.token.onCancellationRequested(() => {
+			for (const task of this.task) {
+				task.end();
+			}
+		}));
+	}
+
+	public createRun(name: string | undefined) {
+		const run = new TestRunImpl(name, this.cts.token, this.dto, this.sharedTestIds, this.proxy, () => {
+			this.task.delete(run);
+			if (!this.isRunning) {
+				this.dispose();
+			}
+		});
+
+		this.task.add(run);
+		return run;
+	}
+
+	public override dispose() {
+		if (!this.disposed) {
+			this.disposed = true;
+			this.endEmitter.fire();
+			this.cts.cancel();
+			super.dispose();
 		}
 	}
 }
 
-const keyMap: { [K in keyof Omit<RequiredTestItem, 'children'>]: null } = {
-	label: null,
-	location: null,
-	state: null,
-	debuggable: null,
-	description: null,
-	runnable: null
-};
+/**
+ * Queues runs for a single extension and provides the currently-executing
+ * run so that `createTestRun` can be properly correlated.
+ */
+export class TestRunCoordinator {
+	private tracked = new Map<vscode.TestRunRequest<unknown>, TestRunTracker<unknown>>();
 
-const simpleProps = Object.keys(keyMap) as ReadonlyArray<keyof typeof keyMap>;
-
-const itemEqualityComparator = (a: vscode.TestItem) => {
-	const values: unknown[] = [];
-	for (const prop of simpleProps) {
-		values.push(a[prop]);
+	public get trackers() {
+		return this.tracked.values();
 	}
 
-	return (b: vscode.TestItem) => {
-		for (let i = 0; i < simpleProps.length; i++) {
-			if (values[i] !== b[simpleProps[i]]) {
+	constructor(private readonly proxy: MainThreadTestingShape) { }
+
+	/**
+	 * Registers a request as being invoked by the main thread, so
+	 * `$startedExtensionTestRun` is not invoked. The run must eventually
+	 * be cancelled manually.
+	 */
+	public prepareForMainThreadTestRun(req: vscode.TestRunRequest<unknown>, dto: TestRunDto, token: CancellationToken) {
+		return this.getTracker(req, dto, token);
+	}
+
+	/**
+	 * Cancels an existing test run via its cancellation token.
+	 */
+	public cancelRunById(runId: string) {
+		for (const tracker of this.tracked.values()) {
+			if (tracker.id === runId) {
+				tracker.dispose();
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Cancels an existing test run via its cancellation token.
+	 */
+	public cancelAllRuns() {
+		for (const tracker of this.tracked.values()) {
+			tracker.dispose();
+		}
+	}
+
+
+	/**
+	 * Implements the public `createTestRun` API.
+	 */
+	public createTestRun<T>(request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRun<T> {
+		const existing = this.tracked.get(request);
+		if (existing) {
+			return existing.createRun(name);
+		}
+
+		// If there is not an existing tracked extension for the request, start
+		// a new, detached session.
+		const dto = TestRunDto.fromPublic(request);
+		this.proxy.$startedExtensionTestRun({
+			debug: request.debug,
+			exclude: request.exclude?.map(t => t.id) ?? [],
+			id: dto.id,
+			tests: request.tests.map(t => t.id),
+			persist
+		});
+
+		const tracker = this.getTracker(request, dto);
+		tracker.onEnd(() => this.proxy.$finishedExtensionTestRun(dto.id));
+		return tracker.createRun(name);
+	}
+
+	private getTracker(req: vscode.TestRunRequest<unknown>, dto: TestRunDto, token?: CancellationToken) {
+		const tracker = new TestRunTracker(dto, this.proxy, token);
+		this.tracked.set(req, tracker);
+		tracker.onEnd(() => this.tracked.delete(req));
+		return tracker;
+	}
+}
+
+export class TestRunDto {
+	public static fromPublic(request: vscode.TestRunRequest<unknown>) {
+		return new TestRunDto(
+			generateUuid(),
+			new Set(request.tests.map(t => t.id)),
+			new Set(request.exclude?.map(t => t.id) ?? Iterable.empty()),
+		);
+	}
+
+	public static fromInternal(request: RunTestForProviderRequest) {
+		return new TestRunDto(
+			request.runId,
+			new Set(request.tests.map(t => t.testId)),
+			new Set(request.excludeExtIds),
+		);
+	}
+
+	constructor(
+		public readonly id: string,
+		private readonly include: ReadonlySet<string>,
+		private readonly exclude: ReadonlySet<string>,
+	) { }
+
+	public isIncluded(test: vscode.TestItem<unknown>) {
+		for (let t: vscode.TestItem<unknown> | undefined = test; t; t = t.parent) {
+			if (this.include.has(t.id)) {
+				return true;
+			} else if (this.exclude.has(t.id)) {
 				return false;
 			}
 		}
 
 		return true;
-	};
-};
-
-/**
- * @private
- */
-export interface OwnedCollectionTestItem extends InternalTestItem {
-	actual: vscode.TestItem;
-	previousChildren: Set<string>;
-	previousEquals: (v: vscode.TestItem) => boolean;
-}
-
-/**
- * @private
- */
-export class OwnedTestCollection {
-	protected readonly testIdToInternal = new Map<string, OwnedCollectionTestItem>();
-
-	/**
-	 * Gets test information by ID, if it was defined and still exists in this
-	 * extension host.
-	 */
-	public getTestById(id: string) {
-		return this.testIdToInternal.get(id);
-	}
-
-	/**
-	 * Creates a new test collection for a specific hierarchy for a workspace
-	 * or document observation.
-	 */
-	public createForHierarchy(publishDiff: (diff: TestsDiff) => void = () => undefined) {
-		return new SingleUseTestCollection(this.testIdToInternal, publishDiff);
 	}
 }
 
-/**
- * Maintains tests created and registered for a single set of hierarchies
- * for a workspace or document.
- * @private
- */
-export class SingleUseTestCollection implements IDisposable {
-	protected readonly testItemToInternal = new Map<vscode.TestItem, OwnedCollectionTestItem>();
-	protected diff: TestsDiff = [];
-	private disposed = false;
+class TestRunImpl<T> implements vscode.TestRun<T> {
+	readonly #proxy: MainThreadTestingShape;
+	readonly #req: TestRunDto;
+	readonly #sharedIds: Set<string>;
+	readonly #onEnd: () => void;
+	#ended = false;
+	public readonly taskId = generateUuid();
 
-	/**
-	 * Debouncer for sending diffs. We use both a throttle and a debounce here,
-	 * so that tests that all change state simultenously are effected together,
-	 * but so we don't send hundreds of test updates per second to the main thread.
-	 */
-	private readonly debounceSendDiff = new RunOnceScheduler(() => this.throttleSendDiff(), 2);
-
-	constructor(private readonly testIdToInternal: Map<string, OwnedCollectionTestItem>, private readonly publishDiff: (diff: TestsDiff) => void) { }
-
-	/**
-	 * Adds a new root node to the collection.
-	 */
-	public addRoot(item: vscode.TestItem, providerId: string) {
-		this.addItem(item, providerId, null);
-		this.debounceSendDiff.schedule();
+	constructor(
+		public readonly name: string | undefined,
+		public readonly token: CancellationToken,
+		dto: TestRunDto,
+		sharedTestIds: Set<string>,
+		proxy: MainThreadTestingShape,
+		onEnd: () => void,
+	) {
+		this.#onEnd = onEnd;
+		this.#proxy = proxy;
+		this.#req = dto;
+		this.#sharedIds = sharedTestIds;
+		proxy.$startedTestRunTask(dto.id, { id: this.taskId, name, running: true });
 	}
 
-	/**
-	 * Gets test information by its reference, if it was defined and still exists
-	 * in this extension host.
-	 */
-	public getTestByReference(item: vscode.TestItem) {
-		return this.testItemToInternal.get(item);
+	setState(test: vscode.TestItem<T>, state: vscode.TestResultState, duration?: number): void {
+		if (!this.#ended && this.#req.isIncluded(test)) {
+			this.ensureTestIsKnown(test);
+			this.#proxy.$updateTestStateInRun(this.#req.id, this.taskId, test.id, state, duration);
+		}
 	}
 
-	/**
-	 * Should be called when an item change is fired on the test provider.
-	 */
-	public onItemChange(item: vscode.TestItem, providerId: string) {
-		const existing = this.testItemToInternal.get(item);
-		if (!existing) {
-			if (!this.disposed) {
-				console.warn(`Received a TestProvider.onDidChangeTest for a test that wasn't seen before as a child.`);
-			}
+	appendMessage(test: vscode.TestItem<T>, message: vscode.TestMessage): void {
+		if (!this.#ended && this.#req.isIncluded(test)) {
+			this.ensureTestIsKnown(test);
+			this.#proxy.$appendTestMessageInRun(this.#req.id, this.taskId, test.id, Convert.TestMessage.from(message));
+		}
+	}
+
+	appendOutput(output: string): void {
+		if (!this.#ended) {
+			this.#proxy.$appendOutputToRun(this.#req.id, this.taskId, VSBuffer.fromString(output));
+		}
+	}
+
+	end(): void {
+		if (!this.#ended) {
+			this.#ended = true;
+			this.#proxy.$finishedTestRunTask(this.#req.id, this.taskId);
+			this.#onEnd();
+		}
+	}
+
+	private ensureTestIsKnown(test: vscode.TestItem<T>) {
+		const sent = this.#sharedIds;
+		if (sent.has(test.id)) {
 			return;
 		}
 
-		this.addItem(item, providerId, existing.parent);
-		this.debounceSendDiff.schedule();
+		const chain: ITestItem[] = [];
+		while (true) {
+			chain.unshift(Convert.TestItem.from(test));
+
+			if (sent.has(test.id)) {
+				break;
+			}
+
+			sent.add(test.id);
+			if (!test.parent) {
+				break;
+			}
+
+			test = test.parent;
+		}
+
+		this.#proxy.$addTestsToRun(this.#req.id, chain);
+	}
+}
+
+/*
+ * A class which wraps a vscode.TestItem that provides the ability to filter a TestItem's children
+ * to only the children that are located in a certain vscode.Uri.
+ */
+export class TestItemFilteredWrapper extends TestItemImpl {
+	private static wrapperMap = new WeakMap<vscode.TextDocument, WeakMap<vscode.TestItem<unknown>, TestItemFilteredWrapper>>();
+
+	public static removeFilter(document: vscode.TextDocument): void {
+		this.wrapperMap.delete(document);
+	}
+
+	// Wraps the TestItem specified in a TestItemFilteredWrapper and pulls from a cache if it already exists.
+	public static getWrapperForTestItem(
+		item: vscode.TestItem<unknown>,
+		filterDocument: vscode.TextDocument,
+		parent?: TestItemFilteredWrapper,
+	): TestItemFilteredWrapper {
+		let innerMap = this.wrapperMap.get(filterDocument);
+		if (innerMap?.has(item)) {
+			return innerMap.get(item) as TestItemFilteredWrapper;
+		}
+
+		if (!innerMap) {
+			innerMap = new WeakMap();
+			this.wrapperMap.set(filterDocument, innerMap);
+		}
+
+		const w = new TestItemFilteredWrapper(item, filterDocument, parent);
+		innerMap.set(item, w);
+		return w;
 	}
 
 	/**
-	 * Gets a diff of all changes that have been made, and clears the diff queue.
+	 * If the TestItem is wrapped, returns the unwrapped item provided
+	 * by the extension.
 	 */
-	public collectDiff() {
-		const diff = this.diff;
-		this.diff = [];
-		return diff;
+	public static unwrap<T>(item: vscode.TestItem<T> | TestItemFilteredWrapper) {
+		return item instanceof TestItemFilteredWrapper ? item.actual as vscode.TestItem<T> : item;
 	}
 
-	public dispose() {
-		for (const item of this.testItemToInternal.values()) {
-			this.testIdToInternal.delete(item.id);
+	private _cachedMatchesFilter: boolean | undefined;
+	private disposed?: boolean;
+	private readonly disposable = new DisposableStore();
+
+	/**
+	 * Gets whether this node, or any of its children, match the document filter.
+	 */
+	public get hasNodeMatchingFilter(): boolean {
+		if (this._cachedMatchesFilter === undefined) {
+			return this.refreshMatch();
+		} else {
+			return this._cachedMatchesFilter;
+		}
+	}
+
+	private constructor(
+		public readonly actual: vscode.TestItem<unknown>,
+		private filterDocument: vscode.TextDocument,
+		public readonly wrappedParent?: TestItemFilteredWrapper,
+	) {
+		super(actual.id, actual.label, actual.uri, undefined);
+		if (!(actual instanceof TestItemImpl)) {
+			throw new Error(`TestItems provided to the VS Code API must extend \`vscode.TestItem\`, but ${actual.id} did not`);
 		}
 
-		this.diff = [];
+		// the resolveHandler is intentionally omitted here. When creating the test
+		// root, we ask the collection to expand infinitely. We must not duplicate
+		// call the resolveHandler again from the wrapper..
+		this.debuggable = actual.debuggable;
+		this.runnable = actual.runnable;
+		this.description = actual.description;
+		this.error = actual.error;
+		this.status = actual.status;
+		this.range = actual.range;
+
+		const wrapperApi = getPrivateApiFor(this);
+		const actualApi = getPrivateApiFor(actual);
+		this.disposable.add(actualApi.bus.event(evt => {
+			switch (evt[0]) {
+				case ExtHostTestItemEventType.SetProp:
+					(this as Record<string, unknown>)[evt[1]] = evt[2];
+					break;
+				case ExtHostTestItemEventType.NewChild:
+					const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(evt[1], this.filterDocument, this);
+					getPrivateApiFor(wrapper).parent = actual;
+					wrapper.refreshMatch();
+					break;
+				case ExtHostTestItemEventType.Disposed:
+					this.dispose();
+					break;
+				default:
+					wrapperApi.bus.fire(evt);
+			}
+		}));
+	}
+
+	/**
+	 * Refreshes the `hasNodeMatchingFilter` state for this item. It matches
+	 * if the test itself has a location that matches, or if any of its
+	 * children do.
+	 */
+	public refreshMatch() {
+		if (this.disposed) {
+			return false;
+		}
+
+		const didMatch = this._cachedMatchesFilter;
+
+		// The `children` of the wrapper only include the children who match the
+		// filter. Synchronize them.
+		for (const rawChild of this.actual.children.values()) {
+			const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(rawChild, this.filterDocument, this);
+			if (!wrapper.hasNodeMatchingFilter) {
+				wrapper.hide();
+			} else if (!this.children.has(wrapper.id)) {
+				this.addChild(wrapper);
+			}
+		}
+
+		const nowMatches = this.children.size > 0 || this.actual.uri?.toString() === this.filterDocument.uri.toString();
+		this._cachedMatchesFilter = nowMatches;
+
+		if (nowMatches !== didMatch && this.wrappedParent?._cachedMatchesFilter !== undefined) {
+			this.wrappedParent.refreshMatch();
+		}
+
+		return this._cachedMatchesFilter;
+	}
+
+	public hide() {
+		if (this.wrappedParent) {
+			getPrivateApiFor(this.wrappedParent).children.delete(this.id);
+		}
+
+		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Disposed]);
+	}
+
+	public override dispose() {
+		if (this.disposed) {
+			return;
+		}
+
 		this.disposed = true;
-	}
+		this.disposable.dispose();
+		this.hide();
+		this.wrappedParent?.refreshMatch();
 
-	protected getId(): string {
-		return generateUuid();
-	}
-
-	private addItem(actual: vscode.TestItem, providerId: string, parent: string | null) {
-		let internal = this.testItemToInternal.get(actual);
-		if (!internal) {
-			internal = {
-				actual,
-				id: this.getId(),
-				parent,
-				item: TestItem.from(actual),
-				providerId,
-				previousChildren: new Set(),
-				previousEquals: itemEqualityComparator(actual),
-			};
-
-			this.testItemToInternal.set(actual, internal);
-			this.testIdToInternal.set(internal.id, internal);
-			this.diff.push([TestDiffOpType.Add, { id: internal.id, parent, providerId, item: internal.item }]);
-		} else if (!internal.previousEquals(actual)) {
-			internal.item = TestItem.from(actual);
-			internal.previousEquals = itemEqualityComparator(actual);
-			this.diff.push([TestDiffOpType.Update, { id: internal.id, parent, providerId, item: internal.item }]);
-		}
-
-		// If there are children, track which ones are deleted
-		// and recursively and/update them.
-		if (actual.children) {
-			const deletedChildren = internal.previousChildren;
-			const currentChildren = new Set<string>();
-			for (const child of actual.children) {
-				const c = this.addItem(child, providerId, internal.id);
-				deletedChildren.delete(c.id);
-				currentChildren.add(c.id);
-			}
-
-			for (const child of deletedChildren) {
-				this.removeItembyId(child);
-			}
-
-			internal.previousChildren = currentChildren;
-		}
-
-
-		return internal;
-	}
-
-	private removeItembyId(id: string) {
-		this.diff.push([TestDiffOpType.Remove, id]);
-
-		const queue = [this.testIdToInternal.get(id)];
-		while (queue.length) {
-			const item = queue.pop();
-			if (!item) {
-				continue;
-			}
-
-			this.testIdToInternal.delete(item.id);
-			this.testItemToInternal.delete(item.actual);
-			for (const child of item.previousChildren) {
-				queue.push(this.testIdToInternal.get(child));
-			}
-		}
-	}
-
-	@throttle(200)
-	protected throttleSendDiff() {
-		const diff = this.collectDiff();
-		if (diff.length) {
-			this.publishDiff(diff);
+		for (const child of this.children.values()) {
+			child.dispose();
 		}
 	}
 }
@@ -422,9 +667,8 @@ export class SingleUseTestCollection implements IDisposable {
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: vscode.TestItem;
+	revived: vscode.TestItem<never>;
 	depth: number;
-	wrapped?: vscode.TestItem;
 }
 
 class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollectionTestItem> {
@@ -438,22 +682,22 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		return this.added.size === 0 && this.removed.size === 0 && this.updated.size === 0;
 	}
 
-	constructor(private readonly collection: MirroredTestCollection, private readonly emitter: Emitter<vscode.TestChangeEvent>) {
+	constructor(private readonly emitter: Emitter<vscode.TestsChangeEvent>) {
 		super();
 	}
 
 	/**
 	 * @override
 	 */
-	public add(node: MirroredCollectionTestItem): void {
+	public override add(node: MirroredCollectionTestItem): void {
 		this.added.add(node);
 	}
 
 	/**
 	 * @override
 	 */
-	public update(node: MirroredCollectionTestItem): void {
-		Object.assign(node.revived, TestItem.to(node.item));
+	public override update(node: MirroredCollectionTestItem): void {
+		Object.assign(node.revived, Convert.TestItem.toPlain(node.item));
 		if (!this.added.has(node)) {
 			this.updated.add(node);
 		}
@@ -462,7 +706,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	/**
 	 * @override
 	 */
-	public remove(node: MirroredCollectionTestItem): void {
+	public override remove(node: MirroredCollectionTestItem): void {
 		if (this.added.has(node)) {
 			this.added.delete(node);
 			return;
@@ -471,7 +715,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 		this.updated.delete(node);
 
 		if (node.parent && this.alreadyRemoved.has(node.parent)) {
-			this.alreadyRemoved.add(node.id);
+			this.alreadyRemoved.add(node.item.extId);
 			return;
 		}
 
@@ -481,84 +725,16 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
 	/**
 	 * @override
 	 */
-	public getChangeEvent(): vscode.TestChangeEvent {
-		const { collection, added, updated, removed } = this;
+	public getChangeEvent(): vscode.TestsChangeEvent {
+		const { added, updated, removed } = this;
 		return {
-			get added() { return [...added].map(collection.getPublicTestItem, collection); },
-			get updated() { return [...updated].map(collection.getPublicTestItem, collection); },
-			get removed() { return [...removed].map(collection.getPublicTestItem, collection); },
-			get commonChangeAncestor() {
-				let ancestorPath: MirroredCollectionTestItem[] | undefined;
-				const buildAncestorPath = (node: MirroredCollectionTestItem | undefined) => {
-					if (!node) {
-						return undefined;
-					}
-
-					// add the node and all its parents to the list of ancestors. If
-					// the node is detached, do not return a path (its parent will
-					// also have been passed to remove() and be present)
-					const path: MirroredCollectionTestItem[] = new Array(node.depth + 1);
-					for (let i = node.depth; i >= 0; i--) {
-						if (!node) {
-							return undefined; // detached child
-						}
-
-						path[node.depth] = node;
-						node = node.parent ? collection.getMirroredTestDataById(node.parent) : undefined;
-					}
-
-					return path;
-				};
-
-				const addAncestorPath = (node: MirroredCollectionTestItem) => {
-					// fast path: if the common ancestor is already the root, no more work to do
-					if (ancestorPath && ancestorPath.length === 0) {
-						return;
-					}
-
-					const thisPath = buildAncestorPath(node);
-					if (!thisPath) {
-						return;
-					}
-
-					if (!ancestorPath) {
-						ancestorPath = thisPath;
-						return;
-					}
-
-					// removes node from the path to the ancestor that don't match
-					// the corresponding node in *this* path.
-					for (let i = ancestorPath.length - 1; i >= 0; i--) {
-						if (ancestorPath[i] !== thisPath[i]) {
-							ancestorPath.pop();
-						}
-					}
-				};
-
-				const addParentAncestor = (node: MirroredCollectionTestItem) => {
-					if (ancestorPath && ancestorPath.length === 0) {
-						// no-op
-					} else if (node.parent === null) {
-						ancestorPath = [];
-					} else {
-						const parent = collection.getMirroredTestDataById(node.parent);
-						if (parent) {
-							addAncestorPath(parent);
-						}
-					}
-				};
-
-				for (const node of added) { addParentAncestor(node); }
-				for (const node of updated) { addAncestorPath(node); }
-				for (const node of removed) { addParentAncestor(node); }
-
-				const ancestor = ancestorPath && ancestorPath[ancestorPath.length - 1];
-				return ancestor ? collection.getPublicTestItem(ancestor) : null;
-			},
+			get added() { return [...added].map(n => n.revived); },
+			get updated() { return [...updated].map(n => n.revived); },
+			get removed() { return [...removed].map(n => n.revived); },
 		};
 	}
 
-	public complete() {
+	public override complete() {
 		if (!this.isEmpty) {
 			this.emitter.fire(this.getChangeEvent());
 		}
@@ -570,7 +746,7 @@ class MirroredChangeCollector extends IncrementalChangeCollector<MirroredCollect
  * @private
  */
 export class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredCollectionTestItem> {
-	private changeEmitter = new Emitter<vscode.TestChangeEvent>();
+	private changeEmitter = new Emitter<vscode.TestsChangeEvent>();
 
 	/**
 	 * Change emitter that fires with the same sematics as `TestObserver.onDidChangeTests`.
@@ -587,12 +763,12 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * Translates the item IDs to TestItems for exposure to extensions.
 	 */
-	public getAllAsTestItem(itemIds: Iterable<string>): vscode.TestItem[] {
-		let output: vscode.TestItem[] = [];
+	public getAllAsTestItem(itemIds: Iterable<string>) {
+		let output: vscode.TestItem<never>[] = [];
 		for (const itemId of itemIds) {
 			const item = this.items.get(itemId);
 			if (item) {
-				output.push(this.getPublicTestItem(item));
+				output.push(item.revived);
 			}
 		}
 
@@ -610,78 +786,31 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
-	public getMirroredTestDataByReference(item: vscode.TestItem) {
-		const id = getMirroredItemId(item);
-		return id ? this.items.get(id) : undefined;
+	public getMirroredTestDataByReference(item: vscode.TestItem<unknown>) {
+		return this.items.get(item.id);
 	}
 
 	/**
 	 * @override
 	 */
 	protected createItem(item: InternalTestItem, parent?: MirroredCollectionTestItem): MirroredCollectionTestItem {
-		return { ...item, revived: TestItem.to(item.item), depth: parent ? parent.depth + 1 : 0, children: new Set() };
+		return {
+			...item,
+			// todo@connor4312: make this work well again with children
+			revived: Convert.TestItem.toPlain(item.item) as vscode.TestItem<never>,
+			depth: parent ? parent.depth + 1 : 0,
+			children: new Set(),
+		};
 	}
 
 	/**
 	 * @override
 	 */
-	protected createChangeCollector() {
-		return new MirroredChangeCollector(this, this.changeEmitter);
-	}
-
-	/**
-	 * Gets the public test item instance for the given mirrored record.
-	 */
-	public getPublicTestItem(item: MirroredCollectionTestItem): vscode.TestItem {
-		if (!item.wrapped) {
-			item.wrapped = new ExtHostTestItem(item, this);
-		}
-
-		return item.wrapped;
+	protected override createChangeCollector() {
+		return new MirroredChangeCollector(this.changeEmitter);
 	}
 }
 
-const getMirroredItemId = (item: vscode.TestItem) => {
-	return (item as any)[MirroredItemId] as string | undefined;
-};
-
-const MirroredItemId = Symbol('MirroredItemId');
-
-class ExtHostTestItem implements vscode.TestItem, RequiredTestItem {
-	readonly #internal: MirroredCollectionTestItem;
-	readonly #collection: MirroredTestCollection;
-
-	public get label() { return this.#internal.revived.label; }
-	public get description() { return this.#internal.revived.description; }
-	public get state() { return this.#internal.revived.state; }
-	public get location() { return this.#internal.revived.location; }
-	public get runnable() { return this.#internal.revived.runnable ?? true; }
-	public get debuggable() { return this.#internal.revived.debuggable ?? false; }
-	public get children() {
-		return this.#collection.getAllAsTestItem(this.#internal.children);
-	}
-
-	get [MirroredItemId]() { return this.#internal.id; }
-
-	constructor(internal: MirroredCollectionTestItem, collection: MirroredTestCollection) {
-		this.#internal = internal;
-		this.#collection = collection;
-	}
-
-	public toJSON() {
-		const serialized: RequiredTestItem = {
-			label: this.label,
-			description: this.description,
-			state: this.state,
-			location: this.location,
-			runnable: this.runnable,
-			debuggable: this.debuggable,
-			children: this.children.map(c => (c as ExtHostTestItem).toJSON()),
-		};
-
-		return serialized;
-	}
-}
 
 interface IObserverData {
 	observers: number;
@@ -697,6 +826,7 @@ abstract class AbstractTestObserverFactory {
 		const resourceKey = resourceUri.toString();
 		const resource = this.resources.get(resourceKey) ?? this.createObserverData(resourceUri);
 
+		resource.pendingDeletion?.dispose();
 		resource.observers++;
 
 		return {
@@ -716,7 +846,7 @@ abstract class AbstractTestObserverFactory {
 	/**
 	 * Gets the internal test data by its reference, in any observer.
 	 */
-	public getMirroredTestDataByReference(ref: vscode.TestItem) {
+	public getMirroredTestDataByReference(ref: vscode.TestItem<unknown>) {
 		for (const { tests } of this.resources.values()) {
 			const v = tests.getMirroredTestDataByReference(ref);
 			if (v) {
@@ -739,7 +869,7 @@ abstract class AbstractTestObserverFactory {
 	/**
 	 * Starts listening to test information for the given resource.
 	 */
-	protected abstract listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void): Disposable;
+	protected abstract listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void): IDisposable;
 
 	private createObserverData(resourceUri: URI): IObserverData {
 		const tests = new MirroredTestCollection();
@@ -787,7 +917,7 @@ class WorkspaceFolderTestObserverFactory extends AbstractTestObserverFactory {
 		const uriString = resourceUri.toString();
 		this.diffListeners.set(uriString, onDiff);
 
-		return new Disposable(() => {
+		return toDisposable(() => {
 			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.Workspace, resourceUri);
 			this.diffListeners.delete(uriString);
 		});
@@ -814,23 +944,195 @@ class TextDocumentTestObserverFactory extends AbstractTestObserverFactory {
 	public listen(resourceUri: URI, onDiff: (diff: TestsDiff) => void) {
 		const document = this.documents.getDocument(resourceUri);
 		if (!document) {
-			return new Disposable(() => undefined);
+			return toDisposable(() => undefined);
 		}
 
 		const uriString = resourceUri.toString();
 		this.diffListeners.set(uriString, onDiff);
 
-		const disposeListener = this.documents.onDidRemoveDocuments(evt => {
-			if (evt.some(delta => delta.document.uri.toString() === uriString)) {
-				this.unlisten(resourceUri);
-			}
+		this.proxy.$subscribeToDiffs(ExtHostTestingResource.TextDocument, resourceUri);
+		return toDisposable(() => {
+			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.TextDocument, resourceUri);
+			this.diffListeners.delete(uriString);
+		});
+	}
+}
+
+const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
+
+type SubscribeFunction = (controllerId: string, controller: vscode.TestController<unknown>) => void;
+
+class TestControllers extends Disposable {
+	private readonly registeredEmitter = this._register(new Emitter<{ controllerId: string, controller: vscode.TestController<unknown> }>());
+	private readonly unregisteredEmitter = this._register(new Emitter<{ controllerId: string, controller: vscode.TestController<unknown> }>());
+	private readonly value = new Map<string, vscode.TestController<unknown>>();
+
+	public readonly onRegistered = this.registeredEmitter.event;
+
+	public register(controllerId: string, controller: vscode.TestController<unknown>): IDisposable {
+		this.value.set(controllerId, controller);
+		this.registeredEmitter.fire({ controller, controllerId });
+		return toDisposable(() => {
+			this.value.delete(controllerId);
+			this.unregisteredEmitter.fire({ controller, controllerId });
+		});
+	}
+
+	public get(controllerId: string) {
+		return this.value.get(controllerId);
+	}
+
+	[Symbol.iterator]() {
+		return this.value[Symbol.iterator]();
+	}
+}
+
+class TestSubscriptions extends Disposable {
+	private readonly subs = new Map<string, {
+		collection: SingleUseTestCollection;
+		store: IDisposable;
+		listeners: number;
+		initialSubscribeP: Promise<void>,
+		subscribeFn: SubscribeFunction;
+	}>();
+
+	constructor(
+		private readonly ownedTests: OwnedTestCollection,
+		private readonly controllers: TestControllers,
+		@IExtHostDocumentsAndEditors private readonly documents: IExtHostDocumentsAndEditors,
+		@IExtHostWorkspace private readonly workspace: IExtHostWorkspace,
+	) {
+		super();
+
+		this._register(controllers.onRegistered(({ controller, controllerId }) => {
+			const subs = [...this.subs.values()];
+			// give the ext a moment to register things rather than synchronously invoking within activate()
+			setTimeout(() => {
+				for (const { subscribeFn } of subs) {
+					subscribeFn(controllerId, controller);
+				}
+			}, 0);
+		}));
+	}
+
+
+	/**
+	 * Gets the test collection for a controller by ID, if one exists.
+	 */
+	public getCollectionById(treeId: number) {
+		return mapFind(this.subs.values(), s => s.collection.treeId === treeId ? s.collection : undefined);
+	}
+
+	/**
+	 * Gets an internal test from the collection by reference, if it exists.
+	 */
+	public getCollectionTestByReference(test: vscode.TestItem<unknown>) {
+		return mapFind(this.subs.values(), c => c.collection.getTestByReference(test));
+	}
+
+	private async createDefaultDocumentTestRoot(folder: vscode.WorkspaceFolder | undefined, document: vscode.TextDocument, controllerId: string, token: CancellationToken) {
+		if (!folder) {
+			return;
+		}
+
+		const { disposable, info } = await this.subscribeToTests(ExtHostTestingResource.Workspace, folder.uri);
+		if (!info) {
+			return;
+		}
+
+		const root = Iterable.find(info.collection.roots, r => r.src.controller === controllerId);
+		if (!root) {
+			return;
+		}
+
+		const wrapper = TestItemFilteredWrapper.getWrapperForTestItem(root.actual, document);
+		info.collection.expand(root.actual.id, Infinity);
+		wrapper.refreshMatch();
+
+		token.onCancellationRequested(() => {
+			TestItemFilteredWrapper.removeFilter(document);
+			wrapper.dispose();
+			disposable.dispose();
 		});
 
-		this.proxy.$subscribeToDiffs(ExtHostTestingResource.TextDocument, resourceUri);
-		return new Disposable(() => {
-			this.proxy.$unsubscribeFromDiffs(ExtHostTestingResource.TextDocument, resourceUri);
-			disposeListener.dispose();
-			this.diffListeners.delete(uriString);
+		return wrapper;
+	}
+
+	public async subscribeToTests(resource: ExtHostTestingResource, uri: URI) {
+		const subscriptionKey = getTestSubscriptionKey(resource, uri);
+		const existing = this.subs.get(subscriptionKey);
+		if (existing) {
+			existing.listeners++;
+			return { disposable: this.getUnsubscriber(subscriptionKey), info: existing };
+		}
+
+		const cancellation = new CancellationTokenSource();
+		let method: undefined | ((p: vscode.TestController<unknown>, controllerId: string) => vscode.ProviderResult<vscode.TestItem<unknown>>);
+		if (resource === ExtHostTestingResource.TextDocument) {
+			let document = this.documents.getDocument(uri);
+
+			// we can ask to subscribe to tests before the documents are populated in
+			// the extension host. Try to wait.
+			if (!document) {
+				const store = new DisposableStore();
+				document = await new Promise<ExtHostDocumentData | undefined>(resolve => {
+					store.add(disposableTimeout(() => resolve(undefined), 5000));
+					store.add(this.documents.onDidAddDocuments(e => {
+						const data = e.find(data => data.document.uri.toString() === uri.toString());
+						if (data) { resolve(data); }
+					}));
+				}).finally(() => store.dispose());
+			}
+
+			if (document) {
+				const folder = await this.workspace.getWorkspaceFolder2(uri, false);
+				method = (p, id) => p.createDocumentTestRoot
+					? p.createDocumentTestRoot(document!.document, cancellation.token)
+					: this.createDefaultDocumentTestRoot(folder, document!.document, id, cancellation.token);
+			}
+		} else {
+			const folder = await this.workspace.getWorkspaceFolder2(uri, false);
+			if (folder) {
+				method = p => p.createWorkspaceTestRoot(folder, cancellation.token);
+			}
+		}
+
+		if (!method) {
+			return { disposable: toDisposable(() => { }), info: undefined };
+		}
+
+		const subscribeFn = async (id: string, provider: vscode.TestController<unknown>) => {
+			try {
+				const root = await method!(provider, id);
+				if (root) {
+					collection.addRoot(root, id);
+				}
+			} catch (e) {
+				console.error(e);
+			}
+		};
+
+		const disposable = new DisposableStore();
+		const collection = disposable.add(this.ownedTests.createForHierarchy());
+		disposable.add(toDisposable(() => cancellation.dispose(true)));
+		const subscribes: Promise<void>[] = [];
+		for (const [id, controller] of this.controllers) {
+			subscribes.push(subscribeFn(id, controller));
+		}
+
+		const initialSubscribeP = Promise.all(subscribes).then(() => undefined);
+		const info = { store: disposable, listeners: 1, initialSubscribeP, collection, subscribeFn };
+		this.subs.set(subscriptionKey, info);
+		return { disposable: this.getUnsubscriber(subscriptionKey), info };
+	}
+
+	private getUnsubscriber(key: string) {
+		return toDisposable(() => {
+			const sub = this.subs.get(key);
+			if (sub && --sub.listeners === 0) {
+				sub.store.dispose();
+				this.subs.delete(key);
+			}
 		});
 	}
 }

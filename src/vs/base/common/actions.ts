@@ -10,12 +10,12 @@ import { Event, Emitter } from 'vs/base/common/event';
 export interface ITelemetryData {
 	readonly from?: string;
 	readonly target?: string;
-	[key: string]: any;
+	[key: string]: unknown;
 }
 
 export type WorkbenchActionExecutedClassification = {
-	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
-	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight' };
+	id: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
+	from: { classification: 'SystemMetaData', purpose: 'FeatureInsight'; };
 };
 
 export type WorkbenchActionExecutedEvent = {
@@ -30,26 +30,14 @@ export interface IAction extends IDisposable {
 	class: string | undefined;
 	enabled: boolean;
 	checked: boolean;
-	run(event?: any): Promise<any>;
+	run(event?: unknown): unknown;
 }
 
 export interface IActionRunner extends IDisposable {
-	run(action: IAction, context?: any): Promise<any>;
 	readonly onDidRun: Event<IRunEvent>;
 	readonly onBeforeRun: Event<IRunEvent>;
-}
 
-export interface IActionViewItem extends IDisposable {
-	actionRunner: IActionRunner;
-	setActionContext(context: any): void;
-	render(element: any /* HTMLElement */): void;
-	isEnabled(): boolean;
-	focus(fromRight?: boolean): void; // TODO@isidorn what is this?
-	blur(): void;
-}
-
-export interface IActionViewItemProvider {
-	(action: IAction): IActionViewItem | undefined;
+	run(action: IAction, context?: unknown): unknown;
 }
 
 export interface IActionChangeEvent {
@@ -63,7 +51,7 @@ export interface IActionChangeEvent {
 export class Action extends Disposable implements IAction {
 
 	protected _onDidChange = this._register(new Emitter<IActionChangeEvent>());
-	readonly onDidChange: Event<IActionChangeEvent> = this._onDidChange.event;
+	readonly onDidChange = this._onDidChange.event;
 
 	protected readonly _id: string;
 	protected _label: string;
@@ -71,9 +59,9 @@ export class Action extends Disposable implements IAction {
 	protected _cssClass: string | undefined;
 	protected _enabled: boolean = true;
 	protected _checked: boolean = false;
-	protected readonly _actionCallback?: (event?: any) => Promise<any>;
+	protected readonly _actionCallback?: (event?: unknown) => unknown;
 
-	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: any) => Promise<any>) {
+	constructor(id: string, label: string = '', cssClass: string = '', enabled: boolean = true, actionCallback?: (event?: unknown) => unknown) {
 		super();
 		this._id = id;
 		this._label = label;
@@ -161,105 +149,124 @@ export class Action extends Disposable implements IAction {
 		}
 	}
 
-	run(event?: any, _data?: ITelemetryData): Promise<any> {
+	async run(event?: unknown, data?: ITelemetryData): Promise<void> {
 		if (this._actionCallback) {
-			return this._actionCallback(event);
+			await this._actionCallback(event);
 		}
-
-		return Promise.resolve(true);
 	}
 }
 
 export interface IRunEvent {
 	readonly action: IAction;
-	readonly result?: any;
-	readonly error?: any;
+	readonly error?: Error;
 }
 
 export class ActionRunner extends Disposable implements IActionRunner {
 
 	private _onBeforeRun = this._register(new Emitter<IRunEvent>());
-	readonly onBeforeRun: Event<IRunEvent> = this._onBeforeRun.event;
+	readonly onBeforeRun = this._onBeforeRun.event;
 
 	private _onDidRun = this._register(new Emitter<IRunEvent>());
-	readonly onDidRun: Event<IRunEvent> = this._onDidRun.event;
+	readonly onDidRun = this._onDidRun.event;
 
-	async run(action: IAction, context?: any): Promise<any> {
+	async run(action: IAction, context?: unknown): Promise<void> {
 		if (!action.enabled) {
-			return Promise.resolve(null);
+			return;
 		}
 
-		this._onBeforeRun.fire({ action: action });
+		this._onBeforeRun.fire({ action });
 
+		let error: Error | undefined = undefined;
 		try {
-			const result = await this.runAction(action, context);
-			this._onDidRun.fire({ action: action, result: result });
-		} catch (error) {
-			this._onDidRun.fire({ action: action, error: error });
+			await this.runAction(action, context);
+		} catch (e) {
+			error = e;
 		}
+
+		this._onDidRun.fire({ action, error });
 	}
 
-	protected runAction(action: IAction, context?: any): Promise<any> {
-		const res = context ? action.run(context) : action.run();
-		return Promise.resolve(res);
-	}
-}
-
-export class RadioGroup extends Disposable {
-
-	constructor(readonly actions: Action[]) {
-		super();
-
-		for (const action of actions) {
-			this._register(action.onDidChange(e => {
-				if (e.checked && action.checked) {
-					for (const candidate of actions) {
-						if (candidate !== action) {
-							candidate.checked = false;
-						}
-					}
-				}
-			}));
-		}
+	protected async runAction(action: IAction, context?: unknown): Promise<void> {
+		await action.run(context);
 	}
 }
 
 export class Separator extends Action {
 
+	/**
+	 * Joins all non-empty lists of actions with separators.
+	 */
+	public static join(...actionLists: readonly IAction[][]) {
+		let out: IAction[] = [];
+		for (const list of actionLists) {
+			if (!list.length) {
+				// skip
+			} else if (out.length) {
+				out = [...out, new Separator(), ...list];
+			} else {
+				out = list;
+			}
+		}
+
+		return out;
+	}
+
 	static readonly ID = 'vs.actions.separator';
 
 	constructor(label?: string) {
 		super(Separator.ID, label, label ? 'separator text' : 'separator');
+
 		this.checked = false;
 		this.enabled = false;
 	}
 }
 
-export class ActionWithMenuAction extends Action {
+export class SubmenuAction implements IAction {
 
-	get actions(): IAction[] {
-		return this._actions;
+	readonly id: string;
+	readonly label: string;
+	readonly class: string | undefined;
+	readonly tooltip: string = '';
+	readonly enabled: boolean = true;
+	readonly checked: boolean = false;
+
+	private readonly _actions: readonly IAction[];
+	get actions(): readonly IAction[] { return this._actions; }
+
+	constructor(id: string, label: string, actions: readonly IAction[], cssClass?: string) {
+		this.id = id;
+		this.label = label;
+		this.class = cssClass;
+		this._actions = actions;
 	}
 
-	constructor(id: string, private _actions: IAction[], label?: string, cssClass?: string, enabled?: boolean, actionCallback?: (event?: any) => Promise<any>) {
-		super(id, label, cssClass, enabled, actionCallback);
-	}
-}
-
-export class SubmenuAction extends Action {
-
-	get actions(): IAction[] {
-		return this._actions;
+	dispose(): void {
+		// there is NOTHING to dispose and the SubmenuAction should
+		// never have anything to dispose as it is a convenience type
+		// to bridge into the rendering world.
 	}
 
-	constructor(id: string, label: string, private _actions: IAction[], cssClass?: string) {
-		super(id, label, cssClass, !!_actions?.length);
-	}
+	async run(): Promise<void> { }
 }
 
 export class EmptySubmenuAction extends Action {
+
 	static readonly ID = 'vs.actions.empty';
+
 	constructor() {
 		super(EmptySubmenuAction.ID, nls.localize('submenu.empty', '(empty)'), undefined, false);
 	}
+}
+
+export function toAction(props: { id: string, label: string, enabled?: boolean, checked?: boolean, run: Function; }): IAction {
+	return {
+		id: props.id,
+		label: props.label,
+		class: undefined,
+		enabled: props.enabled ?? true,
+		checked: props.checked ?? false,
+		run: async () => props.run(),
+		tooltip: props.label,
+		dispose: () => { }
+	};
 }

@@ -4,51 +4,70 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProcessedOutput, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { URI } from 'vs/base/common/uri';
+import { dispose } from 'vs/base/common/lifecycle';
+import { localize } from 'vs/nls';
 
 export class OutputRenderer {
-	protected readonly _contributions: { [key: string]: IOutputTransformContribution; };
-	protected readonly _mimeTypeMapping: { [key: number]: IOutputTransformContribution; };
+
+	private readonly _richMimeTypeRenderers = new Map<string, IOutputTransformContribution>();
 
 	constructor(
-		notebookEditor: INotebookEditor,
-		private readonly instantiationService: IInstantiationService
+		notebookEditor: ICommonNotebookEditor,
+		instantiationService: IInstantiationService
 	) {
-		this._contributions = {};
-		this._mimeTypeMapping = {};
-
-		const contributions = NotebookRegistry.getOutputTransformContributions();
-
-		for (const desc of contributions) {
+		for (const desc of OutputRendererRegistry.getOutputTransformContributions()) {
 			try {
-				const contribution = this.instantiationService.createInstance(desc.ctor, notebookEditor);
-				this._contributions[desc.id] = contribution;
-				this._mimeTypeMapping[desc.kind] = contribution;
+				const contribution = instantiationService.createInstance(desc.ctor, notebookEditor);
+				contribution.getMimetypes().forEach(mimetype => { this._richMimeTypeRenderers.set(mimetype, contribution); });
 			} catch (err) {
 				onUnexpectedError(err);
 			}
 		}
 	}
 
-	renderNoop(output: IProcessedOutput, container: HTMLElement): IRenderOutput {
-		const contentNode = document.createElement('p');
-
-		contentNode.innerText = `No renderer could be found for output. It has the following output type: ${output.outputKind}`;
-		container.appendChild(contentNode);
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
+	dispose(): void {
+		dispose(this._richMimeTypeRenderers.values());
+		this._richMimeTypeRenderers.clear();
 	}
 
-	render(output: IProcessedOutput, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI | undefined): IRenderOutput {
-		const transform = this._mimeTypeMapping[output.outputKind];
+	getContribution(preferredMimeType: string): IOutputTransformContribution | undefined {
+		return this._richMimeTypeRenderers.get(preferredMimeType);
+	}
 
-		if (transform) {
-			return transform.render(output, container, preferredMimeType, notebookUri);
-		} else {
-			return this.renderNoop(output, container);
+	private _renderMessage(container: HTMLElement, message: string): IRenderOutput {
+		const contentNode = document.createElement('p');
+		contentNode.innerText = message;
+		container.appendChild(contentNode);
+		return { type: RenderOutputType.Mainframe };
+	}
+
+	render(viewModel: ICellOutputViewModel, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
+		if (!viewModel.model.outputs.length) {
+			return this._renderMessage(container, localize('empty', "Cell has no output"));
 		}
+		if (!preferredMimeType) {
+			const mimeTypes = viewModel.model.outputs.map(op => op.mime);
+			const mimeTypesMessage = mimeTypes.join(', ');
+			return this._renderMessage(container, localize('noRenderer.2', "No renderer could be found for output. It has the following MIME types: {0}", mimeTypesMessage));
+		}
+		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
+			if (preferredMimeType) {
+				return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
+			}
+		}
+		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
+		if (!renderer) {
+			return this._renderMessage(container, localize('noRenderer.1', "No renderer could be found for MIME type: {0}", preferredMimeType));
+		}
+		const first = viewModel.model.outputs.find(op => op.mime === preferredMimeType);
+		if (!first) {
+			return this._renderMessage(container, localize('empty', "Cell has no output"));
+		}
+
+		return renderer.render(viewModel, first, container, notebookUri);
 	}
 }

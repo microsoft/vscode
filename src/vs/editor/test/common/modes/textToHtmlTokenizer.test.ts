@@ -31,7 +31,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		];
 		let expectedStr = `<div class="monaco-tokenized-source">${toStr(expected)}</div>`;
 
-		assert.equal(actual, expectedStr);
+		assert.strictEqual(actual, expectedStr);
 
 		mode.dispose();
 	});
@@ -61,7 +61,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		let expectedStr2 = toStr(expected2);
 		let expectedStr = `<div class="monaco-tokenized-source">${expectedStr1}<br/>${expectedStr2}</div>`;
 
-		assert.equal(actual, expectedStr);
+		assert.strictEqual(actual, expectedStr);
 
 		mode.dispose();
 	});
@@ -104,7 +104,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		]);
 		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
 			[
 				'<div>',
@@ -117,7 +117,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 12, 4, true),
 			[
 				'<div>',
@@ -130,7 +130,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 11, 4, true),
 			[
 				'<div>',
@@ -142,7 +142,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 1, 11, 4, true),
 			[
 				'<div>',
@@ -154,7 +154,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 4, 11, 4, true),
 			[
 				'<div>',
@@ -165,7 +165,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 11, 4, true),
 			[
 				'<div>',
@@ -175,7 +175,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 5, 10, 4, true),
 			[
 				'<div>',
@@ -184,7 +184,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 6, 9, 4, true),
 			[
 				'<div>',
@@ -237,7 +237,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 		]);
 		const colorMap = [null!, '#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff'];
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 21, 4, true),
 			[
 				'<div>',
@@ -251,7 +251,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 17, 4, true),
 			[
 				'<div>',
@@ -265,7 +265,7 @@ suite('Editor Modes - textToHtmlTokenizer', () => {
 			].join('')
 		);
 
-		assert.equal(
+		assert.strictEqual(
 			tokenizeLineToHTML(text, lineTokens, colorMap, 0, 3, 4, true),
 			[
 				'<div>',

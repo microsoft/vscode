@@ -1,0 +1,5 @@
+{
+	"displayName": "Markdown Math",
+	"description": "Adds math support to markdown in notebooks.",
+	"config.markdown.math.enabled": "Enable/disable rendering math in the built-in markdown preview."
+}

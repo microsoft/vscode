@@ -71,23 +71,3 @@ export class NotebookEventDispatcher {
 	}
 }
 
-export class NotebookDiffEditorEventDispatcher {
-	protected readonly _onDidChangeLayout = new Emitter<NotebookLayoutChangedEvent>();
-	readonly onDidChangeLayout = this._onDidChangeLayout.event;
-
-	constructor() {
-	}
-
-	emit(events: NotebookViewEvent[]) {
-		for (let i = 0, len = events.length; i < len; i++) {
-			const e = events[i];
-
-			switch (e.type) {
-				case NotebookViewEventType.LayoutChanged:
-					this._onDidChangeLayout.fire(e);
-					break;
-			}
-		}
-	}
-
-}

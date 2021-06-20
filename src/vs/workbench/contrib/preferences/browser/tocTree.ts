@@ -222,7 +222,8 @@ export class TOCTree extends WorkbenchObjectTree<SettingsTreeGroupElement> {
 			accessibilityProvider: instantiationService.createInstance(SettingsAccessibilityProvider),
 			collapseByDefault: true,
 			horizontalScrolling: false,
-			hideTwistiesOfChildlessElements: true
+			hideTwistiesOfChildlessElements: true,
+			useActiveIcons: false
 		};
 
 		super(

@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/panelpart';
-import { IAction, Action } from 'vs/base/common/actions';
+import { localize } from 'vs/nls';
+import { IAction, Separator, toAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -19,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { PanelActivityAction, TogglePanelAction, PlaceHolderPanelActivityAction, PlaceHolderToggleCompositePinnedAction, PositionPanelActionConfigs, SetPanelPositionAction } from 'vs/workbench/browser/parts/panel/panelActions';
-import { IThemeService, registerThemingParticipant, IColorTheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_INPUT_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar, ICompositeBarItem, CompositeDragAndDrop } from 'vs/workbench/browser/parts/compositeBar';
@@ -27,18 +28,16 @@ import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/composit
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, trackFocus, EventHelper } from 'vs/base/browser/dom';
-import { localize } from 'vs/nls';
-import { IDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isUndefinedOrNull, assertIsDefined } from 'vs/base/common/types';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
+import { ViewContainer, IViewDescriptorService, IViewContainerModel, ViewContainerLocation, getEnabledViewContainerContextKey } from 'vs/workbench/common/views';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { Before2D, CompositeDragAndDropObserver, ICompositeDragAndDrop, toggleDropEffect } from 'vs/workbench/browser/dnd';
 import { IActivity } from 'vs/workbench/common/activity';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 interface ICachedPanel {
 	id: string;
@@ -46,7 +45,7 @@ interface ICachedPanel {
 	pinned: boolean;
 	order?: number;
 	visible: boolean;
-	views?: { when?: string }[];
+	views?: { when?: string; }[];
 }
 
 interface IPlaceholderViewContainer {
@@ -105,6 +104,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private dndHandler: ICompositeDragAndDrop;
 
+	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
+
 	constructor(
 		@INotificationService notificationService: INotificationService,
 		@IStorageService storageService: IStorageService,
@@ -117,7 +118,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(
 			notificationService,
@@ -149,24 +149,31 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.compositeBar = this._register(this.instantiationService.createInstance(CompositeBar, this.getCachedPanels(), {
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
-			openComposite: (compositeId: string) => this.openPanel(compositeId, true).then(panel => panel || null),
-			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
-			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
-			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
-			getContextMenuActions: () => [
-				...PositionPanelActionConfigs
-					// show the contextual menu item if it is not in that position
-					.filter(({ when }) => contextKeyService.contextMatchesRules(when))
-					.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
-				this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
-			] as Action[],
-			getContextMenuActionsForComposite: (compositeId: string) => this.getContextMenuActionsForComposite(compositeId) as Action[],
+			activityHoverOptions: {
+				position: () => this.layoutService.getPanelPosition() === Position.BOTTOM && !this.layoutService.isPanelMaximized() ? HoverPosition.ABOVE : HoverPosition.BELOW,
+				delay: () => 0
+			},
+			openComposite: compositeId => this.openPanel(compositeId, true).then(panel => panel || null),
+			getActivityAction: compositeId => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: compositeId => this.getCompositeActions(compositeId).pinnedAction,
+			getOnCompositeClickAction: compositeId => this.instantiationService.createInstance(PanelActivityAction, assertIsDefined(this.getPanel(compositeId))),
+			fillExtraContextMenuActions: actions => {
+				actions.push(...[
+					new Separator(),
+					...PositionPanelActionConfigs
+						// show the contextual menu item if it is not in that position
+						.filter(({ when }) => contextKeyService.contextMatchesRules(when))
+						.map(({ id, label }) => this.instantiationService.createInstance(SetPanelPositionAction, id, label)),
+					this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))
+				]);
+			},
+			getContextMenuActionsForComposite: compositeId => this.getContextMenuActionsForComposite(compositeId),
 			getDefaultCompositeId: () => this.panelRegistry.getDefaultPanelId(),
 			hidePart: () => this.layoutService.setPanelHidden(true),
 			dndHandler: this.dndHandler,
 			compositeSize: 0,
 			overflowActionSize: 44,
-			colors: (theme: IColorTheme) => ({
+			colors: theme => ({
 				activeBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				inactiveBackgroundColor: theme.getColor(PANEL_BACKGROUND), // Background color for overflow action
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
@@ -185,15 +192,22 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.onDidRegisterPanels([...this.getPanels()]);
 	}
 
-	private readonly panelContextMenuActionsDisposable = this._register(new MutableDisposable());
-	private getContextMenuActionsForComposite(compositeId: string): readonly IAction[] {
+	private getContextMenuActionsForComposite(compositeId: string): IAction[] {
 		const result: IAction[] = [];
-		const scopedContextKeyService = this.contextKeyService.createScoped();
-		scopedContextKeyService.createKey('viewContainer', compositeId);
-		const menu = this.menuService.createMenu(MenuId.PanelTitleContext, scopedContextKeyService);
-		this.panelContextMenuActionsDisposable.value = createAndFillInActionBarActions(menu, undefined, { primary: [], secondary: result });
-		scopedContextKeyService.dispose();
-		menu.dispose();
+		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
+		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
+		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
+			result.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation) }));
+		} else {
+			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
+			if (viewContainerModel.allViewDescriptors.length === 1) {
+				const viewToReset = viewContainerModel.allViewDescriptors[0];
+				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
+				if (defaultContainer !== viewContainer) {
+					result.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer) }));
+				}
+			}
+		}
 		return result;
 	}
 
@@ -238,10 +252,10 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			const viewContainer = this.getViewContainer(panel.id)!;
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			this.updateActivity(viewContainer, viewContainerModel);
-			this.onDidChangeActiveViews(viewContainer, viewContainerModel);
+			this.showOrHideViewContainer(viewContainer, viewContainerModel);
 
 			const disposables = new DisposableStore();
-			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.onDidChangeActiveViews(viewContainer, viewContainerModel)));
+			disposables.add(viewContainerModel.onDidChangeActiveViewDescriptors(() => this.showOrHideViewContainer(viewContainer, viewContainerModel)));
 			disposables.add(viewContainerModel.onDidChangeContainerInfo(() => this.updateActivity(viewContainer, viewContainerModel)));
 
 			this.panelDisposables.set(panel.id, disposables);
@@ -277,7 +291,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const activity: IActivity = {
 			id: viewContainer.id,
 			name: this.extensionsRegistered || cachedTitle === undefined ? viewContainerModel.title : cachedTitle,
-			keybindingId: viewContainer.focusCommand?.id
+			keybindingId: viewContainerModel.keybindingId
 		};
 
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewContainer.id);
@@ -293,10 +307,17 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
-	private onDidChangeActiveViews(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+	private showOrHideViewContainer(viewContainer: ViewContainer, viewContainerModel: IViewContainerModel): void {
+		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
+		if (!contextKey) {
+			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
+			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
+		}
 		if (viewContainerModel.activeViewDescriptors.length) {
-			this.compositeBar.addComposite(viewContainer);
+			contextKey.set(true);
+			this.compositeBar.addComposite({ id: viewContainer.id, name: viewContainer.title, order: viewContainer.order, requestedIndex: viewContainer.requestedIndex });
 		} else if (viewContainer.hideIfEmpty) {
+			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
 		}
 	}
@@ -399,7 +420,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.layoutEmptyMessage();
 	}
 
-	create(parent: HTMLElement): void {
+	override create(parent: HTMLElement): void {
 		this.element = parent;
 
 		super.create(parent);
@@ -452,7 +473,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}));
 	}
 
-	updateStyles(): void {
+	override updateStyles(): void {
 		super.updateStyles();
 
 		const container = assertIsDefined(this.getContainer());
@@ -546,7 +567,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.hideActiveComposite();
 	}
 
-	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
@@ -563,7 +584,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		};
 	}
 
-	layout(width: number, height: number): void {
+	override layout(width: number, height: number): void {
 		if (!this.layoutService.isVisible(Parts.PANEL_PART)) {
 			return;
 		}
@@ -630,7 +651,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return compositeActions;
 	}
 
-	protected removeComposite(compositeId: string): boolean {
+	protected override removeComposite(compositeId: string): boolean {
 		if (super.removeComposite(compositeId)) {
 			this.compositeBar.removeComposite(compositeId);
 			const compositeActions = this.compositeActions.get(compositeId);
@@ -791,7 +812,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 }
 
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
+registerThemingParticipant((theme, collector) => {
 
 	// Panel Background: since panels can host editors, we apply a background rule if the panel background
 	// color is different from the editor background color. This is a bit of a hack though. The better way
@@ -841,16 +862,15 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	if (outline) {
 		collector.addRule(`
 			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item.checked .action-label,
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:hover .action-label {
 				outline-color: ${outline};
 				outline-width: 1px;
 				outline-style: solid;
 				border-bottom: none;
-				padding-bottom: 0;
-				outline-offset: 1px;
+				outline-offset: -2px;
 			}
 
-			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked) .action-label:hover {
+			.monaco-workbench .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item:not(.checked):hover .action-label {
 				outline-style: dashed;
 			}
 		`);

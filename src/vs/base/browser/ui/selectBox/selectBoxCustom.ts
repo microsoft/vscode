@@ -14,7 +14,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -293,14 +293,20 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 	public focus(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = 0;
 			this.selectElement.focus();
 		}
 	}
 
 	public blur(): void {
 		if (this.selectElement) {
+			this.selectElement.tabIndex = -1;
 			this.selectElement.blur();
 		}
+	}
+
+	public setFocusable(focusable: boolean): void {
+		this.selectElement.tabIndex = focusable ? 0 : -1;
 	}
 
 	public render(container: HTMLElement): void {
@@ -323,7 +329,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		if (this.styles.listFocusForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { color: ${this.styles.listFocusForeground} !important; }`);
 		}
 
 		if (this.styles.decoratorRightForeground) {
@@ -730,14 +736,15 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+		const onKeyDown = this._register(new DomEmitter(this.selectDropDownListContainer, 'keydown'));
+		const onSelectDropDownKeyDown = Event.chain(onKeyDown.event)
 			.filter(() => this.selectList.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(e => this.onEnter(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this));
-		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(e => this.onUpArrow(e), this));
+		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(e => this.onDownArrow(e), this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this));
 		this._register(onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this));
@@ -746,7 +753,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		this._register(Event.chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
+		const onMouseUp = this._register(new DomEmitter(this.selectList.getHTMLElement(), 'mouseup'));
+		this._register(Event.chain(onMouseUp.event)
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this));
 
@@ -916,8 +924,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 	}
 
 	// List navigation - have to handle a disabled option (jump over)
-	private onDownArrow(): void {
+	private onDownArrow(e: StandardKeyboardEvent): void {
 		if (this.selected < this.options.length - 1) {
+			dom.EventHelper.stop(e, true);
 
 			// Skip disabled options
 			const nextOptionDisabled = this.options[this.selected + 1].isDisabled;
@@ -937,8 +946,9 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	private onUpArrow(): void {
+	private onUpArrow(e: StandardKeyboardEvent): void {
 		if (this.selected > 0) {
+			dom.EventHelper.stop(e, true);
 			// Skip disabled options
 			const previousOptionDisabled = this.options[this.selected - 1].isDisabled;
 			if (previousOptionDisabled && this.selected > 1) {
@@ -1038,7 +1048,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this.hideSelectDropDown(false);
 		super.dispose();
 	}

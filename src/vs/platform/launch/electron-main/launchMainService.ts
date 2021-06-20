@@ -11,15 +11,17 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWindowSettings } from 'vs/platform/windows/common/windows';
 import { IWindowsMainService, ICodeWindow, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { whenDeleted } from 'vs/base/node/pfs';
-import { IWorkspacesMainService } from 'vs/platform/workspaces/electron-main/workspacesMainService';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { URI } from 'vs/base/common/uri';
 import { BrowserWindow, ipcMain, Event as IpcEvent, app } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { IDiagnosticInfoOptions, IDiagnosticInfo, IRemoteDiagnosticInfo, IRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
-import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/node/launch';
+import { IMainProcessInfo, IWindowInfo } from 'vs/platform/launch/common/launch';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { assertIsDefined } from 'vs/base/common/types';
 
 export const ID = 'launchMainService';
 export const ILaunchMainService = createDecorator<ILaunchMainService>(ID);
@@ -32,23 +34,6 @@ export interface IStartArguments {
 export interface IRemoteDiagnosticOptions {
 	includeProcesses?: boolean;
 	includeWorkspaceMetadata?: boolean;
-}
-
-function parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
-	if (args['open-url'] && args._urls && args._urls.length > 0) {
-		// --open-url must contain -- followed by the url(s)
-		// process.argv is used over args._ as args._ are resolved to file paths at this point
-		return coalesce(args._urls
-			.map(url => {
-				try {
-					return { uri: URI.parse(url), url };
-				} catch (err) {
-					return null;
-				}
-			}));
-	}
-
-	return [];
 }
 
 export interface ILaunchMainService {
@@ -67,7 +52,7 @@ export class LaunchMainService implements ILaunchMainService {
 		@ILogService private readonly logService: ILogService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
 		@IURLService private readonly urlService: IURLService,
-		@IWorkspacesMainService private readonly workspacesMainService: IWorkspacesMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
@@ -88,7 +73,7 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 
 		// Check early for open-url which is handled in URL service
-		const urlsToOpen = parseOpenUrl(args);
+		const urlsToOpen = this.parseOpenUrl(args);
 		if (urlsToOpen.length) {
 			let whenWindowReady: Promise<unknown> = Promise.resolve();
 
@@ -112,15 +97,33 @@ export class LaunchMainService implements ILaunchMainService {
 		}
 	}
 
+	private parseOpenUrl(args: NativeParsedArgs): { uri: URI, url: string }[] {
+		if (args['open-url'] && args._urls && args._urls.length > 0) {
+			// --open-url must contain -- followed by the url(s)
+			// process.argv is used over args._ as args._ are resolved to file paths at this point
+			return coalesce(args._urls
+				.map(url => {
+					try {
+						return { uri: URI.parse(url), url };
+					} catch (err) {
+						return null;
+					}
+				}));
+		}
+
+		return [];
+	}
+
 	private async startOpenWindow(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		const context = isLaunchedFromCli(userEnv) ? OpenContext.CLI : OpenContext.DESKTOP;
 		let usedWindows: ICodeWindow[] = [];
 
 		const waitMarkerFileURI = args.wait && args.waitMarkerFilePath ? URI.file(args.waitMarkerFilePath) : undefined;
+		const remoteAuthority = args.remote || undefined;
 
 		// Special case extension development
 		if (!!args.extensionDevelopmentPath) {
-			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI });
+			this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, { context, cli: args, userEnv, waitMarkerFileURI, remoteAuthority });
 		}
 
 		// Start without file/folder arguments
@@ -161,7 +164,8 @@ export class LaunchMainService implements ILaunchMainService {
 					userEnv,
 					forceNewWindow: true,
 					forceEmpty: true,
-					waitMarkerFileURI
+					waitMarkerFileURI,
+					remoteAuthority
 				});
 			}
 
@@ -173,7 +177,7 @@ export class LaunchMainService implements ILaunchMainService {
 
 					usedWindows = [lastActive];
 				} else {
-					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true });
+					usedWindows = this.windowsMainService.open({ context, cli: args, forceEmpty: true, remoteAuthority });
 				}
 			}
 		}
@@ -191,7 +195,8 @@ export class LaunchMainService implements ILaunchMainService {
 				addMode: args.add,
 				noRecentEntry: !!args['skip-add-to-recently-opened'],
 				waitMarkerFileURI,
-				gotoLineMode: args.goto
+				gotoLineMode: args.goto,
+				remoteAuthority
 			});
 		}
 
@@ -272,19 +277,18 @@ export class LaunchMainService implements ILaunchMainService {
 	private getFolderURIs(window: ICodeWindow): URI[] {
 		const folderURIs: URI[] = [];
 
-		if (window.openedFolderUri) {
-			folderURIs.push(window.openedFolderUri);
-		} else if (window.openedWorkspace) {
-			// workspace folders can only be shown for local workspaces
-			const workspaceConfigPath = window.openedWorkspace.configPath;
-			const resolvedWorkspace = this.workspacesMainService.resolveLocalWorkspaceSync(workspaceConfigPath);
+		const workspace = window.openedWorkspace;
+		if (isSingleFolderWorkspaceIdentifier(workspace)) {
+			folderURIs.push(workspace.uri);
+		} else if (isWorkspaceIdentifier(workspace)) {
+			const resolvedWorkspace = this.workspacesManagementMainService.resolveLocalWorkspaceSync(workspace.configPath); // workspace folders can only be shown for local (resolved) workspaces
 			if (resolvedWorkspace) {
 				const rootFolders = resolvedWorkspace.folders;
 				rootFolders.forEach(root => {
 					folderURIs.push(root.uri);
 				});
 			} else {
-				//TODO: can we add the workspace file here?
+				//TODO@RMacfarlane: can we add the workspace file here?
 			}
 		}
 
@@ -293,8 +297,9 @@ export class LaunchMainService implements ILaunchMainService {
 
 	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folderURIs = this.getFolderURIs(window);
+		const win = assertIsDefined(window.win);
 
-		return this.browserWindowToInfo(window.win, folderURIs, window.remoteAuthority);
+		return this.browserWindowToInfo(win, folderURIs, window.remoteAuthority);
 	}
 
 	private browserWindowToInfo(window: BrowserWindow, folderURIs: URI[] = [], remoteAuthority?: string): IWindowInfo {

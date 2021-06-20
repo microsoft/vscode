@@ -126,9 +126,11 @@ export class MenuBar extends Disposable {
 			let eventHandled = true;
 			const key = !!e.key ? e.key.toLocaleLowerCase() : '';
 
-			if (event.equals(KeyCode.LeftArrow) || (isMacintosh && event.equals(KeyCode.Tab | KeyMod.Shift))) {
+			const tabNav = isMacintosh && this.options.compactMode === undefined;
+
+			if (event.equals(KeyCode.LeftArrow) || (tabNav && event.equals(KeyCode.Tab | KeyMod.Shift))) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow) || (isMacintosh && event.equals(KeyCode.Tab))) {
+			} else if (event.equals(KeyCode.RightArrow) || (tabNav && event.equals(KeyCode.Tab))) {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape) && this.isFocused && !this.isOpen) {
 				this.setUnfocusedState();
@@ -420,7 +422,7 @@ export class MenuBar extends Disposable {
 		}
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.menuCache.forEach(menuBarMenu => {
@@ -744,7 +746,7 @@ export class MenuBar extends Disposable {
 	private setUnfocusedState(): void {
 		if (this.options.visibility === 'toggle' || this.options.visibility === 'hidden') {
 			this.focusState = MenubarState.HIDDEN;
-		} else if (this.options.visibility === 'default' && browser.isFullscreen()) {
+		} else if (this.options.visibility === 'classic' && browser.isFullscreen()) {
 			this.focusState = MenubarState.HIDDEN;
 		} else {
 			this.focusState = MenubarState.VISIBLE;
@@ -836,6 +838,22 @@ export class MenuBar extends Disposable {
 		this._mnemonicsInUse = value;
 	}
 
+	private get shouldAltKeyFocus(): boolean {
+		if (isMacintosh) {
+			return false;
+		}
+
+		if (!this.options.disableAltFocus) {
+			return true;
+		}
+
+		if (this.options.visibility === 'toggle') {
+			return true;
+		}
+
+		return false;
+	}
+
 	public get onVisibilityChange(): Event<boolean> {
 		return this._onVisibilityChange.event;
 	}
@@ -867,7 +885,7 @@ export class MenuBar extends Disposable {
 		}
 
 		// Prevent alt-key default if the menu is not hidden and we use alt to focus
-		if (modifierKeyStatus.event && !this.options.disableAltFocus) {
+		if (modifierKeyStatus.event && this.shouldAltKeyFocus) {
 			if (ScanCodeUtils.toEnum(modifierKeyStatus.event.code) === ScanCode.AltLeft) {
 				modifierKeyStatus.event.preventDefault();
 			}
@@ -883,7 +901,7 @@ export class MenuBar extends Disposable {
 		// Clean alt key press and release
 		if (allModifiersReleased && modifierKeyStatus.lastKeyPressed === 'alt' && modifierKeyStatus.lastKeyReleased === 'alt') {
 			if (!this.awaitingAltRelease) {
-				if (!this.isFocused && !(this.options.disableAltFocus && this.options.visibility !== 'toggle')) {
+				if (!this.isFocused && this.shouldAltKeyFocus) {
 					this.mnemonicsInUse = true;
 					this.focusedMenu = { index: this.numMenusShown > 0 ? 0 : MenuBar.OVERFLOW_INDEX };
 					this.focusState = MenubarState.FOCUSED;
@@ -958,7 +976,7 @@ export class MenuBar extends Disposable {
 			menuHolder.style.right = `${this.container.clientWidth}px`;
 			menuHolder.style.left = 'auto';
 		} else {
-			menuHolder.style.top = `${this.container.clientHeight}px`;
+			menuHolder.style.top = `${buttonBoundingRect.bottom}px`;
 			menuHolder.style.left = `${buttonBoundingRect.left}px`;
 		}
 

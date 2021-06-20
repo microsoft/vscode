@@ -14,10 +14,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 export const QUICKOPEN_DETAIL_CONFIG = 'task.quickOpen.detail';
 export const QUICKOPEN_SKIP_CONFIG = 'task.quickOpen.skip';
@@ -29,13 +30,15 @@ export function isWorkspaceFolder(folder: IWorkspace | IWorkspaceFolder): folder
 export interface TaskQuickPickEntry extends IQuickPickItem {
 	task: Task | undefined | null;
 }
+
 export interface TaskTwoLevelQuickPickEntry extends IQuickPickItem {
 	task: Task | ConfiguringTask | string | undefined | null;
+	settingType?: string;
 }
 
 const SHOW_ALL: string = nls.localize('taskQuickPick.showAll', "Show All Tasks...");
 
-export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configration icon in the tasks selection list.'));
+export const configureTaskIcon = registerIcon('tasks-list-configure', Codicon.gear, nls.localize('configureTaskIcon', 'Configuration icon in the tasks selection list.'));
 const removeTaskIcon = registerIcon('tasks-remove', Codicon.close, nls.localize('removeTaskIcon', 'Icon for remove in the tasks selection list.'));
 
 export class TaskQuickPick extends Disposable {
@@ -45,7 +48,8 @@ export class TaskQuickPick extends Disposable {
 		private taskService: ITaskService,
 		private configurationService: IConfigurationService,
 		private quickInputService: IQuickInputService,
-		private notificationService: INotificationService) {
+		private notificationService: INotificationService,
+		private dialogService: IDialogService) {
 		super();
 		this.sorter = this.taskService.createSorter();
 	}
@@ -173,6 +177,21 @@ export class TaskQuickPick extends Disposable {
 		return { entries: this.topLevelEntries, isSingleConfigured: configuredTasks.length === 1 ? configuredTasks[0] : undefined };
 	}
 
+	public async handleSettingOption(selectedType: string) {
+		const noButton = nls.localize('TaskQuickPick.changeSettingNo', "No");
+		const yesButton = nls.localize('TaskQuickPick.changeSettingYes', "Yes");
+		const changeSettingResult = await this.dialogService.show(Severity.Warning,
+			nls.localize('TaskQuickPick.changeSettingDetails',
+				"Task detection for {0} tasks causes files in any workspace you open to be run as code. Enabling {0} task detection is a user setting and will apply to any workspace you open. Do you want to enable {0} task detection for all workspaces?", selectedType),
+			[noButton, yesButton]);
+		if (changeSettingResult.choice === 1) {
+			await this.configurationService.updateValue(`${selectedType}.autoDetect`, 'on');
+			await new Promise<void>(resolve => setTimeout(() => resolve(), 100));
+			return this.show(nls.localize('TaskService.pickRunTask', 'Select the task to run'), undefined, selectedType);
+		}
+		return undefined;
+	}
+
 	public async show(placeHolder: string, defaultEntry?: TaskQuickPickEntry, startAtType?: string): Promise<Task | undefined | null> {
 		const picker: IQuickPick<TaskTwoLevelQuickPickEntry> = this.quickInputService.createQuickPick();
 		picker.placeholder = placeHolder;
@@ -182,24 +201,29 @@ export class TaskQuickPick extends Disposable {
 
 		picker.onDidTriggerItemButton(async (context) => {
 			let task = context.item.task;
-			if (task && !Types.isString(task) && context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
-				const key = task.getRecentlyUsedKey();
+			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
+				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
 				if (key) {
 					this.taskService.removeRecentlyUsedTask(key);
-					const indexToRemove = picker.items.indexOf(context.item);
-					if (indexToRemove >= 0) {
-						picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
-					}
 				}
-				return;
-			}
-
-			this.quickInputService.cancel();
-			if (ContributedTask.is(task)) {
-				this.taskService.customize(task, undefined, true);
-			} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
-				if (!(await this.taskService.openConfig(task))) {
+				const indexToRemove = picker.items.indexOf(context.item);
+				if (indexToRemove >= 0) {
+					picker.items = [...picker.items.slice(0, indexToRemove), ...picker.items.slice(indexToRemove + 1)];
+				}
+			} else {
+				this.quickInputService.cancel();
+				if (ContributedTask.is(task)) {
 					this.taskService.customize(task, undefined, true);
+				} else if (CustomTask.is(task) || ConfiguringTask.is(task)) {
+					let canOpenConfig: boolean = false;
+					try {
+						canOpenConfig = await this.taskService.openConfig(task);
+					} catch (e) {
+						// do nothing.
+					}
+					if (!canOpenConfig) {
+						this.taskService.customize(task, undefined, true);
+					}
 				}
 			}
 		});
@@ -219,9 +243,12 @@ export class TaskQuickPick extends Disposable {
 			if (Types.isString(firstLevelTask)) {
 				// Proceed to second level of quick pick
 				const selectedEntry = await this.doPickerSecondLevel(picker, firstLevelTask);
-				if (selectedEntry && selectedEntry.task === null) {
+				if (selectedEntry && !selectedEntry.settingType && selectedEntry.task === null) {
 					// The user has chosen to go back to the first level
 					firstLevelTask = await this.doPickerFirstLevel(picker, (await this.getTopLevelEntries(defaultEntry)).entries);
+				} else if (selectedEntry && Types.isString(selectedEntry.settingType)) {
+					picker.dispose();
+					return this.handleSettingOption(selectedEntry.settingType);
 				} else {
 					picker.dispose();
 					return (selectedEntry?.task && !Types.isString(selectedEntry?.task)) ? this.toTask(selectedEntry?.task) : undefined;
@@ -250,7 +277,9 @@ export class TaskQuickPick extends Disposable {
 	private async doPickerSecondLevel(picker: IQuickPick<TaskTwoLevelQuickPickEntry>, type: string) {
 		picker.busy = true;
 		if (type === SHOW_ALL) {
-			picker.items = (await this.taskService.tasks()).sort((a, b) => this.sorter.compare(a, b)).map(task => this.createTaskEntry(task));
+			const items = (await this.taskService.tasks()).sort((a, b) => this.sorter.compare(a, b)).map(task => this.createTaskEntry(task));
+			items.push(...TaskQuickPick.allSettingEntries(this.configurationService));
+			picker.items = items;
 		} else {
 			picker.value = '';
 			picker.items = await this.getEntriesForProvider(type);
@@ -263,6 +292,36 @@ export class TaskQuickPick extends Disposable {
 		});
 
 		return secondLevelPickerResult;
+	}
+
+	public static allSettingEntries(configurationService: IConfigurationService): (TaskTwoLevelQuickPickEntry & { settingType: string })[] {
+		const entries: (TaskTwoLevelQuickPickEntry & { settingType: string })[] = [];
+		const gruntEntry = TaskQuickPick.getSettingEntry(configurationService, 'grunt');
+		if (gruntEntry) {
+			entries.push(gruntEntry);
+		}
+		const gulpEntry = TaskQuickPick.getSettingEntry(configurationService, 'gulp');
+		if (gulpEntry) {
+			entries.push(gulpEntry);
+		}
+		const jakeEntry = TaskQuickPick.getSettingEntry(configurationService, 'jake');
+		if (jakeEntry) {
+			entries.push(jakeEntry);
+		}
+		return entries;
+	}
+
+	public static getSettingEntry(configurationService: IConfigurationService, type: string): (TaskTwoLevelQuickPickEntry & { settingType: string }) | undefined {
+		if (configurationService.getValue(`${type}.autoDetect`) === 'off') {
+			return {
+				label: nls.localize('TaskQuickPick.changeSettingsOptions', "$(gear) {0} task detection is turned off. Enable {1} task detection...",
+					type[0].toUpperCase() + type.slice(1), type),
+				task: null,
+				settingType: type,
+				alwaysShow: true
+			};
+		}
+		return undefined;
 	}
 
 	private async getEntriesForProvider(type: string): Promise<QuickPickInput<TaskTwoLevelQuickPickEntry>[]> {
@@ -284,6 +343,11 @@ export class TaskQuickPick extends Disposable {
 				alwaysShow: true
 			}];
 		}
+
+		const settingEntry = TaskQuickPick.getSettingEntry(this.configurationService, type);
+		if (settingEntry) {
+			taskQuickPickEntries.push(settingEntry);
+		}
 		return taskQuickPickEntries;
 	}
 
@@ -300,8 +364,10 @@ export class TaskQuickPick extends Disposable {
 		return resolvedTask;
 	}
 
-	static async show(taskService: ITaskService, configurationService: IConfigurationService, quickInputService: IQuickInputService, notificationService: INotificationService, placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
-		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService);
+	static async show(taskService: ITaskService, configurationService: IConfigurationService,
+		quickInputService: IQuickInputService, notificationService: INotificationService,
+		dialogService: IDialogService, placeHolder: string, defaultEntry?: TaskQuickPickEntry) {
+		const taskQuickPick = new TaskQuickPick(taskService, configurationService, quickInputService, notificationService, dialogService);
 		return taskQuickPick.show(placeHolder, defaultEntry);
 	}
 }

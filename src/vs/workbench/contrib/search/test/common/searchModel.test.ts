@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import * as sinon from 'sinon';
-import { timeout } from 'vs/base/common/async';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { URI } from 'vs/base/common/uri';
-import { DeferredPromise } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -141,19 +140,19 @@ suite('SearchModel', () => {
 
 		const actual = testObject.searchResult.matches();
 
-		assert.equal(2, actual.length);
-		assert.equal('file://c:/1', actual[0].resource.toString());
+		assert.strictEqual(2, actual.length);
+		assert.strictEqual('file://c:/1', actual[0].resource.toString());
 
 		let actuaMatches = actual[0].matches();
-		assert.equal(2, actuaMatches.length);
-		assert.equal('preview 1', actuaMatches[0].text());
+		assert.strictEqual(2, actuaMatches.length);
+		assert.strictEqual('preview 1', actuaMatches[0].text());
 		assert.ok(new Range(2, 2, 2, 5).equalsRange(actuaMatches[0].range()));
-		assert.equal('preview 1', actuaMatches[1].text());
+		assert.strictEqual('preview 1', actuaMatches[1].text());
 		assert.ok(new Range(2, 5, 2, 12).equalsRange(actuaMatches[1].range()));
 
 		actuaMatches = actual[1].matches();
-		assert.equal(1, actuaMatches.length);
-		assert.equal('preview 2', actuaMatches[0].text());
+		assert.strictEqual(1, actuaMatches.length);
+		assert.strictEqual('preview 2', actuaMatches[0].text());
 		assert.ok(new Range(2, 1, 2, 2).equalsRange(actuaMatches[0].range()));
 	});
 
@@ -171,9 +170,9 @@ suite('SearchModel', () => {
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
 		assert.ok(target.calledThrice);
-		const data = target.args[0];
+		const data = target.args[2];
 		data[1].duration = -1;
-		assert.deepEqual(['searchResultsFirstRender', { duration: -1 }], data);
+		assert.deepStrictEqual(['searchResultsFirstRender', { duration: -1 }], data);
 	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
@@ -203,7 +202,7 @@ suite('SearchModel', () => {
 
 		instantiationService.stub(ISearchService, searchServiceWithResults(
 			[aRawMatch('file://c:/1', new TextSearchMatch('some preview', lineOneRange))],
-			{ results: [], stats: testSearchStats }));
+			{ results: [], stats: testSearchStats, messages: [] }));
 
 		const testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
@@ -214,7 +213,7 @@ suite('SearchModel', () => {
 				// are fired at some point.
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
-				// assert.equal(1, target2.callCount);
+				// assert.strictEqual(1, target2.callCount);
 			});
 		});
 	});
@@ -303,24 +302,24 @@ suite('SearchModel', () => {
 		await testObject.search({ contentPattern: { pattern: 're' }, type: 1, folderQueries });
 		testObject.replaceString = 'hello';
 		let match = testObject.searchResult.matches()[0].matches()[0];
-		assert.equal('hello', match.replaceString);
+		assert.strictEqual('hello', match.replaceString);
 
 		await testObject.search({ contentPattern: { pattern: 're', isRegExp: true }, type: 1, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.equal('hello', match.replaceString);
+		assert.strictEqual('hello', match.replaceString);
 
 		await testObject.search({ contentPattern: { pattern: 're(?:vi)', isRegExp: true }, type: 1, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.equal('hello', match.replaceString);
+		assert.strictEqual('hello', match.replaceString);
 
 		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
 		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.equal('hello', match.replaceString);
+		assert.strictEqual('hello', match.replaceString);
 
 		await testObject.search({ contentPattern: { pattern: 'r(e)(?:vi)', isRegExp: true }, type: 1, folderQueries });
 		testObject.replaceString = 'hello$1';
 		match = testObject.searchResult.matches()[0].matches()[0];
-		assert.equal('helloe', match.replaceString);
+		assert.strictEqual('helloe', match.replaceString);
 	});
 
 	function aRawMatch(resource: string, ...results: ITextSearchMatch[]): IFileMatch {
@@ -328,7 +327,7 @@ suite('SearchModel', () => {
 	}
 
 	function stub(arg1: any, arg2: any, arg3: any): sinon.SinonStub {
-		const stub = sinon.stub(arg1, arg2, arg3);
+		const stub = sinon.stub(arg1, arg2).callsFake(arg3);
 		restoreStubs.push(stub);
 		return stub;
 	}

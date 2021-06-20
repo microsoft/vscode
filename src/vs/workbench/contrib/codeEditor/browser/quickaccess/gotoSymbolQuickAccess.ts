@@ -26,8 +26,9 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickAccessTextEditorContext } from 'vs/editor/contrib/quickAccess/editorNavigationQuickAccess';
-import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccessProvider {
 
@@ -67,17 +68,19 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.editorService.activeTextEditorControl;
 	}
 
-	protected gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
+	protected override gotoLocation(context: IQuickAccessTextEditorContext, options: { range: IRange, keyMods: IKeyMods, forceSideBySide?: boolean, preserveFocus?: boolean }): void {
 
 		// Check for sideBySide use
 		if ((options.keyMods.alt || (this.configuration.openEditorPinned && options.keyMods.ctrlCmd) || options.forceSideBySide) && this.editorService.activeEditor) {
 			context.restoreViewState?.(); // since we open to the side, restore view state in this editor
 
-			this.editorService.openEditor(this.editorService.activeEditor, {
+			const editorOptions: ITextEditorOptions = {
 				selection: options.range,
 				pinned: options.keyMods.ctrlCmd || this.configuration.openEditorPinned,
 				preserveFocus: options.preserveFocus
-			}, SIDE_GROUP);
+			};
+
+			this.editorService.openEditor(this.editorService.activeEditor, editorOptions, SIDE_GROUP);
 		}
 
 		// Otherwise let parent handle it
@@ -110,17 +113,17 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 		return this.doGetSymbolPicks(this.getDocumentSymbols(model, token), prepareQuery(filter), options, token);
 	}
 
-	addDecorations(editor: IEditor, range: IRange): void {
+	override addDecorations(editor: IEditor, range: IRange): void {
 		super.addDecorations(editor, range);
 	}
 
-	clearDecorations(editor: IEditor): void {
+	override clearDecorations(editor: IEditor): void {
 		super.clearDecorations(editor);
 	}
 
 	//#endregion
 
-	protected provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
+	protected override provideWithoutTextEditor(picker: IQuickPick<IGotoSymbolQuickPickItem>): IDisposable {
 		if (this.canPickWithOutlineService()) {
 			return this.doGetOutlinePicks(picker);
 		}
@@ -143,7 +146,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 
 		picker.busy = true;
 
-		this.outlineService.createOutline(pane, cts.token).then(outline => {
+		this.outlineService.createOutline(pane, OutlineTarget.QuickPick, cts.token).then(outline => {
 
 			if (!outline) {
 				return;
@@ -162,7 +165,7 @@ export class GotoSymbolQuickAccessProvider extends AbstractGotoSymbolQuickAccess
 				}
 			}));
 
-			const entries = Array.from(outline.quickPickConfig.quickPickDataSource.getQuickPickElements());
+			const entries = outline.config.quickPickDataSource.getQuickPickElements();
 
 			const items: IGotoSymbolQuickPickItem[] = entries.map((entry, idx) => {
 				return {

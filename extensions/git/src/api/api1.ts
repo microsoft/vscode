@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, RemoteSourceProvider, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
 import { mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -193,16 +193,24 @@ export class ApiRepository implements Repository {
 		return this._repository.renameRemote(name, newName);
 	}
 
-	fetch(remote?: string | undefined, ref?: string | undefined, depth?: number | undefined): Promise<void> {
-		return this._repository.fetch(remote, ref, depth);
+	fetch(arg0?: FetchOptions | string | undefined,
+		ref?: string | undefined,
+		depth?: number | undefined,
+		prune?: boolean | undefined
+	): Promise<void> {
+		if (arg0 !== undefined && typeof arg0 !== 'string') {
+			return this._repository.fetch(arg0);
+		}
+
+		return this._repository.fetch({ remote: arg0, ref, depth, prune });
 	}
 
 	pull(unshallow?: boolean): Promise<void> {
 		return this._repository.pull(undefined, unshallow);
 	}
 
-	push(remoteName?: string, branchName?: string, setUpstream: boolean = false): Promise<void> {
-		return this._repository.pushTo(remoteName, branchName, setUpstream);
+	push(remoteName?: string, branchName?: string, setUpstream: boolean = false, force?: ForcePushMode): Promise<void> {
+		return this._repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
 	blame(path: string): Promise<string> {
@@ -237,6 +245,10 @@ export class ApiImpl implements API {
 		return this._model.onDidChangeState;
 	}
 
+	get onDidPublish(): Event<PublishEvent> {
+		return this._model.onDidPublish;
+	}
+
 	get onDidOpenRepository(): Event<Repository> {
 		return mapEvent(this._model.onDidOpenRepository, r => new ApiRepository(r));
 	}
@@ -262,6 +274,11 @@ export class ApiImpl implements API {
 		const path = root.fsPath;
 		await this._model.git.init(path);
 		await this._model.openRepository(path);
+		return this.getRepository(root) || null;
+	}
+
+	async openRepository(root: Uri): Promise<Repository | null> {
+		await this._model.openRepository(root.fsPath);
 		return this.getRepository(root) || null;
 	}
 

@@ -21,6 +21,7 @@ const vfs = require('vinyl-fs');
 const uuid = require('uuid');
 
 const extensions = require('../../build/lib/extensions');
+const { getBuiltInExtensions } = require('../../build/lib/builtInExtensions');
 
 const APP_ROOT = path.join(__dirname, '..', '..');
 const BUILTIN_EXTENSIONS_ROOT = path.join(APP_ROOT, 'extensions');
@@ -36,7 +37,7 @@ const ALLOWED_CORS_ORIGINS = [
 	'http://127.0.0.1:8080',
 ];
 
-const WEB_PLAYGROUND_VERSION = '0.0.10';
+const WEB_PLAYGROUND_VERSION = '0.0.12';
 
 const args = minimist(process.argv, {
 	boolean: [
@@ -45,7 +46,6 @@ const args = minimist(process.argv, {
 		'verbose',
 		'wrap-iframe',
 		'enable-sync',
-		'trusted-types'
 	],
 	string: [
 		'scheme',
@@ -53,6 +53,7 @@ const args = minimist(process.argv, {
 		'port',
 		'local_port',
 		'extension',
+		'extensionId',
 		'github-auth'
 	],
 });
@@ -62,7 +63,6 @@ if (args.help) {
 		'yarn web [options]\n' +
 		' --no-launch      Do not open VSCode web in the browser\n' +
 		' --wrap-iframe    Wrap the Web Worker Extension Host in an iframe\n' +
-		' --trusted-types  Enable trusted types (report only)\n' +
 		' --enable-sync    Enable sync by default\n' +
 		' --scheme         Protocol (https or http)\n' +
 		' --host           Remote host\n' +
@@ -70,6 +70,7 @@ if (args.help) {
 		' --local_port     Local port override\n' +
 		' --secondary-port Secondary port\n' +
 		' --extension      Path of an extension to include\n' +
+		' --extensionId    Id of an extension to include\n' +
 		' --github-auth    Github authentication token\n' +
 		' --verbose        Print out more information\n' +
 		' --help\n' +
@@ -90,6 +91,8 @@ const exists = (path) => util.promisify(fs.exists)(path);
 const readFile = (path) => util.promisify(fs.readFile)(path);
 
 async function getBuiltInExtensionInfos() {
+	await getBuiltInExtensions();
+
 	const allExtensions = [];
 	/** @type {Object.<string, string>} */
 	const locations = {};
@@ -168,23 +171,28 @@ async function getCommandlineProvidedExtensionInfos() {
 	const locations = {};
 
 	let extensionArg = args['extension'];
-	if (!extensionArg) {
+	let extensionIdArg = args['extensionId'];
+	if (!extensionArg && !extensionIdArg) {
 		return { extensions, locations };
 	}
 
-	const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
-	await Promise.all(extensionPaths.map(async extensionPath => {
-		extensionPath = path.resolve(process.cwd(), extensionPath);
-		const packageJSON = await getExtensionPackageJSON(extensionPath);
-		if (packageJSON) {
-			const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
-			extensions.push({
-				packageJSON,
-				extensionLocation: { scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` }
-			});
-			locations[extensionId] = extensionPath;
-		}
-	}));
+	if (extensionArg) {
+		const extensionPaths = Array.isArray(extensionArg) ? extensionArg : [extensionArg];
+		await Promise.all(extensionPaths.map(async extensionPath => {
+			extensionPath = path.resolve(process.cwd(), extensionPath);
+			const packageJSON = await getExtensionPackageJSON(extensionPath);
+			if (packageJSON) {
+				const extensionId = `${packageJSON.publisher}.${packageJSON.name}`;
+				extensions.push({ scheme: SCHEME, authority: AUTHORITY, path: `/extension/${extensionId}` });
+				locations[extensionId] = extensionPath;
+			}
+		}));
+	}
+
+	if (extensionIdArg) {
+		extensions.push(...(Array.isArray(extensionIdArg) ? extensionIdArg : [extensionIdArg]));
+	}
+
 	return { extensions, locations };
 }
 
@@ -197,13 +205,6 @@ async function getExtensionPackageJSON(extensionPath) {
 			if (packageJSON.main && !packageJSON.browser) {
 				return; // unsupported
 			}
-
-			const packageNLSPath = path.join(extensionPath, 'package.nls.json');
-			const packageNLSExists = await exists(packageNLSPath);
-			if (packageNLSExists) {
-				packageJSON = extensions.translatePackageJSON(packageJSON, packageNLSPath); // temporary, until fixed in core
-			}
-
 			return packageJSON;
 		} catch (e) {
 			console.log(e);
@@ -225,12 +226,14 @@ const requestHandler = (req, res) => {
 	const parsedUrl = url.parse(req.url, true);
 	const pathname = parsedUrl.pathname;
 
+	res.setHeader('Access-Control-Allow-Origin', '*');
+
 	try {
-		if (pathname === '/favicon.ico') {
+		if (/(\/static)?\/favicon\.ico/.test(pathname)) {
 			// favicon
 			return serveFile(req, res, path.join(APP_ROOT, 'resources', 'win32', 'code.ico'));
 		}
-		if (pathname === '/manifest.json') {
+		if (/(\/static)?\/manifest\.json/.test(pathname)) {
 			// manifest
 			res.writeHead(200, { 'Content-Type': 'application/json' });
 			return res.end(JSON.stringify({
@@ -258,6 +261,9 @@ const requestHandler = (req, res) => {
 		} else if (pathname === '/fetch-callback') {
 			// callback fetch support
 			return handleFetchCallback(req, res, parsedUrl);
+		} else if (pathname === '/builtin') {
+			// builtin extnesions JSON
+			return handleBuiltInExtensions(req, res, parsedUrl);
 		}
 
 		return serveError(req, res, 404, 'Not found.');
@@ -298,6 +304,17 @@ function addCORSReplyHeader(req) {
 		return false;
 	}
 	return (ALLOWED_CORS_ORIGINS.indexOf(req.headers['origin']) >= 0);
+}
+
+/**
+ * @param {import('http').IncomingMessage} req
+ * @param {import('http').ServerResponse} res
+ * @param {import('url').UrlWithParsedQuery} parsedUrl
+ */
+async function handleBuiltInExtensions(req, res, parsedUrl) {
+	const { extensions } = await builtInExtensionsPromise;
+	res.writeHead(200, { 'Content-Type': 'application/json' });
+	return res.end(JSON.stringify(extensions));
 }
 
 /**
@@ -380,7 +397,7 @@ async function handleRoot(req, res) {
 	}
 
 	const { extensions: builtInExtensions } = await builtInExtensionsPromise;
-	const { extensions: staticExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
+	const { extensions: additionalBuiltinExtensions, locations: staticLocations } = await commandlineProvidedExtensionsPromise;
 
 	const dedupedBuiltInExtensions = [];
 	for (const builtInExtension of builtInExtensions) {
@@ -395,20 +412,17 @@ async function handleRoot(req, res) {
 
 	if (args.verbose) {
 		fancyLog(`${ansiColors.magenta('BuiltIn extensions')}: ${dedupedBuiltInExtensions.map(e => path.basename(e.extensionPath)).join(', ')}`);
-		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${staticExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
+		fancyLog(`${ansiColors.magenta('Additional extensions')}: ${additionalBuiltinExtensions.map(e => path.basename(e.extensionLocation.path)).join(', ') || 'None'}`);
 	}
 
 	const secondaryHost = (
 		req.headers['host']
-		? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
-		: `${HOST}:${SECONDARY_PORT}`
+			? req.headers['host'].replace(':' + PORT, ':' + SECONDARY_PORT)
+			: `${HOST}:${SECONDARY_PORT}`
 	);
 	const webConfigJSON = {
 		folderUri: folderUri,
-		staticExtensions,
-		settingsSyncOptions: {
-			enabled: args['enable-sync']
-		},
+		additionalBuiltinExtensions,
 		webWorkerExtensionHostIframeSrc: `${SCHEME}://${secondaryHost}/static/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
 	};
 	if (args['wrap-iframe']) {
@@ -432,12 +446,10 @@ async function handleRoot(req, res) {
 		.replace('{{WORKBENCH_AUTH_SESSION}}', () => authSessionInfo ? escapeAttribute(JSON.stringify(authSessionInfo)) : '')
 		.replace('{{WEBVIEW_ENDPOINT}}', '');
 
-
-	const headers = { 'Content-Type': 'text/html' };
-	if (args['trusted-types']) {
-		headers['Content-Security-Policy-Report-Only'] = 'require-trusted-types-for \'script\';';
-	}
-
+	const headers = {
+		'Content-Type': 'text/html',
+		'Content-Security-Policy': 'require-trusted-types-for \'script\';'
+	};
 	res.writeHead(200, headers);
 	return res.end(data);
 }

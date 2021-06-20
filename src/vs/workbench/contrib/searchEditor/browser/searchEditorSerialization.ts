@@ -115,6 +115,7 @@ const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: stri
 		showIncludesExcludes: !!(includes || excludes || pattern?.userDisabledExcludesAndIgnoreFiles),
 		useExcludeSettingsAndIgnoreFiles: (pattern?.userDisabledExcludesAndIgnoreFiles === undefined ? true : !pattern.userDisabledExcludesAndIgnoreFiles),
 		contextLines,
+		onlyOpenEditors: !!pattern.onlyOpenEditors,
 	};
 };
 
@@ -131,6 +132,7 @@ export const serializeSearchConfiguration = (config: Partial<SearchConfiguration
 			config.isCaseSensitive && 'CaseSensitive',
 			config.matchWholeWord && 'WordMatch',
 			config.isRegexp && 'RegExp',
+			config.onlyOpenEditors && 'OpenEditors',
 			(config.useExcludeSettingsAndIgnoreFiles === false) && 'IgnoreExcludeSettings'
 		]).join(' ')}`,
 		config.filesToInclude ? `# Including: ${config.filesToInclude}` : undefined,
@@ -153,6 +155,7 @@ export const defaultSearchConfig = (): SearchConfiguration => ({
 	matchWholeWord: false,
 	contextLines: 0,
 	showIncludesExcludes: false,
+	onlyOpenEditors: false,
 });
 
 export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguration => {
@@ -197,6 +200,7 @@ export const extractSearchQueryFromLines = (lines: string[]): SearchConfiguratio
 				query.isCaseSensitive = value.indexOf('CaseSensitive') !== -1;
 				query.useExcludeSettingsAndIgnoreFiles = value.indexOf('IgnoreExcludeSettings') === -1;
 				query.matchWholeWord = value.indexOf('WordMatch') !== -1;
+				query.onlyOpenEditors = value.indexOf('OpenEditors') !== -1;
 			}
 		}
 	}
@@ -220,7 +224,7 @@ export const serializeSearchResultForEditor =
 				: localize('noResults', "No Results"),
 		];
 		if (limitHit) {
-			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Please be more specific in your search to narrow down the results."));
+			info.push(localize('searchMaxResultsWarning', "The result set only contains a subset of all matches. Be more specific in your search to narrow down the results."));
 		}
 		info.push('');
 
@@ -257,7 +261,10 @@ export const parseSavedSearchEditor = async (accessor: ServicesAccessor, resourc
 	const textFileService = accessor.get(ITextFileService);
 
 	const text = (await textFileService.read(resource)).value;
+	return parseSerializedSearchEditor(text);
+};
 
+export const parseSerializedSearchEditor = (text: string) => {
 	const headerlines = [];
 	const bodylines = [];
 

@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { LinkedMap } from 'vs/base/common/map';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
@@ -17,9 +17,9 @@ import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 export { ITaskSummary, Task, TaskTerminateResponse };
 
-export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true);
-export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false);
-export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false);
+export const CustomExecutionSupportedContext = new RawContextKey<boolean>('customExecutionSupported', true, nls.localize('tasks.customExecutionSupported', "Whether CustomExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const ShellExecutionSupportedContext = new RawContextKey<boolean>('shellExecutionSupported', false, nls.localize('tasks.shellExecutionSupported', "Whether ShellExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
+export const ProcessExecutionSupportedContext = new RawContextKey<boolean>('processExecutionSupported', false, nls.localize('tasks.processExecutionSupported', "Whether ProcessExecution tasks are supported. Consider using in the when clause of a \'taskDefinition\' contribution."));
 
 export const ITaskService = createDecorator<ITaskService>('taskService');
 
@@ -63,16 +63,11 @@ export interface ITaskService {
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;
-	build(): Promise<ITaskSummary>;
-	runTest(): Promise<ITaskSummary>;
 	run(task: Task | undefined, options?: ProblemMatcherRunOptions): Promise<ITaskSummary | undefined>;
 	inTerminal(): boolean;
-	isActive(): Promise<boolean>;
 	getActiveTasks(): Promise<Task[]>;
 	getBusyTasks(): Promise<Task[]>;
-	restart(task: Task): void;
 	terminate(task: Task): Promise<TaskTerminateResponse>;
-	terminateAll(): Promise<TaskTerminateResponse[]>;
 	tasks(filter?: TaskFilter): Promise<Task[]>;
 	taskTypes(): string[];
 	getWorkspaceTasks(runSource?: TaskRunSource): Promise<Map<string, WorkspaceFolderTaskResult>>;
@@ -83,19 +78,17 @@ export interface ITaskService {
 	 */
 	getTask(workspaceFolder: IWorkspace | IWorkspaceFolder | string, alias: string | TaskIdentifier, compareId?: boolean): Promise<Task | undefined>;
 	tryResolveTask(configuringTask: ConfiguringTask): Promise<Task | undefined>;
-	getTasksForGroup(group: string): Promise<Task[]>;
-	getRecentlyUsedTasks(): LinkedMap<string, string>;
-	migrateRecentTasks(tasks: Task[]): Promise<void>;
 	createSorter(): TaskSorter;
 
 	getTaskDescription(task: Task | ConfiguringTask): string | undefined;
-	canCustomize(task: ContributedTask | CustomTask): boolean;
 	customize(task: ContributedTask | CustomTask | ConfiguringTask, properties?: {}, openConfig?: boolean): Promise<void>;
 	openConfig(task: CustomTask | ConfiguringTask | undefined): Promise<boolean>;
 
 	registerTaskProvider(taskProvider: ITaskProvider, type: string): IDisposable;
 
 	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
+	onDidChangeTaskSystemInfo: Event<void>;
+	readonly hasTaskSystemInfo: boolean;
 	registerSupportedExecutions(custom?: boolean, shell?: boolean, process?: boolean): void;
 
 	extensionCallbackTaskComplete(task: Task, result: number | undefined): Promise<void>;

@@ -46,7 +46,7 @@ export class LargeFileOptimizationsWarner extends Disposable implements IEditorC
 
 				this._notificationService.prompt(Severity.Info, message, [
 					{
-						label: nls.localize('removeOptimizations', "Forcefully enable features"),
+						label: nls.localize('removeOptimizations', "Forcefully Enable Features"),
 						run: () => {
 							this._configurationService.updateValue(`editor.largeFileOptimizations`, false).then(() => {
 								this._notificationService.info(nls.localize('reopenFilePrompt', "Please reopen file in order for this setting to take effect."));

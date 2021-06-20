@@ -46,12 +46,13 @@ button {
 	text-align: center;
 	outline: 1px solid transparent;
 	outline-offset: 2px !important;
-	color: var(--vscode-button-foreground);
-	background: var(--vscode-button-background);
+	color: var(--vscode-icon-foreground);
+	background: none;
 }
 
 button:hover:not(:disabled) {
 	cursor: pointer;
+	color: var(--vscode-button-foreground);
 	background: var(--vscode-button-hoverBackground);
 }
 
@@ -93,6 +94,7 @@ iframe {
 	width: 100%;
 	height: 100%;
 	border: none;
+	background: white; /* Browsers default to a white background */
 }
 
 .iframe-focused-alert {
@@ -110,6 +112,6 @@ iframe {
 	pointer-events: none;
 }
 
-.iframe-focused .iframe-focused-alert {
+.iframe-focused.enable-focus-lock-indicator .iframe-focused-alert {
 	display: block;
 }

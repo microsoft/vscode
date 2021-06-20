@@ -34,7 +34,7 @@ import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/co
 import { EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IDiffEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Action, IAction, ActionRunner } from 'vs/base/common/actions';
-import { IActionBarOptions, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IActionBarOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename, isEqualOrParent } from 'vs/base/common/resources';
 import { MenuId, IMenuService, IMenu, MenuItemAction, MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -46,13 +46,14 @@ import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ISplice } from 'vs/base/common/sequence';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { EncodingMode } from 'vs/workbench/common/editor';
+import { EncodingMode, ITextFileEditorModel, IResolvedTextFileEditorModel, ITextFileService, isTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { gotoNextLocation, gotoPreviousLocation } from 'vs/platform/theme/common/iconRegistry';
+import { Codicon } from 'vs/base/common/codicons';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 class DiffActionRunner extends ActionRunner {
 
-	runAction(action: IAction, context: any): Promise<any> {
+	override runAction(action: IAction, context: any): Promise<any> {
 		if (action instanceof MenuItemAction) {
 			return action.run(...context);
 		}
@@ -120,7 +121,7 @@ class UIEditorAction extends Action {
 		this.editor = editor;
 	}
 
-	run(): Promise<any> {
+	override run(): Promise<any> {
 		return Promise.resolve(this.instantiationService.invokeFunction(accessor => this.action.run(accessor, this.editor, null)));
 	}
 }
@@ -169,7 +170,6 @@ class DirtyDiffWidget extends PeekViewWidget {
 	private index: number = 0;
 	private change: IChange | undefined;
 	private height: number | undefined = undefined;
-	private contextKeyService: IContextKeyService;
 
 	constructor(
 		editor: ICodeEditor,
@@ -177,16 +177,18 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService _contextKeyService: IContextKeyService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true }, instantiationService);
 
 		this._disposables.add(themeService.onDidColorThemeChange(this._applyTheme, this));
 		this._applyTheme(themeService.getColorTheme());
 
-		this.contextKeyService = contextKeyService.createScoped();
-		this.contextKeyService.createKey('originalResourceScheme', this.model.original!.uri.scheme);
-		this.menu = menuService.createMenu(MenuId.SCMChangeContext, this.contextKeyService);
+		const contextKeyService = _contextKeyService.createOverlay([
+			['originalResourceScheme', this.model.original!.uri.scheme]
+		]);
+		this.menu = menuService.createMenu(MenuId.SCMChangeContext, contextKeyService);
+		this._disposables.add(this.menu);
 
 		this.create();
 		if (editor.hasModel()) {
@@ -244,22 +246,23 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.setTitle(this.title, detail);
 	}
 
-	protected _fillHead(container: HTMLElement): void {
-		super._fillHead(container);
+	protected override _fillHead(container: HTMLElement): void {
+		super._fillHead(container, true);
 
 		const previous = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowPreviousChangeAction(), ThemeIcon.asClassName(gotoPreviousLocation));
 		const next = this.instantiationService.createInstance(UIEditorAction, this.editor, new ShowNextChangeAction(), ThemeIcon.asClassName(gotoNextLocation));
 
 		this._disposables.add(previous);
 		this._disposables.add(next);
-		this._actionbarWidget!.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
 		this._disposables.add(createAndFillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions));
-		this._actionbarWidget!.push(actions, { label: false, icon: true });
+		this._actionbarWidget!.push(actions.reverse(), { label: false, icon: true });
+		this._actionbarWidget!.push([next, previous], { label: false, icon: true });
+		this._actionbarWidget!.push(new Action('peekview.close', nls.localize('label.close', "Close"), Codicon.close.classNames, true, () => this.dispose()), { label: false, icon: true });
 	}
 
-	protected _getActionBarOptions(): IActionBarOptions {
+	protected override _getActionBarOptions(): IActionBarOptions {
 		const actionRunner = new DiffActionRunner();
 
 		// close widget on successful action
@@ -271,8 +274,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 
 		return {
 			...super._getActionBarOptions(),
-			actionRunner,
-			orientation: ActionsOrientation.HORIZONTAL_REVERSE
+			actionRunner
 		};
 	}
 
@@ -295,9 +297,10 @@ class DirtyDiffWidget extends PeekViewWidget {
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, this.editor);
+		this._disposables.add(this.diffEditor);
 	}
 
-	_onWidth(width: number): void {
+	override _onWidth(width: number): void {
 		if (typeof this.height === 'undefined') {
 			return;
 		}
@@ -305,7 +308,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this.diffEditor.layout({ height: this.height, width });
 	}
 
-	protected _doLayoutBody(height: number, width: number): void {
+	protected override _doLayoutBody(height: number, width: number): void {
 		super._doLayoutBody(height, width);
 		this.diffEditor.layout({ height, width });
 
@@ -344,7 +347,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		});
 	}
 
-	protected revealLine(lineNumber: number) {
+	protected override revealLine(lineNumber: number) {
 		this.editor.revealLineInCenterIfOutsideViewport(lineNumber, ScrollType.Smooth);
 	}
 
@@ -837,7 +840,7 @@ export class DirtyDiffController extends Disposable implements IEditorContributi
 		return model.changes;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.gutterActionDisposables.dispose();
 		super.dispose();
 	}
@@ -887,6 +890,7 @@ class DirtyDiffDecorator extends Disposable {
 
 	static createDecoration(className: string, options: { gutter: boolean, overview: { active: boolean, color: string }, minimap: { active: boolean, color: string }, isWholeLine: boolean }): ModelDecorationOptions {
 		const decorationOptions: IModelDecorationOptions = {
+			description: 'dirty-diff-decoration',
 			isWholeLine: options.isWholeLine,
 		};
 
@@ -991,7 +995,7 @@ class DirtyDiffDecorator extends Disposable {
 		this.decorations = this.editorModel.deltaDecorations(this.decorations, decorations);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		if (this.editorModel && !this.editorModel.isDisposed()) {
@@ -1139,7 +1143,7 @@ export class DirtyDiffModel extends Disposable {
 				}
 
 				this.setChanges(changes);
-			});
+			}, (err) => onUnexpectedError(err));
 	}
 
 	private setChanges(changes: IChange[]): void {
@@ -1259,7 +1263,7 @@ export class DirtyDiffModel extends Disposable {
 		return this.changes.length - 1;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this._disposed = true;
@@ -1430,7 +1434,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		return null;
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this.disable();
 		super.dispose();
 	}

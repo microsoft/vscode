@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
 import { MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -11,10 +11,11 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension } from 'vs/base/browser/dom';
 import { Direction } from 'vs/base/browser/ui/grid/grid';
 
-export const IWorkbenchLayoutService = createDecorator<IWorkbenchLayoutService>('layoutService');
+export const IWorkbenchLayoutService = refineServiceDecorator<ILayoutService, IWorkbenchLayoutService>(ILayoutService);
 
 export const enum Parts {
 	TITLEBAR_PART = 'workbench.parts.titlebar',
+	BANNER_PART = 'workbench.parts.banner',
 	ACTIVITYBAR_PART = 'workbench.parts.activitybar',
 	SIDEBAR_PART = 'workbench.parts.sidebar',
 	PANEL_PART = 'workbench.parts.panel',
@@ -43,7 +44,7 @@ export function positionToString(position: Position): string {
 	}
 }
 
-const positionsByString: { [key: string]: Position } = {
+const positionsByString: { [key: string]: Position; } = {
 	[positionToString(Position.LEFT)]: Position.LEFT,
 	[positionToString(Position.RIGHT)]: Position.RIGHT,
 	[positionToString(Position.BOTTOM)]: Position.BOTTOM
@@ -62,7 +63,7 @@ export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedO
 	}
 }
 
-const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions } = {
+const panelOpensMaximizedByString: { [key: string]: PanelOpensMaximizedOptions; } = {
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.ALWAYS)]: PanelOpensMaximizedOptions.ALWAYS,
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.NEVER)]: PanelOpensMaximizedOptions.NEVER,
 	[panelOpensMaximizedSettingToString(PanelOpensMaximizedOptions.REMEMBER_LAST)]: PanelOpensMaximizedOptions.REMEMBER_LAST
@@ -79,38 +80,58 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Emits when the zen mode is enabled or disabled.
 	 */
-	readonly onZenModeChange: Event<boolean>;
+	readonly onDidChangeZenMode: Event<boolean>;
 
 	/**
 	 * Emits when fullscreen is enabled or disabled.
 	 */
-	readonly onFullscreenChange: Event<boolean>;
+	readonly onDidChangeFullscreen: Event<boolean>;
 
 	/**
 	 * Emits when the window is maximized or unmaximized.
 	 */
-	readonly onMaximizeChange: Event<boolean>;
+	readonly onDidChangeWindowMaximized: Event<boolean>;
 
 	/**
 	 * Emits when centered layout is enabled or disabled.
 	 */
-	readonly onCenteredLayoutChange: Event<boolean>;
+	readonly onDidChangeCenteredLayout: Event<boolean>;
 
 	/**
 	 * Emit when panel position changes.
 	 */
-	readonly onPanelPositionChange: Event<string>;
+	readonly onDidChangePanelPosition: Event<string>;
 
 	/**
 	 * Emit when part visibility changes
 	 */
-	readonly onPartVisibilityChange: Event<void>;
+	readonly onDidChangePartVisibility: Event<void>;
+
+	/**
+	 * Emit when notifications (toasts or center) visibility changes.
+	 */
+	readonly onDidChangeNotificationsVisibility: Event<boolean>;
+
+	/**
+	 * True if a default layout with default editors was applied at startup
+	 */
+	readonly openedDefaultEditors: boolean;
+
+	/**
+	 * Run a layout of the workbench.
+	 */
+	layout(): void;
 
 	/**
 	 * Asks the part service if all parts have been fully restored. For editor part
-	 * this means that the contents of editors have loaded.
+	 * this means that the contents of visible editors have loaded.
 	 */
 	isRestored(): boolean;
+
+	/**
+	 * A promise for to await the `isRestored()` condition to be `true`.
+	 */
+	readonly whenRestored: Promise<void>;
 
 	/**
 	 * Returns whether the given part has the keyboard focus or not.
@@ -141,6 +162,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Set activity bar hidden or not
 	 */
 	setActivityBarHidden(hidden: boolean): void;
+
+	/**
+	 * Set banner hidden or not
+	 */
+	setBannerHidden(hidden: boolean): void;
 
 	/**
 	 *
@@ -195,6 +221,11 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	getMenubarVisibility(): MenuBarVisibility;
 
 	/**
+	 * Toggles the menu bar visibility.
+	 */
+	toggleMenuBar(): void;
+
+	/**
 	 * Gets the current panel position. Note that the panel can be hidden too.
 	 */
 	getPanelPosition(): Position;
@@ -208,11 +239,6 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Gets the maximum possible size for editor.
 	 */
 	getMaximumEditorDimensions(): Dimension;
-
-	/**
-	 * Returns the element that is parent of the workbench element.
-	 */
-	getWorkbenchContainer(): HTMLElement;
 
 	/**
 	 * Toggles the workbench in and out of zen mode - parts get hidden and window goes fullscreen.
@@ -253,9 +279,4 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	 * Returns the next visible view part in a given direction
 	 */
 	getVisibleNeighborPart(part: Parts, direction: Direction): Parts | undefined;
-
-	/**
-	 * True if a default layout with default editors was applied at startup
-	 */
-	readonly openedDefaultEditors: boolean;
 }

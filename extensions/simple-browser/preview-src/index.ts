@@ -5,7 +5,6 @@
 
 import { onceDocumentLoaded } from './events';
 
-declare let acquireVsCodeApi: any;
 const vscode = acquireVsCodeApi();
 
 function getSettings() {
@@ -35,6 +34,11 @@ window.addEventListener('message', e => {
 		case 'focus':
 			{
 				iframe.focus();
+				break;
+			}
+		case 'didChangeFocusLockIndicatorEnabled':
+			{
+				toggleFocusLockIndicatorEnabled(e.data.enabled);
 				break;
 			}
 	}
@@ -75,12 +79,32 @@ onceDocumentLoaded(() => {
 		// history.go(0);
 
 		// This incorrectly adds entries to the history but does reload
-		iframe.src = input.value;
+		// It also always incorrectly always loads the value in the input bar,
+		// which may not match the current page if the user has navigated
+		navigateTo(input.value);
 	});
 
 	navigateTo(settings.url);
+	input.value = settings.url;
 
-	function navigateTo(url: string): void {
-		iframe.src = url;
+	toggleFocusLockIndicatorEnabled(settings.focusLockIndicatorEnabled);
+
+	function navigateTo(rawUrl: string): void {
+		try {
+			const url = new URL(rawUrl);
+
+			// Try to bust the cache for the iframe
+			// There does not appear to be any way to reliably do this except modifying the url
+			url.searchParams.append('vscodeBrowserReqId', Date.now().toString());
+
+			iframe.src = url.toString();
+		} catch {
+			iframe.src = rawUrl;
+		}
 	}
 });
+
+function toggleFocusLockIndicatorEnabled(enabled: boolean) {
+	document.body.classList.toggle('enable-focus-lock-indicator', enabled);
+}
+

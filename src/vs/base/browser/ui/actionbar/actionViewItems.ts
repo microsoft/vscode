@@ -8,13 +8,14 @@ import * as platform from 'vs/base/common/platform';
 import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { SelectBox, ISelectOptionItem, ISelectBoxOptions } from 'vs/base/browser/ui/selectBox/selectBox';
-import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator, IActionViewItem } from 'vs/base/common/actions';
+import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, Separator } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { isFirefox } from 'vs/base/browser/browser';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType, removeTabIndexAndUpdateFocus } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export interface IBaseActionViewItemOptions {
 	draggable?: boolean;
@@ -26,12 +27,12 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 
 	element: HTMLElement | undefined;
 
-	_context: any;
+	_context: unknown;
 	_action: IAction;
 
 	private _actionRunner: IActionRunner | undefined;
 
-	constructor(context: any, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
+	constructor(context: unknown, action: IAction, protected options: IBaseActionViewItemOptions = {}) {
 		super();
 
 		this._context = context || this;
@@ -111,7 +112,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 			}
 		}
 
-		this._register(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e)));
+		this._register(addDisposableListener(element, TouchEventType.Tap, e => this.onClick(e, true))); // Preserve focus on tap #125470
 
 		this._register(addDisposableListener(element, EventType.MOUSE_DOWN, e => {
 			if (!enableDragging) {
@@ -156,25 +157,43 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		});
 	}
 
-	onClick(event: EventLike): void {
+	onClick(event: EventLike, preserveFocus = false): void {
 		EventHelper.stop(event, true);
 
-		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : undefined : this._context;
+		const context = types.isUndefinedOrNull(this._context) ? this.options?.useEventAsContext ? event : { preserveFocus } : this._context;
 		this.actionRunner.run(this._action, context);
 	}
 
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
 	focus(): void {
 		if (this.element) {
+			this.element.tabIndex = 0;
 			this.element.focus();
 			this.element.classList.add('focused');
 		}
 	}
 
+	isFocused(): boolean {
+		return !!this.element?.classList.contains('focused');
+	}
+
 	blur(): void {
 		if (this.element) {
 			this.element.blur();
+			this.element.tabIndex = -1;
 			this.element.classList.remove('focused');
 		}
+	}
+
+	setFocusable(focusable: boolean): void {
+		if (this.element) {
+			this.element.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
+	get trapsArrowNavigation(): boolean {
+		return false;
 	}
 
 	protected updateEnabled(): void {
@@ -197,7 +216,7 @@ export class BaseActionViewItem extends Disposable implements IActionViewItem {
 		// implement in subclass
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		if (this.element) {
 			this.element.remove();
 			this.element = undefined;
@@ -216,7 +235,7 @@ export interface IActionViewItemOptions extends IBaseActionViewItemOptions {
 export class ActionViewItem extends BaseActionViewItem {
 
 	protected label: HTMLElement | undefined;
-	protected options: IActionViewItemOptions;
+	protected override options: IActionViewItemOptions;
 
 	private cssClass?: string;
 
@@ -229,7 +248,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.cssClass = '';
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		super.render(container);
 
 		if (this.element) {
@@ -259,21 +278,38 @@ export class ActionViewItem extends BaseActionViewItem {
 		this.updateChecked();
 	}
 
-	focus(): void {
-		super.focus();
-
+	// Only set the tabIndex on the element once it is about to get focused
+	// That way this element wont be a tab stop when it is not needed #106441
+	override focus(): void {
 		if (this.label) {
+			this.label.tabIndex = 0;
 			this.label.focus();
 		}
 	}
 
-	updateLabel(): void {
+	override isFocused(): boolean {
+		return !!this.label && this.label?.tabIndex === 0;
+	}
+
+	override blur(): void {
+		if (this.label) {
+			this.label.tabIndex = -1;
+		}
+	}
+
+	override setFocusable(focusable: boolean): void {
+		if (this.label) {
+			this.label.tabIndex = focusable ? 0 : -1;
+		}
+	}
+
+	override updateLabel(): void {
 		if (this.options.label && this.label) {
 			this.label.textContent = this.getAction().label;
 		}
 	}
 
-	updateTooltip(): void {
+	override updateTooltip(): void {
 		let title: string | null = null;
 
 		if (this.getAction().tooltip) {
@@ -292,7 +328,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	updateClass(): void {
+	override updateClass(): void {
 		if (this.cssClass && this.label) {
 			this.label.classList.remove(...this.cssClass.split(' '));
 		}
@@ -315,12 +351,11 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	updateEnabled(): void {
+	override updateEnabled(): void {
 		if (this.getAction().enabled) {
 			if (this.label) {
 				this.label.removeAttribute('aria-disabled');
 				this.label.classList.remove('disabled');
-				this.label.tabIndex = 0;
 			}
 
 			if (this.element) {
@@ -330,7 +365,6 @@ export class ActionViewItem extends BaseActionViewItem {
 			if (this.label) {
 				this.label.setAttribute('aria-disabled', 'true');
 				this.label.classList.add('disabled');
-				removeTabIndexAndUpdateFocus(this.label);
 			}
 
 			if (this.element) {
@@ -339,7 +373,7 @@ export class ActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	updateChecked(): void {
+	override updateChecked(): void {
 		if (this.label) {
 			if (this.getAction().checked) {
 				this.label.classList.add('checked');
@@ -357,6 +391,7 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		super(ctx, action);
 
 		this.selectBox = new SelectBox(options, selected, contextViewProvider, undefined, selectBoxOptions);
+		this.selectBox.setFocusable(false);
 
 		this._register(this.selectBox);
 		this.registerListeners();
@@ -380,19 +415,23 @@ export class SelectActionViewItem extends BaseActionViewItem {
 		return option;
 	}
 
-	focus(): void {
+	override setFocusable(focusable: boolean): void {
+		this.selectBox.setFocusable(focusable);
+	}
+
+	override focus(): void {
 		if (this.selectBox) {
 			this.selectBox.focus();
 		}
 	}
 
-	blur(): void {
+	override blur(): void {
 		if (this.selectBox) {
 			this.selectBox.blur();
 		}
 	}
 
-	render(container: HTMLElement): void {
+	override render(container: HTMLElement): void {
 		this.selectBox.render(container);
 	}
 }

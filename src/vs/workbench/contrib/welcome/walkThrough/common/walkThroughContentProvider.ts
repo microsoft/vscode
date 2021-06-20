@@ -77,7 +77,7 @@ export class WalkThroughSnippetContentProvider implements ITextModelContentProvi
 				if (i === j) { codeEditorModel = model; }
 				return '';
 			};
-			const textBuffer = factory.create(DefaultEndOfLine.LF);
+			const textBuffer = factory.create(DefaultEndOfLine.LF).textBuffer;
 			const lineCount = textBuffer.getLineCount();
 			const range = new Range(1, 1, lineCount, textBuffer.getLineLength(lineCount) + 1);
 			const markdown = textBuffer.getValueInRange(range, EndOfLinePreference.TextDefined);

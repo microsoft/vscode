@@ -40,18 +40,15 @@ export namespace ThemeIcon {
 		return obj && typeof obj === 'object' && typeof (<ThemeIcon>obj).id === 'string' && (typeof (<ThemeIcon>obj).color === 'undefined' || ThemeColor.isThemeColor((<ThemeIcon>obj).color));
 	}
 
-	const _regexFromString = /^\$\(([a-z.]+\/)?([a-z-~]+)\)$/i;
+	const _regexFromString = new RegExp(`^\\$\\((${CSSIcon.iconNameExpression}(?:${CSSIcon.iconModifierExpression})?)\\)$`);
 
 	export function fromString(str: string): ThemeIcon | undefined {
 		const match = _regexFromString.exec(str);
 		if (!match) {
 			return undefined;
 		}
-		let [, owner, name] = match;
-		if (!owner || owner === 'codicon/') {
-			return { id: name };
-		}
-		return { id: owner + name };
+		let [, name] = match;
+		return { id: name };
 	}
 
 	export function modify(icon: ThemeIcon, modifier: 'disabled' | 'spin' | undefined): ThemeIcon {
@@ -68,6 +65,10 @@ export namespace ThemeIcon {
 
 	export function isEqual(ti1: ThemeIcon, ti2: ThemeIcon): boolean {
 		return ti1.id === ti2.id && ti1.color?.id === ti2.color?.id;
+	}
+
+	export function asThemeIcon(codicon: Codicon): ThemeIcon {
+		return { id: codicon.id };
 	}
 
 	export const asClassNameArray: (icon: ThemeIcon) => string[] = CSSIcon.asClassNameArray;

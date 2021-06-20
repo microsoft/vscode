@@ -19,6 +19,17 @@ suite('Monarch', () => {
 		return new MonarchTokenizer(modeService, null!, languageId, compile(languageId, language));
 	}
 
+	function getTokens(tokenizer: MonarchTokenizer, lines: string[]): Token[][] {
+		const actualTokens: Token[][] = [];
+		let state = tokenizer.getInitialState();
+		for (const line of lines) {
+			const result = tokenizer.tokenize(line, true, state, 0);
+			actualTokens.push(result.tokens);
+			state = result.endState;
+		}
+		return actualTokens;
+	}
+
 	test('Ensure @rematch and nextEmbedded can be used together in Monarch grammar', () => {
 		const modeService = new ModeServiceImpl();
 		const innerModeRegistration = ModesRegistry.registerLanguage({
@@ -65,38 +76,32 @@ suite('Monarch', () => {
 			`""")`,
 		];
 
-		const actualTokens: Token[][] = [];
-		let state = tokenizer.getInitialState();
-		for (const line of lines) {
-			const result = tokenizer.tokenize(line, true, state, 0);
-			actualTokens.push(result.tokens);
-			state = result.endState;
-		}
+		const actualTokens = getTokens(tokenizer, lines);
 
-		assert.deepEqual(actualTokens, [
+		assert.deepStrictEqual(actualTokens, [
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 15, 'type': 'token.sql', 'language': 'sql' },
-				{ 'offset': 61, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 64, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1'),
+				new Token(15, 'token.sql', 'sql'),
+				new Token(61, 'string.quote.test1', 'test1'),
+				new Token(64, 'source.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'source.test1', 'language': 'test1' },
-				{ 'offset': 12, 'type': 'string.quote.test1', 'language': 'test1' }
+				new Token(0, 'source.test1', 'test1'),
+				new Token(12, 'string.quote.test1', 'test1')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'token.sql', 'language': 'sql' }
+				new Token(0, 'token.sql', 'sql')
 			],
 			[
-				{ 'offset': 0, 'type': 'string.quote.test1', 'language': 'test1' },
-				{ 'offset': 3, 'type': 'source.test1', 'language': 'test1' }
+				new Token(0, 'string.quote.test1', 'test1'),
+				new Token(3, 'source.test1', 'test1')
 			]
 		]);
 		innerModeTokenizationRegistration.dispose();
@@ -140,27 +145,21 @@ suite('Monarch', () => {
 			`But the line was empty. This line should not be commented.`,
 		];
 
-		const actualTokens: Token[][] = [];
-		let state = tokenizer.getInitialState();
-		for (const line of lines) {
-			const result = tokenizer.tokenize(line, true, state, 0);
-			actualTokens.push(result.tokens);
-			state = result.endState;
-		}
+		const actualTokens = getTokens(tokenizer, lines);
 
-		assert.deepEqual(actualTokens, [
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+		assert.deepStrictEqual(actualTokens, [
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'source.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'comment.test', 'language': 'test' }],
+			[new Token(0, 'comment.test', 'test')],
 			[],
-			[{ 'offset': 0, 'type': 'source.test', 'language': 'test' }]
+			[new Token(0, 'source.test', 'test')]
 		]);
 
 	});
@@ -190,13 +189,7 @@ suite('Monarch', () => {
 			`PRINT 2*3:*FX200, 3`
 		];
 
-		const actualTokens: Token[][] = [];
-		let state = tokenizer.getInitialState();
-		for (const line of lines) {
-			const result = tokenizer.tokenize(line, true, state, 0);
-			actualTokens.push(result.tokens);
-			state = result.endState;
-		}
+		const actualTokens = getTokens(tokenizer, lines);
 
 		assert.deepStrictEqual(actualTokens, [
 			[
@@ -214,6 +207,86 @@ suite('Monarch', () => {
 				new Token(13, 'number.test', 'test'),
 				new Token(16, '', 'test'),
 				new Token(18, 'number.test', 'test'),
+			]
+		]);
+	});
+
+	test('issue #115662: monarchCompile function need an extra option which can control replacement', () => {
+		const modeService = new ModeServiceImpl();
+
+		const tokenizer1 = createMonarchTokenizer(modeService, 'test', {
+			ignoreCase: false,
+			uselessReplaceKey1: '@uselessReplaceKey2',
+			uselessReplaceKey2: '@uselessReplaceKey3',
+			uselessReplaceKey3: '@uselessReplaceKey4',
+			uselessReplaceKey4: '@uselessReplaceKey5',
+			uselessReplaceKey5: '@ham' || '',
+			tokenizer: {
+				root: [
+					{
+						regex: /@\w+/.test('@ham')
+							? new RegExp(`^${'@uselessReplaceKey1'}$`)
+							: new RegExp(`^${'@ham'}$`),
+						action: { token: 'ham' }
+					},
+				],
+			},
+		});
+
+		const tokenizer2 = createMonarchTokenizer(modeService, 'test', {
+			ignoreCase: false,
+			tokenizer: {
+				root: [
+					{
+						regex: /@@ham/,
+						action: { token: 'ham' }
+					},
+				],
+			},
+		});
+
+		const lines = [
+			`@ham`
+		];
+
+		const actualTokens1 = getTokens(tokenizer1, lines);
+		assert.deepStrictEqual(actualTokens1, [
+			[
+				new Token(0, 'ham.test', 'test'),
+			]
+		]);
+
+		const actualTokens2 = getTokens(tokenizer2, lines);
+		assert.deepStrictEqual(actualTokens2, [
+			[
+				new Token(0, 'ham.test', 'test'),
+			]
+		]);
+	});
+
+	test('microsoft/monaco-editor#2424: Allow to target @@', () => {
+		const modeService = new ModeServiceImpl();
+
+		const tokenizer = createMonarchTokenizer(modeService, 'test', {
+			ignoreCase: false,
+			tokenizer: {
+				root: [
+					{
+						regex: /@@@@/,
+						action: { token: 'ham' }
+					},
+				],
+			},
+		});
+
+		const lines = [
+			`@@`
+		];
+
+		const actualTokens = getTokens(tokenizer, lines);
+		assert.deepStrictEqual(actualTokens, [
+			[
+				new Token(0, 'ham.test', 'test'),
 			]
 		]);
 	});

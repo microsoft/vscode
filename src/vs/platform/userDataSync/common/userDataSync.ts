@@ -16,7 +16,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
 import { URI } from 'vs/base/common/uri';
-import { joinPath, isEqualOrParent } from 'vs/base/common/resources';
+import { joinPath, isEqualOrParent, IExtUri } from 'vs/base/common/resources';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { distinct } from 'vs/base/common/arrays';
 import { isArray, isString, isObject } from 'vs/base/common/types';
@@ -31,9 +31,10 @@ export function getDisallowedIgnoredSettings(): string[] {
 
 export function getDefaultIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
+	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
 	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...machineSettings, ...disallowedSettings]);
+	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
 
 export function registerConfiguration(): IDisposable {
@@ -107,6 +108,7 @@ export type IAuthenticationProvider = { id: string, scopes: string[] };
 
 export interface IUserDataSyncStore {
 	readonly url: URI;
+	readonly type: UserDataSyncStoreType;
 	readonly defaultUrl: URI;
 	readonly stableUrl: URI;
 	readonly insidersUrl: URI;
@@ -129,6 +131,10 @@ export const enum SyncResource {
 	GlobalState = 'globalState'
 }
 export const ALL_SYNC_RESOURCES: SyncResource[] = [SyncResource.Settings, SyncResource.Keybindings, SyncResource.Snippets, SyncResource.Extensions, SyncResource.GlobalState];
+
+export function getLastSyncResourceUri(syncResource: SyncResource, environmentService: IEnvironmentService, extUri: IExtUri): URI {
+	return extUri.joinPath(environmentService.userDataSyncHome, syncResource, `lastSync${syncResource}.json`);
+}
 
 export interface IUserDataManifest {
 	latest?: Record<ServerResource, string>
@@ -191,6 +197,12 @@ export interface IUserDataSyncBackupStoreService {
 export const HEADER_OPERATION_ID = 'x-operation-id';
 export const HEADER_EXECUTION_ID = 'X-Execution-Id';
 
+export function createSyncHeaders(executionId: string): IHeaders {
+	const headers: IHeaders = {};
+	headers[HEADER_EXECUTION_ID] = executionId;
+	return headers;
+}
+
 //#endregion
 
 // #region User Data Sync Error
@@ -242,7 +254,7 @@ export class UserDataSyncError extends Error {
 }
 
 export class UserDataSyncStoreError extends UserDataSyncError {
-	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, readonly operationId: string | undefined) {
+	constructor(message: string, readonly url: string, code: UserDataSyncErrorCode, operationId: string | undefined) {
 		super(message, code, undefined, operationId);
 	}
 }
@@ -384,6 +396,13 @@ export interface IUserDataSynchroniser {
 
 //#endregion
 
+// #region keys synced only in web
+
+export const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
+export function getEnablementKey(resource: SyncResource) { return `sync.enable.${resource}`; }
+
+// #endregion
+
 // #region User Data Sync Services
 
 export const IUserDataSyncResourceEnablementService = createDecorator<IUserDataSyncResourceEnablementService>('IUserDataSyncResourceEnablementService');
@@ -393,6 +412,8 @@ export interface IUserDataSyncResourceEnablementService {
 	readonly onDidChangeResourceEnablement: Event<[SyncResource, boolean]>;
 	isResourceEnabled(resource: SyncResource): boolean;
 	setResourceEnablement(resource: SyncResource, enabled: boolean): void;
+
+	getResourceSyncStateVersion(resource: SyncResource): string | undefined;
 }
 
 export interface ISyncTask {

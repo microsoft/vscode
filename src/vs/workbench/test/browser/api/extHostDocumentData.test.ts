@@ -19,14 +19,14 @@ suite('ExtHostDocumentData', () => {
 
 	function assertPositionAt(offset: number, line: number, character: number) {
 		let position = data.document.positionAt(offset);
-		assert.equal(position.line, line);
-		assert.equal(position.character, character);
+		assert.strictEqual(position.line, line);
+		assert.strictEqual(position.character, character);
 	}
 
 	function assertOffsetAt(line: number, character: number, offset: number) {
 		let pos = new Position(line, character);
 		let actual = data.document.offsetAt(pos);
-		assert.equal(actual, offset);
+		assert.strictEqual(actual, offset);
 	}
 
 	setup(function () {
@@ -50,7 +50,7 @@ suite('ExtHostDocumentData', () => {
 	test('save, when disposed', function () {
 		let saved: URI;
 		let data = new ExtHostDocumentData(new class extends mock<MainThreadDocumentsShape>() {
-			$trySaveDocument(uri: URI) {
+			override $trySaveDocument(uri: URI) {
 				assert.ok(!saved);
 				saved = uri;
 				return Promise.resolve(true);
@@ -58,7 +58,7 @@ suite('ExtHostDocumentData', () => {
 		}, URI.parse('foo:bar'), [], '\n', 1, 'text', true);
 
 		return data.document.save().then(() => {
-			assert.equal(saved.toString(), 'foo:bar');
+			assert.strictEqual(saved.toString(), 'foo:bar');
 
 			data.dispose();
 
@@ -74,13 +74,13 @@ suite('ExtHostDocumentData', () => {
 		data.dispose();
 
 		const { document } = data;
-		assert.equal(document.lineCount, 4);
-		assert.equal(document.lineAt(0).text, 'This is line one');
+		assert.strictEqual(document.lineCount, 4);
+		assert.strictEqual(document.lineAt(0).text, 'This is line one');
 	});
 
 	test('lines', () => {
 
-		assert.equal(data.document.lineCount, 4);
+		assert.strictEqual(data.document.lineCount, 4);
 
 		assert.throws(() => data.document.lineAt(-1));
 		assert.throws(() => data.document.lineAt(data.document.lineCount));
@@ -89,11 +89,11 @@ suite('ExtHostDocumentData', () => {
 		assert.throws(() => data.document.lineAt(0.8));
 
 		let line = data.document.lineAt(0);
-		assert.equal(line.lineNumber, 0);
-		assert.equal(line.text.length, 16);
-		assert.equal(line.text, 'This is line one');
-		assert.equal(line.isEmptyOrWhitespace, false);
-		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
+		assert.strictEqual(line.lineNumber, 0);
+		assert.strictEqual(line.text.length, 16);
+		assert.strictEqual(line.text, 'This is line one');
+		assert.strictEqual(line.isEmptyOrWhitespace, false);
+		assert.strictEqual(line.firstNonWhitespaceCharacterIndex, 0);
 
 		data.onEvents({
 			changes: [{
@@ -107,31 +107,31 @@ suite('ExtHostDocumentData', () => {
 		});
 
 		// line didn't change
-		assert.equal(line.text, 'This is line one');
-		assert.equal(line.firstNonWhitespaceCharacterIndex, 0);
+		assert.strictEqual(line.text, 'This is line one');
+		assert.strictEqual(line.firstNonWhitespaceCharacterIndex, 0);
 
 		// fetch line again
 		line = data.document.lineAt(0);
-		assert.equal(line.text, '\t This is line one');
-		assert.equal(line.firstNonWhitespaceCharacterIndex, 2);
+		assert.strictEqual(line.text, '\t This is line one');
+		assert.strictEqual(line.firstNonWhitespaceCharacterIndex, 2);
 	});
 
 	test('line, issue #5704', function () {
 
 		let line = data.document.lineAt(0);
 		let { range, rangeIncludingLineBreak } = line;
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 16);
-		assert.equal(rangeIncludingLineBreak.end.line, 1);
-		assert.equal(rangeIncludingLineBreak.end.character, 0);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.end.character, 16);
+		assert.strictEqual(rangeIncludingLineBreak.end.line, 1);
+		assert.strictEqual(rangeIncludingLineBreak.end.character, 0);
 
 		line = data.document.lineAt(data.document.lineCount - 1);
 		range = line.range;
 		rangeIncludingLineBreak = line.rangeIncludingLineBreak;
-		assert.equal(range.end.line, 3);
-		assert.equal(range.end.character, 29);
-		assert.equal(rangeIncludingLineBreak.end.line, 3);
-		assert.equal(rangeIncludingLineBreak.end.character, 29);
+		assert.strictEqual(range.end.line, 3);
+		assert.strictEqual(range.end.character, 29);
+		assert.strictEqual(rangeIncludingLineBreak.end.line, 3);
+		assert.strictEqual(rangeIncludingLineBreak.end.character, 29);
 
 	});
 
@@ -245,28 +245,28 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 2))!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 0);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 4);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.start.character, 0);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.end.character, 4);
 
 		// ignore bad regular expresson /.*/
 		assert.throws(() => data.document.getWordRangeAtPosition(new Position(0, 2), /.*/)!);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 5), /[a-z+]+/)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 5);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 14);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.start.character, 5);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.end.character, 14);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 17), /[a-z+]+/)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.start.character, 15);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.end.character, 18);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.start.character, 15);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.end.character, 18);
 
 		range = data.document.getWordRangeAtPosition(new Position(0, 11), /yy/)!;
-		assert.equal(range, undefined);
+		assert.strictEqual(range, undefined);
 	});
 
 	test('getWordRangeAtPosition doesn\'t quite use the regex as expected, #29102', function () {
@@ -279,22 +279,22 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 0), /\/\*.+\*\//);
-		assert.equal(range, undefined);
+		assert.strictEqual(range, undefined);
 
 		range = data.document.getWordRangeAtPosition(new Position(1, 0), /\/\*.+\*\//)!;
-		assert.equal(range.start.line, 1);
-		assert.equal(range.start.character, 0);
-		assert.equal(range.end.line, 1);
-		assert.equal(range.end.character, 14);
+		assert.strictEqual(range.start.line, 1);
+		assert.strictEqual(range.start.character, 0);
+		assert.strictEqual(range.end.line, 1);
+		assert.strictEqual(range.end.character, 14);
 
 		range = data.document.getWordRangeAtPosition(new Position(3, 0), /("|').*\1/);
-		assert.equal(range, undefined);
+		assert.strictEqual(range, undefined);
 
 		range = data.document.getWordRangeAtPosition(new Position(3, 1), /("|').*\1/)!;
-		assert.equal(range.start.line, 3);
-		assert.equal(range.start.character, 1);
-		assert.equal(range.end.line, 3);
-		assert.equal(range.end.character, 10);
+		assert.strictEqual(range.start.line, 3);
+		assert.strictEqual(range.start.character, 1);
+		assert.strictEqual(range.end.line, 3);
+		assert.strictEqual(range.end.character, 10);
 	});
 
 
@@ -307,13 +307,13 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 1_177_170), regex)!;
-		assert.equal(range, undefined);
+		assert.strictEqual(range, undefined);
 
 		const pos = new Position(0, 1177170);
 		range = data.document.getWordRangeAtPosition(pos)!;
 		assert.ok(range);
 		assert.ok(range.contains(pos));
-		assert.equal(data.document.getText(range), 'TaskDefinition');
+		assert.strictEqual(data.document.getText(range), 'TaskDefinition');
 	});
 
 	test('Rename popup sometimes populates with text on the left side omitted #96013', function () {
@@ -326,10 +326,10 @@ suite('ExtHostDocumentData', () => {
 		], '\n', 1, 'text', false);
 
 		let range = data.document.getWordRangeAtPosition(new Position(0, 27), regex)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.start.character, 4);
-		assert.equal(range.end.character, 28);
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.start.character, 4);
+		assert.strictEqual(range.end.character, 28);
 	});
 
 	test('Custom snippet $TM_SELECTED_TEXT not show suggestion #108892', function () {
@@ -340,11 +340,11 @@ suite('ExtHostDocumentData', () => {
 
 		const pos = new Position(0, 55);
 		const range = data.document.getWordRangeAtPosition(pos)!;
-		assert.equal(range.start.line, 0);
-		assert.equal(range.end.line, 0);
-		assert.equal(range.start.character, 47);
-		assert.equal(range.end.character, 61);
-		assert.equal(data.document.getText(range), 'soprannominato');
+		assert.strictEqual(range.start.line, 0);
+		assert.strictEqual(range.end.line, 0);
+		assert.strictEqual(range.start.character, 47);
+		assert.strictEqual(range.end.character, 61);
+		assert.strictEqual(data.document.getText(range), 'soprannominato');
 	});
 });
 
@@ -365,16 +365,16 @@ suite('ExtHostDocumentData updates line mapping', () => {
 		let line = 0, character = 0, previousIsCarriageReturn = false;
 		for (let offset = 0; offset <= allText.length; offset++) {
 			// The position coordinate system cannot express the position between \r and \n
-			let position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
+			const position: Position = new Position(line, character + (previousIsCarriageReturn ? -1 : 0));
 
 			if (direction === AssertDocumentLineMappingDirection.OffsetToPosition) {
 				let actualPosition = doc.document.positionAt(offset);
-				assert.equal(positionToStr(actualPosition), positionToStr(position), 'positionAt mismatch for offset ' + offset);
+				assert.strictEqual(positionToStr(actualPosition), positionToStr(position), 'positionAt mismatch for offset ' + offset);
 			} else {
 				// The position coordinate system cannot express the position between \r and \n
-				let expectedOffset = offset + (previousIsCarriageReturn ? -1 : 0);
+				let expectedOffset: number = offset + (previousIsCarriageReturn ? -1 : 0);
 				let actualOffset = doc.document.offsetAt(position);
-				assert.equal(actualOffset, expectedOffset, 'offsetAt mismatch for position ' + positionToStr(position));
+				assert.strictEqual(actualOffset, expectedOffset, 'offsetAt mismatch for position ' + positionToStr(position));
 			}
 
 			if (allText.charAt(offset) === '\n') {

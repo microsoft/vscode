@@ -10,12 +10,13 @@ import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { dispose } from 'vs/base/common/lifecycle';
 import { Command } from 'vs/editor/common/modes';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { getCodiconAriaLabel } from 'vs/base/common/codicons';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadStatusBar)
 export class MainThreadStatusBar implements MainThreadStatusBarShape {
 
 	private readonly entries: Map<number, { accessor: IStatusbarEntryAccessor, alignment: MainThreadStatusBarAlignment, priority: number }> = new Map();
-	static readonly CODICON_REGEXP = /\$\((.*?)\)/g;
 
 	constructor(
 		_extHostContext: IExtHostContext,
@@ -27,7 +28,7 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 		this.entries.clear();
 	}
 
-	$setEntry(id: number, statusId: string, statusName: string, text: string, tooltip: string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
+	$setEntry(entryId: number, id: string, name: string, text: string, tooltip: IMarkdownString | string | undefined, command: Command | undefined, color: string | ThemeColor | undefined, backgroundColor: string | ThemeColor | undefined, alignment: MainThreadStatusBarAlignment, priority: number | undefined, accessibilityInformation: IAccessibilityInformation): void {
 		// if there are icons in the text use the tooltip for the aria label
 		let ariaLabel: string;
 		let role: string | undefined = undefined;
@@ -35,25 +36,25 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 			ariaLabel = accessibilityInformation.label;
 			role = accessibilityInformation.role;
 		} else {
-			ariaLabel = text ? text.replace(MainThreadStatusBar.CODICON_REGEXP, (_match, codiconName) => codiconName) : '';
+			ariaLabel = getCodiconAriaLabel(text);
 		}
-		const entry: IStatusbarEntry = { text, tooltip, command, color, backgroundColor, ariaLabel, role };
+		const entry: IStatusbarEntry = { name, text, tooltip, command, color, backgroundColor, ariaLabel, role };
 
 		if (typeof priority === 'undefined') {
 			priority = 0;
 		}
 
 		// Reset existing entry if alignment or priority changed
-		let existingEntry = this.entries.get(id);
+		let existingEntry = this.entries.get(entryId);
 		if (existingEntry && (existingEntry.alignment !== alignment || existingEntry.priority !== priority)) {
 			dispose(existingEntry.accessor);
-			this.entries.delete(id);
+			this.entries.delete(entryId);
 			existingEntry = undefined;
 		}
 
 		// Create new entry if not existing
 		if (!existingEntry) {
-			this.entries.set(id, { accessor: this.statusbarService.addEntry(entry, statusId, statusName, alignment, priority), alignment, priority });
+			this.entries.set(entryId, { accessor: this.statusbarService.addEntry(entry, id, alignment, priority), alignment, priority });
 		}
 
 		// Otherwise update

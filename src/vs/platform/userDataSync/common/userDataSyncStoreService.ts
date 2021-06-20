@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, } from 'vs/base/common/lifecycle';
-import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient } from 'vs/platform/userDataSync/common/userDataSync';
+import { Disposable, toDisposable, } from 'vs/base/common/lifecycle';
+import { IUserData, IUserDataSyncStoreService, UserDataSyncErrorCode, IUserDataSyncStore, ServerResource, UserDataSyncStoreError, IUserDataSyncLogService, IUserDataManifest, IResourceRefHandle, HEADER_OPERATION_ID, HEADER_EXECUTION_ID, CONFIGURATION_SYNC_STORE_KEY, IAuthenticationProvider, IUserDataSyncStoreManagementService, UserDataSyncStoreType, IUserDataSyncStoreClient, SYNC_SERVICE_URL_TYPE } from 'vs/platform/userDataSync/common/userDataSync';
 import { IRequestService, asText, isSuccess as isSuccessContext, asJson } from 'vs/platform/request/common/request';
 import { joinPath, relativePath } from 'vs/base/common/resources';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IHeaders, IRequestOptions, IRequestContext } from 'vs/base/parts/request/common/request';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IProductService, ConfigurationSyncStore } from 'vs/platform/product/common/productService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ConfigurationSyncStore } from 'vs/base/common/product';
 import { getServiceMachineId } from 'vs/platform/serviceMachineId/common/serviceMachineId';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -22,8 +23,8 @@ import { createCancelablePromise, timeout, CancelablePromise } from 'vs/base/com
 import { isString, isObject, isArray } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { Mimes } from 'vs/base/common/mime';
 
-const SYNC_SERVICE_URL_TYPE = 'sync.store.url.type';
 const SYNC_PREVIOUS_STORE = 'sync.previous.store';
 const DONOT_MAKE_REQUESTS_UNTIL_KEY = 'sync.donot-make-requests-until';
 const USER_SESSION_ID_KEY = 'sync.user-session-id';
@@ -31,7 +32,7 @@ const MACHINE_SESSION_ID_KEY = 'sync.machine-session-id';
 const REQUEST_SESSION_LIMIT = 100;
 const REQUEST_SESSION_INTERVAL = 1000 * 60 * 5; /* 5 minutes */
 
-type UserDataSyncStore = IUserDataSyncStore & { defaultType?: UserDataSyncStoreType; type?: UserDataSyncStoreType };
+type UserDataSyncStore = IUserDataSyncStore & { defaultType: UserDataSyncStoreType; };
 
 export abstract class AbstractUserDataSyncStoreManagementService extends Disposable implements IUserDataSyncStoreManagementService {
 
@@ -42,6 +43,13 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	private _userDataSyncStore: UserDataSyncStore | undefined;
 	get userDataSyncStore(): UserDataSyncStore | undefined { return this._userDataSyncStore; }
 
+	protected get userDataSyncStoreType(): UserDataSyncStoreType | undefined {
+		return this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType;
+	}
+	protected set userDataSyncStoreType(type: UserDataSyncStoreType | undefined) {
+		this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, isWeb ? StorageTarget.USER /* sync in web */ : StorageTarget.MACHINE);
+	}
+
 	constructor(
 		@IProductService protected readonly productService: IProductService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -49,6 +57,7 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 	) {
 		super();
 		this.updateUserDataSyncStore();
+		this._register(Event.filter(storageService.onDidChangeValue, e => e.key === SYNC_SERVICE_URL_TYPE && e.scope === StorageScope.GLOBAL && this.userDataSyncStoreType !== this.userDataSyncStore?.type)(() => this.updateUserDataSyncStore()));
 	}
 
 	protected updateUserDataSyncStore(): void {
@@ -56,8 +65,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		this._onDidChangeUserDataSyncStore.fire();
 	}
 
-	protected toUserDataSyncStore(productStore: ConfigurationSyncStore | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
-		// Web overrides
+	protected toUserDataSyncStore(productStore: ConfigurationSyncStore & { web?: ConfigurationSyncStore } | undefined, configuredStore?: ConfigurationSyncStore): UserDataSyncStore | undefined {
+		// Check for web overrides for backward compatibility while reading previous store
 		productStore = isWeb && productStore?.web ? { ...productStore, ...productStore.web } : productStore;
 		const value: Partial<ConfigurationSyncStore> = { ...(productStore || {}), ...(configuredStore || {}) };
 		if (value
@@ -67,7 +76,8 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 		) {
 			const syncStore = value as ConfigurationSyncStore;
 			const canSwitch = !!syncStore.canSwitch && !configuredStore?.url;
-			const type: UserDataSyncStoreType | undefined = canSwitch ? this.storageService.get(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL) as UserDataSyncStoreType : undefined;
+			const defaultType: UserDataSyncStoreType = syncStore.url === syncStore.insidersUrl ? 'insiders' : 'stable';
+			const type: UserDataSyncStoreType = (canSwitch ? this.userDataSyncStoreType : undefined) || defaultType;
 			const url = configuredStore?.url ||
 				(type === 'insiders' ? syncStore.insidersUrl
 					: type === 'stable' ? syncStore.stableUrl
@@ -75,11 +85,11 @@ export abstract class AbstractUserDataSyncStoreManagementService extends Disposa
 			return {
 				url: URI.parse(url),
 				type,
-				defaultType: syncStore.url === syncStore.insidersUrl ? 'insiders' : syncStore.url === syncStore.stableUrl ? 'stable' : undefined,
+				defaultType,
 				defaultUrl: URI.parse(syncStore.url),
 				stableUrl: URI.parse(syncStore.stableUrl),
 				insidersUrl: URI.parse(syncStore.insidersUrl),
-				canSwitch: !!syncStore.canSwitch && !configuredStore?.url,
+				canSwitch,
 				authenticationProviders: Object.keys(syncStore.authenticationProviders).reduce<IAuthenticationProvider[]>((result, id) => {
 					result.push({ id, scopes: syncStore!.authenticationProviders[id].scopes });
 					return result;
@@ -119,12 +129,8 @@ export class UserDataSyncStoreManagementService extends AbstractUserDataSyncStor
 	}
 
 	async switch(type: UserDataSyncStoreType): Promise<void> {
-		if (this.userDataSyncStore?.canSwitch && type !== this.userDataSyncStore.type) {
-			if (type === this.userDataSyncStore.defaultType) {
-				this.storageService.remove(SYNC_SERVICE_URL_TYPE, StorageScope.GLOBAL);
-			} else {
-				this.storageService.store(SYNC_SERVICE_URL_TYPE, type, StorageScope.GLOBAL, StorageTarget.MACHINE);
-			}
+		if (type !== this.userDataSyncStoreType) {
+			this.userDataSyncStoreType = type;
 			this.updateUserDataSyncStore();
 		}
 	}
@@ -180,6 +186,12 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		/* A requests session that limits requests per sessions */
 		this.session = new RequestsSession(REQUEST_SESSION_LIMIT, REQUEST_SESSION_INTERVAL, this.requestService, this.logService);
 		this.initDonotMakeRequestsUntil();
+		this._register(toDisposable(() => {
+			if (this.resetDonotMakeRequestsUntilPromise) {
+				this.resetDonotMakeRequestsUntilPromise.cancel();
+				this.resetDonotMakeRequestsUntilPromise = undefined;
+			}
+		}));
 	}
 
 	setAuthToken(token: string, type: string): void {
@@ -210,6 +222,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 			if (this._donotMakeRequestsUntil) {
 				this.storageService.store(DONOT_MAKE_REQUESTS_UNTIL_KEY, this._donotMakeRequestsUntil.getTime(), StorageScope.GLOBAL, StorageTarget.MACHINE);
 				this.resetDonotMakeRequestsUntilPromise = createCancelablePromise(token => timeout(this._donotMakeRequestsUntil!.getTime() - Date.now(), token).then(() => this.setDonotMakeRequestsUntil(undefined)));
+				this.resetDonotMakeRequestsUntilPromise.then(null, e => null /* ignore error */);
 			} else {
 				this.storageService.remove(DONOT_MAKE_REQUESTS_UNTIL_KEY, StorageScope.GLOBAL);
 			}
@@ -292,7 +305,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource', resource).toString();
 		headers = { ...headers };
-		headers['Content-Type'] = 'text/plain';
+		headers['Content-Type'] = Mimes.text;
 		if (ref) {
 			headers['If-Match'] = ref;
 		}
@@ -344,7 +357,7 @@ export class UserDataSyncStoreClient extends Disposable implements IUserDataSync
 		}
 
 		const url = joinPath(this.userDataSyncStoreUrl, 'resource').toString();
-		const headers: IHeaders = { 'Content-Type': 'text/plain' };
+		const headers: IHeaders = { 'Content-Type': Mimes.text };
 
 		await this.request(url, { type: 'DELETE', headers }, [], CancellationToken.None);
 

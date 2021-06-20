@@ -4,78 +4,79 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import * as os from 'os';
-import * as path from 'vs/base/common/path';
+import { tmpdir } from 'os';
+import { join } from 'vs/base/common/path';
 import { restoreWindowsState, getWindowsStateStoreData, IWindowsState, IWindowState } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IWindowState as IWindowUIState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
 import { URI } from 'vs/base/common/uri';
 
-function getUIState(): IWindowUIState {
-	return {
-		x: 0,
-		y: 10,
-		width: 100,
-		height: 200,
-		mode: 0
-	};
-}
-
-function toWorkspace(uri: URI): IWorkspaceIdentifier {
-	return {
-		id: '1234',
-		configPath: uri
-	};
-}
-function assertEqualURI(u1: URI | undefined, u2: URI | undefined, message?: string): void {
-	assert.equal(u1 && u1.toString(), u2 && u2.toString(), message);
-}
-
-function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspaceIdentifier | undefined, message?: string): void {
-	if (!w1 || !w2) {
-		assert.equal(w1, w2, message);
-		return;
-	}
-	assert.equal(w1.id, w2.id, message);
-	assertEqualURI(w1.configPath, w2.configPath, message);
-}
-
-function assertEqualWindowState(expected: IWindowState | undefined, actual: IWindowState | undefined, message?: string) {
-	if (!expected || !actual) {
-		assert.deepEqual(expected, actual, message);
-		return;
-	}
-	assert.equal(expected.backupPath, actual.backupPath, message);
-	assertEqualURI(expected.folderUri, actual.folderUri, message);
-	assert.equal(expected.remoteAuthority, actual.remoteAuthority, message);
-	assertEqualWorkspace(expected.workspace, actual.workspace, message);
-	assert.deepEqual(expected.uiState, actual.uiState, message);
-}
-
-function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
-	assertEqualWindowState(expected.lastPluginDevelopmentHostWindow, actual.lastPluginDevelopmentHostWindow, message);
-	assertEqualWindowState(expected.lastActiveWindow, actual.lastActiveWindow, message);
-	assert.equal(expected.openedWindows.length, actual.openedWindows.length, message);
-	for (let i = 0; i < expected.openedWindows.length; i++) {
-		assertEqualWindowState(expected.openedWindows[i], actual.openedWindows[i], message);
-	}
-}
-
-function assertRestoring(state: IWindowsState, message?: string) {
-	const stored = getWindowsStateStoreData(state);
-	const restored = restoreWindowsState(stored);
-	assertEqualWindowsState(state, restored, message);
-}
-
-const testBackupPath1 = path.join(os.tmpdir(), 'windowStateTest', 'backupFolder1');
-const testBackupPath2 = path.join(os.tmpdir(), 'windowStateTest', 'backupFolder2');
-
-const testWSPath = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'test.code-workspace'));
-const testFolderURI = URI.file(path.join(os.tmpdir(), 'windowStateTest', 'testFolder'));
-
-const testRemoteFolderURI = URI.parse('foo://bar/c/d');
-
 suite('Windows State Storing', () => {
+
+	function getUIState(): IWindowUIState {
+		return {
+			x: 0,
+			y: 10,
+			width: 100,
+			height: 200,
+			mode: 0
+		};
+	}
+
+	function toWorkspace(uri: URI): IWorkspaceIdentifier {
+		return {
+			id: '1234',
+			configPath: uri
+		};
+	}
+	function assertEqualURI(u1: URI | undefined, u2: URI | undefined, message?: string): void {
+		assert.strictEqual(u1 && u1.toString(), u2 && u2.toString(), message);
+	}
+
+	function assertEqualWorkspace(w1: IWorkspaceIdentifier | undefined, w2: IWorkspaceIdentifier | undefined, message?: string): void {
+		if (!w1 || !w2) {
+			assert.strictEqual(w1, w2, message);
+			return;
+		}
+		assert.strictEqual(w1.id, w2.id, message);
+		assertEqualURI(w1.configPath, w2.configPath, message);
+	}
+
+	function assertEqualWindowState(expected: IWindowState | undefined, actual: IWindowState | undefined, message?: string) {
+		if (!expected || !actual) {
+			assert.deepStrictEqual(expected, actual, message);
+			return;
+		}
+		assert.strictEqual(expected.backupPath, actual.backupPath, message);
+		assertEqualURI(expected.folderUri, actual.folderUri, message);
+		assert.strictEqual(expected.remoteAuthority, actual.remoteAuthority, message);
+		assertEqualWorkspace(expected.workspace, actual.workspace, message);
+		assert.deepStrictEqual(expected.uiState, actual.uiState, message);
+	}
+
+	function assertEqualWindowsState(expected: IWindowsState, actual: IWindowsState, message?: string) {
+		assertEqualWindowState(expected.lastPluginDevelopmentHostWindow, actual.lastPluginDevelopmentHostWindow, message);
+		assertEqualWindowState(expected.lastActiveWindow, actual.lastActiveWindow, message);
+		assert.strictEqual(expected.openedWindows.length, actual.openedWindows.length, message);
+		for (let i = 0; i < expected.openedWindows.length; i++) {
+			assertEqualWindowState(expected.openedWindows[i], actual.openedWindows[i], message);
+		}
+	}
+
+	function assertRestoring(state: IWindowsState, message?: string) {
+		const stored = getWindowsStateStoreData(state);
+		const restored = restoreWindowsState(stored);
+		assertEqualWindowsState(state, restored, message);
+	}
+
+	const testBackupPath1 = join(tmpdir(), 'windowStateTest', 'backupFolder1');
+	const testBackupPath2 = join(tmpdir(), 'windowStateTest', 'backupFolder2');
+
+	const testWSPath = URI.file(join(tmpdir(), 'windowStateTest', 'test.code-workspace'));
+	const testFolderURI = URI.file(join(tmpdir(), 'windowStateTest', 'testFolder'));
+
+	const testRemoteFolderURI = URI.parse('foo://bar/c/d');
+
 	test('storing and restoring', () => {
 		let windowState: IWindowsState;
 		windowState = {

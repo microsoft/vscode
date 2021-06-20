@@ -48,7 +48,7 @@ export class Keychain {
 	async setToken(token: string): Promise<void> {
 
 		try {
-			return await this.context.secrets.set(SERVICE_ID, token);
+			return await this.context.secrets.store(SERVICE_ID, token);
 		} catch (e) {
 			Logger.error(`Setting token failed: ${e}`);
 

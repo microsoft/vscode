@@ -17,7 +17,7 @@ export class TelemetryLogAppender extends Disposable implements ITelemetryAppend
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		super();
-		this.logger = this._register(loggerService.getLogger(environmentService.telemetryLogResource));
+		this.logger = this._register(loggerService.createLogger(environmentService.telemetryLogResource));
 		this.logger.info('The below are logs for every telemetry event sent from VS Code once the log level is set to trace.');
 		this.logger.info('===========================================================');
 	}

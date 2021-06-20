@@ -14,15 +14,13 @@ import { localize } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { BulkEditPreviewProvider } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPreview';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchListFocusContextKey } from 'vs/platform/list/browser/listService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { URI } from 'vs/base/common/uri';
 import { MenuId, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import type { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -63,13 +61,7 @@ class UXState {
 			let previewEditors: IEditorInput[] = [];
 			for (let input of group.editors) {
 
-				let resource: URI | undefined;
-				if (input instanceof DiffEditorInput) {
-					resource = input.modifiedInput.resource;
-				} else {
-					resource = input.resource;
-				}
-
+				let resource = EditorResourceAccessor.getCanonicalUri(input, { supportSideBySide: SideBySideEditor.PRIMARY });
 				if (resource?.scheme === BulkEditPreviewProvider.Schema) {
 					previewEditors.push(input);
 				}
@@ -346,7 +338,7 @@ const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codic
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
-	name: localize('panel', "Refactor Preview"),
+	title: localize('panel', "Refactor Preview"),
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,

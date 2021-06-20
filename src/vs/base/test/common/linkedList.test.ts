@@ -11,19 +11,19 @@ suite('LinkedList', function () {
 	function assertElements<E>(list: LinkedList<E>, ...elements: E[]) {
 
 		// check size
-		assert.equal(list.size, elements.length);
+		assert.strictEqual(list.size, elements.length);
 
 		// assert toArray
-		assert.deepEqual(Array.from(list), elements);
+		assert.deepStrictEqual(Array.from(list), elements);
 
 		// assert Symbol.iterator (1)
-		assert.deepEqual([...list], elements);
+		assert.deepStrictEqual([...list], elements);
 
 		// assert Symbol.iterator (2)
 		for (const item of list) {
-			assert.equal(item, elements.shift());
+			assert.strictEqual(item, elements.shift());
 		}
-		assert.equal(elements.length, 0);
+		assert.strictEqual(elements.length, 0);
 	}
 
 	test('Push/Iter', () => {
@@ -123,15 +123,14 @@ suite('LinkedList', function () {
 		assertElements(list, 'a', 'b');
 
 		let a = list.shift();
-		assert.equal(a, 'a');
+		assert.strictEqual(a, 'a');
 		assertElements(list, 'b');
 
 		list.unshift('a');
 		assertElements(list, 'a', 'b');
 
 		let b = list.pop();
-		assert.equal(b, 'b');
+		assert.strictEqual(b, 'b');
 		assertElements(list, 'a');
-
 	});
 });

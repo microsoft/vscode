@@ -23,12 +23,28 @@ export function toSlashes(osPath: string) {
 }
 
 /**
+ * Takes a Windows OS path (using backward or forward slashes) and turns it into a posix path:
+ * - turns backward slashes into forward slashes
+ * - makes it absolute if it starts with a drive letter
+ * This should only be done for OS paths from Windows (or user provided paths potentially from Windows).
+ * Using it on a Linux or MaxOS path might change it.
+ */
+export function toPosixPath(osPath: string) {
+	if (osPath.indexOf('/') === -1) {
+		osPath = toSlashes(osPath);
+	}
+	if (/^[a-zA-Z]:(\/|$)/.test(osPath)) { // starts with a drive letter
+		osPath = '/' + osPath;
+	}
+	return osPath;
+}
+
+/**
  * Computes the _root_ this path, like `getRoot('c:\files') === c:\`,
  * `getRoot('files:///files/path') === files:///`,
  * or `getRoot('\\server\shares\path') === \\server\shares\`
  */
 export function getRoot(path: string, sep: string = posix.sep): string {
-
 	if (!path) {
 		return '';
 	}
@@ -277,12 +293,23 @@ export function isRootOrDriveLetter(path: string): boolean {
 			return false;
 		}
 
-		return isWindowsDriveLetter(pathNormalized.charCodeAt(0))
-			&& pathNormalized.charCodeAt(1) === CharCode.Colon
-			&& (path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
+		return hasDriveLetter(pathNormalized) &&
+			(path.length === 2 || pathNormalized.charCodeAt(2) === CharCode.Backslash);
 	}
 
 	return pathNormalized === posix.sep;
+}
+
+export function hasDriveLetter(path: string): boolean {
+	if (isWindows) {
+		return isWindowsDriveLetter(path.charCodeAt(0)) && path.charCodeAt(1) === CharCode.Colon;
+	}
+
+	return false;
+}
+
+export function getDriveLetter(path: string): string | undefined {
+	return hasDriveLetter(path) ? path[0] : undefined;
 }
 
 export function indexOfPath(path: string, candidate: string, ignoreCase?: boolean): number {

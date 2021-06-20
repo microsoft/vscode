@@ -3,244 +3,279 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRenderOutput, CellOutputKind, ITransformedDisplayOutputDto, RenderOutputType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NotebookRegistry } from 'vs/workbench/contrib/notebook/browser/notebookRegistry';
 import * as DOM from 'vs/base/browser/dom';
-import { INotebookEditor, IOutputTransformContribution } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { isArray } from 'vs/base/common/types';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { IModelService } from 'vs/editor/common/services/modelService';
-import { IModeService } from 'vs/editor/common/services/modeService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
+import { dirname } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { MarkdownRenderer } from 'vs/editor/browser/core/markdownRenderer';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { dirname } from 'vs/base/common/resources';
-import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { handleANSIOutput } from 'vs/workbench/contrib/debug/browser/debugANSIHandling';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { ICellOutputViewModel, ICommonNotebookEditor, IOutputTransformContribution as IOutputRendererContribution, IRenderOutput, RenderOutputType } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { OutputRendererRegistry } from 'vs/workbench/contrib/notebook/browser/view/output/rendererRegistry';
+import { truncatedArrayOfString } from 'vs/workbench/contrib/notebook/browser/view/output/transforms/textHelper';
+import { IOutputItemDto } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-class RichRenderer implements IOutputTransformContribution {
-	private _richMimeTypeRenderers = new Map<string, (output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement) => IRenderOutput>();
+
+class JavaScriptRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Html;
+	}
+
+	getMimetypes() {
+		return ['application/javascript'];
+	}
 
 	constructor(
-		public notebookEditor: INotebookEditor,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IModelService private readonly modelService: IModelService,
-		@IModeService private readonly modeService: IModeService,
-		@IThemeService private readonly themeService: IThemeService,
-		@IOpenerService readonly openerService: IOpenerService,
-		@ITextFileService readonly textFileService: ITextFileService,
+		public notebookEditor: ICommonNotebookEditor,
 	) {
-		this._richMimeTypeRenderers.set('application/json', this.renderJSON.bind(this));
-		this._richMimeTypeRenderers.set('application/javascript', this.renderJavaScript.bind(this));
-		this._richMimeTypeRenderers.set('text/html', this.renderHTML.bind(this));
-		this._richMimeTypeRenderers.set('image/svg+xml', this.renderSVG.bind(this));
-		this._richMimeTypeRenderers.set('text/markdown', this.renderMarkdown.bind(this));
-		this._richMimeTypeRenderers.set('image/png', this.renderPNG.bind(this));
-		this._richMimeTypeRenderers.set('image/jpeg', this.renderJPEG.bind(this));
-		this._richMimeTypeRenderers.set('text/plain', this.renderPlainText.bind(this));
-		this._richMimeTypeRenderers.set('text/x-javascript', this.renderCode.bind(this));
+		super();
 	}
 
-	render(output: ITransformedDisplayOutputDto, container: HTMLElement, preferredMimeType: string | undefined, notebookUri: URI): IRenderOutput {
-		if (!output.data) {
-			const contentNode = document.createElement('p');
-			contentNode.innerText = `No data could be found for output.`;
-			container.appendChild(contentNode);
-			return { type: RenderOutputType.None, hasDynamicHeight: false };
-		}
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
 
-		if (!preferredMimeType || !this._richMimeTypeRenderers.has(preferredMimeType)) {
-			const contentNode = document.createElement('p');
-			const mimeTypes = [];
-			for (const property in output.data) {
-				mimeTypes.push(property);
-			}
-
-			const mimeTypesMessage = mimeTypes.join(', ');
-
-			if (preferredMimeType) {
-				contentNode.innerText = `No renderer could be found for MIME type: ${preferredMimeType}`;
-			} else {
-				contentNode.innerText = `No renderer could be found for output. It has the following MIME types: ${mimeTypesMessage}`;
-			}
-
-			container.appendChild(contentNode);
-			return { type: RenderOutputType.None, hasDynamicHeight: false };
-		}
-
-		const renderer = this._richMimeTypeRenderers.get(preferredMimeType);
-		return renderer!(output, notebookUri, container);
-	}
-
-	renderJSON(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['application/json'];
-		const str = JSON.stringify(data, null, '\t');
-
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
-			...getOutputSimpleEditorOptions(),
-			dimension: {
-				width: 0,
-				height: 0
-			}
-		}, {
-			isSimpleWidget: true
-		});
-
-		const mode = this.modeService.create('json');
-		const resource = URI.parse(`notebook-output-${Date.now()}.json`);
-		const textModel = this.modelService.createModel(str, mode, resource, false);
-		editor.setModel(textModel);
-
-		const width = this.notebookEditor.getLayoutInfo().width;
-		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
-		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
-
-		editor.layout({
-			height,
-			width
-		});
-
-		container.style.height = `${height + 16}px`;
-
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
-	}
-
-	renderCode(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['text/x-javascript'];
-		const str = (isArray(data) ? data.join('') : data) as string;
-
-		const editor = this.instantiationService.createInstance(CodeEditorWidget, container, {
-			...getOutputSimpleEditorOptions(),
-			dimension: {
-				width: 0,
-				height: 0
-			}
-		}, {
-			isSimpleWidget: true
-		});
-
-		const mode = this.modeService.create('javascript');
-		const resource = URI.parse(`notebook-output-${Date.now()}.js`);
-		const textModel = this.modelService.createModel(str, mode, resource, false);
-		editor.setModel(textModel);
-
-		const width = this.notebookEditor.getLayoutInfo().width;
-		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
-		const height = Math.min(textModel.getLineCount(), 16) * (fontInfo.lineHeight || 18);
-
-		editor.layout({
-			height,
-			width
-		});
-
-		container.style.height = `${height + 16}px`;
-
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
-	}
-
-	renderJavaScript(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['application/javascript'];
-		const str = isArray(data) ? data.join('') : data;
+		const str = getStringValue(item);
 		const scriptVal = `<script type="application/javascript">${str}</script>`;
+
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: scriptVal,
-			hasDynamicHeight: false
+			htmlContent: scriptVal
 		};
 	}
+}
 
-	renderHTML(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['text/html'];
-		const str = (isArray(data) ? data.join('') : data) as string;
+class StreamRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return ['application/vnd.code.notebook.stdout', 'application/x.notebook.stdout', 'application/x.notebook.stream'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
+		const text = getStringValue(item);
+		const contentNode = DOM.$('span.output-stream');
+		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [text], linkDetector, this.openerService, this.themeService);
+		container.appendChild(contentNode);
+
+		return { type: RenderOutputType.Mainframe };
+	}
+}
+
+class StderrRendererContrib extends StreamRendererContrib {
+	override getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	override getMimetypes() {
+		return ['application/vnd.code.notebook.stderr', 'application/x.notebook.stderr'];
+	}
+
+	override render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const result = super.render(output, item, container, notebookUri);
+		container.classList.add('error');
+		return result;
+	}
+}
+
+class JSErrorRendererContrib implements IOutputRendererContribution {
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
+	) { }
+
+	dispose(): void {
+		// nothing
+	}
+
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return ['application/vnd.code.notebook.error'];
+	}
+
+	render(_output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, _notebookUri: URI): IRenderOutput {
+		const linkDetector = this._instantiationService.createInstance(LinkDetector);
+
+		type ErrorLike = Partial<Error>;
+
+
+		let err: ErrorLike;
+		try {
+			err = <ErrorLike>JSON.parse(getStringValue(item));
+		} catch (e) {
+			this._logService.warn('INVALID output item (failed to parse)', e);
+			return { type: RenderOutputType.Mainframe };
+		}
+
+		const header = document.createElement('div');
+		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
+		if (headerMessage) {
+			header.innerText = headerMessage;
+			container.appendChild(header);
+		}
+		const stack = document.createElement('pre');
+		stack.classList.add('traceback');
+		if (err.stack) {
+			stack.appendChild(handleANSIOutput(err.stack, linkDetector, this._themeService, undefined));
+		}
+		container.appendChild(stack);
+		container.classList.add('error');
+
+		return { type: RenderOutputType.Mainframe };
+	}
+}
+
+class PlainTextRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return [Mimes.text];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IOpenerService private readonly openerService: IOpenerService,
+		@IThemeService private readonly themeService: IThemeService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const linkDetector = this.instantiationService.createInstance(LinkDetector);
+
+		const str = getStringValue(item);
+		const contentNode = DOM.$('.output-plaintext');
+		truncatedArrayOfString(notebookUri, output.cellViewModel, contentNode, [str], linkDetector, this.openerService, this.themeService);
+		container.appendChild(contentNode);
+
+		return { type: RenderOutputType.Mainframe, supportAppend: true };
+	}
+}
+
+class HTMLRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Html;
+	}
+
+	getMimetypes() {
+		return ['text/html', 'image/svg+xml'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const str = getStringValue(item);
 		return {
 			type: RenderOutputType.Html,
 			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
+			htmlContent: str
 		};
 	}
+}
 
-	renderSVG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['image/svg+xml'];
-		const str = (isArray(data) ? data.join('') : data) as string;
-		return {
-			type: RenderOutputType.Html,
-			source: output,
-			htmlContent: str,
-			hasDynamicHeight: false
-		};
+class MdRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Mainframe;
 	}
 
-	renderMarkdown(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['text/markdown'];
-		const str = (isArray(data) ? data.join('') : data) as string;
+	getMimetypes() {
+		return [Mimes.markdown];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const disposable = new DisposableStore();
+		const str = getStringValue(item);
 		const mdOutput = document.createElement('div');
 		const mdRenderer = this.instantiationService.createInstance(MarkdownRenderer, { baseUrl: dirname(notebookUri) });
 		mdOutput.appendChild(mdRenderer.render({ value: str, isTrusted: true, supportThemeIcons: true }, undefined, { gfm: true }).element);
 		container.appendChild(mdOutput);
-
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
-	}
-
-	renderPNG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const image = document.createElement('img');
-		image.src = `data:image/png;base64,${output.data['image/png']}`;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
-	}
-
-	renderJPEG(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const image = document.createElement('img');
-		image.src = `data:image/jpeg;base64,${output.data['image/jpeg']}`;
-		const display = document.createElement('div');
-		display.classList.add('display');
-		display.appendChild(image);
-		container.appendChild(display);
-		return { type: RenderOutputType.None, hasDynamicHeight: true };
-	}
-
-	renderPlainText(output: ITransformedDisplayOutputDto, notebookUri: URI, container: HTMLElement): IRenderOutput {
-		const data = output.data['text/plain'];
-		const contentNode = DOM.$('.output-plaintext');
-		truncatedArrayOfString(contentNode, isArray(data) ? data : [data], this.openerService, this.textFileService, this.themeService, true);
-		container.appendChild(contentNode);
-
-		return { type: RenderOutputType.None, hasDynamicHeight: false };
-	}
-
-	dispose(): void {
+		disposable.add(mdRenderer);
+		return { type: RenderOutputType.Mainframe, disposable };
 	}
 }
 
-NotebookRegistry.registerOutputTransform('notebook.output.rich', CellOutputKind.Rich, RichRenderer);
+class ImgRendererContrib extends Disposable implements IOutputRendererContribution {
+	getType() {
+		return RenderOutputType.Mainframe;
+	}
+
+	getMimetypes() {
+		return ['image/png', 'image/jpeg', 'image/gif'];
+	}
+
+	constructor(
+		public notebookEditor: ICommonNotebookEditor,
+	) {
+		super();
+	}
+
+	render(output: ICellOutputViewModel, item: IOutputItemDto, container: HTMLElement, notebookUri: URI): IRenderOutput {
+		const disposable = new DisposableStore();
+
+		const blob = new Blob([item.data], { type: item.mime });
+		const src = URL.createObjectURL(blob);
+		disposable.add(toDisposable(() => URL.revokeObjectURL(src)));
+
+		const image = document.createElement('img');
+		image.src = src;
+		const display = document.createElement('div');
+		display.classList.add('display');
+		display.appendChild(image);
+		container.appendChild(display);
+
+		return { type: RenderOutputType.Mainframe, disposable };
+	}
+}
+
+OutputRendererRegistry.registerOutputTransform(JavaScriptRendererContrib);
+OutputRendererRegistry.registerOutputTransform(HTMLRendererContrib);
+OutputRendererRegistry.registerOutputTransform(MdRendererContrib);
+OutputRendererRegistry.registerOutputTransform(ImgRendererContrib);
+OutputRendererRegistry.registerOutputTransform(PlainTextRendererContrib);
+OutputRendererRegistry.registerOutputTransform(JSErrorRendererContrib);
+OutputRendererRegistry.registerOutputTransform(StreamRendererContrib);
+OutputRendererRegistry.registerOutputTransform(StderrRendererContrib);
 
 
-export function getOutputSimpleEditorOptions(): IEditorOptions {
-	return {
-		readOnly: true,
-		wordWrap: 'on',
-		overviewRulerLanes: 0,
-		glyphMargin: false,
-		selectOnLineNumbers: false,
-		hideCursorInOverviewRuler: true,
-		selectionHighlight: false,
-		lineDecorationsWidth: 0,
-		overviewRulerBorder: false,
-		scrollBeyondLastLine: false,
-		renderLineHighlight: 'none',
-		minimap: {
-			enabled: false
-		},
-		lineNumbers: 'off',
-		scrollbar: {
-			alwaysConsumeMouseWheel: false
-		}
-	};
+// --- utils ---
+export function getStringValue(item: IOutputItemDto): string {
+	// todo@jrieken NOT proper, should be VSBuffer
+	return new TextDecoder().decode(item.data);
 }

@@ -11,7 +11,7 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { isWorkspace, IWorkspace, IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -107,7 +107,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 			: await this.pickWorkspaceOrFolders(workspace.folders, workspace.configuration ? workspace : undefined, localize('select for add', "Add extension recommendation to"));
 
 		for (const workspaceOrWorkspaceFolder of workspaceOrFolders) {
-			if (IWorkspace.isIWorkspace(workspaceOrWorkspaceFolder)) {
+			if (isWorkspace(workspaceOrWorkspaceFolder)) {
 				await this.addOrRemoveWorkspaceRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceExtensionsConfigContent, !isRecommended);
 			} else {
 				await this.addOrRemoveWorkspaceFolderRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceFolderExtensionsConfigContents.get(workspaceOrWorkspaceFolder.uri)!, !isRecommended);
@@ -133,7 +133,7 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 			: await this.pickWorkspaceOrFolders(workspace.folders, workspace.configuration ? workspace : undefined, localize('select for add', "Add extension recommendation to"));
 
 		for (const workspaceOrWorkspaceFolder of workspaceOrFolders) {
-			if (IWorkspace.isIWorkspace(workspaceOrWorkspaceFolder)) {
+			if (isWorkspace(workspaceOrWorkspaceFolder)) {
 				await this.addOrRemoveWorkspaceUnwantedRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceExtensionsConfigContent, !isUnwanted);
 			} else {
 				await this.addOrRemoveWorkspaceFolderUnwantedRecommendation(extensionId, workspaceOrWorkspaceFolder, workspaceFolderExtensionsConfigContents.get(workspaceOrWorkspaceFolder.uri)!, !isUnwanted);
@@ -161,12 +161,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
+				values.push({ path: ['extensions', 'recommendations'], value: [...extensionsConfigContent.recommendations || [], extensionId] });
 				if (extensionsConfigContent.unwantedRecommendations && extensionsConfigContent.unwantedRecommendations.some(e => e === extensionId)) {
-					values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+					values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
 				}
 			} else if (extensionsConfigContent.recommendations) {
-				values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+				values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { recommendations: [extensionId] } });
@@ -196,12 +196,12 @@ export class WorkspaceExtensionsConfigService extends Disposable implements IWor
 		const values: IJSONValue[] = [];
 		if (extensionsConfigContent) {
 			if (add) {
-				values.push({ path: ['unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
+				values.push({ path: ['extensions', 'unwantedRecommendations'], value: [...extensionsConfigContent.unwantedRecommendations || [], extensionId] });
 				if (extensionsConfigContent.recommendations && extensionsConfigContent.recommendations.some(e => e === extensionId)) {
-					values.push({ path: ['recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
+					values.push({ path: ['extensions', 'recommendations'], value: extensionsConfigContent.recommendations.filter(e => e !== extensionId) });
 				}
 			} else if (extensionsConfigContent.unwantedRecommendations) {
-				values.push({ path: ['unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
+				values.push({ path: ['extensions', 'unwantedRecommendations'], value: extensionsConfigContent.unwantedRecommendations.filter(e => e !== extensionId) });
 			}
 		} else if (add) {
 			values.push({ path: ['extensions'], value: { unwantedRecommendations: [extensionId] } });

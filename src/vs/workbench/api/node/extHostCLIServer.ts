@@ -33,13 +33,15 @@ export interface StatusPipeArgs {
 	type: 'status';
 }
 
-export interface RunCommandPipeArgs {
-	type: 'command';
-	command: string;
-	args: any[];
+export interface ExtensionManagementPipeArgs {
+	type: 'extensionManagement';
+	list?: { showVersions?: boolean, category?: string; };
+	install?: string[];
+	uninstall?: string[];
+	force?: boolean;
 }
 
-export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | RunCommandPipeArgs | OpenExternalCommandPipeArgs;
+export type PipeCommand = OpenCommandPipeArgs | StatusPipeArgs | OpenExternalCommandPipeArgs | ExtensionManagementPipeArgs;
 
 export interface ICommandsExecuter {
 	executeCommand<T>(id: string, ...args: any[]): Promise<T>;
@@ -91,8 +93,8 @@ export class CLIServerBase {
 				case 'status':
 					this.getStatus(data, res);
 					break;
-				case 'command':
-					this.runCommand(data, res)
+				case 'extensionManagement':
+					this.manageExtensions(data, res)
 						.catch(this.logService.error);
 					break;
 				default:
@@ -137,26 +139,34 @@ export class CLIServerBase {
 			const waitMarkerFileURI = waitMarkerFilePath ? URI.file(waitMarkerFilePath) : undefined;
 			const preferNewWindow = !forceReuseWindow && !waitMarkerFileURI && !addMode;
 			const windowOpenArgs: IOpenWindowOptions = { forceNewWindow, diffMode, addMode, gotoLineMode, forceReuseWindow, preferNewWindow, waitMarkerFileURI };
-			this._commands.executeCommand('_files.windowOpen', urisToOpen, windowOpenArgs);
+			this._commands.executeCommand('_remoteCLI.windowOpen', urisToOpen, windowOpenArgs);
 		}
 		res.writeHead(200);
 		res.end();
 	}
 
-	private openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
-		for (const uri of data.uris) {
-			this._commands.executeCommand('_workbench.openExternal', URI.parse(uri), { allowTunneling: true });
+	private async openExternal(data: OpenExternalCommandPipeArgs, res: http.ServerResponse) {
+		for (const uriString of data.uris) {
+			const uri = URI.parse(uriString);
+			const urioOpen = uri.scheme === 'file' ? uri : uriString; // workaround for #112577
+			await this._commands.executeCommand('_remoteCLI.openExternal', urioOpen);
 		}
 		res.writeHead(200);
 		res.end();
 	}
 
-	private async getStatus(data: StatusPipeArgs, res: http.ServerResponse) {
+	private async manageExtensions(data: ExtensionManagementPipeArgs, res: http.ServerResponse) {
 		try {
-			const status = await this._commands.executeCommand('_issues.getSystemStatus');
+			const toExtOrVSIX = (inputs: string[] | undefined) => inputs?.map(input => /\.vsix$/i.test(input) ? URI.parse(input) : input);
+			const commandArgs = {
+				list: data.list,
+				install: toExtOrVSIX(data.install),
+				uninstall: toExtOrVSIX(data.uninstall),
+				force: data.force
+			};
+			const output = await this._commands.executeCommand('_remoteCLI.manageExtensions', commandArgs);
 			res.writeHead(200);
-			res.write(status);
-			res.end();
+			res.write(output);
 		} catch (err) {
 			res.writeHead(500);
 			res.write(String(err), err => {
@@ -164,20 +174,15 @@ export class CLIServerBase {
 					this.logService.error(err);
 				}
 			});
-			res.end();
 		}
+		res.end();
 	}
 
-	private async runCommand(data: RunCommandPipeArgs, res: http.ServerResponse) {
+	private async getStatus(data: StatusPipeArgs, res: http.ServerResponse) {
 		try {
-			const { command, args } = data;
-			const result = await this._commands.executeCommand(command, ...args);
+			const status = await this._commands.executeCommand('_remoteCLI.getSystemStatus');
 			res.writeHead(200);
-			res.write(JSON.stringify(result), err => {
-				if (err) {
-					this.logService.error(err);
-				}
-			});
+			res.write(status);
 			res.end();
 		} catch (err) {
 			res.writeHead(500);

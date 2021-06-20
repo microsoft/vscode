@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { distinct } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export interface IExtensionIdWithVersion {
@@ -32,7 +35,7 @@ export class ExtensionsStorageSyncService extends Disposable implements IExtensi
 	declare readonly _serviceBrand: undefined;
 
 	private static toKey(extension: IExtensionIdWithVersion): string {
-		return `extensionKeys/${extension.id}@${extension.version}`;
+		return `extensionKeys/${adoptToGalleryExtensionId(extension.id)}@${extension.version}`;
 	}
 
 	private static fromKey(key: string): IExtensionIdWithVersion | undefined {
@@ -50,6 +53,7 @@ export class ExtensionsStorageSyncService extends Disposable implements IExtensi
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		this.initialize();
@@ -91,7 +95,12 @@ export class ExtensionsStorageSyncService extends Disposable implements IExtensi
 	}
 
 	getKeysForSync(extensionIdWithVersion: IExtensionIdWithVersion): string[] | undefined {
-		const keysForSyncValue = this.storageService.get(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), StorageScope.GLOBAL);
-		return keysForSyncValue ? JSON.parse(keysForSyncValue) : undefined;
+		const extensionKeysForSyncFromProduct = this.productService.extensionSyncedKeys?.[extensionIdWithVersion.id.toLowerCase()];
+		const extensionKeysForSyncFromStorageValue = this.storageService.get(ExtensionsStorageSyncService.toKey(extensionIdWithVersion), StorageScope.GLOBAL);
+		const extensionKeysForSyncFromStorage = extensionKeysForSyncFromStorageValue ? JSON.parse(extensionKeysForSyncFromStorageValue) : undefined;
+
+		return extensionKeysForSyncFromStorage && extensionKeysForSyncFromProduct
+			? distinct([...extensionKeysForSyncFromStorage, ...extensionKeysForSyncFromProduct])
+			: (extensionKeysForSyncFromStorage || extensionKeysForSyncFromProduct);
 	}
 }

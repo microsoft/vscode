@@ -53,8 +53,8 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
-	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extension.") },
-	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extension.") },
+	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },
+	'category': { type: 'string', cat: 'e', description: localize('category', "Filters installed extensions by provided category, when using --list-extensions."), args: 'category' },
 	'install-extension': { type: 'string[]', cat: 'e', args: 'extension-id[@version] | path-to-vsix', description: localize('installExtension', "Installs or updates the extension. The identifier of an extension is always `${publisher}.${name}`. Use `--force` argument to update to latest version. To install a specific version provide `@${version}`. For example: 'vscode.csharp@1.2.3'.") },
 	'uninstall-extension': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('uninstallExtension', "Uninstalls an extension.") },
 	'enable-proposed-api': { type: 'string[]', cat: 'e', args: 'extension-id', description: localize('experimentalApis', "Enables proposed API features for extensions. Can receive one or more extension IDs to enable individually.") },
@@ -63,18 +63,18 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'verbose': { type: 'boolean', cat: 't', description: localize('verbose', "Print verbose output (implies --wait).") },
 	'log': { type: 'string', cat: 't', args: 'level', description: localize('log', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.") },
 	'status': { type: 'boolean', alias: 's', cat: 't', description: localize('status', "Print process usage and diagnostics information.") },
-	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup") },
+	'prof-startup': { type: 'boolean', cat: 't', description: localize('prof-startup', "Run CPU profiler during startup.") },
 	'prof-append-timers': { type: 'string' },
 	'prof-startup-prefix': { type: 'string' },
 	'prof-v8-extensions': { type: 'boolean' },
 	'disable-extensions': { type: 'boolean', deprecates: 'disableExtensions', cat: 't', description: localize('disableExtensions', "Disable all installed extensions.") },
 	'disable-extension': { type: 'string[]', cat: 't', args: 'extension-id', description: localize('disableExtension', "Disable an extension.") },
-	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off"), args: ['on', 'off'] },
+	'sync': { type: 'string', cat: 't', description: localize('turn sync', "Turn sync on or off."), args: ['on', 'off'] },
 
 	'inspect-extensions': { type: 'string', deprecates: 'debugPluginHost', args: 'port', cat: 't', description: localize('inspect-extensions', "Allow debugging and profiling of extensions. Check the developer tools for the connection URI.") },
 	'inspect-brk-extensions': { type: 'string', deprecates: 'debugBrkPluginHost', args: 'port', cat: 't', description: localize('inspect-brk-extensions', "Allow debugging and profiling of extensions with the extension host being paused after start. Check the developer tools for the connection URI.") },
 	'disable-gpu': { type: 'boolean', cat: 't', description: localize('disableGPU', "Disable GPU hardware acceleration.") },
-	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes).") },
+	'max-memory': { type: 'string', cat: 't', description: localize('maxMemory', "Max memory size for a window (in Mbytes)."), args: 'memory' },
 	'telemetry': { type: 'boolean', cat: 't', description: localize('telemetry', "Shows all telemetry events which VS code collects.") },
 
 	'remote': { type: 'string' },
@@ -83,6 +83,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 
 	'locate-extension': { type: 'string[]' },
 	'extensionDevelopmentPath': { type: 'string[]' },
+	'extensionDevelopmentKind': { type: 'string[]' },
 	'extensionTestsPath': { type: 'string' },
 	'debugId': { type: 'string' },
 	'debugRenderer': { type: 'boolean' },
@@ -93,8 +94,11 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'driver': { type: 'string' },
 	'logExtensionHostCommunication': { type: 'boolean' },
 	'skip-release-notes': { type: 'boolean' },
+	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
+	'disable-keytar': { type: 'boolean' },
+	'disable-workspace-trust': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },
 	'crash-reporter-directory': { type: 'string' },
 	'crash-reporter-id': { type: 'string' },
@@ -130,6 +134,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'ignore-certificate-errors': { type: 'boolean' },
 	'allow-insecure-localhost': { type: 'boolean' },
 	'log-net-log': { type: 'string' },
+	'vmodule': { type: 'string' },
 	'_urls': { type: 'string[]' },
 
 	_: { type: 'string[]' } // main arguments
@@ -150,10 +155,6 @@ export function parseArgs<T>(args: string[], options: OptionDescriptions<T>, err
 	const string: string[] = [];
 	const boolean: string[] = [];
 	for (let optionId in options) {
-		if (optionId[0] === '_') {
-			continue;
-		}
-
 		const o = options[optionId];
 		if (o.alias) {
 			alias[optionId] = o.alias;
@@ -264,7 +265,7 @@ export function formatOptions(options: OptionDescriptions<any>, columns: number)
 }
 
 function indent(count: number): string {
-	return (<any>' ').repeat(count);
+	return ' '.repeat(count);
 }
 
 function wrapText(text: string, columns: number): string[] {
@@ -321,4 +322,3 @@ export function buildHelpMessage(productName: string, executableName: string, ve
 export function buildVersionMessage(version: string | undefined, commit: string | undefined): string {
 	return `${version || localize('unknownVersion', "Unknown version")}\n${commit || localize('unknownCommit', "Unknown commit")}\n${process.arch}`;
 }
-

@@ -53,9 +53,9 @@ export abstract class RequireInterceptor {
 
 		this._installInterceptor();
 
-		performance.mark('extHost/willWaitForConfig');
+		performance.mark('code/extHost/willWaitForConfig');
 		const configProvider = await this._extHostConfiguration.getConfigProvider();
-		performance.mark('extHost/didWaitForConfig');
+		performance.mark('code/extHost/didWaitForConfig');
 		const extensionPaths = await this._extHostExtensionService.getExtensionPathIndex();
 
 		this.register(new VSCodeNodeModuleFactory(this._apiFactory, extensionPaths, this._extensionRegistry, configProvider, this._logService));

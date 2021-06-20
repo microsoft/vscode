@@ -7,6 +7,7 @@ import * as nls from 'vs/nls';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { status } from 'vs/base/browser/ui/aria/aria';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -27,6 +28,16 @@ import { overviewRulerSelectionHighlightForeground } from 'vs/platform/theme/com
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { CursorState } from 'vs/editor/common/controller/cursorCommon';
+
+function announceCursorChange(previousCursorState: CursorState[], cursorState: CursorState[]): void {
+	const cursorDiff = cursorState.filter(cs => !previousCursorState.find(pcs => pcs.equals(cs)));
+	if (cursorDiff.length >= 1) {
+		const cursorPositions = cursorDiff.map(cs => `line ${cs.viewState.position.lineNumber} column ${cs.viewState.position.column}`).join(', ');
+		const msg = cursorDiff.length === 1 ? nls.localize('cursorAdded', "Cursor added: {0}", cursorPositions) : nls.localize('cursorsAdded', "Cursors added: {0}", cursorPositions);
+		status(msg);
+	}
+}
 
 export class InsertCursorAbove extends EditorAction {
 
@@ -67,12 +78,14 @@ export class InsertCursorAbove extends EditorAction {
 		}
 
 		viewModel.pushStackElement();
+		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(viewModel, viewModel.getCursorStates(), useLogicalLine)
+			CursorMoveCommands.addCursorUp(viewModel, previousCursorState, useLogicalLine)
 		);
 		viewModel.revealTopMostCursor(args.source);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -115,12 +128,14 @@ export class InsertCursorBelow extends EditorAction {
 		}
 
 		viewModel.pushStackElement();
+		const previousCursorState = viewModel.getCursorStates();
 		viewModel.setCursorStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(viewModel, viewModel.getCursorStates(), useLogicalLine)
+			CursorMoveCommands.addCursorDown(viewModel, previousCursorState, useLogicalLine)
 		);
 		viewModel.revealBottomMostCursor(args.source);
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -167,12 +182,15 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 
 		const model = editor.getModel();
 		const selections = editor.getSelections();
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		let newSelections: Selection[] = [];
 		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -200,9 +218,12 @@ class InsertCursorAtEndOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -229,9 +250,12 @@ class InsertCursorAtTopOfLineSelected extends EditorAction {
 			newSelections.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
 		}
 
+		const viewModel = editor._getViewModel();
+		const previousCursorState = viewModel.getCursorStates();
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
 		}
+		announceCursorChange(previousCursorState, viewModel.getCursorStates());
 	}
 }
 
@@ -439,7 +463,7 @@ export class MultiCursorSelectionController extends Disposable implements IEdito
 		this._session = null;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._endSession();
 		super.dispose();
 	}
@@ -649,7 +673,12 @@ export abstract class MultiCursorSelectionControllerAction extends EditorAction 
 		if (!findController) {
 			return;
 		}
-		this._run(multiCursorController, findController);
+		const viewModel = editor._getViewModel();
+		if (viewModel) {
+			const previousCursorState = viewModel.getCursorStates();
+			this._run(multiCursorController, findController);
+			announceCursorChange(previousCursorState, viewModel.getCursorStates());
+		}
 	}
 
 	protected abstract _run(multiCursorController: MultiCursorSelectionController, findController: CommonFindController): void;
@@ -850,7 +879,6 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 					this.updateSoon.schedule();
 				} else {
 					this._setState(null);
-
 				}
 			} else {
 				this._update();
@@ -1016,14 +1044,10 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 		});
 
 		this.decorations = this.editor.deltaDecorations(this.decorations, decorations);
-
-		const currentFindState = CommonFindController.get(this.editor).getState();
-		if (currentFindState.isRegex || currentFindState.matchCase || currentFindState.wholeWord) {
-			CommonFindController.get(this.editor).highlightFindOptions(true);
-		}
 	}
 
 	private static readonly _SELECTION_HIGHLIGHT_OVERVIEW = ModelDecorationOptions.register({
+		description: 'selection-highlight-overview',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 		overviewRuler: {
@@ -1033,11 +1057,12 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 	});
 
 	private static readonly _SELECTION_HIGHLIGHT = ModelDecorationOptions.register({
+		description: 'selection-highlight',
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'selectionHighlight',
 	});
 
-	public dispose(): void {
+	public override dispose(): void {
 		this._setState(null);
 		super.dispose();
 	}

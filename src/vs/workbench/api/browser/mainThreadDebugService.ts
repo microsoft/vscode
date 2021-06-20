@@ -75,8 +75,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		return Promise.resolve(this._proxy.$substituteVariables(folder ? folder.uri : undefined, config));
 	}
 
-	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): Promise<number | undefined> {
-		return this._proxy.$runInTerminal(args);
+	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, sessionId: string): Promise<number | undefined> {
+		return this._proxy.$runInTerminal(args, sessionId);
 	}
 
 	// RPC methods (MainThreadDebugServiceShape)
@@ -142,7 +142,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 			} else if (dto.type === 'function') {
 				this.debugService.addFunctionBreakpoint(dto.functionName, dto.id);
 			} else if (dto.type === 'data') {
-				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes);
+				this.debugService.addDataBreakpoint(dto.label, dto.dataId, dto.canPersist, dto.accessTypes, dto.accessType);
 			}
 		}
 		return Promise.resolve();
@@ -327,9 +327,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				return {
 					id: sessionID,
 					type: session.configuration.type,
-					name: session.configuration.name,
+					name: session.name,
 					folderUri: session.root ? session.root.uri : undefined,
-					configuration: session.configuration
+					configuration: session.configuration,
+					parent: session.parentSession?.getId(),
 				};
 			}
 		}

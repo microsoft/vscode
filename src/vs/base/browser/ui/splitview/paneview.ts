@@ -6,16 +6,17 @@
 import 'vs/css!./paneview';
 import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { domEvent } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { $, append, trackFocus, EventHelper, clearNode } from 'vs/base/browser/dom';
+import { $, append, trackFocus, EventHelper, clearNode, addDisposableListener } from 'vs/base/browser/dom';
 import { Color, RGBA } from 'vs/base/common/color';
 import { SplitView, IView } from './splitview';
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { localize } from 'vs/nls';
+import { ScrollEvent } from 'vs/base/common/scrollable';
+import { DomEmitter } from 'vs/base/browser/event';
 
 export interface IPaneOptions {
 	minimumBodySize?: number;
@@ -219,8 +220,8 @@ export abstract class Pane extends Disposable implements IView {
 
 		this.updateHeader();
 
-
-		const onHeaderKeyDown = Event.chain(domEvent(this.header, 'keydown'))
+		const onKeyDown = this._register(new DomEmitter(this.header, 'keydown'));
+		const onHeaderKeyDown = Event.chain(onKeyDown.event)
 			.map(e => new StandardKeyboardEvent(e));
 
 		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.Enter || e.keyCode === KeyCode.Space)
@@ -232,12 +233,11 @@ export abstract class Pane extends Disposable implements IView {
 		this._register(onHeaderKeyDown.filter(e => e.keyCode === KeyCode.RightArrow)
 			.event(() => this.setExpanded(true), null));
 
-		this._register(domEvent(this.header, 'click')
-			(e => {
-				if (!e.defaultPrevented) {
-					this.setExpanded(!this.isExpanded());
-				}
-			}, null));
+		this._register(addDisposableListener(this.header, 'click', e => {
+			if (!e.defaultPrevented) {
+				this.setExpanded(!this.isExpanded());
+			}
+		}));
 
 		this.body = append(this.element, $('.pane-body'));
 		this.renderBody(this.body);
@@ -307,11 +307,11 @@ class PaneDraggable extends Disposable {
 		super();
 
 		pane.draggableElement.draggable = true;
-		this._register(domEvent(pane.draggableElement, 'dragstart')(this.onDragStart, this));
-		this._register(domEvent(pane.dropTargetElement, 'dragenter')(this.onDragEnter, this));
-		this._register(domEvent(pane.dropTargetElement, 'dragleave')(this.onDragLeave, this));
-		this._register(domEvent(pane.dropTargetElement, 'dragend')(this.onDragEnd, this));
-		this._register(domEvent(pane.dropTargetElement, 'drop')(this.onDrop, this));
+		this._register(addDisposableListener(pane.draggableElement, 'dragstart', e => this.onDragStart(e)));
+		this._register(addDisposableListener(pane.dropTargetElement, 'dragenter', e => this.onDragEnter(e)));
+		this._register(addDisposableListener(pane.dropTargetElement, 'dragleave', e => this.onDragLeave(e)));
+		this._register(addDisposableListener(pane.dropTargetElement, 'dragend', e => this.onDragEnd(e)));
+		this._register(addDisposableListener(pane.dropTargetElement, 'drop', e => this.onDrop(e)));
 	}
 
 	private onDragStart(e: DragEvent): void {
@@ -432,7 +432,7 @@ export class PaneView extends Disposable {
 
 	private dnd: IPaneDndController | undefined;
 	private dndContext: IDndContext = { draggable: null };
-	private el: HTMLElement;
+	readonly element: HTMLElement;
 	private paneItems: IPaneItem[] = [];
 	private orthogonalSize: number = 0;
 	private size: number = 0;
@@ -444,15 +444,17 @@ export class PaneView extends Disposable {
 
 	orientation: Orientation;
 	readonly onDidSashChange: Event<number>;
+	readonly onDidScroll: Event<ScrollEvent>;
 
 	constructor(container: HTMLElement, options: IPaneViewOptions = {}) {
 		super();
 
 		this.dnd = options.dnd;
 		this.orientation = options.orientation ?? Orientation.VERTICAL;
-		this.el = append(container, $('.monaco-pane-view'));
-		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
+		this.element = append(container, $('.monaco-pane-view'));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 		this.onDidSashChange = this.splitview.onDidSashChange;
+		this.onDidScroll = this.splitview.onDidScroll;
 	}
 
 	addPane(pane: Pane, size: number, index = this.splitview.length): void {
@@ -534,9 +536,9 @@ export class PaneView extends Disposable {
 		const paneSizes = this.paneItems.map(pane => this.getPaneSize(pane.pane));
 
 		this.splitview.dispose();
-		clearNode(this.el);
+		clearNode(this.element);
 
-		this.splitview = this._register(new SplitView(this.el, { orientation: this.orientation }));
+		this.splitview = this._register(new SplitView(this.element, { orientation: this.orientation }));
 
 		const newOrthogonalSize = this.orientation === Orientation.VERTICAL ? width : height;
 		const newSize = this.orientation === Orientation.HORIZONTAL ? width : height;
@@ -560,15 +562,15 @@ export class PaneView extends Disposable {
 			window.clearTimeout(this.animationTimer);
 		}
 
-		this.el.classList.add('animated');
+		this.element.classList.add('animated');
 
 		this.animationTimer = window.setTimeout(() => {
 			this.animationTimer = undefined;
-			this.el.classList.remove('animated');
+			this.element.classList.remove('animated');
 		}, 200);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 
 		this.paneItems.forEach(i => i.disposable.dispose());

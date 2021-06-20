@@ -125,7 +125,7 @@ export class BaseDropdown extends ActionRunner {
 		this.hide();
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		super.dispose();
 		this.hide();
 
@@ -159,7 +159,7 @@ export class Dropdown extends BaseDropdown {
 		this.contextViewProvider = options.contextViewProvider;
 	}
 
-	show(): void {
+	override show(): void {
 		super.show();
 
 		this.element.classList.add('active');
@@ -187,7 +187,7 @@ export class Dropdown extends BaseDropdown {
 		this.element.classList.remove('active');
 	}
 
-	hide(): void {
+	override hide(): void {
 		super.hide();
 
 		if (this.contextViewProvider) {
@@ -201,7 +201,7 @@ export class Dropdown extends BaseDropdown {
 }
 
 export interface IActionProvider {
-	getActions(): IAction[];
+	getActions(): readonly IAction[];
 }
 
 export interface IDropdownMenuOptions extends IBaseDropdownOptions {
@@ -215,7 +215,7 @@ export interface IDropdownMenuOptions extends IBaseDropdownOptions {
 export class DropdownMenu extends BaseDropdown {
 	private _contextMenuProvider: IContextMenuProvider;
 	private _menuOptions: IMenuOptions | undefined;
-	private _actions: IAction[] = [];
+	private _actions: readonly IAction[] = [];
 	private actionProvider?: IActionProvider;
 	private menuClassName: string;
 	private menuAsChild?: boolean;
@@ -238,7 +238,7 @@ export class DropdownMenu extends BaseDropdown {
 		return this._menuOptions;
 	}
 
-	private get actions(): IAction[] {
+	private get actions(): readonly IAction[] {
 		if (this.actionProvider) {
 			return this.actionProvider.getActions();
 		}
@@ -246,11 +246,11 @@ export class DropdownMenu extends BaseDropdown {
 		return this._actions;
 	}
 
-	private set actions(actions: IAction[]) {
+	private set actions(actions: readonly IAction[]) {
 		this._actions = actions;
 	}
 
-	show(): void {
+	override show(): void {
 		super.show();
 
 		this.element.classList.add('active');
@@ -269,7 +269,7 @@ export class DropdownMenu extends BaseDropdown {
 		});
 	}
 
-	hide(): void {
+	override hide(): void {
 		super.hide();
 	}
 

@@ -31,8 +31,8 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
 	test('separator', function () {
@@ -47,8 +47,8 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL\\\\1\\2\\3\\4\\5\\microsoft.com\\END');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
 	test('custom authority', function () {
@@ -62,8 +62,8 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL//1/2/3/4/5/microsoft.com/END');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
 	test('mulitple authority', function () {
@@ -94,8 +94,8 @@ suite('URI Label', () => {
 
 		// Make sure the most specific authority is picked
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'second');
-		assert.equal(labelService.getUriBasenameLabel(uri1), 'second');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'second');
+		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'second');
 	});
 
 	test('custom query', function () {
@@ -110,7 +110,7 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ prefix: 'prefix', path: 'path' }))}`);
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABELprefix: path/END');
 	});
 
 	test('custom query without value', function () {
@@ -125,7 +125,7 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse(`vscode://microsoft.com/1/2/3/4/5?${encodeURIComponent(JSON.stringify({ path: 'path' }))}`);
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: path/END');
 	});
 
 	test('custom query without query json', function () {
@@ -140,7 +140,7 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5?path=foo');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
 
 	test('custom query without query', function () {
@@ -155,12 +155,12 @@ suite('URI Label', () => {
 		});
 
 		const uri1 = URI.parse('vscode://microsoft.com/1/2/3/4/5');
-		assert.equal(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
+		assert.strictEqual(labelService.getUriLabel(uri1, { relative: false }), 'LABEL: /END');
 	});
 });
 
 
-suite('multi-root worksapce', () => {
+suite('multi-root workspace', () => {
 	let labelService: LabelService;
 
 	setup(() => {
@@ -171,7 +171,7 @@ suite('multi-root worksapce', () => {
 		labelService = new LabelService(
 			TestEnvironmentService,
 			new TestContextService(
-				new Workspace('test-workspaace', [
+				new Workspace('test-workspace', [
 					new WorkspaceFolder({ uri: sources, index: 0, name: 'Sources' }, { uri: sources.toString() }),
 					new WorkspaceFolder({ uri: tests, index: 1, name: 'Tests' }, { uri: tests.toString() }),
 					new WorkspaceFolder({ uri: other, index: 2, name: resources.basename(other) }, { uri: other.toString() }),
@@ -179,7 +179,7 @@ suite('multi-root worksapce', () => {
 			new TestPathService());
 	});
 
-	test('labels of files in multiroot workspaces are the foldername folloed by offset from the folder', () => {
+	test('labels of files in multiroot workspaces are the foldername followed by offset from the folder', () => {
 		labelService.registerFormatter({
 			scheme: 'file',
 			formatting: {
@@ -202,7 +202,7 @@ suite('multi-root worksapce', () => {
 
 		Object.entries(tests).forEach(([path, label]) => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.equal(generated, label);
+			assert.strictEqual(generated, label);
 		});
 	});
 
@@ -225,7 +225,7 @@ suite('multi-root worksapce', () => {
 
 		Object.entries(tests).forEach(([path, label]) => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.equal(generated, label, path);
+			assert.strictEqual(generated, label, path);
 		});
 	});
 
@@ -246,7 +246,61 @@ suite('multi-root worksapce', () => {
 
 		Object.entries(tests).forEach(([path, label]) => {
 			const generated = labelService.getUriLabel(URI.file(path), { relative: true });
-			assert.equal(generated, label, path);
+			assert.strictEqual(generated, label, path);
+		});
+	});
+});
+
+suite('workspace at FSP root', () => {
+	let labelService: LabelService;
+
+	setup(() => {
+		const rootFolder = URI.parse('myscheme://myauthority/');
+
+		labelService = new LabelService(
+			TestEnvironmentService,
+			new TestContextService(
+				new Workspace('test-workspace', [
+					new WorkspaceFolder({ uri: rootFolder, index: 0, name: 'FSProotFolder' }, { uri: rootFolder.toString() }),
+				])),
+			new TestPathService());
+		labelService.registerFormatter({
+			scheme: 'myscheme',
+			formatting: {
+				label: '${scheme}://${authority}${path}',
+				separator: '/',
+				tildify: false,
+				normalizeDriveLetter: false,
+				workspaceSuffix: '',
+				authorityPrefix: '',
+				stripPathStartingSeparator: false
+			}
+		});
+	});
+
+	test('non-relative label', () => {
+
+		const tests = {
+			'myscheme://myauthority/myFile1.txt': 'myscheme://myauthority/myFile1.txt',
+			'myscheme://myauthority/folder/myFile2.txt': 'myscheme://myauthority/folder/myFile2.txt',
+		};
+
+		Object.entries(tests).forEach(([uriString, label]) => {
+			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: false });
+			assert.strictEqual(generated, label);
+		});
+	});
+
+	test('relative label', () => {
+
+		const tests = {
+			'myscheme://myauthority/myFile1.txt': 'myFile1.txt',
+			'myscheme://myauthority/folder/myFile2.txt': 'folder/myFile2.txt',
+		};
+
+		Object.entries(tests).forEach(([uriString, label]) => {
+			const generated = labelService.getUriLabel(URI.parse(uriString), { relative: true });
+			assert.strictEqual(generated, label);
 		});
 	});
 });

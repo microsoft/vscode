@@ -83,7 +83,7 @@ export abstract class AbstractScrollbar extends Widget {
 	 * Creates the dom node for an arrow & adds it to the container
 	 */
 	protected _createArrow(opts: ScrollbarArrowOptions): void {
-		let arrow = this._register(new ScrollbarArrow(opts));
+		const arrow = this._register(new ScrollbarArrow(opts));
 		this.domNode.domNode.appendChild(arrow.bgDomNode);
 		this.domNode.domNode.appendChild(arrow.domNode);
 	}
@@ -186,10 +186,10 @@ export abstract class AbstractScrollbar extends Widget {
 	}
 
 	public delegateMouseDown(e: IMouseEvent): void {
-		let domTop = this.domNode.domNode.getClientRects()[0].top;
-		let sliderStart = domTop + this._scrollbarState.getSliderPosition();
-		let sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
-		let mousePos = this._sliderMousePosition(e);
+		const domTop = this.domNode.domNode.getClientRects()[0].top;
+		const sliderStart = domTop + this._scrollbarState.getSliderPosition();
+		const sliderStop = domTop + this._scrollbarState.getSliderPosition() + this._scrollbarState.getSliderSize();
+		const mousePos = this._sliderMousePosition(e);
 		if (sliderStart <= mousePos && mousePos <= sliderStop) {
 			// Act as if it was a mouse down on the slider
 			if (e.leftButton) {
@@ -263,7 +263,7 @@ export abstract class AbstractScrollbar extends Widget {
 
 	private _setDesiredScrollPositionNow(_desiredScrollPosition: number): void {
 
-		let desiredScrollPosition: INewScrollPosition = {};
+		const desiredScrollPosition: INewScrollPosition = {};
 		this.writeScrollPosition(desiredScrollPosition, _desiredScrollPosition);
 
 		this._scrollable.setScrollPositionNow(desiredScrollPosition);
@@ -276,6 +276,10 @@ export abstract class AbstractScrollbar extends Widget {
 		if (!this._lazyRender) {
 			this.render();
 		}
+	}
+
+	public isNeeded(): boolean {
+		return this._scrollbarState.isNeeded();
 	}
 
 	// ----------------- Overwrite these

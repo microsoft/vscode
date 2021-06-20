@@ -5,7 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { IListService } from 'vs/platform/list/browser/listService';
-import { OpenEditor, SortOrder } from 'vs/workbench/contrib/files/common/files';
+import { OpenEditor, ISortOrderConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -16,12 +16,12 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
-
+import { ProgressLocation } from 'vs/platform/progress/common/progress';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
 	readonly roots: ExplorerItem[];
-	readonly sortOrder: SortOrder;
+	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
@@ -31,10 +31,11 @@ export interface IExplorerService {
 	// If undefined is passed checks if any element is currently being edited.
 	isEditable(stat: ExplorerItem | undefined): boolean;
 	findClosest(resource: URI): ExplorerItem | null;
+	findClosestRoot(resource: URI): ExplorerItem | null;
 	refresh(): Promise<void>;
 	setToCopy(stats: ExplorerItem[], cut: boolean): Promise<void>;
 	isCut(stat: ExplorerItem): boolean;
-	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string }): Promise<void>;
+	applyBulkEdit(edit: ResourceFileEdit[], options: { undoLabel: string, progressLabel: string, confirmBeforeUndo?: boolean, progressLocation?: ProgressLocation.Explorer | ProgressLocation.Window }): Promise<void>;
 
 	/**
 	 * Selects and reveal the file element provided by the given resource if its found in the explorer.

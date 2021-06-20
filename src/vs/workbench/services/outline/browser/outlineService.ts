@@ -8,7 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IEditorPane } from 'vs/workbench/common/editor';
-import { IOutline, IOutlineCreator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineCreator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { Event, Emitter } from 'vs/base/common/event';
 
 class OutlineService implements IOutlineService {
@@ -29,10 +29,10 @@ class OutlineService implements IOutlineService {
 		return false;
 	}
 
-	async createOutline(pane: IEditorPane, token: CancellationToken): Promise<IOutline<any> | undefined> {
+	async createOutline(pane: IEditorPane, target: OutlineTarget, token: CancellationToken): Promise<IOutline<any> | undefined> {
 		for (let factory of this._factories) {
 			if (factory.matches(pane)) {
-				return await factory.createOutline(pane, token);
+				return await factory.createOutline(pane, target, token);
 			}
 		}
 		return undefined;

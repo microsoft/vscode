@@ -10,7 +10,7 @@ import { ISCMRepository, ISCMViewService } from 'vs/workbench/contrib/scm/common
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IAction, IActionViewItemProvider } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { connectPrimaryMenu, isSCMRepository, StatusBarAction } from './util';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
@@ -21,6 +21,7 @@ import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename } from 'vs/base/common/resources';
+import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 
 interface RepositoryTemplate {
 	readonly label: HTMLElement;

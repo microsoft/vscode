@@ -11,7 +11,7 @@ import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { URI } from 'vs/base/common/uri';
 import { ExecutableDebugAdapter } from 'vs/workbench/contrib/debug/node/debugAdapter';
-import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/modelService.test';
+import { TestTextResourcePropertiesService } from 'vs/editor/test/common/services/testTextResourcePropertiesService';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 
 
@@ -132,7 +132,7 @@ suite('Debug - Debugger', () => {
 	const testResourcePropertiesService = new TestTextResourcePropertiesService(configurationService);
 
 	setup(() => {
-		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!, undefined!);
+		_debugger = new Debugger(adapterManager, debuggerContribution, extensionDescriptor0, configurationService, testResourcePropertiesService, undefined!, undefined!, undefined!);
 	});
 
 	teardown(() => {
@@ -140,34 +140,20 @@ suite('Debug - Debugger', () => {
 	});
 
 	test('attributes', () => {
-		assert.equal(_debugger.type, debuggerContribution.type);
-		assert.equal(_debugger.label, debuggerContribution.label);
+		assert.strictEqual(_debugger.type, debuggerContribution.type);
+		assert.strictEqual(_debugger.label, debuggerContribution.label);
 
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor0], 'mock');
 
-		assert.equal(ae!.command, join(extensionFolderPath, debuggerContribution.program));
-		assert.deepEqual(ae!.args, debuggerContribution.args);
-	});
-
-	test('schema attributes', () => {
-		const schemaAttribute = _debugger.getSchemaAttributes()![0];
-		assert.notDeepEqual(schemaAttribute, debuggerContribution.configurationAttributes);
-		Object.keys(debuggerContribution.configurationAttributes.launch).forEach(key => {
-			assert.deepEqual((<any>schemaAttribute)[key], (<any>debuggerContribution.configurationAttributes.launch)[key]);
-		});
-
-		assert.equal(schemaAttribute['additionalProperties'], false);
-		assert.equal(!!schemaAttribute['properties']!['request'], true);
-		assert.equal(!!schemaAttribute['properties']!['name'], true);
-		assert.equal(!!schemaAttribute['properties']!['type'], true);
-		assert.equal(!!schemaAttribute['properties']!['preLaunchTask'], true);
+		assert.strictEqual(ae!.command, join(extensionFolderPath, debuggerContribution.program));
+		assert.deepStrictEqual(ae!.args, debuggerContribution.args);
 	});
 
 	test('merge platform specific attributes', () => {
 		const ae = ExecutableDebugAdapter.platformAdapterExecutable([extensionDescriptor1, extensionDescriptor2], 'mock')!;
-		assert.equal(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
+		assert.strictEqual(ae.command, platform.isLinux ? 'linuxRuntime' : (platform.isMacintosh ? 'osxRuntime' : 'winRuntime'));
 		const xprogram = platform.isLinux ? 'linuxProgram' : (platform.isMacintosh ? 'osxProgram' : 'winProgram');
-		assert.deepEqual(ae.args, ['rarg', normalize('/e2/b/c/') + xprogram, 'parg']);
+		assert.deepStrictEqual(ae.args, ['rarg', normalize('/e2/b/c/') + xprogram, 'parg']);
 	});
 
 	test('initial config file content', () => {
@@ -188,7 +174,7 @@ suite('Debug - Debugger', () => {
 			'}'].join(testResourcePropertiesService.getEOL(URI.file('somefile')));
 
 		return _debugger.getInitialConfigurationContent().then(content => {
-			assert.equal(content, expected);
+			assert.strictEqual(content, expected);
 		}, err => assert.fail(err));
 	});
 });

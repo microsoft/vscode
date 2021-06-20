@@ -686,10 +686,29 @@ var AMDLoader;
         }
         WorkerScriptLoader.prototype.load = function (moduleManager, scriptSrc, callback, errorback) {
             var trustedTypesPolicy = moduleManager.getConfig().getOptionsLiteral().trustedTypesPolicy;
-            if (trustedTypesPolicy) {
-                scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+            var isCrossOrigin = (/^((http:)|(https:)|(file:))/.test(scriptSrc) && scriptSrc.substring(0, self.origin.length) !== self.origin);
+            if (!isCrossOrigin) {
+                // use `fetch` if possible because `importScripts`
+                // is synchronous and can lead to deadlocks on Safari
+                fetch(scriptSrc).then(function (response) {
+                    if (response.status !== 200) {
+                        throw new Error(response.statusText);
+                    }
+                    return response.text();
+                }).then(function (text) {
+                    text = text + "\n//# sourceURL=" + scriptSrc;
+                    var func = (trustedTypesPolicy
+                        ? self.eval(trustedTypesPolicy.createScript('', text))
+                        : new Function(text));
+                    func.call(self);
+                    callback();
+                }).then(undefined, errorback);
+                return;
             }
             try {
+                if (trustedTypesPolicy) {
+                    scriptSrc = trustedTypesPolicy.createScriptURL(scriptSrc);
+                }
                 importScripts(scriptSrc);
                 callback();
             }
@@ -741,8 +760,11 @@ var AMDLoader;
                         // nothing
                     }
                 };
-                require.resolve = function resolve(request) {
-                    return Module._resolveFilename(request, mod);
+                require.resolve = function resolve(request, options) {
+                    return Module._resolveFilename(request, mod, false, options);
+                };
+                require.resolve.paths = function paths(request) {
+                    return Module._resolveLookupPaths(request, mod);
                 };
                 require.main = process.mainModule;
                 require.extensions = Module._extensions;
@@ -863,7 +885,7 @@ var AMDLoader;
             }
         };
         NodeScriptLoader.prototype._getCachedDataPath = function (config, filename) {
-            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').digest('hex');
+            var hash = this._crypto.createHash('md5').update(filename, 'utf8').update(config.seed, 'utf8').update(process.arch, '').digest('hex');
             var basename = this._path.basename(filename).replace(/\.js$/, '');
             return this._path.join(config.path, basename + "-" + hash + ".code");
         };

@@ -11,7 +11,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange, IRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ILanguageConfigurationDto, IRegExpDto, IIndentationRuleDto, IOnEnterRuleDto, ILocationDto, IWorkspaceSymbolDto, reviveWorkspaceEditDto, IDocumentFilterDto, IDefinitionLinkDto, ISignatureHelpProviderMetadataDto, ILinkDto, ICallHierarchyItemDto, ISuggestDataDto, ICodeActionDto, ISuggestDataDtoField, ISuggestResultDtoField, ICodeActionProviderMetadataDto, ILanguageWordDefinitionDto, IdentifiableInlineCompletions, IdentifiableInlineCompletion } from '../common/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -21,7 +21,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import * as callh from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { mixin } from 'vs/base/common/objects';
-import { decodeSemanticTokensDto } from 'vs/workbench/api/common/shared/semanticTokensDto';
+import { decodeSemanticTokensDto } from 'vs/editor/common/services/semanticTokensDto';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -250,6 +250,31 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}));
 	}
 
+	// --- inline values
+
+	$registerInlineValuesProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlineValuesProvider>{
+			provideInlineValues: (model: ITextModel, viewPort: EditorRange, context: modes.InlineValueContext, token: CancellationToken): Promise<modes.InlineValue[] | undefined> => {
+				return this._proxy.$provideInlineValues(handle, model.uri, viewPort, context, token);
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlineValues = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlineValuesProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlineValuesEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
+	}
+
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
@@ -474,6 +499,21 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		this._registrations.set(handle, modes.CompletionProviderRegistry.register(selector, provider));
 	}
 
+	$registerInlineCompletionsSupport(handle: number, selector: IDocumentFilterDto[]): void {
+		const provider: modes.InlineCompletionsProvider<IdentifiableInlineCompletions> = {
+			provideInlineCompletions: async (model: ITextModel, position: EditorPosition, context: modes.InlineCompletionContext, token: CancellationToken): Promise<IdentifiableInlineCompletions | undefined> => {
+				return this._proxy.$provideInlineCompletions(handle, model.uri, position, context, token);
+			},
+			handleItemDidShow: async (completions: IdentifiableInlineCompletions, item: IdentifiableInlineCompletion): Promise<void> => {
+				return this._proxy.$handleInlineCompletionDidShow(handle, completions.pid, item.idx);
+			},
+			freeInlineCompletions: (completions: IdentifiableInlineCompletions): void => {
+				this._proxy.$freeInlineCompletionsList(handle, completions.pid);
+			}
+		};
+		this._registrations.set(handle, modes.InlineCompletionsProviderRegistry.register(selector, provider));
+	}
+
 	// --- parameter hints
 
 	$registerSignatureHelpProvider(handle: number, selector: IDocumentFilterDto[], metadata: ISignatureHelpProviderMetadataDto): void {
@@ -495,6 +535,32 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 				};
 			}
 		}));
+	}
+
+	// --- inline hints
+
+	$registerInlayHintsProvider(handle: number, selector: IDocumentFilterDto[], eventHandle: number | undefined): void {
+		const provider = <modes.InlayHintsProvider>{
+			provideInlayHints: async (model: ITextModel, range: EditorRange, token: CancellationToken): Promise<modes.InlayHint[] | undefined> => {
+				const result = await this._proxy.$provideInlayHints(handle, model.uri, range, token);
+				return result?.hints;
+			}
+		};
+
+		if (typeof eventHandle === 'number') {
+			const emitter = new Emitter<void>();
+			this._registrations.set(eventHandle, emitter);
+			provider.onDidChangeInlayHints = emitter.event;
+		}
+
+		this._registrations.set(handle, modes.InlayHintsProviderRegistry.register(selector, provider));
+	}
+
+	$emitInlayHintsEvent(eventHandle: number, event?: any): void {
+		const obj = this._registrations.get(eventHandle);
+		if (obj instanceof Emitter) {
+			obj.fire(event);
+		}
 	}
 
 	// --- links
@@ -662,7 +728,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		return {
 			beforeText: MainThreadLanguageFeatures._reviveRegExp(onEnterRule.beforeText),
 			afterText: onEnterRule.afterText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.afterText) : undefined,
-			oneLineAboveText: onEnterRule.oneLineAboveText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.oneLineAboveText) : undefined,
+			previousLineText: onEnterRule.previousLineText ? MainThreadLanguageFeatures._reviveRegExp(onEnterRule.previousLineText) : undefined,
 			action: onEnterRule.action
 		};
 	}
@@ -701,7 +767,7 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 		const languageIdentifier = this._modeService.getLanguageIdentifier(languageId);
 		if (languageIdentifier) {
-			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration));
+			this._registrations.set(handle, LanguageConfigurationRegistry.register(languageIdentifier, configuration, 100));
 		}
 	}
 

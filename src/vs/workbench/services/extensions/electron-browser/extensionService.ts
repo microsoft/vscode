@@ -6,7 +6,7 @@
 import { LocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-browser/localProcessExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-browser/cachedExtensionScanner';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, parseScannedExtension } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import * as nls from 'vs/nls';
 import { runWhenIdle } from 'vs/base/common/async';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
@@ -27,7 +27,6 @@ import { ExtensionIdentifier, IExtension, ExtensionType, IExtensionDescription, 
 import { IFileService } from 'vs/platform/files/common/files';
 import { PersistentConnectionEventType } from 'vs/platform/remote/common/remoteAgentConnection';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { Logger } from 'vs/workbench/services/extensions/common/extensionPoints';
 import { flatten } from 'vs/base/common/arrays';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IRemoteExplorerService } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -40,6 +39,10 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CATEGORIES } from 'vs/workbench/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
+import { updateProxyConfigurationsScope } from 'vs/platform/request/common/request';
+import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -50,7 +53,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEnvironmentService protected readonly _environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchEnvironmentService _environmentService: IWorkbenchEnvironmentService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkbenchExtensionEnablementService extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IFileService fileService: IFileService,
@@ -61,18 +64,19 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
-		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IHostService private readonly _hostService: IHostService,
 		@IRemoteExplorerService private readonly _remoteExplorerService: IRemoteExplorerService,
 		@IExtensionGalleryService private readonly _extensionGalleryService: IExtensionGalleryService,
 		@ILogService private readonly _logService: ILogService,
+		@IWorkspaceTrustManagementService private readonly _workspaceTrustManagementService: IWorkspaceTrustManagementService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super(
 			new ExtensionRunningLocationClassifier(
-				productService,
-				configurationService,
-				(extensionKinds, isInstalledLocally, isInstalledRemotely) => this._pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely)
+				(extension) => this._getExtensionKind(extension),
+				(extensionKinds, isInstalledLocally, isInstalledRemotely, preference) => this._pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference)
 			),
 			instantiationService,
 			notificationService,
@@ -84,9 +88,11 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
+			extensionManifestPropertiesService,
+			webExtensionsScannerService
 		);
 
-		this._enableLocalWebWorker = this._configurationService.getValue<boolean>(webWorkerExtHostConfig);
+		this._enableLocalWebWorker = this._isLocalWebWorkerEnabled();
 		this._remoteInitData = new Map<string, IRemoteExtensionHostInitData>();
 		this._extensionScanner = instantiationService.createInstance(CachedExtensionScanner);
 
@@ -104,6 +110,16 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		});
 	}
 
+	private _isLocalWebWorkerEnabled() {
+		if (this._configurationService.getValue<boolean>(webWorkerExtHostConfig)) {
+			return true;
+		}
+		if (this._environmentService.isExtensionDevelopment && this._environmentService.extensionDevelopmentKind?.some(k => k === 'web')) {
+			return true;
+		}
+		return false;
+	}
+
 	protected _scanSingleExtension(extension: IExtension): Promise<IExtensionDescription | null> {
 		if (extension.location.scheme === Schemas.vscodeRemote) {
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
@@ -115,7 +131,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	private async _scanAllLocalExtensions(): Promise<IExtensionDescription[]> {
 		return flatten(await Promise.all([
 			this._extensionScanner.scannedExtensions,
-			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension))
+			this._scanWebExtensions(),
 		]));
 	}
 
@@ -123,7 +139,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return {
 			getInitData: async () => {
 				if (isInitialStart) {
-					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
+					// Here we load even extensions that would be disabled by workspace trust
+					const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), /* ignore workspace trust */true);
 					const runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, []);
 					const localProcessExtensions = filterByRunningLocation(localExtensions, runningLocation, desiredRunningLocation);
 					return {
@@ -153,26 +170,47 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		};
 	}
 
-	private _pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean): ExtensionRunningLocation {
+	private _pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference): ExtensionRunningLocation {
+		return ExtensionService.pickRunningLocation(extensionKinds, isInstalledLocally, isInstalledRemotely, preference, Boolean(this._environmentService.remoteAuthority), this._enableLocalWebWorker);
+	}
+
+	public static pickRunningLocation(extensionKinds: ExtensionKind[], isInstalledLocally: boolean, isInstalledRemotely: boolean, preference: ExtensionRunningPreference, hasRemoteExtHost: boolean, hasWebWorkerExtHost: boolean): ExtensionRunningLocation {
+		const result: ExtensionRunningLocation[] = [];
 		for (const extensionKind of extensionKinds) {
 			if (extensionKind === 'ui' && isInstalledLocally) {
 				// ui extensions run locally if possible
-				return ExtensionRunningLocation.LocalProcess;
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionRunningLocation.LocalProcess;
+				} else {
+					result.push(ExtensionRunningLocation.LocalProcess);
+				}
 			}
 			if (extensionKind === 'workspace' && isInstalledRemotely) {
 				// workspace extensions run remotely if possible
-				return ExtensionRunningLocation.Remote;
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Remote) {
+					return ExtensionRunningLocation.Remote;
+				} else {
+					result.push(ExtensionRunningLocation.Remote);
+				}
 			}
-			if (extensionKind === 'workspace' && !this._environmentService.remoteAuthority) {
+			if (extensionKind === 'workspace' && !hasRemoteExtHost) {
 				// workspace extensions also run locally if there is no remote
-				return ExtensionRunningLocation.LocalProcess;
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionRunningLocation.LocalProcess;
+				} else {
+					result.push(ExtensionRunningLocation.LocalProcess);
+				}
 			}
-			if (extensionKind === 'web' && isInstalledLocally && this._enableLocalWebWorker) {
+			if (extensionKind === 'web' && isInstalledLocally && hasWebWorkerExtHost) {
 				// web worker extensions run in the local web worker if possible
-				return ExtensionRunningLocation.LocalWebWorker;
+				if (preference === ExtensionRunningPreference.None || preference === ExtensionRunningPreference.Local) {
+					return ExtensionRunningLocation.LocalWebWorker;
+				} else {
+					result.push(ExtensionRunningLocation.LocalWebWorker);
+				}
 			}
 		}
-		return ExtensionRunningLocation.None;
+		return (result.length > 0 ? result[0] : ExtensionRunningLocation.None);
 	}
 
 	protected _createExtensionHosts(isInitialStart: boolean): IExtensionHost[] {
@@ -195,7 +233,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		return result;
 	}
 
-	protected _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
+	protected override _onExtensionHostCrashed(extensionHost: ExtensionHostManager, code: number, signal: string | null): void {
 		const activatedExtensions = Array.from(this._extensionHostActiveExtensions.values());
 		super._onExtensionHostCrashed(extensionHost, code, signal);
 
@@ -227,7 +265,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				},
 				{
 					label: nls.localize('restart', "Restart Extension Host"),
-					run: () => this.startExtensionHost()
+					run: () => this.startExtensionHosts()
 				}]
 			);
 
@@ -246,20 +284,28 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				signal,
 				extensionIds: activatedExtensions.map(e => e.value)
 			});
+
+			for (const extensionId of activatedExtensions) {
+				type ExtensionHostCrashExtensionClassification = {
+					code: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					signal: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+					extensionId: { classification: 'SystemMetaData', purpose: 'PerformanceAndHealth' };
+				};
+				type ExtensionHostCrashExtensionEvent = {
+					code: number;
+					signal: string | null;
+					extensionId: string;
+				};
+				this._telemetryService.publicLog2<ExtensionHostCrashExtensionEvent, ExtensionHostCrashExtensionClassification>('extensionHostCrashExtension', {
+					code,
+					signal,
+					extensionId: extensionId.value
+				});
+			}
 		}
 	}
 
 	// --- impl
-
-	private createLogger(): Logger {
-		return new Logger((severity, source, message) => {
-			if (this._isDev && source) {
-				this._logOrShowMessage(severity, `[${source}]: ${message}`);
-			} else {
-				this._logOrShowMessage(severity, message);
-			}
-		});
-	}
 
 	private async _resolveAuthorityAgain(): Promise<void> {
 		const remoteAuthority = this._environmentService.remoteAuthority;
@@ -283,11 +329,24 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const remoteAuthority = this._environmentService.remoteAuthority;
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
 
-		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions());
 		let remoteEnv: IRemoteAgentEnvironment | null = null;
 		let remoteExtensions: IExtensionDescription[] = [];
 
 		if (remoteAuthority) {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => {
+				if (uri.scheme !== Schemas.vscodeRemote || uri.authority !== remoteAuthority) {
+					// The current remote authority resolver cannot give the canonical URI for this URI
+					return uri;
+				}
+				const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess)!;
+				return localProcessExtensionHost.getCanonicalURI(remoteAuthority, uri);
+			});
+
+			// Now that the canonical URI provider has been registered, we need to wait for the trust state to be
+			// calculated. The trust state will be used while resolving the authority, however the resolver can
+			// override the trust state through the resolver result.
+			await this._workspaceTrustManagementService.workspaceResolved;
 			let resolverResult: ResolverResult;
 
 			try {
@@ -304,7 +363,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAuthorityResolverService._setResolvedAuthorityError(remoteAuthority, err);
 
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions);
+				await this._startLocalExtensionHost();
 				return;
 			}
 
@@ -328,21 +387,31 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 				this._remoteAgentService.getEnvironment(),
 				this._remoteAgentService.scanExtensions()
 			]);
-			remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
 
 			if (!remoteEnv) {
 				this._notificationService.notify({ severity: Severity.Error, message: nls.localize('getEnvironmentFailure', "Could not fetch remote environment") });
 				// Proceed with the local extension host
-				await this._startLocalExtensionHost(localExtensions);
+				await this._startLocalExtensionHost();
 				return;
 			}
+
+			updateProxyConfigurationsScope(remoteEnv.useHostProxy ? ConfigurationScope.APPLICATION : ConfigurationScope.MACHINE);
+		} else {
+
+			this._remoteAuthorityResolverService._setCanonicalURIProvider(async (uri) => uri);
+
 		}
 
-		await this._startLocalExtensionHost(localExtensions, remoteAuthority, remoteEnv, remoteExtensions);
+		await this._startLocalExtensionHost(remoteAuthority, remoteEnv, remoteExtensions);
 	}
 
-	private async _startLocalExtensionHost(localExtensions: IExtensionDescription[], remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+	private async _startLocalExtensionHost(remoteAuthority: string | undefined = undefined, remoteEnv: IRemoteAgentEnvironment | null = null, remoteExtensions: IExtensionDescription[] = []): Promise<void> {
+		// Ensure that the workspace trust state has been fully initialized so
+		// that the extension host can start with the correct set of extensions.
+		await this._workspaceTrustManagementService.workspaceTrustInitialized;
 
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
+		const localExtensions = this._checkEnabledAndProposedAPI(await this._scanAllLocalExtensions(), false);
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
 
 		// remove non-UI extensions from the local extensions
@@ -381,7 +450,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		}
 	}
 
-	public async getInspectPort(tryEnableInspector: boolean): Promise<number> {
+	public override async getInspectPort(tryEnableInspector: boolean): Promise<number> {
 		const localProcessExtensionHost = this._getExtensionHostManager(ExtensionHostKind.LocalProcess);
 		if (localProcessExtensionHost) {
 			return localProcessExtensionHost.getInspectPort(tryEnableInspector);
@@ -390,6 +459,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	}
 
 	public _onExtensionHostExit(code: number): void {
+		// Dispose everything associated with the extension host
+		this.stopExtensionHosts();
+
 		if (this._isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
 			this._nativeHostService.exit(code);
@@ -419,7 +491,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		const allExtensions = await this._scanAllLocalExtensions();
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
-			if (!this._isEnabled(extension)) {
+			if (!this._isEnabled(extension, false)) {
 				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{

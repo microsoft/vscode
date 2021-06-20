@@ -22,7 +22,6 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
-import { ColorId, FontStyle, MetadataConsts } from 'vs/editor/common/modes';
 import { editorLineNumbers } from 'vs/editor/common/view/editorColorRegistry';
 import { RenderLineInput, renderViewLine2 as renderViewLine } from 'vs/editor/common/viewLayout/viewLineRenderer';
 import { ViewLineRenderingData } from 'vs/editor/common/viewModel/viewModel';
@@ -80,6 +79,8 @@ const diffReviewCloseIcon = registerIcon('diff-review-close', Codicon.close, nls
 
 export class DiffReview extends Disposable {
 
+	private static _ttPolicy = window.trustedTypes?.createPolicy('diffReview', { createHTML: value => value });
+
 	private readonly _diffEditor: DiffEditorWidget;
 	private _isVisible: boolean;
 	public readonly shadow: FastDomNode<HTMLElement>;
@@ -105,10 +106,7 @@ export class DiffReview extends Disposable {
 			this.actionBarContainer.domNode
 		));
 
-		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, () => {
-			this.hide();
-			return Promise.resolve(null);
-		}), { label: false, icon: true });
+		this._actionBar.push(new Action('diffreview.close', nls.localize('label.close', "Close"), 'close-diff-review ' + ThemeIcon.asClassName(diffReviewCloseIcon), true, async () => this.hide()), { label: false, icon: true });
 
 		this.domNode = createFastDomNode(document.createElement('div'));
 		this.domNode.setClassName('diff-review monaco-editor-background');
@@ -734,14 +732,18 @@ export class DiffReview extends Disposable {
 
 			let lineContent: string;
 			if (modifiedLine !== 0) {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(modifiedModel, modifiedOptions, modifiedModelOpts.tabSize, modifiedLine);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = modifiedModel.getLineContent(modifiedLine);
 			} else {
-				cell.insertAdjacentHTML('beforeend',
-					this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine)
-				);
+				let html: string | TrustedHTML = this._renderLine(originalModel, originalOptions, originalModelOpts.tabSize, originalLine);
+				if (DiffReview._ttPolicy) {
+					html = DiffReview._ttPolicy.createHTML(html as string);
+				}
+				cell.insertAdjacentHTML('beforeend', html as string);
 				lineContent = originalModel.getLineContent(originalLine);
 			}
 
@@ -774,19 +776,7 @@ export class DiffReview extends Disposable {
 	private static _renderLine(model: ITextModel, options: IComputedEditorOptions, tabSize: number, lineNumber: number): string {
 		const lineContent = model.getLineContent(lineNumber);
 		const fontInfo = options.get(EditorOption.fontInfo);
-
-		const defaultMetadata = (
-			(FontStyle.None << MetadataConsts.FONT_STYLE_OFFSET)
-			| (ColorId.DefaultForeground << MetadataConsts.FOREGROUND_OFFSET)
-			| (ColorId.DefaultBackground << MetadataConsts.BACKGROUND_OFFSET)
-		) >>> 0;
-
-		const tokens = new Uint32Array(2);
-		tokens[0] = lineContent.length;
-		tokens[1] = defaultMetadata;
-
-		const lineTokens = new LineTokens(tokens, lineContent);
-
+		const lineTokens = LineTokens.createEmpty(lineContent);
 		const isBasicASCII = ViewLineRenderingData.isBasicASCII(lineContent, model.mightContainNonBasicASCII());
 		const containsRTL = ViewLineRenderingData.containsRTL(lineContent, isBasicASCII, model.mightContainRTL());
 		const r = renderViewLine(new RenderLineInput(

@@ -11,28 +11,33 @@ let https = require('https');
 let url = require('url');
 
 // list of languagesId not shipped with VSCode. The information is used to associate an icon with a language association
+// Please try and keep this list in alphabetical order! Thank you.
 let nonBuiltInLanguages = { // { fileNames, extensions  }
-	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
 	"argdown": { extensions: ['ad', 'adown', 'argdown', 'argdn'] },
-	"elm": { extensions: ['elm'] },
-	"ocaml": { extensions: ['ml', 'mli'] },
-	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
-	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
-	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
-	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
-	"vue": { extensions: ['vue'] },
-	"sass": { extensions: ['sass'] },
-	"puppet": { extensions: ['puppet'] },
-	"kotlin": { extensions: ['kt'] },
-	"jinja": { extensions: ['jinja'] },
-	"haxe": { extensions: ['hx'] },
-	"haskell": { extensions: ['hs'] },
-	"gradle": { extensions: ['gradle'] },
+	"bicep": { extensions: ['bicep'] },
 	"elixir": { extensions: ['ex'] },
+	"elm": { extensions: ['elm'] },
+	"erb": { extensions: ['erb', 'rhtml', 'html.erb'] },
+	"github-issues": { extensions: ['github-issues'] },
+	"gradle": { extensions: ['gradle'] },
+	"godot": { extensions: ['gd', 'godot', 'tres', 'tscn'] },
 	"haml": { extensions: ['haml'] },
+	"haskell": { extensions: ['hs'] },
+	"haxe": { extensions: ['hx'] },
+	"jinja": { extensions: ['jinja'] },
+	"kotlin": { extensions: ['kt'] },
+	"mustache": { extensions: ['mustache', 'mst', 'mu', 'stache'] },
+	"nunjucks": { extensions: ['nunjucks', 'nunjs', 'nunj', 'nj', 'njk', 'tmpl', 'tpl'] },
+	"ocaml": { extensions: ['ml', 'mli', 'mll', 'mly', 'eliom', 'eliomi'] },
+	"puppet": { extensions: ['puppet'] },
+	"r": { extensions: ['r', 'rhistory', 'rprofile', 'rt'] },
+	"rescript": { extensions: ['res', 'resi'] },
+	"sass": { extensions: ['sass'] },
 	"stylus": { extensions: ['styl'] },
+	"terraform": { extensions: ['tf', 'tfvars', 'hcl'] },
+	"todo": { fileNames: ['todo'] },
 	"vala": { extensions: ['vala'] },
-	"todo": { fileNames: ['todo'] }
+	"vue": { extensions: ['vue'] }
 };
 
 // list of languagesId that inherit the icon from another language
@@ -179,6 +184,16 @@ function darkenColor(color) {
 	return res;
 }
 
+function mergeMapping(to, from, property) {
+	if (from[property]) {
+		if (to[property]) {
+			to[property].push(...from[property]);
+		} else {
+			to[property] = from[property];
+		}
+	}
+}
+
 function getLanguageMappings() {
 	let langMappings = {};
 	let allExtensions = fs.readdirSync('..');
@@ -201,7 +216,22 @@ function getLanguageMappings() {
 						if (Array.isArray(filenames)) {
 							mapping.fileNames = filenames.map(function (f) { return f.toLowerCase(); });
 						}
-						langMappings[languageId] = mapping;
+						let existing = langMappings[languageId];
+
+						if (existing) {
+							// multiple contributions to the same language
+							// give preference to the contribution wth the configuration
+							if (languages[k].configuration) {
+								mergeMapping(mapping, existing, 'extensions');
+								mergeMapping(mapping, existing, 'fileNames');
+								langMappings[languageId] = mapping;
+							} else {
+								mergeMapping(existing, mapping, 'extensions');
+								mergeMapping(existing, mapping, 'fileNames');
+							}
+						} else {
+							langMappings[languageId] = mapping;
+						}
 					}
 				}
 			}
@@ -212,6 +242,8 @@ function getLanguageMappings() {
 	}
 	return langMappings;
 }
+
+
 
 exports.copyFont = function () {
 	return downloadBinary(font, './icons/seti.woff');

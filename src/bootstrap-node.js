@@ -6,6 +6,33 @@
 //@ts-check
 'use strict';
 
+// Setup current working directory in all our node & electron processes
+// - Windows: call `process.chdir()` to always set application folder as cwd
+// -  all OS: store the `process.cwd()` inside `VSCODE_CWD` for consistent lookups
+function setupCurrentWorkingDirectory() {
+	const path = require('path');
+
+	try {
+
+		// Store the `process.cwd()` inside `VSCODE_CWD`
+		// for consistent lookups, but make sure to only
+		// do this once unless defined already from e.g.
+		// a parent process.
+		if (typeof process.env['VSCODE_CWD'] !== 'string') {
+			process.env['VSCODE_CWD'] = process.cwd();
+		}
+
+		// Windows: always set application folder as current working dir
+		if (process.platform === 'win32') {
+			process.chdir(path.dirname(process.execPath));
+		}
+	} catch (err) {
+		console.error(err);
+	}
+}
+
+setupCurrentWorkingDirectory();
+
 /**
  * Add support for redirecting the loading of node modules
  *
@@ -62,7 +89,7 @@ exports.removeGlobalNodeModuleLookupPaths = function () {
 /**
  * Helper to enable portable mode.
  *
- * @param {Partial<import('./vs/platform/product/common/productService').IProductConfiguration>} product
+ * @param {Partial<import('./vs/base/common/product').IProductConfiguration>} product
  * @returns {{ portableDataPath: string; isPortable: boolean; }}
  */
 exports.configurePortable = function (product) {

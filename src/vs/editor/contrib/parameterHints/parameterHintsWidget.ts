@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { domEvent, stop } from 'vs/base/browser/event';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Event } from 'vs/base/common/event';
@@ -90,11 +89,15 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const overloads = dom.append(controls, $('.overloads'));
 		const next = dom.append(controls, $('.button' + ThemeIcon.asCSSSelector(parameterHintsNextIcon)));
 
-		const onPreviousClick = stop(domEvent(previous, 'click'));
-		this._register(onPreviousClick(this.previous, this));
+		this._register(dom.addDisposableListener(previous, 'click', e => {
+			dom.EventHelper.stop(e);
+			this.previous();
+		}));
 
-		const onNextClick = stop(domEvent(next, 'click'));
-		this._register(onNextClick(this.next, this));
+		this._register(dom.addDisposableListener(next, 'click', e => {
+			dom.EventHelper.stop(e);
+			this.next();
+		}));
 
 		const body = $('.body');
 		const scrollbar = new DomScrollableElement(body, {});
@@ -369,7 +372,7 @@ export class ParameterHintsWidget extends Disposable implements IContentWidget {
 		const height = Math.max(this.editor.getLayoutInfo().height / 4, 250);
 		const maxHeight = `${height}px`;
 		this.domNodes.element.style.maxHeight = maxHeight;
-		const wrapper = this.domNodes.element.getElementsByClassName('wrapper') as HTMLCollectionOf<HTMLElement>;
+		const wrapper = this.domNodes.element.getElementsByClassName('phwrapper') as HTMLCollectionOf<HTMLElement>;
 		if (wrapper.length) {
 			wrapper[0].style.maxHeight = maxHeight;
 		}

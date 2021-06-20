@@ -291,7 +291,7 @@ registerAction2(class extends Action2 {
 
 		if (done.bad) {
 			// DONE but nothing found
-			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), [], {
+			await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"), undefined, {
 				detail: localize('done.detail2', "Extension Bisect is done but no extension has been identified. This might be a problem with {0}.", productService.nameShort)
 			});
 
@@ -299,7 +299,6 @@ registerAction2(class extends Action2 {
 			// DONE and identified extension
 			const res = await dialogService.show(Severity.Info, localize('done.msg', "Extension Bisect"),
 				[localize('report', "Report Issue & Continue"), localize('done', "Continue")],
-				// [],
 				{
 					detail: localize('done.detail', "Extension Bisect is done and has identified {0} as the extension causing the problem.", done.id),
 					checkbox: { label: localize('done.disbale', "Keep this extension disabled"), checked: true },

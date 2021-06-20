@@ -55,6 +55,10 @@
 	white-space: pre; /* enable to show labels that include multiple whitespaces */
 }
 
+.monaco-icon-label.nowrap > .monaco-icon-label-container > .monaco-icon-description-container > .label-description{
+	white-space: nowrap
+}
+
 .vs .monaco-icon-label > .monaco-icon-label-container > .monaco-icon-description-container > .label-description {
 	opacity: .95;
 }

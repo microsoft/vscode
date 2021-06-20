@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nsfw from 'vscode-nsfw';
+import * as nsfw from 'nsfw';
 import * as glob from 'vs/base/common/glob';
 import { join } from 'vs/base/common/path';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -13,7 +13,7 @@ import { IWatcherService, IWatcherRequest } from 'vs/platform/files/node/watcher
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { normalizeNFC } from 'vs/base/common/normalization';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { Disposable } from 'vs/base/common/lifecycle';
 
@@ -41,7 +41,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
-	readonly onDidLogMessage: Event<ILogMessage> = this._onDidLogMessage.event;
+	readonly onDidLogMessage = this._onDidLogMessage.event;
 
 	private pathWatchers: { [watchPath: string]: IPathWatcher } = {};
 	private verboseLogging: boolean | undefined;
@@ -51,19 +51,17 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 		const normalizedRoots = this._normalizeRoots(roots);
 
 		// Gather roots that are not currently being watched
-		const rootsToStartWatching = normalizedRoots.filter(r => {
-			return !(r.path in this.pathWatchers);
+		const rootsToStartWatching = normalizedRoots.filter(root => {
+			return !(root.path in this.pathWatchers);
 		});
 
 		// Gather current roots that don't exist in the new roots array
-		const rootsToStopWatching = Object.keys(this.pathWatchers).filter(r => {
-			return normalizedRoots.every(normalizedRoot => normalizedRoot.path !== r);
+		const rootsToStopWatching = Object.keys(this.pathWatchers).filter(root => {
+			return normalizedRoots.every(normalizedRoot => normalizedRoot.path !== root);
 		});
 
 		// Logging
-		if (this.verboseLogging) {
-			this.log(`Start watching: [${rootsToStartWatching.map(r => r.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
-		}
+		this.debug(`Start watching: [${rootsToStartWatching.map(root => root.path).join(',')}]\nStop watching: [${rootsToStopWatching.join(',')}]`);
 
 		// Stop watching some roots
 		rootsToStopWatching.forEach(root => {
@@ -133,9 +131,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 			}
 		}
 
-		if (this.verboseLogging) {
-			this.log(`Start watching with nsfw: ${request.path}`);
-		}
+		this.debug(`Start watching with nsfw: ${request.path}`);
 
 		nsfw(request.path, events => {
 			for (const e of events) {
@@ -193,13 +189,13 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 				}
 
 				// Broadcast to clients normalized
-				const res = normalizeFileChanges(events);
-				this._onDidChangeFile.fire(res);
+				const normalizedEvents = normalizeFileChanges(events);
+				this._onDidChangeFile.fire(normalizedEvents);
 
 				// Logging
 				if (this.verboseLogging) {
-					res.forEach(r => {
-						this.log(` >> normalized ${r.type === FileChangeType.ADDED ? '[ADDED]' : r.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${r.path}`);
+					normalizedEvents.forEach(e => {
+						this.log(` >> normalized ${e.type === FileChangeType.ADDED ? '[ADDED]' : e.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${e.path}`);
 					});
 				}
 			});
@@ -235,7 +231,7 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 	}
 
 	private isPathIgnored(absolutePath: string, ignored: glob.ParsedPattern[]): boolean {
-		return ignored && ignored.some(i => i(absolutePath));
+		return ignored && ignored.some(ignore => ignore(absolutePath));
 	}
 
 	private log(message: string) {
@@ -248,5 +244,9 @@ export class NsfwWatcherService extends Disposable implements IWatcherService {
 
 	private error(message: string) {
 		this._onDidLogMessage.fire({ type: 'error', message: `[File Watcher (nsfw)] ` + message });
+	}
+
+	private debug(message: string) {
+		this._onDidLogMessage.fire({ type: 'debug', message: `[File Watcher (nsfw)] ` + message });
 	}
 }

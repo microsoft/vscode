@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as crypto from 'crypto';
-import * as path from 'vs/base/common/path';
-import * as platform from 'vs/base/common/platform';
-import { writeFileSync, writeFile, readFile, readdir, exists, rimraf, rename, RimRafMode } from 'vs/base/node/pfs';
+import { createHash } from 'crypto';
+import { join } from 'vs/base/common/path';
+import { isLinux } from 'vs/base/common/platform';
+import { writeFileSync, RimRafMode, Promises } from 'vs/base/node/pfs';
 import { IBackupMainService, IWorkspaceBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/electron-main/backup';
 import { IBackupWorkspacesFormat, IEmptyWindowBackupInfo } from 'vs/platform/backup/node/backup';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
@@ -35,40 +35,42 @@ export class BackupMainService implements IBackupMainService {
 	// - ignore path casing on Windows/macOS
 	// - respect path casing on Linux
 	private readonly backupUriComparer = extUriBiasedIgnorePathCase;
-	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !platform.isLinux) };
+	private readonly backupPathComparer = { isEqual: (pathA: string, pathB: string) => isEqual(pathA, pathB, !isLinux) };
 
 	constructor(
-		@IEnvironmentMainService environmentService: IEnvironmentMainService,
+		@IEnvironmentMainService environmentMainService: IEnvironmentMainService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService
 	) {
-		this.backupHome = environmentService.backupHome;
-		this.workspacesJsonPath = environmentService.backupWorkspacesPath;
+		this.backupHome = environmentMainService.backupHome;
+		this.workspacesJsonPath = environmentMainService.backupWorkspacesPath;
 	}
 
 	async initialize(): Promise<void> {
 		let backups: IBackupWorkspacesFormat;
 		try {
-			backups = JSON.parse(await readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
+			backups = JSON.parse(await Promises.readFile(this.workspacesJsonPath, 'utf8')); // invalid JSON or permission issue can happen here
 		} catch (error) {
 			backups = Object.create(null);
 		}
 
-		// read empty workspaces backups first
-		if (backups.emptyWorkspaceInfos) {
-			this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
-		}
+		// validate empty workspaces backups first
+		this.emptyWindows = await this.validateEmptyWorkspaces(backups.emptyWorkspaceInfos);
 
 		// read workspace backups
 		let rootWorkspaces: IWorkspaceBackupInfo[] = [];
 		try {
 			if (Array.isArray(backups.rootURIWorkspaces)) {
-				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({ workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) }, remoteAuthority: workspace.remoteAuthority }));
+				rootWorkspaces = backups.rootURIWorkspaces.map(workspace => ({
+					workspace: { id: workspace.id, configPath: URI.parse(workspace.configURIPath) },
+					remoteAuthority: workspace.remoteAuthority
+				}));
 			}
 		} catch (e) {
 			// ignore URI parsing exceptions
 		}
 
+		// validate workspace backups
 		this.workspaces = await this.validateWorkspaces(rootWorkspaces);
 
 		// read folder backups
@@ -81,6 +83,7 @@ export class BackupMainService implements IBackupMainService {
 			// ignore URI parsing exceptions
 		}
 
+		// validate folder backups
 		this.folders = await this.validateFolders(workspaceFolders);
 
 		// save again in case some workspaces or folders have been removed
@@ -151,8 +154,8 @@ export class BackupMainService implements IBackupMainService {
 		if (fs.existsSync(moveFromPath)) {
 			try {
 				fs.renameSync(moveFromPath, backupPath);
-			} catch (ex) {
-				this.logService.error(`Backup: Could not move backup folder to new location: ${ex.toString()}`);
+			} catch (error) {
+				this.logService.error(`Backup: Could not move backup folder to new location: ${error.toString()}`);
 			}
 		}
 	}
@@ -204,7 +207,7 @@ export class BackupMainService implements IBackupMainService {
 	}
 
 	private getBackupPath(oldFolderHash: string): string {
-		return path.join(this.backupHome, oldFolderHash);
+		return join(this.backupHome, oldFolderHash);
 	}
 
 	private async validateWorkspaces(rootWorkspaces: IWorkspaceBackupInfo[]): Promise<IWorkspaceBackupInfo[]> {
@@ -230,7 +233,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the workspace has no backups, ignore it
 				if (hasBackups) {
-					if (workspace.configPath.scheme !== Schemas.file || await exists(workspace.configPath.fsPath)) {
+					if (workspace.configPath.scheme !== Schemas.file || await Promises.exists(workspace.configPath.fsPath)) {
 						result.push(workspaceInfo);
 					} else {
 						// If the workspace has backups, but the target workspace is missing, convert backups to empty ones
@@ -262,7 +265,7 @@ export class BackupMainService implements IBackupMainService {
 
 				// If the folder has no backups, ignore it
 				if (hasBackups) {
-					if (folderURI.scheme !== Schemas.file || await exists(folderURI.fsPath)) {
+					if (folderURI.scheme !== Schemas.file || await Promises.exists(folderURI.fsPath)) {
 						result.push(folderURI);
 					} else {
 						// If the folder has backups, but the target workspace is missing, convert backups to empty ones
@@ -309,11 +312,11 @@ export class BackupMainService implements IBackupMainService {
 
 	private async deleteStaleBackup(backupPath: string): Promise<void> {
 		try {
-			if (await exists(backupPath)) {
-				await rimraf(backupPath, RimRafMode.MOVE);
+			if (await Promises.exists(backupPath)) {
+				await Promises.rm(backupPath, RimRafMode.MOVE);
 			}
-		} catch (ex) {
-			this.logService.error(`Backup: Could not delete stale backup: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not delete stale backup: ${error.toString()}`);
 		}
 	}
 
@@ -328,9 +331,9 @@ export class BackupMainService implements IBackupMainService {
 		// Rename backupPath to new empty window backup path
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
-			await rename(backupPath, newEmptyWindowBackupPath);
-		} catch (ex) {
-			this.logService.error(`Backup: Could not rename backup folder: ${ex.toString()}`);
+			await Promises.rename(backupPath, newEmptyWindowBackupPath);
+		} catch (error) {
+			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
 		}
 		this.emptyWindows.push({ backupFolder: newBackupFolder });
@@ -350,8 +353,8 @@ export class BackupMainService implements IBackupMainService {
 		const newEmptyWindowBackupPath = this.getBackupPath(newBackupFolder);
 		try {
 			fs.renameSync(backupPath, newEmptyWindowBackupPath);
-		} catch (ex) {
-			this.logService.error(`Backup: Could not rename backup folder: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not rename backup folder: ${error.toString()}`);
 			return false;
 		}
 		this.emptyWindows.push({ backupFolder: newBackupFolder });
@@ -402,11 +405,11 @@ export class BackupMainService implements IBackupMainService {
 
 	private async doHasBackups(backupPath: string): Promise<boolean> {
 		try {
-			const backupSchemas = await readdir(backupPath);
+			const backupSchemas = await Promises.readdir(backupPath);
 
 			for (const backupSchema of backupSchemas) {
 				try {
-					const backupSchemaChildren = await readdir(path.join(backupPath, backupSchema));
+					const backupSchemaChildren = await Promises.readdir(join(backupPath, backupSchema));
 					if (backupSchemaChildren.length > 0) {
 						return true;
 					}
@@ -424,16 +427,16 @@ export class BackupMainService implements IBackupMainService {
 	private saveSync(): void {
 		try {
 			writeFileSync(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
-		} catch (ex) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+		} catch (error) {
+			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}
 	}
 
 	private async save(): Promise<void> {
 		try {
-			await writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
-		} catch (ex) {
-			this.logService.error(`Backup: Could not save workspaces.json: ${ex.toString()}`);
+			await Promises.writeFile(this.workspacesJsonPath, JSON.stringify(this.serializeBackups()));
+		} catch (error) {
+			this.logService.error(`Backup: Could not save workspaces.json: ${error.toString()}`);
 		}
 	}
 
@@ -454,11 +457,11 @@ export class BackupMainService implements IBackupMainService {
 
 		if (folderUri.scheme === Schemas.file) {
 			// for backward compatibility, use the fspath as key
-			key = platform.isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
+			key = isLinux ? folderUri.fsPath : folderUri.fsPath.toLowerCase();
 		} else {
 			key = folderUri.toString().toLowerCase();
 		}
 
-		return crypto.createHash('md5').update(key).digest('hex');
+		return createHash('md5').update(key).digest('hex');
 	}
 }

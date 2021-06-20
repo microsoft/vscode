@@ -25,19 +25,7 @@ export const BrowserFeatures = {
 		readText: (
 			platform.isNative
 			|| !!(navigator && navigator.clipboard && navigator.clipboard.readText)
-		),
-		richText: (() => {
-			if (browser.isEdge) {
-				let index = navigator.userAgent.indexOf('Edge/');
-				let version = parseInt(navigator.userAgent.substring(index + 5, navigator.userAgent.indexOf('.', index)), 10);
-
-				if (!version || (version >= 12 && version <= 16)) {
-					return false;
-				}
-			}
-
-			return true;
-		})()
+		)
 	},
 	keyboard: (() => {
 		if (platform.isNative || browser.isStandalone) {

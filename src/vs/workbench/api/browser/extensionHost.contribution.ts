@@ -11,12 +11,14 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 // --- other interested parties
 import { JSONValidationExtensionPoint } from 'vs/workbench/api/common/jsonValidationExtensionPoint';
 import { ColorExtensionPoint } from 'vs/workbench/services/themes/common/colorExtensionPoint';
+import { IconExtensionPoint, IconFontExtensionPoint } from 'vs/workbench/services/themes/common/iconExtensionPoint';
 import { TokenClassificationExtensionPoints } from 'vs/workbench/services/themes/common/tokenClassificationExtensionPoint';
 import { LanguageConfigurationFileHandler } from 'vs/workbench/contrib/codeEditor/browser/languageConfigurationExtensionPoint';
 
 // --- mainThread participants
 import './mainThreadBulkEdits';
 import './mainThreadCodeInsets';
+import './mainThreadCLICommands';
 import './mainThreadClipboard';
 import './mainThreadCommands';
 import './mainThreadConfiguration';
@@ -30,6 +32,7 @@ import './mainThreadDocuments';
 import './mainThreadDocumentsAndEditors';
 import './mainThreadEditor';
 import './mainThreadEditors';
+import './mainThreadEditorTabs';
 import './mainThreadErrors';
 import './mainThreadExtensionService';
 import './mainThreadFileSystem';
@@ -60,6 +63,9 @@ import './mainThreadWebviewManager';
 import './mainThreadWorkspace';
 import './mainThreadComments';
 import './mainThreadNotebook';
+import './mainThreadNotebookKernels';
+import './mainThreadNotebookDocumentsAndEditors';
+import './mainThreadNotebookRenderers';
 import './mainThreadTask';
 import './mainThreadLabelService';
 import './mainThreadTunnelService';
@@ -68,6 +74,7 @@ import './mainThreadTimeline';
 import './mainThreadTesting';
 import './mainThreadSecretState';
 import 'vs/workbench/api/common/apiCommands';
+import 'vs/workbench/api/browser/apiCommands';
 
 export class ExtensionPoints implements IWorkbenchContribution {
 
@@ -77,6 +84,8 @@ export class ExtensionPoints implements IWorkbenchContribution {
 		// Classes that handle extension points...
 		this.instantiationService.createInstance(JSONValidationExtensionPoint);
 		this.instantiationService.createInstance(ColorExtensionPoint);
+		this.instantiationService.createInstance(IconExtensionPoint);
+		this.instantiationService.createInstance(IconFontExtensionPoint);
 		this.instantiationService.createInstance(TokenClassificationExtensionPoints);
 		this.instantiationService.createInstance(LanguageConfigurationFileHandler);
 	}

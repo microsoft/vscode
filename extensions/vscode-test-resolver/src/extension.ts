@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as net from 'net';
+import * as http from 'http';
 import { downloadAndUnzipVSCodeServer } from './download';
 import { terminateProcess } from './util/processes';
 
@@ -51,7 +52,7 @@ export function activate(context: vscode.ExtensionContext) {
 						const match = lastProgressLine.match(/Extension host agent listening on (\d+)/);
 						if (match) {
 							isResolved = true;
-							res(new vscode.ResolvedAuthority('localhost', parseInt(match[1], 10))); // success!
+							res(new vscode.ResolvedAuthority('127.0.0.1', parseInt(match[1], 10))); // success!
 						}
 						lastProgressLine = '';
 					} else if (chr === CharCode.Backspace) {
@@ -81,6 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
 			const commandArgs = ['--port=0', '--disable-telemetry'];
 			const env = getNewEnv();
 			const remoteDataDir = process.env['TESTRESOLVER_DATA_FOLDER'] || path.join(os.homedir(), serverDataFolderName || `${dataFolderName}-testresolver`);
+
 			env['VSCODE_AGENT_FOLDER'] = remoteDataDir;
 			outputChannel.appendLine(`Using data folder at ${remoteDataDir}`);
 
@@ -90,15 +92,21 @@ export function activate(context: vscode.ExtensionContext) {
 				const serverCommandPath = path.join(vscodePath, 'resources', 'server', 'bin-dev', serverCommand);
 				extHostProcess = cp.spawn(serverCommandPath, commandArgs, { env, cwd: vscodePath });
 			} else {
+				const extensionToInstall = process.env['TESTRESOLVER_INSTALL_BUILTIN_EXTENSION'];
+				if (extensionToInstall) {
+					commandArgs.push('--install-builtin-extension', extensionToInstall);
+					commandArgs.push('--start-server');
+				}
 				const serverCommand = process.platform === 'win32' ? 'server.cmd' : 'server.sh';
 				let serverLocation = env['VSCODE_REMOTE_SERVER_PATH']; // support environment variable to specify location of server on disk
 				if (!serverLocation) {
 					const serverBin = path.join(remoteDataDir, 'bin');
 					progress.report({ message: 'Installing VSCode Server' });
-					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin);
+					serverLocation = await downloadAndUnzipVSCodeServer(updateUrl, commit, quality, serverBin, m => outputChannel.appendLine(m));
 				}
 
 				outputChannel.appendLine(`Using server build at ${serverLocation}`);
+				outputChannel.appendLine(`Server arguments ${commandArgs.join(' ')}`);
 
 				extHostProcess = cp.spawn(path.join(serverLocation, serverCommand), commandArgs, { env, cwd: serverLocation });
 			}
@@ -127,9 +135,9 @@ export function activate(context: vscode.ExtensionContext) {
 					let remoteReady = true, localReady = true;
 					const remoteSocket = net.createConnection({ port: serverAddr.port });
 
-					let isDisconnected = getConfiguration('pause') === true;
-					vscode.workspace.onDidChangeConfiguration(_ => {
-						let newIsDisconnected = getConfiguration('pause') === true;
+					let isDisconnected = connectionPaused;
+					connectionPausedEvent.event(_ => {
+						let newIsDisconnected = connectionPaused;
 						if (isDisconnected !== newIsDisconnected) {
 							outputChannel.appendLine(`Connection state: ${newIsDisconnected ? 'open' : 'paused'}`);
 							isDisconnected = newIsDisconnected;
@@ -192,10 +200,11 @@ export function activate(context: vscode.ExtensionContext) {
 						}
 					});
 				});
-				proxyServer.listen(0, () => {
+				proxyServer.listen(0, '127.0.0.1', () => {
 					const port = (<net.AddressInfo>proxyServer.address()).port;
 					outputChannel.appendLine(`Going through proxy at port ${port}`);
-					res(new vscode.ResolvedAuthority('127.0.0.1', port));
+					const r: vscode.ResolverResult = new vscode.ResolvedAuthority('127.0.0.1', port);
+					res(r);
 				});
 				context.subscriptions.push({
 					dispose: () => {
@@ -206,27 +215,98 @@ export function activate(context: vscode.ExtensionContext) {
 		});
 	}
 
-	vscode.workspace.registerRemoteAuthorityResolver('test', {
+	let connectionPaused = false;
+	let connectionPausedEvent = new vscode.EventEmitter<boolean>();
+
+	const authorityResolverDisposable = vscode.workspace.registerRemoteAuthorityResolver('test', {
+		async getCanonicalURI(uri: vscode.Uri): Promise<vscode.Uri> {
+			return vscode.Uri.file(uri.path);
+		},
 		resolve(_authority: string): Thenable<vscode.ResolvedAuthority> {
 			return vscode.window.withProgress({
 				location: vscode.ProgressLocation.Notification,
 				title: 'Open TestResolver Remote ([details](command:vscode-testresolver.showLog))',
 				cancellable: false
 			}, (progress) => doResolve(_authority, progress));
-		}
+		},
+		tunnelFactory,
+		tunnelFeatures: { elevation: true, public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') },
+		showCandidatePort
 	});
+	context.subscriptions.push(authorityResolverDisposable);
 
-	vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindow', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+test' });
-	});
-	vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.newWindowWithError', () => {
 		return vscode.commands.executeCommand('vscode.newWindow', { remoteAuthority: 'test+error' });
-	});
-	vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.killServerAndTriggerHandledError', () => {
+		authorityResolverDisposable.dispose();
+		if (extHostProcess) {
+			terminateProcess(extHostProcess, context.extensionPath);
+		}
+		vscode.workspace.registerRemoteAuthorityResolver('test', {
+			async resolve(_authority: string): Promise<vscode.ResolvedAuthority> {
+				setTimeout(async () => {
+					await vscode.window.showErrorMessage('Just a custom message.', { modal: true, useCustom: true }, 'OK', 'Great');
+				}, 2000);
+				throw vscode.RemoteAuthorityResolverError.NotAvailable('Intentional Error', true);
+			}
+		});
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.showLog', () => {
 		if (outputChannel) {
 			outputChannel.show();
 		}
-	});
+	}));
+
+	const pauseStatusBarEntry = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+	pauseStatusBarEntry.text = 'Remote connection paused. Click to undo';
+	pauseStatusBarEntry.command = 'vscode-testresolver.toggleConnectionPause';
+	pauseStatusBarEntry.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.toggleConnectionPause', () => {
+		if (!connectionPaused) {
+			connectionPaused = true;
+			pauseStatusBarEntry.show();
+		} else {
+			connectionPaused = false;
+			pauseStatusBarEntry.hide();
+		}
+		connectionPausedEvent.fire(connectionPaused);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.openTunnel', async () => {
+		const result = await vscode.window.showInputBox({
+			prompt: 'Enter the remote port for the tunnel',
+			value: '5000',
+			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
+		});
+		if (result) {
+			const port = Number.parseInt(result);
+			vscode.workspace.openTunnel({
+				remoteAddress: {
+					host: '127.0.0.1',
+					port: port
+				},
+				localAddressPort: port + 1
+			});
+		}
+
+	}));
+	context.subscriptions.push(vscode.commands.registerCommand('vscode-testresolver.startRemoteServer', async () => {
+		const result = await vscode.window.showInputBox({
+			prompt: 'Enter the port for the remote server',
+			value: '5000',
+			validateInput: input => /^[\d]+$/.test(input) ? undefined : 'Not a valid number'
+		});
+		if (result) {
+			runHTTPTestServer(Number.parseInt(result));
+		}
+
+	}));
+	vscode.commands.executeCommand('setContext', 'forwardedPortsViewEnabled', true);
 }
 
 type ActionItem = (vscode.MessageItem & { execute: () => void; });
@@ -245,7 +325,7 @@ function getActions(): ActionItem[] {
 		actions.push({
 			title: 'Close Remote',
 			execute: async () => {
-				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true });
+				await vscode.commands.executeCommand('vscode.newWindow', { reuseWindow: true, remoteAuthority: null });
 			}
 		});
 	}
@@ -286,4 +366,94 @@ function sleep(ms: number): Promise<void> {
 
 function getConfiguration<T>(id: string): T | undefined {
 	return vscode.workspace.getConfiguration('testresolver').get<T>(id);
+}
+
+const remoteServers: number[] = [];
+
+async function showCandidatePort(_host: string, port: number, _detail: string): Promise<boolean> {
+	return remoteServers.includes(port) || port === 100;
+}
+
+async function tunnelFactory(tunnelOptions: vscode.TunnelOptions, tunnelCreationOptions: vscode.TunnelCreationOptions): Promise<vscode.Tunnel> {
+	outputChannel.appendLine(`Tunnel factory request: Remote ${tunnelOptions.remoteAddress.port} -> local ${tunnelOptions.localAddressPort}`);
+	if (tunnelCreationOptions.elevationRequired) {
+		await vscode.window.showInformationMessage('This is a fake elevation message. A real resolver would show a native elevation prompt.', { modal: true }, 'Ok');
+	}
+
+	return createTunnelService();
+
+	function newTunnel(localAddress: { host: string, port: number }): vscode.Tunnel {
+		const onDidDispose: vscode.EventEmitter<void> = new vscode.EventEmitter();
+		let isDisposed = false;
+		return {
+			localAddress,
+			remoteAddress: tunnelOptions.remoteAddress,
+			public: !!vscode.workspace.getConfiguration('testresolver').get('supportPublicPorts') && tunnelOptions.public,
+			protocol: tunnelOptions.protocol,
+			onDidDispose: onDidDispose.event,
+			dispose: () => {
+				if (!isDisposed) {
+					isDisposed = true;
+					onDidDispose.fire();
+				}
+			}
+		};
+	}
+
+	function createTunnelService(): Promise<vscode.Tunnel> {
+		return new Promise<vscode.Tunnel>((res, _rej) => {
+			const proxyServer = net.createServer(proxySocket => {
+				const remoteSocket = net.createConnection({ host: tunnelOptions.remoteAddress.host, port: tunnelOptions.remoteAddress.port });
+				remoteSocket.pipe(proxySocket);
+				proxySocket.pipe(remoteSocket);
+			});
+			let localPort = 0;
+
+			if (tunnelOptions.localAddressPort) {
+				// When the tunnelOptions include a localAddressPort, we should use that.
+				// However, the test resolver all runs on one machine, so if the localAddressPort is the same as the remote port,
+				// then we must use a different port number.
+				localPort = tunnelOptions.localAddressPort;
+			} else {
+				localPort = tunnelOptions.remoteAddress.port;
+			}
+
+			if (localPort === tunnelOptions.remoteAddress.port) {
+				localPort += 1;
+			}
+
+			// The test resolver can't actually handle privileged ports, it only pretends to.
+			if (localPort < 1024 && process.platform !== 'win32') {
+				localPort = 0;
+			}
+			proxyServer.listen(localPort, '127.0.0.1', () => {
+				const localPort = (<net.AddressInfo>proxyServer.address()).port;
+				outputChannel.appendLine(`New test resolver tunnel service: Remote ${tunnelOptions.remoteAddress.port} -> local ${localPort}`);
+				const tunnel = newTunnel({ host: '127.0.0.1', port: localPort });
+				tunnel.onDidDispose(() => proxyServer.close());
+				res(tunnel);
+			});
+		});
+	}
+}
+
+function runHTTPTestServer(port: number): vscode.Disposable {
+	const server = http.createServer((_req, res) => {
+		res.writeHead(200);
+		res.end(`Hello, World from test server running on port ${port}!`);
+	});
+	remoteServers.push(port);
+	server.listen(port, '127.0.0.1');
+	const message = `Opened HTTP server on http://127.0.0.1:${port}`;
+	console.log(message);
+	outputChannel.appendLine(message);
+	return {
+		dispose: () => {
+			server.close();
+			const index = remoteServers.indexOf(port);
+			if (index !== -1) {
+				remoteServers.splice(index, 1);
+			}
+		}
+	};
 }

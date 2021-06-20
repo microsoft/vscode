@@ -31,11 +31,15 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Codicon } from 'vs/base/common/codicons';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { OutlineSortOrder, OutlineViewState } from './outlineViewState';
-import { IOutline, IOutlineComparator, IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { IOutline, IOutlineComparator, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { EditorResourceAccessor, IEditorPane } from 'vs/workbench/common/editor';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { ITreeSorter } from 'vs/base/browser/ui/tree/tree';
+import { URI } from 'vs/base/common/uri';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
+import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
 
 const _ctxFollowsCursor = new RawContextKey('outlineFollowsCursor', false);
 const _ctxFilterOnType = new RawContextKey('outlineFiltersOnType', false);
@@ -74,7 +78,7 @@ export class OutlinePane extends ViewPane {
 	private _message!: HTMLDivElement;
 	private _progressBar!: ProgressBar;
 	private _treeContainer!: HTMLElement;
-	private _tree?: WorkbenchDataTree<IOutline<any>, any, FuzzyScore>;
+	private _tree?: WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>;
 	private _treeDimensions?: dom.Dimension;
 	private _treeStates = new LRUCache<string, IDataTreeViewState>(10);
 
@@ -117,17 +121,18 @@ export class OutlinePane extends ViewPane {
 		this._disposables.add(this._outlineViewState.onDidChange(updateContext));
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		this._disposables.dispose();
 		this._editorDisposables.dispose();
+		this._editorListener.dispose();
 		super.dispose();
 	}
 
-	focus(): void {
+	override focus(): void {
 		this._tree?.domFocus();
 	}
 
-	protected renderBody(container: HTMLElement): void {
+	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
 		this._domNode = container;
@@ -156,7 +161,7 @@ export class OutlinePane extends ViewPane {
 		}));
 	}
 
-	protected layoutBody(height: number, width: number): void {
+	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 		this._tree?.layout(height, width);
 		this._treeDimensions = new dom.Dimension(width, height);
@@ -176,23 +181,31 @@ export class OutlinePane extends ViewPane {
 		this._message.innerText = message;
 	}
 
-	private async _handleEditorChanged(pane: IEditorPane | undefined): Promise<void> {
-		this._editorDisposables.clear();
+	private _captureViewState(resource: URI | undefined): boolean {
+		if (resource && this._tree) {
+			const oldOutline = this._tree?.getInput();
+			if (oldOutline) {
+				this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
+				return true;
+			}
+		}
+		return false;
+	}
 
-		const oldOutline = this._tree?.getInput();
-		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
+	private async _handleEditorChanged(pane: IEditorPane | undefined): Promise<void> {
 
 		// persist state
-		if (oldOutline) {
-			this._treeStates.set(`${oldOutline.outlineKind}/${resource}`, this._tree!.getViewState());
-		}
+		const resource = EditorResourceAccessor.getOriginalUri(pane?.input);
+		const didCapture = this._captureViewState(resource);
+
+		this._editorDisposables.clear();
 
 		if (!pane || !this._outlineService.canCreateOutline(pane) || !resource) {
 			return this._showMessage(localize('no-editor', "The active editor cannot provide outline information."));
 		}
 
 		let loadingMessage: IDisposable | undefined;
-		if (!oldOutline) {
+		if (!didCapture) {
 			loadingMessage = new TimeoutTimer(() => {
 				this._showMessage(localize('loading', "Loading document symbols for '{0}'...", basename(resource)));
 			}, 100);
@@ -203,29 +216,34 @@ export class OutlinePane extends ViewPane {
 		const cts = new CancellationTokenSource();
 		this._editorDisposables.add(toDisposable(() => cts.dispose(true)));
 
-		const newOutline = await this._outlineService.createOutline(pane, cts.token);
+		const newOutline = await this._outlineService.createOutline(pane, OutlineTarget.OutlinePane, cts.token);
 		loadingMessage?.dispose();
 
 		if (!newOutline) {
 			return;
 		}
 
+		if (cts.token.isCancellationRequested) {
+			newOutline?.dispose();
+			return;
+		}
+
 		this._editorDisposables.add(newOutline);
 		this._progressBar.stop().hide();
 
-		const sorter = new OutlineTreeSorter(newOutline.treeConfig.comparator, this._outlineViewState.sortBy);
+		const sorter = new OutlineTreeSorter(newOutline.config.comparator, this._outlineViewState.sortBy);
 
-		const tree = <WorkbenchDataTree<IOutline<any>, any, FuzzyScore>>this._instantiationService.createInstance(
+		const tree = <WorkbenchDataTree<IOutline<any> | undefined, any, FuzzyScore>>this._instantiationService.createInstance(
 			WorkbenchDataTree,
 			'OutlinePane',
 			this._treeContainer,
-			newOutline.treeConfig.delegate,
-			newOutline.treeConfig.renderers,
-			newOutline.treeConfig.treeDataSource,
+			newOutline.config.delegate,
+			newOutline.config.renderers,
+			newOutline.config.treeDataSource,
 			{
-				...newOutline.treeConfig.options,
+				...newOutline.config.options,
 				sorter,
-				openOnSingleClick: true,
+				expandOnDoubleClick: false,
 				expandOnlyOnTwistieClick: true,
 				multipleSelectionSupport: false,
 				hideTwistiesOfChildlessElements: true,
@@ -239,19 +257,19 @@ export class OutlinePane extends ViewPane {
 			if (newOutline.isEmpty) {
 				// no more elements
 				this._showMessage(localize('no-symbols', "No symbols found in document '{0}'", basename(resource)));
+				this._captureViewState(resource);
+				tree.setInput(undefined);
 
 			} else if (!tree.getInput()) {
 				// first: init tree
 				this._domNode.classList.remove('message');
 				const state = this._treeStates.get(`${newOutline.outlineKind}/${resource}`);
 				tree.setInput(newOutline, state);
-				tree.expandAll();
 
 			} else {
 				// update: refresh tree
 				this._domNode.classList.remove('message');
 				tree.updateChildren();
-				tree.expandAll();
 			}
 		};
 		updateTree();
@@ -269,20 +287,33 @@ export class OutlinePane extends ViewPane {
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
-		this._editorDisposables.add(tree.onDidOpen(e => newOutline.reveal(e.element, e.editorOptions, e.sideBySide)));
-
+		this._editorDisposables.add(tree.onDidOpen(e => {
+			let override: EditorOverride | string = EditorOverride.DISABLED;
+			if (this._editorService.activeEditor instanceof NotebookEditorInput || this._editorService.activeEditor instanceof CustomEditorInput) {
+				override = this._editorService.activeEditor.viewType;
+			}
+			newOutline.reveal(e.element, { ...e.editorOptions, override }, e.sideBySide);
+		}));
 		// feature: reveal editor selection in outline
 		const revealActiveElement = () => {
 			if (!this._outlineViewState.followCursor || !newOutline.activeElement) {
 				return;
 			}
-			const item = newOutline.activeElement;
-			const top = tree.getRelativeTop(item);
-			if (top === null) {
-				tree.reveal(item, 0.5);
+			let item = newOutline.activeElement;
+			while (item) {
+				const top = tree.getRelativeTop(item);
+				if (top === null) {
+					// not visible -> reveal
+					tree.reveal(item, 0.5);
+				}
+				if (tree.getRelativeTop(item) !== null) {
+					tree.setFocus([item]);
+					tree.setSelection([item]);
+					break;
+				}
+				// STILL not visible -> try parent
+				item = tree.getParentElement(item);
 			}
-			tree.setFocus([item]);
-			tree.setSelection([item]);
 		};
 		revealActiveElement();
 		this._editorDisposables.add(newOutline.onDidChange(revealActiveElement));

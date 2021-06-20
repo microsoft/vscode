@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, ILocalExtension, IGalleryExtension, IExtensionGalleryService, InstallOperation, InstallOptions, InstallVSIXOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ILogService } from 'vs/platform/log/common/log';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { prefersExecuteOnUI } from 'vs/workbench/services/extensions/common/extensionsUtil';
-import { isNonEmptyArray } from 'vs/base/common/arrays';
+import { coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { localize } from 'vs/nls';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -21,6 +20,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { WebRemoteExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/remoteExtensionManagementService';
 import { IExtensionManagementServer } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { Promises } from 'vs/base/common/async';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 export class NativeRemoteExtensionManagementService extends WebRemoteExtensionManagementService implements IExtensionManagementService {
 
@@ -33,19 +34,20 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		@IExtensionGalleryService galleryService: IExtensionGalleryService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IProductService productService: IProductService,
-		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService
+		@INativeWorkbenchEnvironmentService private readonly environmentService: INativeWorkbenchEnvironmentService,
+		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
-		super(channel, galleryService, configurationService, productService);
+		super(channel, galleryService, configurationService, productService, extensionManifestPropertiesService);
 		this.localExtensionManagementService = localExtensionManagementServer.extensionManagementService;
 	}
 
-	async install(vsix: URI): Promise<ILocalExtension> {
-		const local = await super.install(vsix);
+	override async install(vsix: URI, options?: InstallVSIXOptions): Promise<ILocalExtension> {
+		const local = await super.install(vsix, options);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
 	}
 
-	async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
+	override async installFromGallery(extension: IGalleryExtension, installOptions?: InstallOptions): Promise<ILocalExtension> {
 		const local = await this.doInstallFromGallery(extension, installOptions);
 		await this.installUIDependenciesAndPackedExtensions(local);
 		return local;
@@ -82,7 +84,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const manifest = await this.galleryService.getManifest(compatible, CancellationToken.None);
 		if (manifest) {
 			const workspaceExtensions = await this.getAllWorkspaceDependenciesAndPackedExtensions(manifest, CancellationToken.None);
-			await Promise.all(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
+			await Promises.settled(workspaceExtensions.map(e => this.downloadAndInstall(e, installed)));
 		}
 		return this.downloadAndInstall(extension, installed);
 	}
@@ -97,7 +99,7 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 		const uiExtensions = await this.getAllUIDependenciesAndPackedExtensions(local.manifest, CancellationToken.None);
 		const installed = await this.localExtensionManagementService.getInstalled();
 		const toInstall = uiExtensions.filter(e => installed.every(i => !areSameExtensions(i.identifier, e.identifier)));
-		await Promise.all(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
+		await Promises.settled(toInstall.map(d => this.localExtensionManagementService.installFromGallery(d)));
 	}
 
 	private async getAllUIDependenciesAndPackedExtensions(manifest: IExtensionManifest, token: CancellationToken): Promise<IGalleryExtension[]> {
@@ -119,13 +121,13 @@ export class NativeRemoteExtensionManagementService extends WebRemoteExtensionMa
 			return Promise.resolve();
 		}
 
-		const extensions = (await this.galleryService.query({ names: toGet, pageSize: toGet.length }, token)).firstPage;
+		const extensions = coalesce(await Promises.settled(toGet.map(id => this.galleryService.getCompatibleExtension({ id }))));
 		const manifests = await Promise.all(extensions.map(e => this.galleryService.getManifest(e, token)));
 		const extensionsManifests: IExtensionManifest[] = [];
 		for (let idx = 0; idx < extensions.length; idx++) {
 			const extension = extensions[idx];
 			const manifest = manifests[idx];
-			if (manifest && prefersExecuteOnUI(manifest, this.productService, this.configurationService) === uiExtension) {
+			if (manifest && this.extensionManifestPropertiesService.prefersExecuteOnUI(manifest) === uiExtension) {
 				result.set(extension.identifier.id.toLowerCase(), extension);
 				extensionsManifests.push(manifest);
 			}

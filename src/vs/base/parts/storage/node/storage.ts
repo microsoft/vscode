@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { timeout } from 'vs/base/common/async';
 import { mapToString, setToString } from 'vs/base/common/map';
 import { basename } from 'vs/base/common/path';
-import { copy, renameIgnoreError, unlink } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { IStorageDatabase, IStorageItemsChangeEvent, IUpdateRequest } from 'vs/base/parts/storage/common/storage';
 
 interface IDatabaseConnection {
@@ -186,7 +186,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 					// Delete the existing DB. If the path does not exist or fails to
 					// be deleted, we do not try to recover anymore because we assume
 					// that the path is no longer writeable for us.
-					return unlink(this.path).then(() => {
+					return Promises.unlink(this.path).then(() => {
 
 						// Re-open the DB fresh
 						return this.doConnect(this.path).then(recoveryConnection => {
@@ -216,7 +216,7 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 	private backup(): Promise<void> {
 		const backupPath = this.toBackupPath(this.path);
 
-		return copy(this.path, backupPath);
+		return Promises.copy(this.path, backupPath, { preserveSymlinks: false });
 	}
 
 	private toBackupPath(path: string): string {
@@ -272,8 +272,12 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 			// folder is really not writeable for us.
 			//
 			try {
-				await unlink(path);
-				await renameIgnoreError(this.toBackupPath(path), path);
+				await Promises.unlink(path);
+				try {
+					await Promises.rename(this.toBackupPath(path), path);
+				} catch (error) {
+					// ignore
+				}
 
 				return await this.doConnect(path);
 			} catch (error) {
@@ -412,11 +416,17 @@ export class SQLiteStorageDatabase implements IStorageDatabase {
 }
 
 class SQLiteStorageDatabaseLogger {
+
+	// to reduce lots of output, require an environment variable to enable tracing
+	// this helps when running with --verbose normally where the storage tracing
+	// might hide useful output to look at
+	static readonly VSCODE_TRACE_STORAGE = 'VSCODE_TRACE_STORAGE';
+
 	private readonly logTrace: ((msg: string) => void) | undefined;
 	private readonly logError: ((error: string | Error) => void) | undefined;
 
 	constructor(options?: ISQLiteStorageDatabaseLoggingOptions) {
-		if (options && typeof options.logTrace === 'function') {
+		if (options && typeof options.logTrace === 'function' && process.env[SQLiteStorageDatabaseLogger.VSCODE_TRACE_STORAGE]) {
 			this.logTrace = options.logTrace;
 		}
 

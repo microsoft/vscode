@@ -5,7 +5,7 @@
 
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { CellKind, IProcessedOutput, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutputDto, NotebookCellMetadata, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { IResourceUndoRedoElement, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
 import { URI } from 'vs/base/common/uri';
 import { BaseCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/baseCellViewModel';
@@ -16,7 +16,7 @@ import { ITextCellEditingDelegate } from 'vs/workbench/contrib/notebook/common/m
 
 export interface IViewCellEditingDelegate extends ITextCellEditingDelegate {
 	createCellViewModel?(cell: NotebookCellTextModel): BaseCellViewModel;
-	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IProcessedOutput[]): BaseCellViewModel;
+	createCell?(index: number, source: string, language: string, type: CellKind, metadata: NotebookCellMetadata | undefined, outputs: IOutputDto[]): BaseCellViewModel;
 }
 
 export class JoinCellEdit implements IResourceUndoRedoElement {
@@ -52,10 +52,10 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 
 		const cell = this.editingDelegate.createCellViewModel(this._deletedRawCell);
 		if (this.direction === 'above') {
-			this.editingDelegate.insertCell(this.index, this._deletedRawCell, [cell.handle]);
+			this.editingDelegate.insertCell(this.index, this._deletedRawCell, { kind: SelectionStateType.Handle, primary: cell.handle, selections: [cell.handle] });
 			cell.focusMode = CellFocusMode.Editor;
 		} else {
-			this.editingDelegate.insertCell(this.index, cell.model, [this.cell.handle]);
+			this.editingDelegate.insertCell(this.index, cell.model, { kind: SelectionStateType.Handle, primary: this.cell.handle, selections: [this.cell.handle] });
 			this.cell.focusMode = CellFocusMode.Editor;
 		}
 	}
@@ -70,7 +70,7 @@ export class JoinCellEdit implements IResourceUndoRedoElement {
 			{ range: this.inverseRange, text: this.insertContent }
 		]);
 
-		this.editingDelegate.deleteCell(this.index, [this.cell.handle]);
+		this.editingDelegate.deleteCell(this.index, { kind: SelectionStateType.Handle, primary: this.cell.handle, selections: [this.cell.handle] });
 		this.cell.focusMode = CellFocusMode.Editor;
 	}
 }

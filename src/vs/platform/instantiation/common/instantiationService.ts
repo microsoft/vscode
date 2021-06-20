@@ -16,7 +16,7 @@ const _enableTracing = false;
 class CyclicDependencyError extends Error {
 	constructor(graph: Graph<any>) {
 		super('cyclic dependency between services');
-		this.message = graph.toString();
+		this.message = graph.findCycleSlow() ?? `UNABLE to detect cycle, dumping graph: \n${graph.toString()}`;
 	}
 }
 
@@ -132,15 +132,31 @@ export class InstantiationService implements IInstantiationService {
 	private _getOrCreateServiceInstance<T>(id: ServiceIdentifier<T>, _trace: Trace): T {
 		let thing = this._getServiceInstanceOrDescriptor(id);
 		if (thing instanceof SyncDescriptor) {
-			return this._createAndCacheServiceInstance(id, thing, _trace.branch(id, true));
+			return this._safeCreateAndCacheServiceInstance(id, thing, _trace.branch(id, true));
 		} else {
 			_trace.branch(id, false);
 			return thing;
 		}
 	}
 
+	private readonly _activeInstantiations = new Set<ServiceIdentifier<any>>();
+
+
+	private _safeCreateAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
+		if (this._activeInstantiations.has(id)) {
+			throw new Error(`illegal state - RECURSIVELY instantiating service '${id}'`);
+		}
+		this._activeInstantiations.add(id);
+		try {
+			return this._createAndCacheServiceInstance(id, desc, _trace);
+		} finally {
+			this._activeInstantiations.delete(id);
+		}
+	}
+
 	private _createAndCacheServiceInstance<T>(id: ServiceIdentifier<T>, desc: SyncDescriptor<T>, _trace: Trace): T {
-		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace };
+
+		type Triple = { id: ServiceIdentifier<any>, desc: SyncDescriptor<any>, _trace: Trace; };
 		const graph = new Graph<Triple>(data => data.id.toString());
 
 		let cycleCount = 0;
@@ -195,7 +211,6 @@ export class InstantiationService implements IInstantiationService {
 				graph.removeNode(data);
 			}
 		}
-
 		return <T>this._getServiceInstanceOrDescriptor(id);
 	}
 
@@ -252,8 +267,8 @@ class Trace {
 
 	private static readonly _None = new class extends Trace {
 		constructor() { super(-1, null); }
-		stop() { }
-		branch() { return this; }
+		override stop() { }
+		override branch() { return this; }
 	};
 
 	static traceInvocation(ctor: any): Trace {

@@ -18,6 +18,10 @@ export interface IResourceUndoRedoElement {
 	readonly type: UndoRedoElementType.Resource;
 	readonly resource: URI;
 	readonly label: string;
+	/**
+	 * Show a message to the user confirming when trying to undo this element
+	 */
+	readonly confirmBeforeUndo?: boolean;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
 }
@@ -26,6 +30,10 @@ export interface IWorkspaceUndoRedoElement {
 	readonly type: UndoRedoElementType.Workspace;
 	readonly resources: readonly URI[];
 	readonly label: string;
+	/**
+	 * Show a message to the user confirming when trying to undo this element
+	 */
+	readonly confirmBeforeUndo?: boolean;
 	undo(): Promise<void> | void;
 	redo(): Promise<void> | void;
 

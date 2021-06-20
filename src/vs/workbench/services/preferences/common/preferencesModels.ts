@@ -18,7 +18,7 @@ import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configur
 import { ConfigurationScope, Extensions, IConfigurationNode, IConfigurationPropertySchema, IConfigurationRegistry, OVERRIDE_PROPERTY_PATTERN, IConfigurationExtensionInfo } from 'vs/platform/configuration/common/configurationRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorModel } from 'vs/workbench/common/editor';
+import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { withNullAsUndefined, isArray } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -130,7 +130,7 @@ export class SettingsEditorModel extends AbstractSettingsModel implements ISetti
 	constructor(reference: IReference<ITextEditorModel>, private _configurationTarget: ConfigurationTarget) {
 		super();
 		this.settingsModel = reference.object.textEditorModel!;
-		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this.onWillDispose(() => reference.dispose()));
 		this._register(this.settingsModel.onDidChangeContent(() => {
 			this._settingsGroups = undefined;
 			this._onDidChangeGroups.fire();
@@ -235,7 +235,7 @@ export class Settings2EditorModel extends AbstractSettingsModel implements ISett
 		}));
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't filter "commonly used"
 		return this.settingsGroups.slice(1);
 	}
@@ -434,12 +434,12 @@ export class WorkspaceConfigurationEditorModel extends SettingsEditorModel {
 		return this._configurationGroups;
 	}
 
-	protected parse(): void {
+	protected override parse(): void {
 		super.parse();
 		this._configurationGroups = parse(this.settingsModel, (property: string, previousParents: string[]): boolean => previousParents.length === 0);
 	}
 
-	protected isSettingsProperty(property: string, previousParents: string[]): boolean {
+	protected override isSettingsProperty(property: string, previousParents: string[]): boolean {
 		return property === 'settings' && previousParents.length === 1;
 	}
 
@@ -614,13 +614,25 @@ export class DefaultSettings extends Disposable {
 				const value = prop.default;
 				const description = (prop.description || prop.markdownDescription || '').split('\n');
 				const overrides = OVERRIDE_PROPERTY_PATTERN.test(key) ? this.parseOverrideSettings(prop.default) : [];
-				const listItemType = prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type && !isArray(prop.items.type)
-					? prop.items.type
-					: undefined;
+				let listItemType: string | undefined;
+				if (prop.type === 'array' && prop.items && !isArray(prop.items) && prop.items.type) {
+					if (prop.items.enum) {
+						listItemType = 'enum';
+					} else if (!isArray(prop.items.type)) {
+						listItemType = prop.items.type;
+					}
+				}
 
 				const objectProperties = prop.type === 'object' ? prop.properties : undefined;
 				const objectPatternProperties = prop.type === 'object' ? prop.patternProperties : undefined;
 				const objectAdditionalProperties = prop.type === 'object' ? prop.additionalProperties : undefined;
+
+				let enumToUse = prop.enum;
+				let enumDescriptions = prop.enumDescriptions || prop.markdownEnumDescriptions;
+				if (listItemType === 'enum' && !isArray(prop.items)) {
+					enumToUse = prop.items!.enum;
+					enumDescriptions = prop.items!.enumDescriptions || prop.items!.markdownEnumDescriptions;
+				}
 
 				result.push({
 					key,
@@ -638,11 +650,13 @@ export class DefaultSettings extends Disposable {
 					objectProperties,
 					objectPatternProperties,
 					objectAdditionalProperties,
-					enum: prop.enum,
-					enumDescriptions: prop.enumDescriptions || prop.markdownEnumDescriptions,
-					enumDescriptionsAreMarkdown: !prop.enumDescriptions,
+					enum: enumToUse,
+					enumDescriptions: enumDescriptions,
+					enumDescriptionsAreMarkdown: !enumDescriptions,
+					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
+					restricted: prop.restricted,
 					extensionInfo: extensionInfo,
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
@@ -701,7 +715,9 @@ export class DefaultSettings extends Disposable {
 		builder.pushLine('[');
 		settingsGroups.forEach((settingsGroup, i) => {
 			builder.pushGroup(settingsGroup);
-			builder.pushLine(',');
+			if (i < settingsGroups.length - 1) {
+				builder.pushLine(',');
+			}
 		});
 		builder.pushLine(']');
 		return builder.getContent();
@@ -725,7 +741,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		this._register(defaultSettings.onDidChange(() => this._onDidChangeGroups.fire()));
 		this._model = reference.object.textEditorModel!;
-		this._register(this.onDispose(() => reference.dispose()));
+		this._register(this.onWillDispose(() => reference.dispose()));
 	}
 
 	get uri(): URI {
@@ -740,7 +756,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return this.defaultSettings.getSettingsGroups();
 	}
 
-	protected get filterGroups(): ISettingsGroup[] {
+	protected override get filterGroups(): ISettingsGroup[] {
 		// Don't look at "commonly used" for filter
 		return this.settingsGroups.slice(1);
 	}
@@ -778,12 +794,14 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 
 		const settingsGroups: ISettingsGroup[] = [];
 		const matches: IRange[] = [];
-		builder.pushLine(',');
-		groups.forEach(resultGroup => {
-			const settingsGroup = this.getGroup(resultGroup);
-			settingsGroups.push(settingsGroup);
-			matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
-		});
+		if (groups.length) {
+			builder.pushLine(',');
+			groups.forEach(resultGroup => {
+				const settingsGroup = this.getGroup(resultGroup);
+				settingsGroups.push(settingsGroup);
+				matches.push(...this.writeSettingsGroupToBuilder(builder, settingsGroup, resultGroup.result.filterMatches));
+			});
+		}
 
 		// note: 1-indexed line numbers here
 		const groupContent = builder.getContent() + '\n';
@@ -823,7 +841,6 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 			});
 
 		builder.pushGroup(settingsGroup);
-		builder.pushLine(',');
 
 		// builder has rewritten settings ranges, fix match ranges
 		const fixedMatches = flatten(
@@ -868,7 +885,7 @@ export class DefaultSettingsEditorModel extends AbstractSettingsModel implements
 		return [];
 	}
 
-	getPreference(key: string): ISetting | undefined {
+	override getPreference(key: string): ISetting | undefined {
 		for (const group of this.settingsGroups) {
 			for (const section of group.sections) {
 				for (const setting of section.settings) {
@@ -1043,7 +1060,7 @@ class RawSettingsContentBuilder extends SettingsContentBuilder {
 		super(0);
 	}
 
-	pushGroup(settingsGroups: ISettingsGroup): void {
+	override pushGroup(settingsGroups: ISettingsGroup): void {
 		this._pushGroup(settingsGroups, this.indent);
 	}
 

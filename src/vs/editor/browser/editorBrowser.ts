@@ -622,13 +622,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Get value of the current model attached to this editor.
-	 * @see `ITextModel.getValue`
+	 * @see {@link ITextModel.getValue}
 	 */
 	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
-	 * @see `ITextModel.setValue`
+	 * @see {@link ITextModel.setValue}
 	 */
 	setValue(newValue: string): void;
 
@@ -726,14 +726,14 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see `ITextModel.deltaDecorations`
+	 * @see {@link ITextModel.deltaDecorations}
 	 */
 	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
 	 * @internal
 	 */
-	setDecorations(decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
+	setDecorations(description: string, decorationTypeKey: string, ranges: editorCommon.IDecorationOptions[]): void;
 
 	/**
 	 * @internal
@@ -975,7 +975,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	readonly maxComputationTime: number;
 
 	/**
-	 * @see ICodeEditor.getDomNode
+	 * @see {@link ICodeEditor.getDomNode}
 	 */
 	getDomNode(): HTMLElement;
 
@@ -1052,7 +1052,7 @@ export interface IDiffEditor extends editorCommon.IEditor {
 /**
  *@internal
  */
-export function isCodeEditor(thing: any): thing is ICodeEditor {
+export function isCodeEditor(thing: unknown): thing is ICodeEditor {
 	if (thing && typeof (<ICodeEditor>thing).getEditorType === 'function') {
 		return (<ICodeEditor>thing).getEditorType() === editorCommon.EditorType.ICodeEditor;
 	} else {
@@ -1063,7 +1063,7 @@ export function isCodeEditor(thing: any): thing is ICodeEditor {
 /**
  *@internal
  */
-export function isDiffEditor(thing: any): thing is IDiffEditor {
+export function isDiffEditor(thing: unknown): thing is IDiffEditor {
 	if (thing && typeof (<IDiffEditor>thing).getEditorType === 'function') {
 		return (<IDiffEditor>thing).getEditorType() === editorCommon.EditorType.IDiffEditor;
 	} else {
@@ -1074,8 +1074,8 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 /**
  *@internal
  */
-export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeCodeEditor {
-	return thing
+export function isCompositeEditor(thing: unknown): thing is editorCommon.ICompositeCodeEditor {
+	return !!thing
 		&& typeof thing === 'object'
 		&& typeof (<editorCommon.ICompositeCodeEditor>thing).onDidChangeActiveEditor === 'function';
 
@@ -1084,7 +1084,7 @@ export function isCompositeEditor(thing: any): thing is editorCommon.ICompositeC
 /**
  *@internal
  */
-export function getCodeEditor(thing: any): ICodeEditor | null {
+export function getCodeEditor(thing: unknown): ICodeEditor | null {
 	if (isCodeEditor(thing)) {
 		return thing;
 	}

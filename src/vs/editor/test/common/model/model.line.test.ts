@@ -39,13 +39,13 @@ function assertLineTokens(__actual: LineTokens, _expected: TestToken[]): void {
 			type: token.getType()
 		};
 	};
-	assert.deepEqual(actual, expected.map(decode));
+	assert.deepStrictEqual(actual, expected.map(decode));
 }
 
 suite('ModelLine - getIndentLevel', () => {
 	function assertIndentLevel(text: string, expected: number, tabSize: number = 4): void {
 		let actual = TextModel.computeIndentLevel(text, tabSize);
-		assert.equal(actual, expected, text);
+		assert.strictEqual(actual, expected, text);
 	}
 
 	test('getIndentLevel', () => {
@@ -126,7 +126,7 @@ suite('ModelLinesTokens', () => {
 		for (let lineIndex = 0; lineIndex < expected.length; lineIndex++) {
 			const actualLine = model.getLineContent(lineIndex + 1);
 			const actualTokens = model.getLineTokens(lineIndex + 1);
-			assert.equal(actualLine, expected[lineIndex].text);
+			assert.strictEqual(actualLine, expected[lineIndex].text);
 			assertLineTokens(actualTokens, expected[lineIndex].tokens);
 		}
 	}

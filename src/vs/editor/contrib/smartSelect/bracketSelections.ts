@@ -26,7 +26,7 @@ export class BracketSelectionRangeProvider implements SelectionRangeProvider {
 		return result;
 	}
 
-	private static readonly _maxDuration = 30;
+	public static _maxDuration = 30;
 	private static readonly _maxRounds = 2;
 
 	private static _bracketsRightYield(resolve: () => void, round: number, model: ITextModel, pos: Position, ranges: Map<string, LinkedList<Range>>): void {

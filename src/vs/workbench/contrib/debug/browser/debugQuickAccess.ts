@@ -33,7 +33,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 		});
 	}
 
-	protected async getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
+	protected async _getPicks(filter: string): Promise<(IQuickPickSeparator | IPickerQuickAccessItem)[]> {
 		const picks: Array<IPickerQuickAccessItem | IQuickPickSeparator> = [];
 		picks.push({ type: 'separator', label: 'launch.json' });
 
@@ -115,7 +115,8 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 				accept: async () => {
 					const pick = await provider.pick();
 					if (pick) {
-						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: pick.config.type });
+						// Use the type of the provider, not of the config since config sometimes have subtypes (for example "node-terminal")
+						await configManager.selectConfiguration(pick.launch, pick.config.name, pick.config, { type: provider.type });
 						this.debugService.startDebugging(pick.launch, pick.config);
 					}
 				}

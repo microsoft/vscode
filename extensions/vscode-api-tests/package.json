@@ -9,8 +9,9 @@
   "activationEvents": [],
   "main": "./out/extension",
   "engines": {
-    "vscode": "^1.25.0"
+    "vscode": "^1.55.0"
   },
+  "icon": "media/icon.png",
   "contributes": {
     "configuration": {
       "type": "object",
@@ -36,6 +37,15 @@
           "default": "get-prop"
         }
       }
+    },
+    "views": {
+      "remote": [
+        {
+          "id": "test.treeId",
+          "name": "test-tree",
+          "when": "never"
+        }
+      ]
     },
     "configurationDefaults": {
       "[abcLang]": {
@@ -106,6 +116,36 @@
           }
         ]
       }
+    ],
+    "notebooks": [
+      {
+        "type": "notebookCoreTest",
+        "displayName": "Notebook Core Test",
+        "selector": [
+          {
+            "filenamePattern": "*.vsctestnb",
+            "excludeFileNamePattern": ""
+          }
+        ]
+      },
+      {
+        "type": "notebook.nbdtest",
+        "displayName": "notebook.nbdtest",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdtest"
+          }
+        ]
+      },
+      {
+        "type": "notebook.nbdserializer",
+        "displayName": "notebook.nbdserializer",
+        "selector": [
+          {
+            "filenamePattern": "**/*.nbdserializer"
+          }
+        ]
+      }
     ]
   },
   "scripts": {
@@ -114,6 +154,10 @@
   },
   "devDependencies": {
     "@types/mocha": "^8.2.0",
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
   }
 }

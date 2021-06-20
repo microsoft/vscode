@@ -85,14 +85,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		this._extensionHostLogFile = joinPath(this._extensionHostLogsLocation, `${ExtensionHostLogFileName}.log`);
 	}
 
-	private _wrapInIframe(): boolean {
-		if (this._environmentService.options && typeof this._environmentService.options._wrapWebWorkerExtHostInIframe === 'boolean') {
-			return this._environmentService.options._wrapWebWorkerExtHostInIframe;
-		}
-		// wrap in <iframe> by default
-		return true;
-	}
-
 	private _webWorkerExtensionHostIframeSrc(): string | null {
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
 			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
@@ -119,7 +111,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (!this._protocolPromise) {
 			if (platform.isWeb) {
 				const webWorkerExtensionHostIframeSrc = this._webWorkerExtensionHostIframeSrc();
-				if (webWorkerExtensionHostIframeSrc && this._wrapInIframe()) {
+				if (webWorkerExtensionHostIframeSrc) {
 					this._protocolPromise = this._startInsideIframe(webWorkerExtensionHostIframeSrc);
 				} else {
 					console.warn(`The web worker extension host is started without an iframe sandbox!`);
@@ -166,7 +158,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		};
 
 		startTimeout = setTimeout(() => {
-			rejectBarrier(ExtensionHostExitCode.StartTimeout60s, new Error('The Web Worker Extension Host did not start in 60s'));
+			console.warn(`The Web Worker Extension Host did not start in 60s, that might be a problem.`);
 		}, 60000);
 
 		this._register(dom.addDisposableListener(window, 'message', (event) => {
@@ -229,7 +221,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		const emitter = new Emitter<VSBuffer>();
 
 		const url = getWorkerBootstrapUrl(FileAccess.asBrowserUri('../worker/extensionHostWorkerMain.js', require).toString(true), 'WorkerExtensionHost');
-		const worker = new Worker(ttPolicy ? ttPolicy.createScriptURL(url) as unknown as string : url, { name: 'WorkerExtensionHost' });
+		const worker = new Worker(ttPolicy?.createScriptURL(url) as unknown as string ?? url, { name: 'WorkerExtensionHost' });
 
 		const barrier = new Barrier();
 		let port!: MessagePort;
@@ -333,7 +325,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		return protocol;
 	}
 
-	public dispose(): void {
+	public override dispose(): void {
 		if (this._isTerminating) {
 			return;
 		}
@@ -368,8 +360,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,

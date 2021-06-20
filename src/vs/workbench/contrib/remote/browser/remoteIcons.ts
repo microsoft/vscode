@@ -17,7 +17,14 @@ export const remoteExplorerViewIcon = registerIcon('remote-explorer-view-icon', 
 
 export const portsViewIcon = registerIcon('ports-view-icon', Codicon.plug, nls.localize('portsViewIcon', 'View icon of the remote ports view.'));
 export const portIcon = registerIcon('ports-view-icon', Codicon.plug, nls.localize('portIcon', 'Icon representing a remote port.'));
+export const privatePortIcon = registerIcon('private-ports-view-icon', Codicon.lock, nls.localize('privatePortIcon', 'Icon representing a private remote port.'));
+export const publicPortIcon = registerIcon('public-ports-view-icon', Codicon.eye, nls.localize('publicPortIcon', 'Icon representing a public remote port.'));
 
 export const forwardPortIcon = registerIcon('ports-forward-icon', Codicon.plus, nls.localize('forwardPortIcon', 'Icon for the forward action.'));
 export const stopForwardIcon = registerIcon('ports-stop-forward-icon', Codicon.x, nls.localize('stopForwardIcon', 'Icon for the stop forwarding action.'));
 export const openBrowserIcon = registerIcon('ports-open-browser-icon', Codicon.globe, nls.localize('openBrowserIcon', 'Icon for the open browser action.'));
+export const openPreviewIcon = registerIcon('ports-open-preview-icon', Codicon.openPreview, nls.localize('openPreviewIcon', 'Icon for the open preview action.'));
+export const copyAddressIcon = registerIcon('ports-copy-address-icon', Codicon.clippy, nls.localize('copyAddressIcon', 'Icon for the copy local address action.'));
+export const labelPortIcon = registerIcon('ports-label-icon', Codicon.tag, nls.localize('labelPortIcon', 'Icon for the label port action.'));
+export const forwardedPortWithoutProcessIcon = registerIcon('ports-forwarded-without-process-icon', Codicon.circleOutline, nls.localize('forwardedPortWithoutProcessIcon', 'Icon for forwarded ports that don\'t have a running process.'));
+export const forwardedPortWithProcessIcon = registerIcon('ports-forwarded-with-process-icon', Codicon.circleFilled, nls.localize('forwardedPortWithProcessIcon', 'Icon for forwarded ports that do have a running process.'));

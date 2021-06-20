@@ -8,7 +8,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { $ } from 'vs/base/browser/dom';
 
 export interface IRow {
-	domNode: HTMLElement | null;
+	domNode: HTMLElement;
 	templateId: string;
 	templateData: any;
 }
@@ -84,7 +84,6 @@ export class RowCache<T> implements IDisposable {
 			for (const cachedRow of cachedRows) {
 				const renderer = this.getRenderer(templateId);
 				renderer.disposeTemplate(cachedRow.templateData);
-				cachedRow.domNode = null;
 				cachedRow.templateData = null;
 			}
 		});

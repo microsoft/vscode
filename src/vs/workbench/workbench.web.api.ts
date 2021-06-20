@@ -6,7 +6,6 @@
 import 'vs/workbench/workbench.web.main';
 import { main } from 'vs/workbench/browser/web.main';
 import { UriComponents, URI } from 'vs/base/common/uri';
-import { IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, FileChangeType } from 'vs/platform/files/common/files';
 import { IWebSocketFactory, IWebSocket } from 'vs/platform/remote/browser/browserSocketFactory';
 import { IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
@@ -16,9 +15,10 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceProvider, IWorkspace } from 'vs/workbench/services/host/browser/browserHostService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IProductConfiguration } from 'vs/platform/product/common/productService';
+import { IProductConfiguration } from 'vs/base/common/product';
 import { mark } from 'vs/base/common/performance';
 import { ICredentialsProvider } from 'vs/workbench/services/credentials/common/credentials';
+import { TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 
 interface IResourceUriProvider {
 	(uri: URI): URI;
@@ -26,9 +26,14 @@ interface IResourceUriProvider {
 
 interface IStaticExtension {
 	packageJSON: IExtensionManifest;
-	extensionLocation: URI;
+	extensionLocation: UriComponents;
 	isBuiltin?: boolean;
 }
+
+/**
+ * The id of an extension. It is always ${publisher}.${name}. For example: vscode.csharp.
+ */
+type ExtensionId = string;
 
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
@@ -46,9 +51,14 @@ interface ITunnelProvider {
 	tunnelFactory?: ITunnelFactory;
 
 	/**
-	 * Support for filtering candidate ports
+	 * Support for filtering candidate ports.
 	 */
 	showPortCandidate?: IShowPortCandidate;
+
+	/**
+	 * The features that the tunnel provider supports.
+	 */
+	features?: TunnelProviderFeatures;
 }
 
 interface ITunnelFactory {
@@ -56,6 +66,7 @@ interface ITunnelFactory {
 }
 
 interface ITunnelOptions {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -64,16 +75,22 @@ interface ITunnelOptions {
 	localAddressPort?: number;
 
 	label?: string;
+
+	public?: boolean;
+
+	protocol?: string;
 }
 
 export interface TunnelCreationOptions {
+
 	/**
 	 * True when the local operating system will require elevation to use the requested local port.
 	 */
 	elevationRequired?: boolean;
 }
 
-interface ITunnel extends IDisposable {
+interface ITunnel {
+
 	remoteAddress: { port: number, host: string };
 
 	/**
@@ -81,10 +98,19 @@ interface ITunnel extends IDisposable {
 	 */
 	localAddress: string;
 
+	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
+
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
 	 */
 	onDidDispose: Event<void>;
+
+	dispose(): Promise<void> | void;
 }
 
 interface IShowPortCandidate {
@@ -173,46 +199,6 @@ interface IInitialColorTheme {
 	colors?: { [colorId: string]: string };
 }
 
-interface IDefaultSideBarLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active: true;
-		order?: number;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	} | {
-		id: 'explorer' | 'run' | 'scm' | 'search' | 'extensions' | 'remote' | string;
-		active?: false;
-		order?: number;
-		visible?: boolean;
-		views?: {
-			id: string;
-			order?: number;
-			visible?: boolean;
-			collapsed?: boolean;
-		}[];
-	})[];
-}
-
-interface IDefaultPanelLayout {
-	visible?: boolean;
-	containers?: ({
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active: true;
-	} | {
-		id: 'terminal' | 'debug' | 'problems' | 'output' | 'comments' | string;
-		order?: number;
-		active?: false;
-		visible?: boolean;
-	})[];
-}
-
 interface IDefaultView {
 	readonly id: string;
 }
@@ -226,6 +212,8 @@ interface IDefaultEditor {
 interface IDefaultLayout {
 	readonly views?: IDefaultView[];
 	readonly editors?: IDefaultEditor[];
+	/** Forces this layout to be applied even if this isn't the first time the workspace has been opened */
+	readonly force?: boolean;
 }
 
 interface IProductQualityChangeHandler {
@@ -241,10 +229,17 @@ interface IProductQualityChangeHandler {
  * Settings sync options
  */
 interface ISettingsSyncOptions {
+
 	/**
 	 * Is settings sync enabled
 	 */
 	readonly enabled: boolean;
+
+	/**
+	 * Version of extensions sync state.
+	 * Extensions sync state will be reset if version is provided and different from previous version.
+	 */
+	readonly extensionsSyncStateVersion?: string;
 
 	/**
 	 * Handler is being called when the user changes Settings Sync enablement.
@@ -335,22 +330,36 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated
 	 */
-	readonly staticExtensions?: ReadonlyArray<IStaticExtension>;
+	readonly staticExtensions?: readonly IStaticExtension[];
+
+	/**
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
+	 * 	- `UriComponents`: location of the extension where it is hosted.
+	 */
+	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
+
+	/**
+	 * Filter for built-in extensions.
+	 */
+	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
-	 * Defaults to false on serverful and true on serverless.
+	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
 
 	/**
-	 * [TEMPORARY]: This will be removed soon.
-	 * Enable `<iframe>` wrapping.
-	 * Defaults to false.
+	 * Allows the workbench to skip checking whether an extension was built for the web
+	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
+	 * asset URI.
 	 */
-	readonly _wrapWebWorkerExtHostInIframe?: boolean;
+	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -371,7 +380,7 @@ interface IWorkbenchConstructionOptions {
 	readonly commands?: readonly ICommand[];
 
 	/**
-	 * Optional default layout to apply on first time the workspace is opened.
+	 * Optional default layout to apply on first time the workspace is opened (uness `force` is specified).
 	 */
 	readonly defaultLayout?: IDefaultLayout;
 
@@ -427,7 +436,15 @@ interface IWorkbenchConstructionOptions {
 	//#endregion
 
 
-	//#region Diagnostics
+	//#region Development options
+
+	readonly developmentOptions?: IDevelopmentOptions;
+
+	//#endregion
+
+}
+
+interface IDevelopmentOptions {
 
 	/**
 	 * Current logging level. Default is `LogLevel.Info`.
@@ -435,14 +452,23 @@ interface IWorkbenchConstructionOptions {
 	readonly logLevel?: LogLevel;
 
 	/**
+	 * Location of a module containing extension tests to run once the workbench is open.
+	 */
+	readonly extensionTestsPath?: UriComponents;
+
+	/**
+	 * Add extensions under development.
+	 */
+	readonly extensions?: readonly UriComponents[];
+
+	/**
 	 * Whether to enable the smoke test driver.
 	 */
-	readonly driver?: boolean;
-
-	//#endregion
+	readonly enableSmokeTestDriver?: boolean;
 }
 
 interface IPerformanceMark {
+
 	/**
 	 * The name of a performace marker.
 	 */
@@ -455,26 +481,21 @@ interface IPerformanceMark {
 }
 
 interface IWorkbench {
+
 	commands: {
 		/**
-		 * Allows to execute a command, either built-in or from extensions.
+		 * @see [executeCommand](#commands.executeCommand)
 		 */
 		executeCommand(command: string, ...args: any[]): Promise<unknown>;
 	}
 
 	env: {
+		readonly uriScheme: string;
 		/**
-		 * Retrieve performance marks that have been collected during startup. This function
-		 * returns tuples of source and marks. A source is a dedicated context, like
-		 * the renderer or an extension host.
-		 *
-		 * *Note* that marks can be collected on different machines and in different processes
-		 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
-		 * across contexts should be taken with a grain of salt.
-		 *
-		 * @returns A promise that resolves to tuples of source and marks.
+		 * @see [retrievePerformanceMarks](#commands.retrievePerformanceMarks)
 		 */
 		retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]>;
+		openUri(uri: URI): Promise<boolean>;
 	}
 
 	/**
@@ -556,6 +577,36 @@ namespace commands {
 	}
 }
 
+namespace env {
+
+	/**
+	 * Retrieve performance marks that have been collected during startup. This function
+	 * returns tuples of source and marks. A source is a dedicated context, like
+	 * the renderer or an extension host.
+	 *
+	 * *Note* that marks can be collected on different machines and in different processes
+	 * and that therefore "different clocks" are used. So, comparing `startTime`-properties
+	 * across contexts should be taken with a grain of salt.
+	 *
+	 * @returns A promise that resolves to tuples of source and marks.
+	 */
+	export async function retrievePerformanceMarks(): Promise<[string, readonly IPerformanceMark[]][]> {
+		const workbench = await workbenchPromise;
+
+		return workbench.env.retrievePerformanceMarks();
+	}
+
+	export async function getUriScheme(): Promise<string> {
+		const workbench = await workbenchPromise;
+		return workbench.env.uriScheme;
+	}
+
+	export async function openUri(target: URI): Promise<boolean> {
+		const workbench = await workbenchPromise;
+		return workbench.env.openUri(target);
+	}
+}
+
 export {
 
 	// Factory
@@ -574,12 +625,6 @@ export {
 	// Workspace
 	IWorkspace,
 	IWorkspaceProvider,
-
-	// FileSystem
-	IFileSystemProvider,
-	FileSystemProviderCapabilities,
-	IFileChange,
-	FileChangeType,
 
 	// WebSockets
 	IWebSocketFactory,
@@ -638,11 +683,13 @@ export {
 	IDefaultView,
 	IDefaultEditor,
 	IDefaultLayout,
-	IDefaultPanelLayout,
-	IDefaultSideBarLayout,
 
 	// Env
-	IPerformanceMark
+	IPerformanceMark,
+	env,
+
+	// Development
+	IDevelopmentOptions
 };
 
 //#endregion

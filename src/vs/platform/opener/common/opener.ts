@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase, startsWithIgnoreCase } from 'vs/base/common/strings';
+import { URI } from 'vs/base/common/uri';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IOpenerService = createDecorator<IOpenerService>('openerService');
 
@@ -29,9 +30,18 @@ export type OpenInternalOptions = {
 	 * action, such as keyboard or mouse usage.
 	 */
 	readonly fromUserGesture?: boolean;
+
+	/**
+	 * Allow command links to be handled.
+	 */
+	readonly allowCommands?: boolean;
 };
 
-export type OpenExternalOptions = { readonly openExternal?: boolean; readonly allowTunneling?: boolean };
+export type OpenExternalOptions = {
+	readonly openExternal?: boolean;
+	readonly allowTunneling?: boolean;
+	readonly allowContributedOpeners?: boolean | string;
+};
 
 export type OpenOptions = OpenInternalOptions & OpenExternalOptions;
 
@@ -46,7 +56,8 @@ export interface IOpener {
 }
 
 export interface IExternalOpener {
-	openExternal(href: string): Promise<boolean>;
+	openExternal(href: string, ctx: { sourceUri: URI, preferredOpenerId?: string }, token: CancellationToken): Promise<boolean>;
+	dispose?(): void;
 }
 
 export interface IValidator {
@@ -81,7 +92,12 @@ export interface IOpenerService {
 	 * Sets the handler for opening externally. If not provided,
 	 * a default handler will be used.
 	 */
-	setExternalOpener(opener: IExternalOpener): void;
+	setDefaultExternalOpener(opener: IExternalOpener): void;
+
+	/**
+	 * Registers a new opener external resources openers.
+	 */
+	registerExternalOpener(opener: IExternalOpener): IDisposable;
 
 	/**
 	 * Opens a resource, like a webaddress, a document uri, or executes command.
@@ -93,19 +109,21 @@ export interface IOpenerService {
 
 	/**
 	 * Resolve a resource to its external form.
+	 * @throws whenever resolvers couldn't resolve this resource externally.
 	 */
 	resolveExternalUri(resource: URI, options?: ResolveExternalUriOptions): Promise<IResolvedExternalUri>;
 }
 
-export const NullOpenerService: IOpenerService = Object.freeze({
+export const NullOpenerService = Object.freeze({
 	_serviceBrand: undefined,
 	registerOpener() { return Disposable.None; },
 	registerValidator() { return Disposable.None; },
 	registerExternalUriResolver() { return Disposable.None; },
-	setExternalOpener() { },
+	setDefaultExternalOpener() { },
+	registerExternalOpener() { return Disposable.None; },
 	async open() { return false; },
 	async resolveExternalUri(uri: URI) { return { resolved: uri, dispose() { } }; },
-});
+} as IOpenerService);
 
 export function matchesScheme(target: URI | string, scheme: string) {
 	if (URI.isUri(target)) {

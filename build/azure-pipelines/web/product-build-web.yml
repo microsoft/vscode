@@ -1,7 +1,7 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.18.3"
+      versionSpec: "14.x"
 
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,web-storage-account,web-storage-key,ticino-storage-key'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -42,12 +43,6 @@ steps:
     displayName: Merge distro
 
   - script: |
-      npx https://aka.ms/enablesecurefeed standAlone
-    displayName: Switch to Terrapin packages
-    timeoutInMinutes: 5
-    condition: and(succeeded(), eq(variables['ENABLE_TERRAPIN'], 'true'))
-
-  - script: |
       mkdir -p .build
       node build/azure-pipelines/common/computeNodeModulesCacheKey.js "web" $ENABLE_TERRAPIN > .build/yarnlockhash
     displayName: Prepare yarn cache flags
@@ -57,13 +52,20 @@ steps:
       key: 'nodeModules | $(Agent.OS) | .build/yarnlockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
-    displayName: Cache node_modules archive
+    displayName: Restore node_modules cache
 
   - script: |
       set -e
       tar -xzf .build/node_modules_cache/cache.tgz
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
-    displayName: Extract node_modules archive
+    displayName: Extract node_modules cache
+
+  - script: |
+      set -e
+      npx https://aka.ms/enablesecurefeed standAlone
+    timeoutInMinutes: 5
+    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['ENABLE_TERRAPIN'], 'true'))
+    displayName: Switch to Terrapin packages
 
   - script: |
       set -e
@@ -78,6 +80,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -118,8 +121,19 @@ steps:
 
   - script: |
       set -e
-      AZURE_DOCUMENTDB_MASTERKEY="$(builds-docdb-key-readwrite)" \
-      AZURE_STORAGE_ACCESS_KEY_2="$(vscode-storage-key)" \
-      VSCODE_MIXIN_PASSWORD="$(github-distro-mixin-password)" \
-      ./build/azure-pipelines/web/publish.sh
-    displayName: Publish
+      REPO="$(pwd)"
+      ROOT="$REPO/.."
+
+      WEB_BUILD_NAME="vscode-web"
+      WEB_TARBALL_FILENAME="vscode-web.tar.gz"
+      WEB_TARBALL_PATH="$ROOT/$WEB_TARBALL_FILENAME"
+
+      rm -rf $ROOT/vscode-web.tar.*
+
+      cd $ROOT && tar --owner=0 --group=0 -czf $WEB_TARBALL_PATH $WEB_BUILD_NAME
+    displayName: Prepare for publish
+
+  - publish: $(Agent.BuildDirectory)/vscode-web.tar.gz
+    artifact: vscode_web_linux_standalone_archive-unsigned
+    displayName: Publish web archive
+    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))

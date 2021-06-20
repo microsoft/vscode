@@ -26,7 +26,7 @@ const packageJson = require('../package.json');
 const product = require('../product.json');
 const crypto = require('crypto');
 const i18n = require('./lib/i18n');
-const { getProductionDependencies } = require('./dependencies');
+const { getProductionDependencies } = require('./lib/dependencies');
 const { config } = require('./lib/electron');
 const createAsar = require('./lib/asar').createAsar;
 const minimist = require('minimist');
@@ -52,7 +52,6 @@ const vscodeResources = [
 	'out-build/bootstrap-amd.js',
 	'out-build/bootstrap-node.js',
 	'out-build/bootstrap-window.js',
-	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,html,jpg}',
 	'!out-build/vs/code/browser/**/*.html',
 	'!out-build/vs/editor/standalone/**/*.svg',
@@ -61,6 +60,7 @@ const vscodeResources = [
 	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh,cpuUsage.sh,ps.sh}',
 	'out-build/vs/base/browser/ui/codicons/codicon/**',
 	'out-build/vs/base/parts/sandbox/electron-browser/preload.js',
+	'out-build/vs/platform/environment/node/userDataPath.js',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/contrib/debug/**/*.json',
 	'out-build/vs/workbench/contrib/externalTerminal/**/*.scpt',
@@ -98,6 +98,16 @@ const minifyVSCodeTask = task.define('minify-vscode', task.series(
 	common.minifyTask('out-vscode', `${sourceMappingURLBase}/core`)
 ));
 gulp.task(minifyVSCodeTask);
+
+const core = task.define('core-ci', task.series(
+	gulp.task('compile-build'),
+	task.parallel(
+		gulp.task('minify-vscode'),
+		gulp.task('minify-vscode-reh'),
+		gulp.task('minify-vscode-reh-web'),
+	)
+));
+gulp.task(core);
 
 /**
  * Compute checksums for some files.
@@ -158,7 +168,16 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 			.pipe(rename(function (path) { path.dirname = path.dirname.replace(new RegExp('^' + out), 'out'); }))
 			.pipe(util.setExecutableBit(['**/*.sh']));
 
-		const extensions = gulp.src('.build/extensions/**', { base: '.build', dot: true });
+		const platformSpecificBuiltInExtensionsExclusions = product.builtInExtensions.filter(ext => {
+			if (!ext.platforms) {
+				return false;
+			}
+
+			const set = new Set(ext.platforms);
+			return !set.has(platform);
+		}).map(ext => `!.build/extensions/${ext.name}/**`);
+
+		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
 
 		const sources = es.merge(src, extensions)
 			.pipe(filter(['**', '!**/*.js.map'], { dot: true }));
@@ -204,12 +223,19 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		const dependenciesSrc = _.flatten(productionDependencies.map(d => path.relative(root, d.path)).map(d => [`${d}/**`, `!${d}/**/{test,tests}/**`]));
 
 		const deps = gulp.src(dependenciesSrc, { base: '.', dot: true })
-			.pipe(filter(['**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
+			.pipe(filter(['**', `!**/${config.version}/**`, '!**/bin/darwin-arm64-87/**', '!**/package-lock.json', '!**/yarn.lock', '!**/*.js.map']))
 			.pipe(util.cleanNodeModules(path.join(__dirname, '.moduleignore')))
 			.pipe(jsFilter)
 			.pipe(util.rewriteSourceMappingURL(sourceMappingURLBase))
 			.pipe(jsFilter.restore)
-			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), ['**/*.node', '**/vscode-ripgrep/bin/*', '**/node-pty/build/Release/*', '**/*.wasm'], 'node_modules.asar'));
+			.pipe(createAsar(path.join(process.cwd(), 'node_modules'), [
+				'**/*.node',
+				'**/vscode-ripgrep/bin/*',
+				'**/node-pty/build/Release/*',
+				'**/node-pty/lib/worker/conoutSocketWorker.js',
+				'**/node-pty/lib/shared/conout.js',
+				'**/*.wasm'
+			], 'node_modules.asar'));
 
 		let all = es.merge(
 			packageJsonStream,
@@ -265,6 +291,7 @@ function packageTask(platform, arch, sourceFolderName, destinationFolderName, op
 		let result = all
 			.pipe(util.skipDirectories())
 			.pipe(util.fixWin32DirectoryPermissions())
+			.pipe(filter(['**', '!**/.github/**'], { dot: true })) // https://github.com/microsoft/vscode/issues/116523
 			.pipe(electron(_.extend({}, config, { platform, arch: arch === 'armhf' ? 'arm' : arch, ffmpegChromium: true })))
 			.pipe(filter(['**', '!LICENSE', '!LICENSES.chromium.html', '!version'], { dot: true }));
 
@@ -363,8 +390,6 @@ BUILD_TARGETS.forEach(buildTarget => {
 	}
 });
 
-// Transifex Localizations
-
 const innoSetupConfig = {
 	'zh-cn': { codePage: 'CP936', defaultInfo: { name: 'Simplified Chinese', id: '$0804', } },
 	'zh-tw': { codePage: 'CP950', defaultInfo: { name: 'Traditional Chinese', id: '$0404' } },
@@ -379,6 +404,8 @@ const innoSetupConfig = {
 	'hu': { codePage: 'CP1250' },
 	'tr': { codePage: 'CP1254' }
 };
+
+// Transifex Localizations
 
 const apiHostname = process.env.TRANSIFEX_API_URL;
 const apiName = process.env.TRANSIFEX_API_NAME;
@@ -414,7 +441,7 @@ gulp.task(task.define(
 		function () {
 			const pathToMetadata = './out-vscode/nls.metadata.json';
 			const pathToExtensions = '.build/extensions/*';
-			const pathToSetup = 'build/win32/**/{Default.isl,messages.en.isl}';
+			const pathToSetup = 'build/win32/i18n/messages.en.isl';
 
 			return es.merge(
 				gulp.src(pathToMetadata).pipe(i18n.createXlfFilesForCoreBundle()),
@@ -440,8 +467,8 @@ gulp.task('vscode-translations-import', function () {
 		}
 	});
 	return es.merge([...i18n.defaultLanguages, ...i18n.extraLanguages].map(language => {
-		let id = language.transifexId || language.id;
-		return gulp.src(`${options.location}/${id}/setup/*/*.xlf`)
+		let id = language.id;
+		return gulp.src(`${options.location}/${id}/vscode-setup/messages.xlf`)
 			.pipe(i18n.prepareIslFiles(language, innoSetupConfig[language.id]))
 			.pipe(vfs.dest(`./build/win32/i18n`));
 	}));
@@ -507,7 +534,7 @@ gulp.task(task.define(
 
 			if (!shouldSetupSettingsSearch()) {
 				const branch = process.env.BUILD_SOURCEBRANCH;
-				console.log(`Only runs on master and release branches, not ${branch}`);
+				console.log(`Only runs on main and release branches, not ${branch}`);
 				return;
 			}
 
@@ -533,21 +560,21 @@ gulp.task(task.define(
 
 function shouldSetupSettingsSearch() {
 	const branch = process.env.BUILD_SOURCEBRANCH;
-	return branch && (/\/master$/.test(branch) || branch.indexOf('/release/') >= 0);
+	return branch && (/\/main$/.test(branch) || branch.indexOf('/release/') >= 0);
 }
 
 function getSettingsSearchBuildId(packageJson) {
 	try {
 		const branch = process.env.BUILD_SOURCEBRANCH;
 		const branchId = branch.indexOf('/release/') >= 0 ? 0 :
-			/\/master$/.test(branch) ? 1 :
+			/\/main$/.test(branch) ? 1 :
 				2; // Some unexpected branch
 
 		const out = cp.execSync(`git rev-list HEAD --count`);
 		const count = parseInt(out.toString());
 
 		// <version number><commit count><branchId (avoid unlikely conflicts)>
-		// 1.25.1, 1,234,567 commits, master = 1250112345671
+		// 1.25.1, 1,234,567 commits, main = 1250112345671
 		return util.versionStringToNumber(packageJson.version) * 1e8 + count * 10 + branchId;
 	} catch (e) {
 		throw new Error('Could not determine build number: ' + e.toString());

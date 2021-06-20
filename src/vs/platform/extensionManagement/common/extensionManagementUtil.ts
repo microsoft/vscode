@@ -42,12 +42,16 @@ export class ExtensionIdentifierWithVersion implements IExtensionIdentifierWithV
 	}
 }
 
+export function getExtensionId(publisher: string, name: string): string {
+	return `${publisher}.${name}`;
+}
+
 export function adoptToGalleryExtensionId(id: string): string {
 	return id.toLocaleLowerCase();
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
+	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {

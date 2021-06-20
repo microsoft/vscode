@@ -30,8 +30,7 @@
 }
 
 .monaco-hover .markdown-hover > .hover-contents:not(.code-hover-contents) hr {
-	/* This is a strange rule but it avoids https://github.com/microsoft/vscode/issues/96795, just 100vw on its own caused the actual hover width to increase */
-	min-width: calc(100% + 100vw);
+	min-width: 100%;
 }
 
 .monaco-hover p,
@@ -45,10 +44,13 @@
 }
 
 .monaco-hover hr {
+	box-sizing: border-box;
+	border-left: 0px;
+	border-right: 0px;
 	margin-top: 4px;
 	margin-bottom: -4px;
-	margin-left: -10px;
-	margin-right: -10px;
+	margin-left: -8px;
+	margin-right: -8px;
 	height: 1px;
 }
 
@@ -135,4 +137,15 @@
 .monaco-hover .markdown-hover .hover-contents:not(.code-hover-contents) span {
 	margin-bottom: 4px;
 	display: inline-block;
+}
+
+.monaco-hover-content .action-container a {
+	-webkit-user-select: none;
+	user-select: none;
+}
+
+.monaco-hover-content .action-container.disabled {
+	pointer-events: none;
+	opacity: 0.4;
+	cursor: default;
 }

@@ -7,7 +7,6 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { once as onceFn } from 'vs/base/common/functional';
 import { Disposable, IDisposable, toDisposable, combinedDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { StopWatch } from 'vs/base/common/stopwatch';
 
 /**
@@ -50,25 +49,23 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event and a `map` function, returns another event which maps each element
-	 * through the mapping function.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function map<I, O>(event: Event<I>, map: (i: I) => O): Event<O> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => listener.call(thisArgs, map(i)), null, disposables));
 	}
 
 	/**
-	 * Given an event and an `each` function, returns another identical event and calls
-	 * the `each` function per each element.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function forEach<I>(event: Event<I>, each: (i: I) => void): Event<I> {
 		return snapshot((listener, thisArgs = null, disposables?) => event(i => { each(i); listener.call(thisArgs, i); }, null, disposables));
 	}
 
 	/**
-	 * Given an event and a `filter` function, returns another event which emits those
-	 * elements for which the `filter` function returns `true`.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
+	export function filter<T, U>(event: Event<T | U>, filter: (e: T | U) => e is T): Event<T>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T>;
 	export function filter<T, R>(event: Event<T | R>, filter: (e: T | R) => e is R): Event<R>;
 	export function filter<T>(event: Event<T>, filter: (e: T) => boolean): Event<T> {
@@ -93,8 +90,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event and a `merge` function, returns another event which maps each element
-	 * and the cumulative result through the `merge` function. Similar to `map`, but with memory.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function reduce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, initial?: O): Event<O> {
 		let output: O | undefined = initial;
@@ -106,11 +102,9 @@ export namespace Event {
 	}
 
 	/**
-	 * Given a chain of event processing functions (filter, map, etc), each
-	 * function will be invoked per event & per listener. Snapshotting an event
-	 * chain allows each function to be invoked just once per event.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function snapshot<T>(event: Event<T>): Event<T> {
+	function snapshot<T>(event: Event<T>): Event<T> {
 		let listener: IDisposable;
 		const emitter = new Emitter<T>({
 			onFirstListenerAdd() {
@@ -125,13 +119,7 @@ export namespace Event {
 	}
 
 	/**
-	 * Debounces the provided event, given a `merge` function.
-	 *
-	 * @param event The input event.
-	 * @param merge The reducing function.
-	 * @param delay The debouncing delay in millis.
-	 * @param leading Whether the event should fire in the leading phase of the timeout.
-	 * @param leakWarningThreshold The leak warning threshold override.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
@@ -176,25 +164,14 @@ export namespace Event {
 	}
 
 	/**
-	 * Given an event, it returns another event which fires only once and as soon as
-	 * the input event emits. The event data is the number of millis it took for the
-	 * event to fire.
+	 * @deprecated DO NOT use, this leaks memory
 	 */
-	export function stopwatch<T>(event: Event<T>): Event<number> {
-		const start = new Date().getTime();
-		return map(once(event), _ => new Date().getTime() - start);
-	}
-
-	/**
-	 * Given an event, it returns another event which fires only when the event
-	 * element changes.
-	 */
-	export function latch<T>(event: Event<T>): Event<T> {
+	export function latch<T>(event: Event<T>, equals: (a: T, b: T) => boolean = (a, b) => a === b): Event<T> {
 		let firstCall = true;
 		let cache: T;
 
 		return filter(event, value => {
-			const shouldEmit = firstCall || value !== cache;
+			const shouldEmit = firstCall || !equals(value, cache);
 			firstCall = false;
 			cache = value;
 			return shouldEmit;
@@ -202,26 +179,17 @@ export namespace Event {
 	}
 
 	/**
-	 * Buffers the provided event until a first listener comes
-	 * along, at which point fire all the events at once and
-	 * pipe the event from then on.
-	 *
-	 * ```typescript
-	 * const emitter = new Emitter<number>();
-	 * const event = emitter.event;
-	 * const bufferedEvent = buffer(event);
-	 *
-	 * emitter.fire(1);
-	 * emitter.fire(2);
-	 * emitter.fire(3);
-	 * // nothing...
-	 *
-	 * const listener = bufferedEvent(num => console.log(num));
-	 * // 1, 2, 3
-	 *
-	 * emitter.fire(4);
-	 * // 4
-	 * ```
+	 * @deprecated DO NOT use, this leaks memory
+	 */
+	export function split<T, U>(event: Event<T | U>, isT: (e: T | U) => e is T): [Event<T>, Event<U>] {
+		return [
+			Event.filter(event, isT),
+			Event.filter(event, e => !isT(e)) as Event<U>,
+		];
+	}
+
+	/**
+	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function buffer<T>(event: Event<T>, nextTick = false, _buffer: T[] = []): Event<T> {
 		let buffer: T[] | null = _buffer.slice();
@@ -324,6 +292,9 @@ export namespace Event {
 		}
 	}
 
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function chain<T>(event: Event<T>): IChainableEvent<T> {
 		return new ChainableEvent(event);
 	}
@@ -356,30 +327,12 @@ export namespace Event {
 		return result.event;
 	}
 
-	export function fromPromise<T = any>(promise: Promise<T>): Event<undefined> {
-		const emitter = new Emitter<undefined>();
-		let shouldEmit = false;
-
-		promise
-			.then(undefined, () => null)
-			.then(() => {
-				if (!shouldEmit) {
-					setTimeout(() => emitter.fire(undefined), 0);
-				} else {
-					emitter.fire(undefined);
-				}
-			});
-
-		shouldEmit = true;
-		return emitter.event;
-	}
-
 	export function toPromise<T>(event: Event<T>): Promise<T> {
-		return new Promise(c => once(event)(c));
+		return new Promise(resolve => once(event)(resolve));
 	}
 }
 
-type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
+export type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
 	onFirstListenerAdd?: Function;
@@ -634,10 +587,13 @@ export class Emitter<T> {
 	}
 
 	dispose() {
-		this._listeners?.clear();
-		this._deliveryQueue?.clear();
-		this._leakageMon?.dispose();
-		this._disposed = true;
+		if (!this._disposed) {
+			this._disposed = true;
+			this._listeners?.clear();
+			this._deliveryQueue?.clear();
+			this._options?.onLastListenerRemove?.();
+			this._leakageMon?.dispose();
+		}
 	}
 }
 
@@ -675,7 +631,7 @@ export class PauseableEmitter<T> extends Emitter<T> {
 		}
 	}
 
-	fire(event: T): void {
+	override fire(event: T): void {
 		if (this._listeners) {
 			if (this._isPaused !== 0) {
 				this._eventQueue.push(event);
@@ -686,61 +642,25 @@ export class PauseableEmitter<T> extends Emitter<T> {
 	}
 }
 
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<any>): void;
-}
+export class DebounceEmitter<T> extends PauseableEmitter<T> {
 
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+	private readonly _delay: number;
+	private _handle: any | undefined;
 
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
+	constructor(options: EmitterOptions & { merge: (input: T[]) => T, delay?: number }) {
+		super(options);
+		this._delay = options.delay ?? 100;
+	}
 
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>): Promise<void> {
-		if (!this._listeners) {
-			return;
+	override fire(event: T): void {
+		if (!this._handle) {
+			this.pause();
+			this._handle = setTimeout(() => {
+				this._handle = undefined;
+				this.resume();
+			}, this._delay);
 		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<any>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<any>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promise.all(thenables).catch(e => onUnexpectedError(e));
-		}
+		super.fire(event);
 	}
 }
 

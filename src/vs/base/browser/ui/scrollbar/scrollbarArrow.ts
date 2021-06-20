@@ -88,7 +88,7 @@ export class ScrollbarArrow extends Widget {
 	}
 
 	private _arrowMouseDown(e: IMouseEvent): void {
-		let scheduleRepeater = () => {
+		const scheduleRepeater = () => {
 			this._mousedownRepeatTimer.cancelAndSet(() => this._onActivate(), 1000 / 24);
 		};
 

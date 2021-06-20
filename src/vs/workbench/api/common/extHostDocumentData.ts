@@ -42,7 +42,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 		super(uri, lines, eol, versionId);
 	}
 
-	dispose(): void {
+	override dispose(): void {
 		// we don't really dispose documents but let
 		// extensions still read from them. some
 		// operations, live saving, will now error tho
@@ -143,7 +143,7 @@ export class ExtHostDocumentData extends MirrorTextModel {
 	private _offsetAt(position: vscode.Position): number {
 		position = this._validatePosition(position);
 		this._ensureLineStarts();
-		return this._lineStarts!.getAccumulatedValue(position.line - 1) + position.character;
+		return this._lineStarts!.getPrefixSum(position.line - 1) + position.character;
 	}
 
 	private _positionAt(offset: number): vscode.Position {

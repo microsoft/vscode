@@ -3,10 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
-import { URI } from 'vs/base/common/uri';
-import { IAction, Separator } from 'vs/base/common/actions';
-import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
+import { Separator } from 'vs/base/common/actions';
+import { IMenuService, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -17,7 +15,7 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUpdateService } from 'vs/platform/update/common/update';
-import { MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
+import { IOpenRecentAction, MenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IMenubarData, IMenubarMenu, IMenubarKeybinding, IMenubarMenuItemSubmenu, IMenubarMenuItemAction, MenubarMenuItem } from 'vs/platform/menubar/common/menubar';
 import { IMenubarService } from 'vs/platform/menubar/electron-sandbox/menubar';
@@ -25,6 +23,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class NativeMenubarControl extends MenubarControl {
 
@@ -39,18 +38,14 @@ export class NativeMenubarControl extends MenubarControl {
 		@IStorageService storageService: IStorageService,
 		@INotificationService notificationService: INotificationService,
 		@IPreferencesService preferencesService: IPreferencesService,
-		@INativeWorkbenchEnvironmentService protected readonly environmentService: INativeWorkbenchEnvironmentService,
+		@INativeWorkbenchEnvironmentService environmentService: INativeWorkbenchEnvironmentService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
 		@IMenubarService private readonly menubarService: IMenubarService,
 		@IHostService hostService: IHostService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@ICommandService commandService: ICommandService,
 	) {
-		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService);
-
-		if (isMacintosh) {
-			this.menus['Preferences'] = this._register(this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService));
-			this.topLevelTitles['Preferences'] = localize('mPreferences', "Preferences");
-		}
+		super(menuService, workspacesService, contextKeyService, keybindingService, configurationService, labelService, updateService, storageService, notificationService, preferencesService, environmentService, accessibilityService, hostService, commandService);
 
 		for (const topLevelMenuName of Object.keys(this.topLevelTitles)) {
 			const menu = this.menus[topLevelMenuName];
@@ -105,29 +100,38 @@ export class NativeMenubarControl extends MenubarControl {
 
 	private populateMenuItems(menu: IMenu, menuToPopulate: IMenubarMenu, keybindings: { [id: string]: IMenubarKeybinding | undefined }) {
 		let groups = menu.getActions();
+
 		for (let group of groups) {
 			const [, actions] = group;
 
 			actions.forEach(menuItem => {
 
+				// use mnemonicTitle whenever possible
+				const title = typeof menuItem.item.title === 'string'
+					? menuItem.item.title
+					: menuItem.item.title.mnemonicTitle ?? menuItem.item.title.value;
+
 				if (menuItem instanceof SubmenuItemAction) {
 					const submenu = { items: [] };
 
 					if (!this.menus[menuItem.item.submenu.id]) {
-						const menu = this.menus[menuItem.item.submenu.id] = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
+						const menu = this.menus[menuItem.item.submenu.id] = this._register(this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService));
 						this._register(menu.onDidChange(() => this.updateMenubar()));
 					}
 
 					const menuToDispose = this.menuService.createMenu(menuItem.item.submenu, this.contextKeyService);
 					this.populateMenuItems(menuToDispose, submenu, keybindings);
 
-					let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
-						id: menuItem.id,
-						label: menuItem.label,
-						submenu: submenu
-					};
+					if (submenu.items.length > 0) {
+						let menubarSubmenuItem: IMenubarMenuItemSubmenu = {
+							id: menuItem.id,
+							label: title,
+							submenu: submenu
+						};
 
-					menuToPopulate.items.push(menubarSubmenuItem);
+						menuToPopulate.items.push(menubarSubmenuItem);
+					}
+
 					menuToDispose.dispose();
 				} else {
 					if (menuItem.id === 'workbench.action.openRecent') {
@@ -137,7 +141,7 @@ export class NativeMenubarControl extends MenubarControl {
 
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItem.id,
-						label: menuItem.label
+						label: title
 					};
 
 					if (menuItem.checked) {
@@ -148,7 +152,6 @@ export class NativeMenubarControl extends MenubarControl {
 						menubarMenuItem.enabled = false;
 					}
 
-					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
 					keybindings[menuItem.id] = this.getMenubarKeybinding(menuItem.id);
 					menuToPopulate.items.push(menubarMenuItem);
 				}
@@ -162,7 +165,7 @@ export class NativeMenubarControl extends MenubarControl {
 		}
 	}
 
-	private transformOpenRecentAction(action: Separator | (IAction & { uri: URI })): MenubarMenuItem {
+	private transformOpenRecentAction(action: Separator | IOpenRecentAction): MenubarMenuItem {
 		if (action instanceof Separator) {
 			return { id: 'vscode.menubar.separator' };
 		}
@@ -170,6 +173,7 @@ export class NativeMenubarControl extends MenubarControl {
 		return {
 			id: action.id,
 			uri: action.uri,
+			remoteAuthority: action.remoteAuthority,
 			enabled: action.enabled,
 			label: action.label
 		};
