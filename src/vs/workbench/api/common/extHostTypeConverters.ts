@@ -1672,7 +1672,6 @@ export namespace TestItem {
 			label: item.label,
 			uri: URI.revive(item.uri),
 			range: Range.to(item.range || undefined),
-			addChild: () => undefined,
 			dispose: () => undefined,
 			status: types.TestItemStatus.Pending,
 			data: undefined as never,
@@ -1683,7 +1682,7 @@ export namespace TestItem {
 	}
 
 	export function to(item: ITestItem): types.TestItemImpl {
-		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined);
+		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined, undefined);
 		testItem.range = Range.to(item.range || undefined);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description || undefined;
