@@ -2,12 +2,6 @@
 	"version": "0.1.0",
 	"configurations": [
 		{
-			"type": "pwa-chrome",
-			"url": "http://127.0.0.1:8088/monaco-editor/test/",
-			"name": "Debug Monaco Playground",
-			"trace": true
-		},
-		{
 			"type": "node",
 			"request": "launch",
 			"name": "Gulp Build",
