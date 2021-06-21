@@ -748,6 +748,8 @@ suite('SplitLinesCollection', () => {
 		withSplitLinesCollection(model!, 'wordWrapColumn', 30, (splitLinesCollection) => {
 			assert.strictEqual(splitLinesCollection.getViewLineCount(), 14);
 
+			assert.strictEqual(splitLinesCollection.getViewLineMaxColumn(1), 24);
+
 			let _expected: ITestMinimapLineRenderingData[] = [
 				{
 					content: 'class Nivery very long ',
@@ -900,17 +902,6 @@ suite('SplitLinesCollection', () => {
 				_expected[10],
 				_expected[11],
 			]);
-
-			splitLinesCollection.setHiddenAreas([new Range(2, 1, 4, 1)]);
-			assert.strictEqual(splitLinesCollection.getViewLineCount(), 10);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(1, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(2, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(3, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(4, 1), false);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(5, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(6, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(7, 1), true);
-			assert.strictEqual(splitLinesCollection.modelPositionIsVisible(8, 1), true);
 		});
 	});
 
