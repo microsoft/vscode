@@ -137,6 +137,8 @@ export class InteractiveEditor extends EditorPane {
 			throw new Error('?');
 		}
 
+		this.#widgetDisposableStore.add(model);
+
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
 		this.#notebookWidget.value!.setOptions({
@@ -266,6 +268,9 @@ export class InteractiveEditor extends EditorPane {
 		if (this.#codeEditorWidget) {
 			this.#codeEditorWidget.dispose();
 		}
+
+		this.#notebookWidget = { value: undefined };
+		this.#widgetDisposableStore.clear();
 
 		super.clearInput();
 	}

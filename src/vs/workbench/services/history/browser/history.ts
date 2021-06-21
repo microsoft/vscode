@@ -951,7 +951,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 			// Cleanup any listeners associated with the input when removing from history
 			if (matches) {
-				this.clearOnEditorDispose(arg1, this.editorHistoryListeners);
+				this.clearOnEditorDispose(e, this.editorHistoryListeners);
+				if (e instanceof EditorInput && e.resource && !this.editorService.isOpened({ resource: e.resource, typeId: e.typeId })) {
+					// the editor input in history is never opened in editors (restored from history)
+					e.dispose();
+				}
 			}
 
 			return !matches;
