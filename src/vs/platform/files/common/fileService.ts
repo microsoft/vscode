@@ -1007,44 +1007,112 @@ export class FileService extends Disposable implements IFileService {
 
 	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
 
-		// Event #1: access to raw events
+		// Event #1: access to raw events goes out instantly
 		{
 			this._onDidChangeFilesRaw.fire(changes);
 		}
 
-		// Event #2: throttled due to performance reasons
+		// Event #2: immediately send out events for
+		// explicitly watched resources by splitting
+		// changes up into 2 buckets
+		let explicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
+		let implicitlyWatchedFileChanges: IFileChange[] | undefined = undefined;
 		{
+			for (const change of changes) {
+				if (this.watchedResources.has(change.resource)) {
+					if (!explicitlyWatchedFileChanges) {
+						explicitlyWatchedFileChanges = [];
+					}
+					explicitlyWatchedFileChanges.push(change);
+				} else {
+					if (!implicitlyWatchedFileChanges) {
+						implicitlyWatchedFileChanges = [];
+					}
+					implicitlyWatchedFileChanges.push(change);
+				}
+			}
+
+			if (explicitlyWatchedFileChanges) {
+				this._onDidFilesChange.fire(new FileChangesEvent(explicitlyWatchedFileChanges, !caseSensitive));
+			}
+		}
+
+		// Event #3: implicitly watched resources get
+		// throttled due to performance reasons
+		if (implicitlyWatchedFileChanges) {
 			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
-			const worked = worker.work(changes);
+			const worked = worker.work(implicitlyWatchedFileChanges);
 
 			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${implicitlyWatchedFileChanges.length}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 
 			if (worker.pending > 0) {
-				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${implicitlyWatchedFileChanges[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}
 
+	private readonly watchedResources = TernarySearchTree.forUris<number>(uri => {
+		const provider = this.getProvider(uri.scheme);
+		if (provider) {
+			return !this.isPathCaseSensitive(provider);
+		}
+
+		return false;
+	});
+
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
-		let watchDisposed = false;
-		let disposeWatch = () => { watchDisposed = true; };
+		const disposables = new DisposableStore();
 
-		// Watch and wire in disposable which is async but
-		// check if we got disposed meanwhile and forward
-		this.doWatch(resource, options).then(disposable => {
-			if (watchDisposed) {
-				dispose(disposable);
-			} else {
-				disposeWatch = () => dispose(disposable);
-			}
-		}, error => this.logService.error(error));
+		// Forward watch request to provider and
+		// wire in disposables.
+		{
+			let watchDisposed = false;
+			let disposeWatch = () => { watchDisposed = true; };
+			disposables.add(toDisposable(() => disposeWatch()));
 
-		return toDisposable(() => disposeWatch());
+			// Watch and wire in disposable which is async but
+			// check if we got disposed meanwhile and forward
+			this.doWatch(resource, options).then(disposable => {
+				if (watchDisposed) {
+					dispose(disposable);
+				} else {
+					disposeWatch = () => dispose(disposable);
+				}
+			}, error => this.logService.error(error));
+		}
+
+		// Remember as watched resource and unregister
+		// properly on disposal.
+		//
+		// Note: we only do this for non-recursive watchers
+		// until we have a better `createWatcher` based API
+		// (https://github.com/microsoft/vscode/issues/126809)
+		//
+		if (!options.recursive) {
+
+			// Increment counter for resource
+			this.watchedResources.set(resource, (this.watchedResources.get(resource) ?? 0) + 1);
+
+			// Decrement counter for resource on dispose
+			// and remove from map when last one is gone
+			disposables.add(toDisposable(() => {
+				const watchedResourceCounter = this.watchedResources.get(resource);
+				if (typeof watchedResourceCounter === 'number') {
+					if (watchedResourceCounter <= 1) {
+						this.watchedResources.delete(resource);
+					} else {
+						this.watchedResources.set(resource, watchedResourceCounter - 1);
+					}
+				}
+			}));
+		}
+
+		return disposables;
 	}
 
-	async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
+	private async doWatch(resource: URI, options: IWatchOptions): Promise<IDisposable> {
 		const provider = await this.withProvider(resource);
 		const key = this.toWatchKey(provider, resource, options);
 
