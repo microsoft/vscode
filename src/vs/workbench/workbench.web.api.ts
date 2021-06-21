@@ -31,7 +31,8 @@ interface IStaticExtension {
 }
 
 /**
- * The id of an extension. It is always ${publisher}.${name}. For example: vscode.csharp.
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
  */
 type ExtensionId = string;
 
