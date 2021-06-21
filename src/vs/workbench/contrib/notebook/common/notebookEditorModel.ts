@@ -208,7 +208,11 @@ export class ComplexNotebookEditorModel extends EditorModel implements INotebook
 			return this;
 		}
 
-		const backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
+		let backup: IResolvedWorkingCopyBackup<NotebookDocumentBackupData> | undefined = undefined;
+
+		try {
+			backup = await this._workingCopyBackupService.resolve<NotebookDocumentBackupData>(this._workingCopyIdentifier);
+		} catch (_e) { }
 
 		if (this.isResolved()) {
 			return this; // Make sure meanwhile someone else did not succeed in loading

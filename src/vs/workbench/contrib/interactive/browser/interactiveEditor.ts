@@ -269,6 +269,9 @@ export class InteractiveEditor extends EditorPane {
 			this.#codeEditorWidget.dispose();
 		}
 
+		this.#notebookWidget = { value: undefined };
+		this.#widgetDisposableStore.clear();
+
 		super.clearInput();
 	}
 

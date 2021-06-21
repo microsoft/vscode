@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IReference } from 'vs/base/common/lifecycle';
 import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -12,17 +11,11 @@ import { IEditorInput } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { INotebookEditorModelResolverService } from 'vs/workbench/contrib/notebook/common/notebookEditorModelResolverService';
-import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
-interface InteractiveEditorInputOptions {
-	startFresh?: boolean;
-}
-
 export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
-	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI, options?: InteractiveEditorInputOptions) {
-		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource, options ?? {});
+	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI) {
+		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource);
 	}
 
 	static override readonly ID: string = 'workbench.input.interactive';
@@ -40,62 +33,32 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		return [this._notebookEditorInput];
 	}
 
+	override get resource() {
+		return this.primary.resource;
+	}
+
 	private _inputResource: URI;
 
 	get inputResource() {
 		return this._inputResource;
 	}
 
-	private readonly _options: InteractiveEditorInputOptions;
 	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
-	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null;
-	private readonly _notebookService: INotebookService;
-	private readonly _notebookModelResolverService: INotebookEditorModelResolverService;
 	constructor(
 		resource: URI,
 		inputResource: URI,
-		options: InteractiveEditorInputOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookService notebookService: INotebookService,
-		@INotebookEditorModelResolverService notebookModelResolverService: INotebookEditorModelResolverService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
 		super(undefined, undefined, input, input);
 		this._notebookEditorInput = input;
-		this._options = options;
 		this._register(this._notebookEditorInput);
 		this._inputResource = inputResource;
 		this._inputResolver = null;
-		this._editorModelReference = null;
-		this._notebookService = notebookService;
-		this._notebookModelResolverService = notebookModelResolverService;
 	}
 
 	override isDirty() {
 		return false;
-	}
-
-	private async _resolve() {
-		if (!await this._notebookService.canResolve('interactive')) {
-			return null;
-		}
-
-		if (!this._editorModelReference) {
-			this._editorModelReference = await this._notebookModelResolverService.resolve(this.primary.resource!, 'interactive');
-			if (this.isDisposed()) {
-				this._editorModelReference.dispose();
-				this._editorModelReference = null;
-				return null;
-			}
-		} else {
-			await this._editorModelReference.object.load();
-		}
-
-		if (!this._editorModelReference.object.notebook) {
-			await this._editorModelReference.object.load();
-		}
-
-		return this._editorModelReference.object;
 	}
 
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
@@ -103,7 +66,7 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 			return this._inputResolver;
 		}
 
-		this._inputResolver = this._resolve();
+		this._inputResolver = this._notebookEditorInput.resolve();
 		return this._inputResolver;
 	}
 
@@ -126,8 +89,8 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	}
 
 	override dispose() {
-		this._editorModelReference?.dispose();
-		this._editorModelReference = null;
+		this._notebookEditorInput?.dispose();
+		this._inputResolver = null;
 		super.dispose();
 	}
 }
