@@ -55,6 +55,7 @@ export class TerminalEditor extends EditorPane {
 		if (!this._editorInput?.terminalInstance) {
 			return;
 		}
+		this._editorInput?.terminalInstance?.focus();
 		this._terminalEditorService.setActiveInstance(this._editorInput.terminalInstance);
 	}
 

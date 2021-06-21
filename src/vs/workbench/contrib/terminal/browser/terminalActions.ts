@@ -1408,11 +1408,11 @@ export function registerTerminalActions() {
 				if (cwd === undefined) {
 					return undefined;
 				}
-				if (t.target !== TerminalLocation.Editor) {
+				if (t.target === TerminalLocation.Editor) {
+					commandService.executeCommand('workbench.action.splitEditor');
+				} else {
 					terminalService.splitInstance(t, profile, cwd);
 					return terminalService.showPanel(true);
-				} else {
-					commandService.executeCommand('workbench.action.splitEditor');
 				}
 			});
 		}
@@ -1518,12 +1518,12 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			const commandService = accessor.get(ICommandService);
 			await terminalService.doWithActiveInstance(async t => {
-				if (t.target !== TerminalLocation.Editor) {
+				if (t.target === TerminalLocation.Editor) {
+					commandService.executeCommand('workbench.action.splitEditor');
+				} else {
 					const cwd = await getCwdForSplit(terminalService.configHelper, t);
 					terminalService.splitInstance(t, { cwd });
 					await terminalService.showPanel(true);
-				} else {
-					commandService.executeCommand('workbench.action.splitEditor');
 				}
 			});
 		}

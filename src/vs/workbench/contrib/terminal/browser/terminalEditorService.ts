@@ -19,7 +19,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
-	private _createInstance!: () => ITerminalInstance;
+	private _createInstance: (() => ITerminalInstance) | undefined;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
