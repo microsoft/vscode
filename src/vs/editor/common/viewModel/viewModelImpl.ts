@@ -324,7 +324,6 @@ export class ViewModel extends Disposable implements IViewModel {
 		}));
 
 		this._register(this.model.onDidChangeRawContentFast((e) => {
-			// TODO: Add an event for injected text
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 

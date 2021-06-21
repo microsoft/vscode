@@ -103,9 +103,6 @@ export class LineBreakData {
 		public breakOffsets: number[],
 		public breakOffsetsVisibleColumn: number[],
 		public wrappedTextIndentLength: number,
-		/**
-		 * Is null if there are no injections.
-		*/
 		public injectionTexts: string[] | null,
 		public injectionOffsets: number[] | null
 	) { }
@@ -162,7 +159,6 @@ export class LineBreakData {
 				break;
 			}
 		}
-
 
 		return new OutputPosition(mid, inputOffset - midStart);
 	}
