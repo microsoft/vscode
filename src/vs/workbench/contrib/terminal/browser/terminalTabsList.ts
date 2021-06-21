@@ -66,7 +66,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
@@ -88,7 +88,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
+				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
@@ -96,7 +96,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			contextKeyService,
 			listService,
 			themeService,
-			configurationService,
+			_configurationService,
 			keybindingService,
 		);
 		this._terminalGroupService.onDidChangeInstances(() => this.refresh());
@@ -114,21 +114,24 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		this.onMouseDblClick(async () => {
-			if (this.getFocus().length === 0) {
+		this.onMouseDblClick(async e => {
+			const focus = this.getFocus();
+			if (focus.length === 0) {
 				const instance = this._terminalService.createTerminal();
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+			}
+			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
+				e.element?.focus(true);
 			}
 		});
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.onMouseClick(e => {
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 			if (e.browserEvent.altKey && e.element) {
 				this._terminalService.splitInstance(e.element);
-			} else if (focusMode === 'singleClick') {
+			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
@@ -172,6 +175,10 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this.refresh();
+	}
+
+	private _getFocusMode(): 'singleClick' | 'doubleClick' {
+		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 	}
 
 	refresh(): void {
