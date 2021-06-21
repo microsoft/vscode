@@ -457,6 +457,7 @@ export const enum TerminalCommandId {
 	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession',
 	DetachProcess = 'workbench.action.terminal.detachProcess',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 }
 

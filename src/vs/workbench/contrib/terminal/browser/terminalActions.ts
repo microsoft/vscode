@@ -228,6 +228,29 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
+				id: TerminalCommandId.MoveToEditorInstance,
+				title: terminalStrings.moveToEditor,
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const selectedInstances = getSelectedInstances(accessor);
+			if (!selectedInstances || selectedInstances.length === 0) {
+				return;
+			}
+			const terminalService = accessor.get(ITerminalService);
+			for (const instance of selectedInstances) {
+				terminalService.moveToEditor(instance);
+			}
+			selectedInstances[selectedInstances.length - 1].focus();
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
 				id: TerminalCommandId.MoveToTerminalPanel,
 				title: { value: localize('workbench.action.terminal.moveToTerminalView', "Move From Editor to Terminal Panel"), original: 'Move From Editor to Terminal Panel' },
 				f1: true,
