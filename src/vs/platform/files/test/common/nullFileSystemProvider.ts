@@ -15,15 +15,20 @@ export class NullFileSystemProvider implements IFileSystemProvider {
 	private readonly _onDidChangeCapabilities = new Emitter<void>();
 	readonly onDidChangeCapabilities: Event<void> = this._onDidChangeCapabilities.event;
 
+	private readonly _onDidChangeFile = new Emitter<readonly IFileChange[]>();
+	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
+
+	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
+
+	emitFileChangeEvents(changes: IFileChange[]): void {
+		this._onDidChangeFile.fire(changes);
+	}
+
 	setCapabilities(capabilities: FileSystemProviderCapabilities): void {
 		this.capabilities = capabilities;
 
 		this._onDidChangeCapabilities.fire();
 	}
-
-	readonly onDidChangeFile: Event<readonly IFileChange[]> = Event.None;
-
-	constructor(private disposableFactory: () => IDisposable = () => Disposable.None) { }
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable { return this.disposableFactory(); }
 	async stat(resource: URI): Promise<IStat> { return undefined!; }

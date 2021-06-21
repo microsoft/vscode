@@ -16,8 +16,8 @@ export class FileWatcher implements IDisposable {
 
 	constructor(
 		folders: { path: string, excludes: string[] }[],
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
-		private onLogMessage: (msg: ILogMessage) => void,
+		private readonly onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private readonly onLogMessage: (msg: ILogMessage) => void,
 		private verboseLogging: boolean
 	) {
 		this.folder = folders[0];
