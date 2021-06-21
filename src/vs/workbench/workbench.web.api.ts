@@ -330,7 +330,7 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
-	 * @deprecated
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
 
