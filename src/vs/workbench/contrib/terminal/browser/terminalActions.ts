@@ -1494,7 +1494,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const instances = getSelectedInstances(accessor);
-			if (instances) {
+			if (instances && instances.length > 1) {
 				accessor.get(ITerminalGroupService).joinInstances(instances);
 			}
 		}
