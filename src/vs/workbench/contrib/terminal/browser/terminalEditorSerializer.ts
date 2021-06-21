@@ -25,7 +25,6 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 			return;
 		}
 		const term = JSON.stringify(this._toJson(editorInput.terminalInstance));
-		this._terminalEditorService.detachInstance(editorInput.terminalInstance);
 		return term;
 	}
 
