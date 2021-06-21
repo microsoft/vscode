@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError, IFileChange } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError, IFileChange, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IExtUri, extUri, extUriIgnorePathCase, isAbsolutePath } from 'vs/base/common/resources';
@@ -982,7 +982,7 @@ export class FileService extends Disposable implements IFileService {
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
-	private readonly _onDidChangeFilesRaw = this._register(new Emitter<readonly IFileChange[]>());
+	private readonly _onDidChangeFilesRaw = this._register(new Emitter<IRawFileChangesEvent>());
 	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
 
 	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
@@ -1009,7 +1009,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Event #1: access to raw events goes out instantly
 		{
-			this._onDidChangeFilesRaw.fire(changes);
+			this._onDidChangeFilesRaw.fire({ changes });
 		}
 
 		// Event #2: immediately send out events for

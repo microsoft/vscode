@@ -84,7 +84,7 @@ export interface IFileService {
 	 * @deprecated use this method only if you know what you are doing. use the other watch related events
 	 * and APIs for more efficient file watching.
 	 */
-	readonly onDidChangeFilesRaw: Event<readonly IFileChange[]>;
+	readonly onDidChangeFilesRaw: Event<IRawFileChangesEvent>;
 
 	/**
 	 * An event that is fired upon successful completion of a certain file operation.
@@ -646,6 +646,14 @@ export interface IFileChange {
 	 * The unified resource identifier of the file that changed.
 	 */
 	readonly resource: URI;
+}
+
+export interface IRawFileChangesEvent {
+
+	/**
+	 * @deprecated use `FileChangesEvent` instead unless you know what you are doing
+	 */
+	readonly changes: readonly IFileChange[];
 }
 
 export class FileChangesEvent {

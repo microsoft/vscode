@@ -2283,19 +2283,19 @@ flakySuite('Disk File Service', function () {
 				return raw.map(change => `Change: type ${toString(change.type)} path ${change.resource.toString()}`).join('\n');
 			}
 
-			const listenerDisposable = service.onDidChangeFilesRaw(raw => {
+			const listenerDisposable = service.onDidChangeFilesRaw(({ changes }) => {
 				watcherDisposable.dispose();
 				listenerDisposable.dispose();
 
 				try {
-					assert.strictEqual(raw.length, expected.length, `Expected ${expected.length} events, but got ${raw.length}. Details (${printEvents(raw)})`);
+					assert.strictEqual(changes.length, expected.length, `Expected ${expected.length} events, but got ${changes.length}. Details (${printEvents(changes)})`);
 
 					if (expected.length === 1) {
-						assert.strictEqual(raw[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(raw[0].type)}. Details (${printEvents(raw)})`);
-						assert.strictEqual(raw[0].resource.fsPath, expected[0][1].fsPath);
+						assert.strictEqual(changes[0].type, expected[0][0], `Expected ${toString(expected[0][0])} but got ${toString(changes[0].type)}. Details (${printEvents(changes)})`);
+						assert.strictEqual(changes[0].resource.fsPath, expected[0][1].fsPath);
 					} else {
 						for (const expect of expected) {
-							assert.strictEqual(hasChange(raw, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(raw)})`);
+							assert.strictEqual(hasChange(changes, expect[0], expect[1]), true, `Unable to find ${toString(expect[0])} for ${expect[1].fsPath}. Details (${printEvents(changes)})`);
 						}
 					}
 
