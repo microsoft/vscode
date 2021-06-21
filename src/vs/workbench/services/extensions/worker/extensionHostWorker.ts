@@ -55,7 +55,12 @@ if ((<any>self).Worker) {
 	// make sure new Worker(...) always uses blob: (to maintain current origin)
 	const _Worker = (<any>self).Worker;
 	Worker = <any>function (stringUrl: string | URL, options?: WorkerOptions) {
-		const js = `importScripts('${stringUrl}');`;
+		const js = `(function() {
+	const ttPolicy = self.trustedTypes ? self.trustedTypes.createPolicy('extensionHostWorker', { createScriptURL: (value) => value }) : undefined;
+	const stringUrl = '${stringUrl}';
+	importScripts(ttPolicy ? ttPolicy.createScriptURL(stringUrl) : stringUrl);
+})();
+`;
 		options = options || {};
 		options.name = options.name || path.basename(stringUrl.toString());
 		const blob = new Blob([js], { type: 'application/javascript' });
