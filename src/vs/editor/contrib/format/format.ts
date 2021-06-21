@@ -170,16 +170,24 @@ export async function formatDocumentRangesWithProvider(
 	}
 
 	const computeEdits = async (range: Range) => {
-		const rawEdits = await provider.provideDocumentRangeFormattingEdits(
+		return (await provider.provideDocumentRangeFormattingEdits(
 			model,
 			range,
 			model.getFormattingOptions(),
 			cts.token
-		);
-		return (await workerService.computeMoreMinimalEdits(model.uri, rawEdits)) || [];
+		)) || [];
 	};
 
 	const hasIntersectingEdit = (a: TextEdit[], b: TextEdit[]) => {
+		if (!a.length || !b.length) {
+			return false;
+		}
+		// quick exit if the list of ranges are completely unrelated [O(n)]
+		const mergedA = a.reduce((acc, val) => { return Range.plusRange(acc, val.range); }, a[0].range);
+		if (!b.some(x => { return Range.intersectRanges(mergedA, x.range); })) {
+			return false;
+		}
+		// fallback to a complete check [O(n^2)]
 		for (let edit of a) {
 			for (let otherEdit of b) {
 				if (Range.intersectRanges(edit.range, otherEdit.range)) {
@@ -190,13 +198,14 @@ export async function formatDocumentRangesWithProvider(
 		return false;
 	};
 
+	const allEdits: TextEdit[] = [];
 	const rawEditsList: TextEdit[][] = [];
 	try {
 		for (let range of ranges) {
-			rawEditsList.push(await computeEdits(range));
 			if (cts.token.isCancellationRequested) {
 				return true;
 			}
+			rawEditsList.push(await computeEdits(range));
 		}
 
 		for (let i = 0; i < ranges.length; ++i) {
@@ -220,11 +229,20 @@ export async function formatDocumentRangesWithProvider(
 				}
 			}
 		}
+
+		for (let rawEdits of rawEditsList) {
+			if (cts.token.isCancellationRequested) {
+				return true;
+			}
+			const minimalEdits = await workerService.computeMoreMinimalEdits(model.uri, rawEdits);
+			if (minimalEdits) {
+				allEdits.push(...minimalEdits);
+			}
+		}
 	} finally {
 		cts.dispose();
 	}
 
-	const allEdits = rawEditsList.reduce((acc, val) => acc.concat(val), []);
 	if (allEdits.length === 0) {
 		return false;
 	}
