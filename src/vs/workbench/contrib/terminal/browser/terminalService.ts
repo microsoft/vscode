@@ -661,14 +661,14 @@ export class TerminalService implements ITerminalService {
 			}
 
 			// View terminals
-			let sourceInstance = this.getInstanceFromId(instanceId);
+			let sourceInstance = this._terminalGroupService.instances.find(e => e.instanceId === instanceId);
 			if (sourceInstance) {
 				this._terminalGroupService.moveInstance(sourceInstance, instance, e.side);
 				return;
 			}
 
 			// Terminal editors
-			sourceInstance = this._terminalEditorService.instances.find(instance => instance.resource.path === e.uri.path);
+			sourceInstance = this._terminalEditorService.instances.find(e => e.instanceId === instanceId);
 			if (sourceInstance) {
 				this.moveToTerminalView(sourceInstance, instance, e.side);
 			}
