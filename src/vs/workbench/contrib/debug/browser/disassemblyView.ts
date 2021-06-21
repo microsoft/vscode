@@ -69,6 +69,12 @@ export class DisassemblyView extends EditorPane {
 			}
 		};
 
+		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
+			this.currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference!;
+
+			// TODO: rerender the marker
+		}));
+
 		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchTable,
 			'DisassemblyView', parent, delegate,
 			[
@@ -192,7 +198,8 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
 
-	constructor(private readonly disassemblyView: DisassemblyView) {
+	constructor(private readonly disassemblyView: DisassemblyView,
+		@IDebugService private readonly debugService: IDebugService) {
 	}
 
 	renderTemplate(container: HTMLElement): IBreakpointColumnTemplateData {
@@ -235,11 +242,16 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 
 			templateData.container.onclick = () => {
 				if (element.isBreakpointSet) {
-					element.isBreakpointSet = false;
-					templateData.icon.classList.remove(this.breakpointIcon);
-				} else if (element.allowBreakpoint) {
-					element.isBreakpointSet = true;
-					templateData.icon.classList.add(this.breakpointIcon);
+					this.debugService.removeInstructionBreakpoints(element.instruction.address).then(() => {
+						element.isBreakpointSet = false;
+						templateData.icon.classList.remove(this.breakpointIcon);
+					});
+
+				} else if (element.allowBreakpoint && !element.isBreakpointSet) {
+					this.debugService.addInstructionBreakpoint(element.instruction.address, 0).then(() => {
+						element.isBreakpointSet = true;
+						templateData.icon.classList.add(this.breakpointIcon);
+					});
 				}
 			};
 		}

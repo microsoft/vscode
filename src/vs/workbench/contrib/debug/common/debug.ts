@@ -437,6 +437,7 @@ export interface IDataBreakpoint extends IBaseBreakpoint {
 }
 
 export interface IInstructionBreakpoint extends IBaseBreakpoint {
+	// instructionReference is from debugProtocal and is address for purposes.
 	readonly instructionReference: string;
 	readonly offset?: number;
 }
@@ -901,10 +902,10 @@ export interface IDebugService {
 	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void>;
 
 	/**
-	 * Removes all instruction breakpoints. If id is passed only removes the instruction breakpoint with the passed id.
+	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeInstructionBreakpoints(id?: string): Promise<void>;
+	removeInstructionBreakpoints(address?: string): Promise<void>;
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 

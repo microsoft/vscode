@@ -927,7 +927,7 @@ export class InstructionBreakpoint extends BaseBreakpoint implements IInstructio
 
 	override toJSON(): any {
 		const result = super.toJSON();
-		result.instructionReference = this.instructionReference;
+		result.address = this.instructionReference;
 		result.offset = this.offset;
 		return result;
 	}
@@ -1298,7 +1298,7 @@ export class DebugModel implements IDebugModel {
 	}
 
 	enableOrDisableAllBreakpoints(enable: boolean): void {
-		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | InstructionBreakpoint> = [];
+		const changed: Array<IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IInstructionBreakpoint> = [];
 
 		this.breakpoints.forEach(bp => {
 			if (bp.enabled !== enable) {
@@ -1386,17 +1386,17 @@ export class DebugModel implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	addInstructionBreakpoint(instructionReference: string, offset: number, condition?: string, hitCondition?: string): void {
-		const newInstructionBreakpoint = new InstructionBreakpoint(instructionReference, offset, false, true, hitCondition, condition, undefined);
+	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): void {
+		const newInstructionBreakpoint = new InstructionBreakpoint(address, offset, false, true, hitCondition, condition, undefined);
 		this.instructionBreakpoints.push(newInstructionBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
 	}
 
-	removeInstructionBreakpoints(id?: string): void {
+	removeInstructionBreakpoints(address?: string): void {
 		let removed: InstructionBreakpoint[];
-		if (id) {
-			removed = this.instructionBreakpoints.filter(fbp => fbp.getId() === id);
-			this.instructionBreakpoints = this.instructionBreakpoints.filter(fbp => fbp.getId() !== id);
+		if (address) {
+			removed = this.instructionBreakpoints.filter(fbp => fbp.instructionReference === address);
+			this.instructionBreakpoints = this.instructionBreakpoints.filter(fbp => fbp.instructionReference !== address);
 		} else {
 			removed = this.instructionBreakpoints;
 			this.instructionBreakpoints = [];

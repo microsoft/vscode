@@ -966,8 +966,8 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
-	async removeInstructionBreakpoints(id?: string): Promise<void> {
-		this.model.removeInstructionBreakpoints(id);
+	async removeInstructionBreakpoints(address?: string): Promise<void> {
+		this.model.removeInstructionBreakpoints(address);
 		this.debugStorage.storeBreakpoints(this.model);
 		await this.sendInstructionBreakpoints();
 	}
@@ -1040,7 +1040,7 @@ export class DebugService implements IDebugService {
 		const breakpointsToSend = this.model.getInstructionBreakpoints().filter(fbp => fbp.enabled && this.model.areBreakpointsActivated());
 
 		await sendToOneOrAllSessions(this.model, session, async s => {
-			if (s.capabilities.supportsDataBreakpoints) {
+			if (s.capabilities.supportsInstructionBreakpoints) {
 				await s.sendInstructionBreakpoints(breakpointsToSend);
 			}
 		});
