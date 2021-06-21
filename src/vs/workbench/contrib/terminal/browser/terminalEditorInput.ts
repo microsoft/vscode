@@ -40,7 +40,8 @@ export class TerminalEditorInput extends EditorInput {
 	) {
 		super();
 		this._terminalInstance = terminalInstance;
-		this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire());
+		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));
+		this._register(this._terminalInstance.onDisposed(() => this.dispose()));
 		this._register(toDisposable(() => {
 			if (!this._isDetached) {
 				this._terminalInstance.dispose();
