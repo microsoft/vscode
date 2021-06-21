@@ -560,6 +560,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		if (containsDragType(originalEvent, DataTransfers.TERMINALS)) {
+			return {
+				feedback: targetIndex ? [targetIndex] : undefined,
+				accept: true,
+				effect: ListDragOverEffect.Move
+			};
+		}
+
 		if (data instanceof NativeDragAndDropData) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
@@ -594,21 +602,35 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
-		if (!(data instanceof ElementsDragAndDropData)) {
-			this._handleExternalDrop(targetInstance, originalEvent);
-			return;
+		let sourceInstances: ITerminalInstance[] | undefined;
+		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		if (terminalResources) {
+			const uri = URI.parse(JSON.parse(terminalResources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
+				if (instance) {
+					sourceInstances = [instance];
+				}
+				this._terminalService.moveToTerminalView(instance);
+			}
 		}
 
-		const draggedElement = data.getData();
-		if (!draggedElement || !Array.isArray(draggedElement)) {
-			return;
-		}
-		let focused = false;
+		if (sourceInstances === undefined) {
+			if (!(data instanceof ElementsDragAndDropData)) {
+				this._handleExternalDrop(targetInstance, originalEvent);
+				return;
+			}
 
-		let sourceInstances: ITerminalInstance[] = [];
-		for (const e of draggedElement) {
-			if ('instanceId' in e) {
-				sourceInstances.push(e as ITerminalInstance);
+			const draggedElement = data.getData();
+			if (!draggedElement || !Array.isArray(draggedElement)) {
+				return;
+			}
+
+			sourceInstances = [];
+			for (const e of draggedElement) {
+				if ('instanceId' in e) {
+					sourceInstances.push(e as ITerminalInstance);
+				}
 			}
 		}
 
@@ -619,6 +641,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			return;
 		}
 
+		let focused = false;
 		for (const instance of sourceInstances) {
 			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {
