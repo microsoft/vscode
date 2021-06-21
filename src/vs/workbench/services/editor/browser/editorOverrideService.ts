@@ -23,10 +23,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 
-interface IRegisteredEditorInput extends IEditorInput {
-	viewType?: string;
-}
-
 interface RegisteredEditor {
 	globPattern: string | glob.IRelativePattern,
 	editorInfo: RegisteredEditorInfo,
@@ -127,7 +123,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		// If it's the currently active editor we shouldn't do anything
 		const activeEditor = group.activeEditor;
-		const isActive = activeEditor ? (activeEditor as IRegisteredEditorInput).viewType === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
+		const isActive = activeEditor ? activeEditor.editorId === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
 		if (isActive) {
 			return OverrideStatus.ABORT;
 		}
@@ -369,7 +365,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 		for (const group of orderedGroups) {
 			for (const editor of group.editors) {
-				if (isEqual(editor.resource, resource) && (editor as IRegisteredEditorInput).viewType === viewType) {
+				if (isEqual(editor.resource, resource) && editor.editorId === viewType) {
 					out.push({ editor, group });
 				}
 			}
@@ -377,7 +373,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return out;
 	}
 
-	private async doHandleConflictingDefaults(resource: URI, editorName: string, currentEditor: IRegisteredEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
+	private async doHandleConflictingDefaults(resource: URI, editorName: string, currentEditor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup) {
 		type StoredChoice = {
 			[key: string]: string[];
 		};
@@ -392,7 +388,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 
 		// If the user has already made a choice for this editor we don't want to ask them again
-		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.viewType)) {
+		if (storedChoices[globForResource] && storedChoices[globForResource].find(editorID => editorID === currentEditor.editorId)) {
 			return;
 		}
 
@@ -433,7 +429,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	}
 
 	private mapEditorsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(group.findEditors(resource)) as IRegisteredEditorInput | undefined;
+		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
@@ -463,7 +459,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 		// Map the editors to quickpick entries
 		registeredEditors.forEach(editor => {
-			const currentViewType = currentEditor?.viewType ?? DEFAULT_EDITOR_ASSOCIATION.id;
+			const currentViewType = currentEditor?.editorId ?? DEFAULT_EDITOR_ASSOCIATION.id;
 			const isActive = currentEditor ? editor.editorInfo.id === currentViewType : false;
 			const isDefault = editor.editorInfo.id === defaultViewType;
 			const quickPickEntry: IQuickPickItem = {
@@ -585,15 +581,15 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return undefined;
 	}
 
-	private sendOverrideTelemetry(chosenInput: IRegisteredEditorInput): void {
+	private sendOverrideTelemetry(chosenInput: IEditorInput): void {
 		type editorOverrideClassification = {
 			viewType: { classification: 'PublicNonPersonalData', purpose: 'FeatureInsight' };
 		};
 		type editorOverrideEvent = {
 			viewType: string
 		};
-		if (chosenInput.viewType) {
-			this.telemetryService.publicLog2<editorOverrideEvent, editorOverrideClassification>('override.viewType', { viewType: chosenInput.viewType });
+		if (chosenInput.editorId) {
+			this.telemetryService.publicLog2<editorOverrideEvent, editorOverrideClassification>('override.viewType', { viewType: chosenInput.editorId });
 		}
 	}
 
