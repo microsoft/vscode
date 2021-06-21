@@ -232,7 +232,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		const builtinNewMenuItems = [
 			{
-				title: localize('newUntitledTitle', "New Text File"),
+				title: localize('newUntitledTitle', "Text File"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
 				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
 				from: CoreNewEntryDisplayName,
