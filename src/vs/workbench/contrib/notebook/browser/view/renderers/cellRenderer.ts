@@ -844,7 +844,8 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			actionViewItemProvider: _action => {
 				actionViewItemDisposables.clear();
 
-				const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+				const menu = actionViewItemDisposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+				const actions = this.getCellToolbarActions(menu);
 				const primary = actions.primary[0];
 				if (!(primary instanceof MenuItemAction)) {
 					return undefined;
@@ -879,10 +880,10 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 	}
 
 	private setupRunToolbar(runButtonContainer: HTMLElement, cellContainer: HTMLElement, contextKeyService: IContextKeyService, disposables: DisposableStore): ToolBar {
-		const menu = this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService);
+		const menu = disposables.add(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
 		const runToolbar = this.createRunCellToolbar(runButtonContainer, cellContainer, contextKeyService, disposables);
 		const updateActions = () => {
-			const actions = this.getCellToolbarActions(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.cellExecuteToolbar, contextKeyService));
+			const actions = this.getCellToolbarActions(menu);
 			runToolbar.setActions(actions.primary);
 		};
 		updateActions();
