@@ -194,7 +194,7 @@ registerAction2(class extends Action2 {
 			category,
 			f1: true,
 			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyCode.KEY_N,
+				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_N,
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
 			menu: {
