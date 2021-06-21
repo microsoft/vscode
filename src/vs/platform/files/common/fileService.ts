@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Disposable, IDisposable, toDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
-import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError } from 'vs/platform/files/common/files';
+import { IFileService, IResolveFileOptions, FileChangesEvent, FileOperationEvent, IFileSystemProviderRegistrationEvent, IFileSystemProvider, IFileStat, IResolveFileResult, ICreateFileOptions, IFileSystemProviderActivationEvent, FileOperationError, FileOperationResult, FileOperation, FileSystemProviderCapabilities, FileType, toFileSystemProviderErrorCode, FileSystemProviderErrorCode, IStat, IFileStatWithMetadata, IResolveMetadataFileOptions, etag, hasReadWriteCapability, hasFileFolderCopyCapability, hasOpenReadWriteCloseCapability, toFileOperationResult, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IResolveFileResultWithMetadata, IWatchOptions, IWriteFileOptions, IReadFileOptions, IFileStreamContent, IFileContent, ETAG_DISABLED, hasFileReadStreamCapability, IFileSystemProviderWithFileReadStreamCapability, ensureFileSystemProviderError, IFileSystemProviderCapabilitiesChangeEvent, IReadFileStreamOptions, FileDeleteOptions, FilePermission, NotModifiedSinceFileOperationError, IFileChange } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { Emitter } from 'vs/base/common/event';
 import { IExtUri, extUri, extUriIgnorePathCase, isAbsolutePath } from 'vs/base/common/resources';
@@ -15,7 +15,7 @@ import { isNonEmptyArray, coalesce } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { VSBuffer, VSBufferReadable, readableToBuffer, bufferToReadable, streamToBuffer, VSBufferReadableStream, VSBufferReadableBufferedStream, bufferedStreamToBuffer, newWriteableBufferStream } from 'vs/base/common/buffer';
 import { isReadableStream, transform, peekReadable, peekStream, isReadableBufferedStream, newWriteableStream, listenStream, consumeStream } from 'vs/base/common/stream';
-import { Promises, ResourceQueue } from 'vs/base/common/async';
+import { Promises, ResourceQueue, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
@@ -57,7 +57,7 @@ export class FileService extends Disposable implements IFileService {
 
 		// Forward events from provider
 		const providerDisposables = new DisposableStore();
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
+		providerDisposables.add(provider.onDidChangeFile(changes => this.onDidChangeFile(changes, this.isPathCaseSensitive(provider))));
 		providerDisposables.add(provider.onDidChangeCapabilities(() => this._onDidChangeFileSystemProviderCapabilities.fire({ provider, scheme })));
 		if (typeof provider.onDidErrorOccur === 'function') {
 			providerDisposables.add(provider.onDidErrorOccur(error => this._onError.fire(new Error(error))));
@@ -965,10 +965,55 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
+	/**
+	 * Providers can send unlimited amount of `IFileChange` events
+	 * and we want to protect against this to reduce CPU pressure.
+	 * The following settings limit the amount of file changes we
+	 * process at once.
+	 * (https://github.com/microsoft/vscode/issues/124723)
+	 */
+	private static readonly FILE_EVENTS_THROTTLING = {
+		maxChangesChunkSize: 500 as const,		// number of changes we process per interval
+		maxChangesBufferSize: 30000 as const,  	// total number of changes we are willing to buffer in memory
+		coolDownDelay: 200 as const,	  		// rest for 100ms before processing next events
+		warningscounter: 0						// keep track how many warnings we showed to reduce log spam
+	};
+
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
 	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
+
+	private readonly caseSensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, false))
+		)
+	);
+
+	private readonly caseInsensitiveFileEventsWorker = this._register(
+		new ThrottledWorker<IFileChange>(
+			FileService.FILE_EVENTS_THROTTLING.maxChangesChunkSize,
+			FileService.FILE_EVENTS_THROTTLING.maxChangesBufferSize,
+			FileService.FILE_EVENTS_THROTTLING.coolDownDelay,
+			chunks => this._onDidFilesChange.fire(new FileChangesEvent(chunks, true))
+		)
+	);
+
+	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
+		const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
+		const worked = worker.work(changes);
+
+		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
+			this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		}
+
+		if (worker.pending > 0) {
+			this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		}
+	}
 
 	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
 		let watchDisposed = false;

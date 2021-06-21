@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event, Listener } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -784,6 +784,103 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 		this.units = [];
 
 		super.dispose();
+	}
+}
+
+/**
+ * The `ThrottledWorker` will accept units of work `T`
+ * to handle. The contract is:
+ * * there is a maximum of units the worker can handle at once (via `chunkSize`)
+ * * after having handled units, the worker needs to rest (via `throttleDelay`)
+ */
+export class ThrottledWorker<T> extends Disposable {
+
+	private readonly pendingWork: T[] = [];
+
+	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
+	private disposed = false;
+
+	constructor(
+		private readonly maxWorkChunkSize: number,
+		private readonly maxPendingWork: number | undefined,
+		private readonly throttleDelay: number,
+		private readonly handler: (units: readonly T[]) => void
+	) {
+		super();
+	}
+
+	/**
+	 * The number of work units that are pending to be processed.
+	 */
+	get pending(): number { return this.pendingWork.length; }
+
+	/**
+	 * Add units to be worked on. Use `pending` to figure out
+	 * how many units are not yet processed after this method
+	 * was called.
+	 *
+	 * @returns whether the work was accepted or not. If the
+	 * worker is disposed, it will not accept any more work.
+	 * If the number of pending units would become larger
+	 * than `maxPendingWork`, more work will also not be accepted.
+	 */
+	work(units: readonly T[]): boolean {
+		if (this.disposed) {
+			return false; // work not accepted: disposed
+		}
+
+		// Check for reaching maximum of pending work
+		if (typeof this.maxPendingWork === 'number') {
+
+			// Throttled: simple check if pending + units exceeds max pending
+			if (this.throttler.value) {
+				if (this.pending + units.length > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+
+			// Unthrottled: same as throttled, but account for max chunk getting
+			// worked on directly without being pending
+			else {
+				if (this.pending + units.length - this.maxWorkChunkSize > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+		}
+
+		// Add to pending units first
+		this.pendingWork.push(...units);
+
+		// If not throttled, start working directly
+		// Otherwise, when the throttle delay has
+		// past, pending work will be worked again.
+		if (!this.throttler.value) {
+			this.doWork();
+		}
+
+		return true; // work accepted
+	}
+
+	private doWork(): void {
+
+		// Extract chunk to handle and handle it
+		this.handler(this.pendingWork.splice(0, this.maxWorkChunkSize));
+
+		// If we have remaining work, schedule it after a delay
+		if (this.pendingWork.length > 0) {
+			this.throttler.value = new RunOnceScheduler(() => {
+				this.throttler.clear();
+
+				this.doWork();
+			}, this.throttleDelay);
+			this.throttler.value.schedule();
+		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.disposed = true;
 	}
 }
 
