@@ -252,7 +252,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.MoveToTerminalPanel,
-				title: { value: localize('workbench.action.terminal.moveToTerminalView', "Move From Editor to Terminal Panel"), original: 'Move From Editor to Terminal Panel' },
+				title: { value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"), original: 'Move Terminal into Panel' },
 				f1: true,
 				category
 			});
