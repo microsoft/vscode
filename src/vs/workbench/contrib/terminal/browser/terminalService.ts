@@ -157,6 +157,8 @@ export class TerminalService implements ITerminalService {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
+		this._terminalEditorService.setCreateInstanceFactory(() => this.createInstance({}));
+
 		editorOverrideService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
 			{
@@ -575,12 +577,6 @@ export class TerminalService implements ITerminalService {
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
-		if (instanceToSplit.target === TerminalLocation.Editor) {
-			// editor
-			const instance = this.createInstance(shellLaunchConfig);
-			this._terminalEditorService.openEditor(instance);
-			return null;
-		}
 		const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
 		if (!group) {
 			return null;

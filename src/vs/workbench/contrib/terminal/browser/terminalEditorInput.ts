@@ -5,9 +5,11 @@
 
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -23,6 +25,15 @@ export class TerminalEditorInput extends EditorInput {
 		return TerminalEditor.ID;
 	}
 
+	override copy(): IEditorInput {
+		if (!this._createInstance) {
+			throw new Error('copy terminal editor instance failed');
+		}
+		const instance = this._createInstance();
+		instance.target = TerminalLocation.Editor;
+		return new TerminalEditorInput(instance, this._createInstance);
+	}
+
 	private readonly _terminalInstance: ITerminalInstance;
 	/**
 	 * Returns the terminal instance for this input if it has not yet been detached from the input.
@@ -36,7 +47,8 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		terminalInstance: ITerminalInstance
+		terminalInstance: ITerminalInstance,
+		private readonly _createInstance?: () => ITerminalInstance
 	) {
 		super();
 		this._terminalInstance = terminalInstance;

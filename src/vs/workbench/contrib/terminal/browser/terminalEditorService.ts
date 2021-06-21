@@ -19,6 +19,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
+	private _createInstance!: () => ITerminalInstance;
+
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
@@ -30,7 +32,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super();
-
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
 				dispose(d);
@@ -40,6 +41,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			const activeEditor = this._editorService.activeEditor;
 			this._setActiveInstance(activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined);
 		}));
+	}
+
+	setCreateInstanceFactory(createInstance: () => ITerminalInstance): void {
+		this._createInstance = createInstance;
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -76,7 +81,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (cachedEditor) {
 			return cachedEditor;
 		}
-		const input = new TerminalEditorInput(instance);
+		const input = new TerminalEditorInput(instance, this._createInstance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [

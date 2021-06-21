@@ -1402,14 +1402,17 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
+			const commandService = accessor.get(ICommandService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
 				if (cwd === undefined) {
 					return undefined;
 				}
-				terminalService.splitInstance(t, profile, cwd);
 				if (t.target !== TerminalLocation.Editor) {
+					terminalService.splitInstance(t, profile, cwd);
 					return terminalService.showPanel(true);
+				} else {
+					commandService.executeCommand('workbench.action.splitEditor');
 				}
 			});
 		}
@@ -1513,10 +1516,15 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const commandService = accessor.get(ICommandService);
 			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				terminalService.splitInstance(t, { cwd });
-				await terminalService.showPanel(true);
+				if (t.target !== TerminalLocation.Editor) {
+					const cwd = await getCwdForSplit(terminalService.configHelper, t);
+					terminalService.splitInstance(t, { cwd });
+					await terminalService.showPanel(true);
+				} else {
+					commandService.executeCommand('workbench.action.splitEditor');
+				}
 			});
 		}
 	});
@@ -1615,8 +1623,11 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			await terminalService.doWithActiveInstance(async t => {
+				if (t.target === TerminalLocation.Editor) {
+					return;
+				}
 				t.dispose(true);
-				if (terminalService.instances.length > 0 && t.target !== TerminalLocation.Editor) {
+				if (terminalService.instances.length > 0) {
 					await terminalService.showPanel(true);
 				}
 			});
