@@ -371,6 +371,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		@INotificationService notificationService: INotificationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -391,19 +392,18 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			_commandService
 		), keybindingService, notificationService);
 
-		this._register(this._terminalService.onInstancePrimaryStatusChanged(() => this.updateLabel()));
-		this._register(this._terminalService.onDidChangeActiveInstance(() => this.updateLabel()));
+		// Register listeners to update the tab
+		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
+		this._register(_terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
+		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
 			if (e === this._terminalService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
 			}
 		}));
-		this._register(this._terminalService.onInstanceIconChanged(e => {
-			if (e === this._terminalService.activeInstance) {
-				this.updateLabel();
-			}
-		}));
+
+		// Clean up on dispose
 		this._register(toDisposable(() => dispose(this._elementDisposables)));
 	}
 
@@ -415,7 +415,12 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}
 	}
 
-	override updateLabel(): void {
+	override updateLabel(e?: ITerminalInstance): void {
+		// Only update if it's the active instance
+		if (e && e === this._terminalGroupService.activeInstance) {
+			return;
+		}
+
 		if (this._elementDisposables.length === 0) {
 			// Right click opens context menu
 			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, e => {
@@ -434,7 +439,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		}
 		if (this.label) {
 			const label = this.label;
-			const instance = this._terminalService.activeInstance;
+			const instance = this._terminalGroupService.activeInstance;
 			if (!instance) {
 				dom.reset(label, '');
 				return;
