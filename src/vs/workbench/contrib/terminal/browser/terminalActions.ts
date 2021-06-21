@@ -214,7 +214,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.MoveToEditor,
-				title: { value: localize('workbench.action.terminal.moveToEditor', "Move From Terminal View to Editor"), original: 'Move From Terminal View to Editor' },
+				title: terminalStrings.moveToEditor,
 				f1: true,
 				category
 			});

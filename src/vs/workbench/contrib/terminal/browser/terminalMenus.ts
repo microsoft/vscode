@@ -376,6 +376,16 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext,
 				item: {
+					group: ContextMenuGroup.Create,
+					command: {
+						id: TerminalCommandId.MoveToEditor,
+						title: terminalStrings.moveToEditor.short
+					}
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext,
+				item: {
 					command: {
 						id: TerminalCommandId.ChangeIcon,
 						title: localize('workbench.action.terminal.changeIcon', "Change Icon...")
