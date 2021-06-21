@@ -170,7 +170,7 @@ export class EditorGroupModel extends Disposable {
 		return this.active;
 	}
 
-	isActive(editor: EditorInput): boolean {
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.matches(this.active, editor);
 	}
 
@@ -704,7 +704,7 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate, options?.strictEquals)) {
 				return true;
