@@ -724,6 +724,10 @@ export class DebugSession implements IDebugSession {
 		}
 	}
 
+	getStoppedDetails(): IRawStoppedDetails | undefined {
+		return this.stoppedDetails;
+	}
+
 	rawUpdate(data: IRawModelUpdate): void {
 		const threadIds: number[] = [];
 		data.threads.forEach(thread => {
@@ -888,6 +892,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
+			this.stoppedDetails = undefined;
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
 			if (threadId) {
 				const tokens = this.cancellationMap.get(threadId);
