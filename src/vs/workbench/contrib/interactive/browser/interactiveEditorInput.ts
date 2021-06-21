@@ -7,11 +7,10 @@ import * as paths from 'vs/base/common/path';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
 	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI) {
@@ -71,7 +70,7 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	}
 
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}
