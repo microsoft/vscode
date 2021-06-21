@@ -982,6 +982,9 @@ export class FileService extends Disposable implements IFileService {
 	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
 	readonly onDidFilesChange = this._onDidFilesChange.event;
 
+	private readonly _onDidChangeFilesRaw = this._register(new Emitter<readonly IFileChange[]>());
+	readonly onDidChangeFilesRaw = this._onDidChangeFilesRaw.event;
+
 	private readonly activeWatchers = new Map<string, { disposable: IDisposable, count: number; }>();
 
 	private readonly caseSensitiveFileEventsWorker = this._register(
@@ -1003,15 +1006,24 @@ export class FileService extends Disposable implements IFileService {
 	);
 
 	private onDidChangeFile(changes: readonly IFileChange[], caseSensitive: boolean): void {
-		const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
-		const worked = worker.work(changes);
 
-		if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
-			this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		// Event #1: access to raw events
+		{
+			this._onDidChangeFilesRaw.fire(changes);
 		}
 
-		if (worker.pending > 0) {
-			this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+		// Event #2: throttled due to performance reasons
+		{
+			const worker = caseSensitive ? this.caseSensitiveFileEventsWorker : this.caseInsensitiveFileEventsWorker;
+			const worked = worker.work(changes);
+
+			if (!worked && FileService.FILE_EVENTS_THROTTLING.warningscounter++ < 10) {
+				this.logService.warn(`[File watcher]: started ignoring events due to too many file change events at once (incoming: ${changes.length}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
+
+			if (worker.pending > 0) {
+				this.logService.trace(`[File watcher]: started throttling events due to large amount of file change events at once (pending: ${worker.pending}, most recent change: ${changes[0].resource.toString()}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			}
 		}
 	}
 

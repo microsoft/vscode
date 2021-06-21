@@ -836,6 +836,9 @@ export class TestFileService implements IFileService {
 	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
 	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
 
+	private readonly _onDidChangeFilesRaw = new Emitter<readonly IFileChange[]>();
+	get onDidChangeFilesRaw(): Event<readonly IFileChange[]> { return this._onDidChangeFilesRaw.event; }
+
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
 	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }
 	fireAfterOperation(event: FileOperationEvent): void { this._onDidRunOperation.fire(event); }
