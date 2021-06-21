@@ -70,9 +70,8 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService,
+		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super('TerminalTabsList', container,
@@ -170,7 +169,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		});
 		if (!this._decorationsProvider) {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
-			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
+			decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this.refresh();
 	}
@@ -522,9 +521,9 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 
 	constructor(
-		@ITerminalService private _terminalService: ITerminalService,
-		@ITerminalGroupService private _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) { }
 
 	getDragURI(instance: ITerminalInstance): string | null {
