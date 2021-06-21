@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput } from 'vs/workbench/common/editor';
+import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorOverride, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
@@ -16,7 +16,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/contrib/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { AutoSaveMode, IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isEqual } from 'vs/base/common/resources';
 import { Event } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
@@ -411,7 +411,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

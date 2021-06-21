@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { Schemas } from 'vs/base/common/network';
@@ -206,7 +206,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		return model;
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

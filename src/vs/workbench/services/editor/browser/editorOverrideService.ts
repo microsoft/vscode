@@ -10,7 +10,7 @@ import { basename, extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorActivation, EditorOverride, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isResourceDiffEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, IEditorInput, IEditorInputWithOptions, isResourceDiffEditorInput, IUntypedEditorInput, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorGroup, IEditorGroupsService, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Schemas } from 'vs/base/common/network';
 import { RegisteredEditorInfo, RegisteredEditorPriority, RegisteredEditorOptions, DEFAULT_EDITOR_ASSOCIATION, DiffEditorInputFactoryFunction, EditorAssociation, EditorAssociations, EditorInputFactoryFunction, editorsAssociationsSettingId, globMatchesResource, IEditorOverrideService, priorityToRank, ReturnedOverride, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -21,7 +21,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { ILogService } from 'vs/platform/log/common/log';
 
 interface IRegisteredEditorInput extends IEditorInput {
@@ -84,7 +83,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}));
 	}
 
-	async resolveEditorOverride(editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride> {
+	async resolveEditorOverride(editor: IUntypedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride> {
 		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 		// If it was an override before we await for the extensions to activate and then proceed with overriding or else they won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
@@ -298,7 +297,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		};
 	}
 
-	private async doOverrideEditorInput(resource: URI, editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<IEditorInputWithOptions | undefined> {
+	private async doOverrideEditorInput(resource: URI, editor: IUntypedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, selectedEditor: RegisteredEditor): Promise<IEditorInputWithOptions | undefined> {
 
 		// If no activation option is provided, populate it.
 		if (options && typeof options.activation === 'undefined') {
@@ -487,7 +486,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return quickPickEntries;
 	}
 
-	private async doPickEditorOverride(editor: IResourceEditorInputType, options: IEditorOptions | undefined, group: IEditorGroup, showDefaultPicker?: boolean): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
+	private async doPickEditorOverride(editor: IUntypedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup, showDefaultPicker?: boolean): Promise<[IEditorOptions, IEditorGroup | undefined] | undefined> {
 
 		type EditorOverridePick = {
 			readonly item: IQuickPickItem;

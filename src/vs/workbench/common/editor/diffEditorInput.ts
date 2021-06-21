@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -18,7 +18,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { URI } from 'vs/base/common/uri';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 /**
@@ -155,7 +154,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (!super.matches(otherInput)) {
 			return false;
 		}

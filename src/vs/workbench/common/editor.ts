@@ -19,7 +19,7 @@ import { ICompositeControl, IComposite } from 'vs/workbench/common/composite';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
-import { ACTIVE_GROUP, IResourceEditorInputType, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
 
 // Static values for editor contributions
@@ -299,7 +299,7 @@ export interface IResourceDiffEditorInput extends IBaseResourceEditorInput {
 	readonly modifiedInput: IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput;
 }
 
-export function isResourceDiffEditorInput(editor: IResourceEditorInputType): editor is IResourceDiffEditorInput {
+export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor is IResourceDiffEditorInput {
 	const candidate = editor as IResourceDiffEditorInput;
 
 	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
@@ -377,7 +377,7 @@ export interface IRevertOptions {
 }
 
 export interface IMoveResult {
-	editor: IEditorInput | IResourceEditorInputType;
+	editor: IEditorInput | IUntypedEditorInput;
 	options?: IEditorOptions;
 }
 
@@ -409,6 +409,8 @@ export const enum EditorInputCapabilities {
 	 */
 	RequiresTrust = 1 << 4,
 }
+
+export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
 export interface IEditorInput extends IDisposable {
 
@@ -564,7 +566,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns if the other object matches this input.
 	 */
-	matches(other: IEditorInput | IResourceEditorInputType): boolean;
+	matches(other: IEditorInput | IUntypedEditorInput): boolean;
 
 	/**
 	 * Returns if this editor is disposed.
@@ -848,10 +850,10 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getOriginalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getOriginalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}
@@ -896,10 +898,10 @@ class EditorResourceAccessorImpl {
 	 * form so that only one editor opens for same file URIs with different casing. As
 	 * such, the original URI and the canonical URI can be different.
 	 */
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
-	getCanonicalUri(editor: IEditorInput | IResourceEditorInputType | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide?: SideBySideEditor.PRIMARY | SideBySideEditor.SECONDARY }): URI | undefined;
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options: IEditorResourceAccessorOptions & { supportSideBySide: SideBySideEditor.BOTH }): URI | { primary?: URI, secondary?: URI } | undefined;
+	getCanonicalUri(editor: IEditorInput | IUntypedEditorInput | undefined | null, options?: IEditorResourceAccessorOptions): URI | { primary?: URI, secondary?: URI } | undefined {
 		if (!editor) {
 			return undefined;
 		}

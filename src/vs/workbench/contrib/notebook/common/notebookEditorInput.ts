@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -19,7 +19,6 @@ import { mark } from 'vs/workbench/contrib/notebook/common/notebookPerformance';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface NotebookEditorInputOptions {
@@ -238,7 +237,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

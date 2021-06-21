@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
@@ -13,7 +13,6 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
 
 class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditorModel {
 	constructor(
@@ -121,13 +120,13 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		};
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId === otherInput.options?.override;
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
 		}
 
 		if (otherInput instanceof NotebookDiffEditorInput) {
