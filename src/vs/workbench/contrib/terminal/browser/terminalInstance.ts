@@ -1693,6 +1693,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
+
+		// Remove special characters that could mess with rendering
+		title = title.replace(/[\n\r\t]/g, '');
+
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		this._titleSource = eventSource;
