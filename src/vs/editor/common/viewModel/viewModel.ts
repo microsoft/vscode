@@ -106,10 +106,8 @@ export class LineBreakData {
 		/**
 		 * Is null if there are no injections.
 		*/
-		//public textWithInjections: string | null,
 		public injectionTexts: string[] | null,
-		public injectionOffsets: number[] | null,
-		public injectionWidth: number[] | null,
+		public injectionOffsets: number[] | null
 	) { }
 
 	public getInputOffsetOfOutputPosition(outputLineIndex: number, outputOffset: number): number {
@@ -129,11 +127,6 @@ export class LineBreakData {
 				}
 			}
 		}
-
-		// 0   1   2   3                   4   5           6   7   8   9
-		// 0   1   2   3   4   5   6   7   8   9  10  11  12  13  14  15
-		// x   x   x   x                   x   x           x   x   x   x
-		//                       4                   2
 
 		return inputOffset;
 	}

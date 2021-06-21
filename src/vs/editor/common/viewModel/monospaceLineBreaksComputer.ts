@@ -448,18 +448,15 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 
 	let injectionTexts: string[] | null;
 	let injectionOffsets: number[] | null;
-	let injectionWidths: number[] | null;
 	if (injectedTexts) {
 		injectionTexts = injectedTexts.map(t => t.text);
 		injectionOffsets = injectedTexts.map(text => text.column - 1);
-		injectionWidths = injectedTexts.map(text => text.text.length);
 	} else {
 		injectionTexts = null;
 		injectionOffsets = null;
-		injectionWidths = null;
 	}
 
-	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets, injectionWidths);
+	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets);
 }
 
 function computeCharWidth(charCode: number, visibleColumn: number, tabSize: number, columnsForFullWidthChar: number): number {
