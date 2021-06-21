@@ -1236,8 +1236,11 @@ export class SplitLine implements ISplitLine {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
-		let startOffset = this.getInputStartOffsetOfOutputLineIndex(outputLineIndex);
-		let endOffset = this.getInputEndOffsetOfOutputLineIndex(model, modelLineNumber, outputLineIndex);
+
+		// These offsets refer to model text with injected text.
+		const startOffset = outputLineIndex > 0 ? this._lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
+		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length ? this._lineBreakData.breakOffsets[outputLineIndex] : model.getLineLength(modelLineNumber);
+
 		let r = endOffset - startOffset;
 
 		if (outputLineIndex > 0) {
