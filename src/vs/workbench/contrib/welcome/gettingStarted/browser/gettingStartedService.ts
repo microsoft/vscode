@@ -79,9 +79,9 @@ export interface IGettingStartedWalkthroughDescriptor {
 }
 
 enum IGettingStartedNewMenuEntryDescriptorCategory {
-	'window',
 	'file',
 	'notebook',
+	'window',
 	'terminal',
 	'folder',
 	'configuration',
