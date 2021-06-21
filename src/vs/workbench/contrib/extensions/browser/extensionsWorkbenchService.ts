@@ -538,6 +538,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		@IProductService private readonly productService: IProductService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this.hasOutdatedExtensionsContextKey = HasOutdatedExtensionsContext.bindTo(contextKeyService);
@@ -636,13 +637,28 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (this.localExtensions) {
-			await this.localExtensions.queryInstalled();
+			try {
+				await this.localExtensions.queryInstalled();
+			}
+			catch (error) {
+				this.logService.error(error);
+			}
 		}
 		if (this.remoteExtensions) {
-			await this.remoteExtensions.queryInstalled();
+			try {
+				await this.remoteExtensions.queryInstalled();
+			}
+			catch (error) {
+				this.logService.error(error);
+			}
 		}
 		if (this.webExtensions) {
-			await this.webExtensions.queryInstalled();
+			try {
+				await this.webExtensions.queryInstalled();
+			}
+			catch (error) {
+				this.logService.error(error);
+			}
 		}
 		return this.local;
 	}
