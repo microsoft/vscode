@@ -574,11 +574,17 @@ export class TerminalService implements ITerminalService {
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+		if (instanceToSplit.target === TerminalLocation.Editor) {
+			// editor
+			const instance = this.createInstance(shellLaunchConfig);
+			this._terminalEditorService.openEditor(instance);
+			return null;
+		}
 		const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
 		if (!group) {
 			return null;
 		}
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
 		const instance = group.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
@@ -722,12 +728,11 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
-		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
-			return;
+		if (this.configHelper.config.defaultLocation !== TerminalLocation.Editor) {
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
+				?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+			pane?.setExpanded(true);
 		}
-		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
-			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
-		pane?.setExpanded(true);
 
 		if (focus) {
 			// Do the focus call asynchronously as going through the
@@ -1017,15 +1022,14 @@ export class TerminalService implements ITerminalService {
 		let instance: ITerminalInstance;
 		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
+			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
-			this._initInstanceListeners(instance);
-			this._onDidChangeInstances.fire();
 		} else {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
-			this._initInstanceListeners(instance);
-			this._onDidChangeInstances.fire();
 		}
+		this._initInstanceListeners(instance);
+		this._onDidChangeInstances.fire();
 
 		if (this.instances.length === 1) {
 			// It's the first instance so it should be made active automatically, this must fire

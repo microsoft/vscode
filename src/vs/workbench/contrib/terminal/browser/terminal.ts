@@ -215,7 +215,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
-	getOrCreateEditorInput(instance: ITerminalInstance, shouldOpenEditor?: boolean): TerminalEditorInput;
+	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 }

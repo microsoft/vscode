@@ -1408,7 +1408,9 @@ export function registerTerminalActions() {
 					return undefined;
 				}
 				terminalService.splitInstance(t, profile, cwd);
-				return terminalService.showPanel(true);
+				if (t.target !== TerminalLocation.Editor) {
+					return terminalService.showPanel(true);
+				}
 			});
 		}
 	});
@@ -1465,7 +1467,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.UnsplitInstance,
 				title: terminalStrings.unsplit,
-				f1: true,
+				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
@@ -1614,7 +1616,7 @@ export function registerTerminalActions() {
 			const terminalService = accessor.get(ITerminalService);
 			await terminalService.doWithActiveInstance(async t => {
 				t.dispose(true);
-				if (terminalService.instances.length > 0) {
+				if (terminalService.instances.length > 0 && t.target !== TerminalLocation.Editor) {
 					await terminalService.showPanel(true);
 				}
 			});
