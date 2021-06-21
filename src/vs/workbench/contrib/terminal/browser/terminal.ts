@@ -241,7 +241,8 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 
 	readonly onPanelOrientationChanged: Event<Orientation>;
 
-	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup;
+	createGroup(shellLaunchConfig?: IShellLaunchConfig): ITerminalGroup;
+	createGroup(instance?: ITerminalInstance): ITerminalGroup;
 	getGroupForInstance(instance: ITerminalInstance): ITerminalGroup | undefined;
 
 	/**
