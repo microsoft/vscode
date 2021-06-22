@@ -26,6 +26,7 @@
 	position: absolute;
 	/* Must be higher than workbench hover z-index */
 	z-index: 41;
+	pointer-events: none;
 }
 
 .monaco-workbench .workbench-hover-pointer:after {
