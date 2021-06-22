@@ -249,7 +249,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 					if (entry.target.id === observedElementInfo.id && entry.contentRect) {
 						if (observedElementInfo.output) {
 							if (entry.contentRect.height !== 0) {
-								entry.target.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+								entry.target.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
@@ -509,13 +509,13 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 
 		switch (event.data.type) {
 			case 'initializeMarkup':
-				await viewModel.ensureMarkupCells(event.data.cells);
+				await Promise.all(event.data.cells.map(info => viewModel.ensureMarkupCell(info)));
 				dimensionUpdater.updateImmediately();
 				postNotebookMessage('initializedMarkup', {});
 				break;
 
 			case 'createMarkupCell':
-				viewModel.ensureMarkupCells([event.data.cell]);
+				viewModel.ensureMarkupCell(event.data.cell);
 				break;
 
 			case 'showMarkupCell':
@@ -608,7 +608,7 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 							init: true,
 						});
 
-						outputNode.style.padding = `${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodePadding}px ${style.outputNodeLeftPadding}px`;
+						outputNode.style.padding = `${style.outputNodePadding}px 0 ${style.outputNodePadding}px 0`;
 					} else {
 						dimensionUpdater.updateHeight(outputId, outputNode.clientHeight, {
 							isOutput: true,
@@ -904,7 +904,23 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 				.filter(renderer => renderer.data.mimeTypes.includes(info.mime) && !renderer.data.extends);
 
 			if (!renderers.length) {
-				throw new Error('Could not find renderer');
+				const errorContainer = document.createElement('div');
+
+				const error = document.createElement('div');
+				error.className = 'no-renderer-error';
+				const errorText = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', info.mime);
+				error.innerText = errorText;
+
+				const cellText = document.createElement('div');
+				cellText.innerText = info.text();
+
+				errorContainer.appendChild(error);
+				errorContainer.appendChild(cellText);
+
+				element.innerText = '';
+				element.appendChild(errorContainer);
+
+				return;
 			}
 
 			await Promise.all(renderers.map(x => x.load()));
@@ -936,16 +952,14 @@ async function webviewPreloads(style: PreloadStyles, options: PreloadOptions, re
 			return cell;
 		}
 
-		public async ensureMarkupCells(update: readonly webviewMessages.IMarkupCellInitialization[]): Promise<void> {
-			await Promise.all(update.map(async info => {
-				let cell = this._markupCells.get(info.cellId);
-				if (cell) {
-					cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
-					await cell.updateContentAndRender(info.content);
-				} else {
-					cell = await this.createMarkupCell(info, info.offset, info.visible);
-				}
-			}));
+		public async ensureMarkupCell(info: webviewMessages.IMarkupCellInitialization): Promise<void> {
+			let cell = this._markupCells.get(info.cellId);
+			if (cell) {
+				cell.element.style.visibility = info.visible ? 'visible' : 'hidden';
+				await cell.updateContentAndRender(info.content);
+			} else {
+				cell = await this.createMarkupCell(info, info.offset, info.visible);
+			}
 		}
 
 		public deleteMarkupCell(id: string) {

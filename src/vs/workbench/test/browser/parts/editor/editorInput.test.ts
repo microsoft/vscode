@@ -22,7 +22,6 @@ suite('EditorInput', () => {
 
 		assert(input.matches(input));
 		assert(!input.matches(otherInput));
-		assert(!input.matches(null));
 		assert(input.getName());
 
 		input.onWillDispose(() => {

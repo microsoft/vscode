@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -15,19 +15,16 @@ import { EXECUTE_CELL_COMMAND_ID, ICellViewModel, INotebookEditor, INotebookEdit
 import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { getCodeCellExecutionContextKeyService } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
-import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
+import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export class NotebookStatusBarController extends Disposable implements INotebookEditorContribution {
-	static id: string = 'workbench.notebook.statusBar.exec';
-
-	private readonly _visibleCells = new Map<number, IDisposable[]>();
-
+export class NotebookStatusBarController extends Disposable {
+	private readonly _visibleCells = new Map<number, IDisposable>();
 	private readonly _observer: NotebookVisibleCellObserver;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditor,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		private readonly _itemFactory: (vm: NotebookViewModel, cell: CellViewModel) => IDisposable
 	) {
 		super();
 		this._observer = this._register(new NotebookVisibleCellObserver(this._notebookEditor));
@@ -49,16 +46,11 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 		}
 
 		for (let newCell of e.added) {
-			const helpers = [
-				this._instantiationService.createInstance(ExecutionStateCellStatusBarHelper, vm, newCell),
-				this._instantiationService.createInstance(TimerCellStatusBarHelper, vm, newCell),
-				this._instantiationService.createInstance(KeybindingPlaceholderStatusBarHelper, vm, newCell),
-			];
-			this._visibleCells.set(newCell.handle, helpers);
+			this._visibleCells.set(newCell.handle, this._itemFactory(vm, newCell));
 		}
 
 		for (let oldCell of e.removed) {
-			this._visibleCells.get(oldCell.handle)?.forEach(dispose);
+			this._visibleCells.get(oldCell.handle)?.dispose();
 			this._visibleCells.delete(oldCell.handle);
 		}
 	}
@@ -71,19 +63,29 @@ export class NotebookStatusBarController extends Disposable implements INotebook
 	}
 }
 
+export class ExecutionStateCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.statusBar.execState';
+
+	constructor(notebookEditor: INotebookEditor) {
+		super();
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => new ExecutionStateCellStatusBarItem(vm, cell)));
+	}
+}
+registerNotebookContribution(ExecutionStateCellStatusBarContrib.id, ExecutionStateCellStatusBarContrib);
+
 /**
  * Shows the cell's execution state in the cell status bar. When the "executing" state is shown, it will be shown for a minimum brief time.
  */
-class ExecutionStateCellStatusBarHelper extends Disposable {
+class ExecutionStateCellStatusBarItem extends Disposable {
 	private static readonly MIN_SPINNER_TIME = 500;
 
 	private _currentItemIds: string[] = [];
 
-	private _currentExecutingStateTimer: any;
+	private _currentExecutingStateTimer: IDisposable | undefined;
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,
-		private readonly _cell: ICellViewModel,
+		private readonly _cell: ICellViewModel
 	) {
 		super();
 
@@ -110,12 +112,12 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 
 		// Show the execution spinner for a minimum time
 		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-			this._currentExecutingStateTimer = setTimeout(() => {
+			this._currentExecutingStateTimer = this._register(disposableTimeout(() => {
 				this._currentExecutingStateTimer = undefined;
 				if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 					this._update();
 				}
-			}, ExecutionStateCellStatusBarHelper.MIN_SPINNER_TIME);
+			}, ExecutionStateCellStatusBarItem.MIN_SPINNER_TIME));
 		}
 
 		return item ? [item] : [];
@@ -164,7 +166,17 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 	}
 }
 
-class TimerCellStatusBarHelper extends Disposable {
+export class TimerCellStatusBarContrib extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.statusBar.execTimer';
+
+	constructor(notebookEditor: INotebookEditor) {
+		super();
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => new TimerCellStatusBarItem(vm, cell)));
+	}
+}
+registerNotebookContribution(TimerCellStatusBarContrib.id, TimerCellStatusBarContrib);
+
+class TimerCellStatusBarItem extends Disposable {
 	private static UPDATE_INTERVAL = 100;
 	private _currentItemIds: string[] = [];
 
@@ -176,7 +188,7 @@ class TimerCellStatusBarHelper extends Disposable {
 	) {
 		super();
 
-		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarHelper.UPDATE_INTERVAL));
+		this._scheduler = this._register(new RunOnceScheduler(() => this._update(), TimerCellStatusBarItem.UPDATE_INTERVAL));
 		this._update();
 		this._register(this._cell.model.onDidChangeInternalMetadata(() => this._update()));
 	}
@@ -226,10 +238,24 @@ class TimerCellStatusBarHelper extends Disposable {
 	}
 }
 
+export class KeybindingPlaceholderStatusBarContrib extends Disposable implements INotebookEditorContribution {
+	static id: string = 'workbench.notebook.statusBar.execKeybindingPlaceholder';
+
+	constructor(
+		notebookEditor: INotebookEditor,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super();
+		this._register(new NotebookStatusBarController(notebookEditor, (vm, cell) => instantiationService.createInstance(KeybindingPlaceholderStatusBarItem, vm, cell)));
+	}
+}
+registerNotebookContribution(KeybindingPlaceholderStatusBarContrib.id, KeybindingPlaceholderStatusBarContrib);
+
+
 /**
  * Shows a keybinding hint for the execute command
  */
-class KeybindingPlaceholderStatusBarHelper extends Disposable {
+class KeybindingPlaceholderStatusBarItem extends Disposable {
 	private _currentItemIds: string[] = [];
 	private readonly _codeContextKeyService: IContextKeyService;
 
@@ -289,5 +315,3 @@ class KeybindingPlaceholderStatusBarHelper extends Disposable {
 		this._notebookViewModel.deltaCellStatusBarItems(this._currentItemIds, [{ handle: this._cell.handle, items: [] }]);
 	}
 }
-
-registerNotebookContribution(NotebookStatusBarController.id, NotebookStatusBarController);

@@ -1080,9 +1080,10 @@ export class SettingArrayRenderer extends AbstractSettingRenderer implements ITr
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingListItemTemplate, onChange: (value: string[] | undefined) => void): void {
 		const value = getListDisplayValue(dataElement);
+		const keySuggester = dataElement.setting.enum ? createArraySuggester(dataElement) : undefined;
 		template.listWidget.setValue(value, {
-			keySuggester: createArraySuggester(dataElement),
-			showAddButton: getShowAddButtonList(dataElement, value)
+			showAddButton: getShowAddButtonList(dataElement, value),
+			keySuggester
 		});
 		template.context = dataElement;
 

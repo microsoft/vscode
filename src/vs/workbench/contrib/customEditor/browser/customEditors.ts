@@ -23,7 +23,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { CONTEXT_ACTIVE_CUSTOM_EDITOR_ID, CONTEXT_FOCUSED_CUSTOM_EDITOR_IS_EDITABLE, CustomEditorCapabilities, CustomEditorInfo, CustomEditorInfoCollection, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
 import { CustomEditorModelManager } from 'vs/workbench/contrib/customEditor/common/customEditorModelManager';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { ContributedEditorPriority, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { ContributedCustomEditors } from '../common/contributedCustomEditors';
@@ -213,7 +213,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 		const possibleEditors = this.getAllCustomEditors(newResource);
 
 		// See if we have any non-optional custom editor for this resource
-		if (!possibleEditors.allEditors.some(editor => editor.priority !== ContributedEditorPriority.option)) {
+		if (!possibleEditors.allEditors.some(editor => editor.priority !== RegisteredEditorPriority.option)) {
 			return;
 		}
 

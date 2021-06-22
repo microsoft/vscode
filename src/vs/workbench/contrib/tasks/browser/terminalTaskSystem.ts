@@ -309,7 +309,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		if (!terminalData) {
 			return false;
 		}
-		const activeTerminalInstance = this.terminalService.getActiveInstance();
+		const activeTerminalInstance = this.terminalService.activeInstance;
 		const isPanelShowingTerminal = !!this.viewsService.getActiveViewWithId(TERMINAL_VIEW_ID);
 		return isPanelShowingTerminal && (activeTerminalInstance?.instanceId === terminalData.terminal.instanceId);
 	}
@@ -336,7 +336,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			if (isTerminalInPanel) {
 				this.previousPanelId = this.panelService.getActivePanel()?.getId();
 				if (this.previousPanelId === TERMINAL_VIEW_ID) {
-					this.previousTerminalInstance = this.terminalService.getActiveInstance() ?? undefined;
+					this.previousTerminalInstance = this.terminalService.activeInstance ?? undefined;
 				}
 			}
 			this.terminalService.setActiveInstance(terminalData.terminal);
@@ -1169,19 +1169,23 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		let options = await this.resolveOptions(resolver, task.command.options);
 		const presentationOptions = task.command.presentation;
 
-		let waitOnExit: boolean | string = presentationOptions?.close ? !presentationOptions.close : false;
+		let waitOnExit: boolean | string = false;
 		if (!presentationOptions) {
 			throw new Error('Task presentation options should not be undefined here.');
 		}
 
-		if ((presentationOptions.close === undefined) && ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground)) {
-			if (presentationOptions.panel === PanelKind.New) {
-				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else if (presentationOptions.showReuseMessage) {
-				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
-			} else {
-				waitOnExit = true;
+		if ((presentationOptions.close === undefined) || (presentationOptions.close === false)) {
+			if ((presentationOptions.reveal !== RevealKind.Never) || !task.configurationProperties.isBackground) {
+				if (presentationOptions.panel === PanelKind.New) {
+					waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
+				} else if (presentationOptions.showReuseMessage) {
+					waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+				} else {
+					waitOnExit = true;
+				}
 			}
+		} else {
+			waitOnExit = !presentationOptions.close;
 		}
 
 		let commandExecutable: string | undefined;
@@ -1275,7 +1279,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		}
 		if (!result) {
 			// Either no group is used, no terminal with the group exists or splitting an existing terminal failed.
-			result = this.terminalService.createTerminal(launchConfigs);
+			result = this.terminalService.createTerminal({ config: launchConfigs });
 		}
 
 		const terminalKey = result.instanceId.toString();

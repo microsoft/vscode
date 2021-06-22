@@ -15,7 +15,7 @@ import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurati
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorInputWithOptionsAndGroup, IResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
@@ -32,12 +32,6 @@ export type EditorAssociation = {
 export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
-
-export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
-};
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -64,7 +58,7 @@ configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode)
 //#endregion
 
 //#region EditorOverrideService types
-export enum ContributedEditorPriority {
+export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
@@ -100,11 +94,11 @@ export type RegisteredEditorOptions = {
 	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type ContributedEditorInfo = {
+export type RegisteredEditorInfo = {
 	id: string;
 	label: string;
 	detail?: string;
-	priority: ContributedEditorPriority;
+	priority: RegisteredEditorPriority;
 };
 
 export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
@@ -136,7 +130,7 @@ export interface IEditorOverrideService {
 	 */
 	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: ContributedEditorInfo,
+		editorInfo: RegisteredEditorInfo,
 		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
@@ -149,7 +143,7 @@ export interface IEditorOverrideService {
 	 * @param group The current group
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
+	resolveEditorOverride(editor: IUntypedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
@@ -162,16 +156,16 @@ export interface IEditorOverrideService {
 //#endregion
 
 //#region Util functions
-export function priorityToRank(priority: ContributedEditorPriority): number {
+export function priorityToRank(priority: RegisteredEditorPriority): number {
 	switch (priority) {
-		case ContributedEditorPriority.exclusive:
+		case RegisteredEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.default:
+		case RegisteredEditorPriority.default:
 			return 4;
-		case ContributedEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			return 3;
 		// Text editor is priority 2
-		case ContributedEditorPriority.option:
+		case RegisteredEditorPriority.option:
 		default:
 			return 1;
 	}

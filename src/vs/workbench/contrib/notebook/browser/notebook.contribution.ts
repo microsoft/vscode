@@ -27,7 +27,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -122,10 +122,10 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		assertType(input instanceof NotebookDiffEditorInput);
 		return JSON.stringify({
 			resource: input.resource,
-			originalResource: input.originalResource,
-			name: input.name,
-			originalName: input.originalName,
-			textDiffName: input.textDiffName,
+			originalResource: input.originalInput.resource,
+			name: input.getName(),
+			originalName: input.originalInput.getName(),
+			textDiffName: input.getName(),
 			viewType: input.viewType,
 		});
 	}
@@ -136,14 +136,12 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, originalResource, name, originalName, textDiffName, viewType } = data;
-		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof originalName !== 'string' || typeof viewType !== 'string') {
+		const { resource, originalResource, name, viewType } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(originalResource) || typeof name !== 'string' || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, originalResource, originalName,
-			textDiffName || nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", originalResource.toString(true), resource.toString(true)),
-			viewType);
+		const input = NotebookDiffEditorInput.create(instantiationService, resource, name, undefined, originalResource, viewType);
 		return input;
 	}
 
@@ -528,7 +526,13 @@ class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWor
 
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeNotebook,
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource),
+			isOpen: (workingCopy, editor) => {
+				if (isCompositeNotebookEditorInput(editor)) {
+					return !!editor.editorInputs.find(input => isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: input.resource.toString() }), workingCopy.resource));
+				}
+
+				return editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource);
+			},
 			createEditor: async workingCopy => {
 				// TODO this is really bad and should adopt the `typeId`
 				// for backups instead of storing that information in the
@@ -670,16 +674,22 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[FocusIndicator]: {
-			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as cell borders or a highlight bar on the left gutter"),
+			description: nls.localize('notebook.focusIndicator.description', "Control whether to render the focus indicator as a cell border or a highlight bar on the left gutter"),
 			type: 'string',
 			enum: ['border', 'gutter'],
 			default: 'gutter',
 			tags: ['notebookLayout']
 		},
 		[InsertToolbarLocation]: {
-			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should be rendered."),
+			description: nls.localize('notebook.insertToolbarPosition.description', "Control where the insert cell actions should appear."),
 			type: 'string',
 			enum: ['betweenCells', 'notebookToolbar', 'both', 'hidden'],
+			enumDescriptions: [
+				nls.localize('insertToolbarLocation.betweenCells', "A toolbar that appears on hover between cells."),
+				nls.localize('insertToolbarLocation.notebookToolbar', "The toolbar at the top of the notebook editor."),
+				nls.localize('insertToolbarLocation.both', "Both toolbars."),
+				nls.localize('insertToolbarLocation.hidden', "The insert actions don't appear anywhere."),
+			],
 			default: 'both',
 			tags: ['notebookLayout']
 		},
@@ -696,9 +706,13 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout']
 		},
 		[ShowFoldingControls]: {
-			description: nls.localize('notebook.showFoldingControls.description', "Controls when the folding controls are shown."),
+			description: nls.localize('notebook.showFoldingControls.description', "Controls when the markdown header folding arrow is shown."),
 			type: 'string',
 			enum: ['always', 'mouseover'],
+			enumDescriptions: [
+				nls.localize('showFoldingControls.always', "The folding controls are always visible."),
+				nls.localize('showFoldingControls.mouseover', "The folding controls are visible only on mouseover."),
+			],
 			default: 'mouseover',
 			tags: ['notebookLayout']
 		},

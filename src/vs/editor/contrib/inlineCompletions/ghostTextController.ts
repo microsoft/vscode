@@ -17,7 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { GhostTextModel } from 'vs/editor/contrib/inlineCompletions/ghostTextModel';
 
 export class GhostTextController extends Disposable {
-	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible ', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
+	public static readonly inlineSuggestionVisible = new RawContextKey<boolean>('inlineSuggestionVisible', false, nls.localize('inlineSuggestionVisible', "Whether an inline suggestion is visible"));
 	public static readonly inlineSuggestionHasIndentation = new RawContextKey<boolean>('inlineSuggestionHasIndentation', false, nls.localize('inlineSuggestionHasIndentation', "Whether the inline suggestion starts with whitespace"));
 
 	static ID = 'editor.contrib.ghostTextController';
@@ -43,6 +43,9 @@ export class GhostTextController extends Disposable {
 		}));
 		this._register(this.editor.onDidChangeConfiguration((e) => {
 			if (e.hasChanged(EditorOption.suggest)) {
+				this.updateModelController();
+			}
+			if (e.hasChanged(EditorOption.inlineSuggest)) {
 				this.updateModelController();
 			}
 		}));
@@ -171,7 +174,7 @@ export const commitInlineSuggestionAction = new GhostTextCommand({
 		EditorContextKeys.tabMovesFocus.toNegated()
 	),
 	kbOpts: {
-		weight: 100,
+		weight: 200,
 		primary: KeyCode.Tab,
 	},
 	handler(x) {
@@ -200,7 +203,7 @@ export class ShowNextInlineSuggestionAction extends EditorAction {
 			id: ShowNextInlineSuggestionAction.ID,
 			label: nls.localize('action.inlineSuggest.showNext', "Show Next Inline Suggestion"),
 			alias: 'Show Next Inline Suggestion',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyMod.Alt | KeyCode.US_CLOSE_SQUARE_BRACKET,
@@ -224,7 +227,7 @@ export class ShowPreviousInlineSuggestionAction extends EditorAction {
 			id: ShowPreviousInlineSuggestionAction.ID,
 			label: nls.localize('action.inlineSuggest.showPrevious', "Show Previous Inline Suggestion"),
 			alias: 'Show Previous Inline Suggestion',
-			precondition: EditorContextKeys.writable,
+			precondition: ContextKeyExpr.and(EditorContextKeys.writable, GhostTextController.inlineSuggestionVisible),
 			kbOpts: {
 				weight: 100,
 				primary: KeyMod.Alt | KeyCode.US_OPEN_SQUARE_BRACKET,

@@ -33,6 +33,7 @@ import { memoize } from 'vs/base/common/decorators';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { mnemonicButtonLabel } from 'vs/base/common/labels';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -291,9 +292,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			}
 
 			const { response } = await this.showMessageBox(windowId, {
+				title: this.productService.nameLong,
 				type: 'info',
 				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
+				buttons: [
+					mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
+					mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+				],
+				noLink: true,
+				defaultId: 0,
 				cancelId: 1
 			});
 
@@ -317,9 +324,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 			switch (error.code) {
 				case 'EACCES':
 					const { response } = await this.showMessageBox(windowId, {
+						title: this.productService.nameLong,
 						type: 'info',
 						message: localize('warnEscalationUninstall', "{0} will now prompt with 'osascript' for Administrator privileges to uninstall the shell command.", this.productService.nameShort),
-						buttons: [localize('ok', "OK"), localize('cancel', "Cancel")],
+						buttons: [
+							mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")),
+							mnemonicButtonLabel(localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")),
+						],
+						noLink: true,
+						defaultId: 0,
 						cancelId: 1
 					});
 
@@ -799,6 +812,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 					const result: ChunkedPassword = JSON.parse(nextChunk!);
 					content += result.content;
 					hasNextChunk = result.hasNextChunk;
+					index++;
 				}
 
 				return content;

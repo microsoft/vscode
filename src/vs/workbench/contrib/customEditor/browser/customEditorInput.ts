@@ -17,7 +17,7 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -121,6 +121,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 
 	public override get typeId(): string {
 		return CustomEditorInput.typeId;
+	}
+
+	public override get editorId() {
+		return this.viewType;
 	}
 
 	public override get capabilities(): EditorInputCapabilities {
@@ -237,7 +241,10 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return decorateFileEditorLabel(label, { orphaned, readonly });
 	}
 
-	public override matches(other: IEditorInput): boolean {
+	public override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 		return this === other || (other instanceof CustomEditorInput
 			&& this.viewType === other.viewType
 			&& isEqual(this.resource, other.resource));

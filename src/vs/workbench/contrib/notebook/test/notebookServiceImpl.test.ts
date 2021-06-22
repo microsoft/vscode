@@ -10,12 +10,11 @@ import { mock } from 'vs/base/test/common/mock';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { NotebookProviderInfoStore } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
-import { ContributedEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionService, nullExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
@@ -24,11 +23,6 @@ suite('NotebookProviderInfoStore', function () {
 	test('Can\'t open untitled notebooks in test #119363', function () {
 
 		const instantiationService = workbenchInstantiationService();
-		const labelService = new class extends mock<ILabelService>() {
-			override getUriBasenameLabel(uri: URI) {
-				return uri.toString();
-			}
-		};
 		const store = new NotebookProviderInfoStore(
 			new class extends mock<IStorageService>() {
 				override get() { return ''; }
@@ -41,7 +35,6 @@ suite('NotebookProviderInfoStore', function () {
 			new TestConfigurationService(),
 			new class extends mock<IAccessibilityService>() { },
 			instantiationService,
-			labelService,
 			new class extends mock<IFileService>() {
 				override canHandleResource() { return true; }
 			}
@@ -52,7 +45,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'foo',
 			displayName: 'foo',
 			selectors: [{ filenamePattern: '*.foo' }],
-			priority: ContributedEditorPriority.default,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'foo',
 		});
@@ -61,7 +54,7 @@ suite('NotebookProviderInfoStore', function () {
 			id: 'bar',
 			displayName: 'bar',
 			selectors: [{ filenamePattern: '*.bar' }],
-			priority: ContributedEditorPriority.default,
+			priority: RegisteredEditorPriority.default,
 			exclusive: false,
 			providerDisplayName: 'bar',
 		});

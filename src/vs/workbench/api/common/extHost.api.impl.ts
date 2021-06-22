@@ -171,7 +171,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostWebviewPanels = rpcProtocol.set(ExtHostContext.ExtHostWebviewPanels, new ExtHostWebviewPanels(rpcProtocol, extHostWebviews, extHostWorkspace));
 	const extHostCustomEditors = rpcProtocol.set(ExtHostContext.ExtHostCustomEditors, new ExtHostCustomEditors(rpcProtocol, extHostDocuments, extensionStoragePaths, extHostWebviews, extHostWebviewPanels));
 	const extHostWebviewViews = rpcProtocol.set(ExtHostContext.ExtHostWebviewViews, new ExtHostWebviewViews(rpcProtocol, extHostWebviews));
-	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol, extHostDocumentsAndEditors, extHostWorkspace));
+	const extHostTesting = rpcProtocol.set(ExtHostContext.ExtHostTesting, new ExtHostTesting(rpcProtocol));
 	const extHostUriOpeners = rpcProtocol.set(ExtHostContext.ExtHostUriOpeners, new ExtHostUriOpeners(rpcProtocol));
 
 	// Check that no named customers are missing
@@ -358,28 +358,17 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			: extHostTypes.ExtensionKind.UI;
 
 		const test: typeof vscode.test = {
-			registerTestController(provider) {
+			createTestController(provider) {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.registerTestController(extension.identifier.value, provider);
+				return extHostTesting.createTestController(provider);
 			},
-			createDocumentTestObserver(document) {
+			createTestObserver() {
 				checkProposedApiEnabled(extension);
-				return extHostTesting.createTextDocumentTestObserver(document);
-			},
-			createWorkspaceTestObserver(workspaceFolder) {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.createWorkspaceTestObserver(workspaceFolder);
+				return extHostTesting.createTestObserver();
 			},
 			runTests(provider) {
 				checkProposedApiEnabled(extension);
 				return extHostTesting.runTests(provider);
-			},
-			createTestItem<T>(options: vscode.TestItemOptions, data?: T) {
-				return new extHostTypes.TestItemImpl(options.id, options.label, options.uri, data);
-			},
-			createTestRun(request, name, persist) {
-				checkProposedApiEnabled(extension);
-				return extHostTesting.createTestRun(extension.identifier.value, request, name, persist);
 			},
 			get onDidChangeTestResults() {
 				checkProposedApiEnabled(extension);
@@ -390,9 +379,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostTesting.results;
 			},
 		};
-
-		// todo@connor4312: backwards compatibility for a short period
-		(test as any).createTestRunTask = test.createTestRun;
 
 		// namespace: extensions
 		const extensions: typeof vscode.extensions = {
@@ -663,9 +649,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				if (typeof nameOrOptions === 'object') {
 					if ('pty' in nameOrOptions) {
 						return extHostTerminalService.createExtensionTerminal(nameOrOptions);
-					}
-					if (nameOrOptions.iconPath) {
-						checkProposedApiEnabled(extension);
 					}
 					return extHostTerminalService.createTerminalFromOptions(nameOrOptions);
 				}
@@ -1252,6 +1235,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
 			TaskScope: extHostTypes.TaskScope,
+			TerminalLink: extHostTypes.TerminalLink,
 			TerminalProfile: extHostTypes.TerminalProfile,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,
 			TextEdit: extHostTypes.TextEdit,
@@ -1291,6 +1275,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestItemStatus: extHostTypes.TestItemStatus,
 			TestResultState: extHostTypes.TestResultState,
+			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
 			TestMessageSeverity: extHostTypes.TestMessageSeverity,

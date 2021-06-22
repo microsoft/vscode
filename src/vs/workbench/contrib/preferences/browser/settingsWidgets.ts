@@ -506,8 +506,8 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 }
 
 interface IListSetValueOptions {
-	keySuggester: IObjectKeySuggester;
 	showAddButton: boolean;
+	keySuggester?: IObjectKeySuggester;
 }
 
 export interface IListDataItem {
@@ -598,7 +598,8 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 				valueInput = this.renderDropdown(item.value, rowElement);
 				currentEnumOptions = item.value.options;
 				if (item.value.options.length) {
-					currentDisplayValue = item.value.data;
+					currentDisplayValue = this.isItemNew(item) ?
+						currentEnumOptions[0].value : item.value.data;
 				}
 				break;
 		}
@@ -678,7 +679,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
@@ -997,7 +998,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 

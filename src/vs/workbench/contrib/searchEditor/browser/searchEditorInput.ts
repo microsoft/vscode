@@ -16,7 +16,7 @@ import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, EditorResourceAccessor, IMoveResult, EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { Memento } from 'vs/workbench/common/memento';
 import { SearchEditorFindMatchClass, SearchEditorScheme, SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { SearchConfigurationModel, SearchEditorModel, searchEditorModelFactory } from 'vs/workbench/contrib/searchEditor/browser/searchEditorModel';
@@ -52,6 +52,10 @@ export class SearchEditorInput extends EditorInput {
 
 	override get typeId(): string {
 		return SearchEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return this.typeId;
 	}
 
 	override get capabilities(): EditorInputCapabilities {
@@ -215,8 +219,10 @@ export class SearchEditorInput extends EditorInput {
 		super.dispose();
 	}
 
-	override matches(other: unknown) {
-		if (super.matches(other)) { return true; }
+	override matches(other: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(other)) {
+			return true;
+		}
 
 		if (other instanceof SearchEditorInput) {
 			return !!(other.modelUri.fragment && other.modelUri.fragment === this.modelUri.fragment) || !!(other.backingUri && isEqual(other.backingUri, this.backingUri));

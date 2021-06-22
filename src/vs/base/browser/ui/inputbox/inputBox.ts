@@ -27,6 +27,7 @@ const $ = dom.$;
 
 export interface IInputOptions extends IInputBoxStyles {
 	readonly placeholder?: string;
+	readonly showPlaceholderOnFocus?: boolean;
 	readonly tooltip?: string;
 	readonly ariaLabel?: string;
 	readonly type?: string;
@@ -207,7 +208,7 @@ export class InputBox extends Widget {
 			this.input.setAttribute('aria-label', this.ariaLabel);
 		}
 
-		if (this.placeholder) {
+		if (this.placeholder && !this.options.showPlaceholderOnFocus) {
 			this.setPlaceHolder(this.placeholder);
 		}
 
@@ -234,10 +235,16 @@ export class InputBox extends Widget {
 
 	private onBlur(): void {
 		this._hideMessage();
+		if (this.options.showPlaceholderOnFocus) {
+			this.input.setAttribute('placeholder', '');
+		}
 	}
 
 	private onFocus(): void {
 		this._showMessage();
+		if (this.options.showPlaceholderOnFocus) {
+			this.input.setAttribute('placeholder', this.placeholder || '');
+		}
 	}
 
 	public setPlaceHolder(placeHolder: string): void {

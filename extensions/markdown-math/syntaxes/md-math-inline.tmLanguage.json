@@ -1,0 +1,32 @@
+{
+	"fileTypes": [],
+	"injectionSelector": "L:meta.paragraph.markdown - (comment, string, markup.math.inline.markdown)",
+	"patterns": [
+		{
+			"include": "#math_inline"
+		}
+	],
+	"repository": {
+		"math_inline": {
+			"name": "markup.math.inline.markdown",
+			"contentName": "meta.embedded.math.markdown",
+			"match": "(?<=\\s|^)(\\${1,2})(.+?)(\\${1,2})(?=\\s|$)",
+			"captures": {
+				"1": {
+					"name": "punctuation.definition.math.begin.markdown"
+				},
+				"2": {
+					"patterns": [
+						{
+							"include": "text.html.markdown.math#math"
+						}
+					]
+				},
+				"3": {
+					"name": "punctuation.definition.math.begin.markdown"
+				}
+			}
+		}
+	},
+	"scopeName": "markdown.math.inline"
+}

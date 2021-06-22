@@ -6,7 +6,7 @@
 import { asArray, coalesceInPlace, equals } from 'vs/base/common/arrays';
 import { illegalArgument } from 'vs/base/common/errors';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { isMarkdownString, MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString as BaseMarkdownString } from 'vs/base/common/htmlContent';
 import { ReadonlyMapView, ResourceMap } from 'vs/base/common/map';
 import { Mimes, normalizeMimeType } from 'vs/base/common/mime';
 import { isArray, isStringArray } from 'vs/base/common/types';
@@ -997,20 +997,18 @@ export class Diagnostic {
 @es5ClassCompat
 export class Hover {
 
-	public contents: vscode.MarkdownString[] | vscode.MarkedString[];
+	public contents: (vscode.MarkdownString | vscode.MarkedString)[];
 	public range: Range | undefined;
 
 	constructor(
-		contents: vscode.MarkdownString | vscode.MarkedString | vscode.MarkdownString[] | vscode.MarkedString[],
+		contents: vscode.MarkdownString | vscode.MarkedString | (vscode.MarkdownString | vscode.MarkedString)[],
 		range?: Range
 	) {
 		if (!contents) {
 			throw new Error('Illegal argument, contents must be defined');
 		}
 		if (Array.isArray(contents)) {
-			this.contents = <vscode.MarkdownString[] | vscode.MarkedString[]>contents;
-		} else if (isMarkdownString(contents)) {
-			this.contents = [contents];
+			this.contents = contents;
 		} else {
 			this.contents = [contents];
 		}
@@ -1332,6 +1330,10 @@ export class MarkdownString implements vscode.MarkdownString {
 
 	get supportThemeIcons(): boolean | undefined {
 		return this.#delegate.supportThemeIcons;
+	}
+
+	set supportThemeIcons(value: boolean | undefined) {
+		this.#delegate.supportThemeIcons = value;
 	}
 
 	appendText(value: string): vscode.MarkdownString {
@@ -1707,10 +1709,31 @@ export enum SourceControlInputBoxValidationType {
 	Information = 2
 }
 
+export class TerminalLink implements vscode.TerminalLink {
+	constructor(
+		public startIndex: number,
+		public length: number,
+		public tooltip?: string
+	) {
+		if (typeof startIndex !== 'number' || startIndex < 0) {
+			throw illegalArgument('startIndex');
+		}
+		if (typeof length !== 'number' || length < 1) {
+			throw illegalArgument('length');
+		}
+		if (tooltip !== undefined && typeof tooltip !== 'string') {
+			throw illegalArgument('tooltip');
+		}
+	}
+}
+
 export class TerminalProfile implements vscode.TerminalProfile {
 	constructor(
 		public options: vscode.TerminalOptions | vscode.ExtensionTerminalOptions
 	) {
+		if (typeof options !== 'object') {
+			illegalArgument('options');
+		}
 	}
 }
 
@@ -2994,14 +3017,16 @@ export class NotebookCellData {
 	kind: NotebookCellKind;
 	value: string;
 	languageId: string;
+	mime?: string;
 	outputs?: vscode.NotebookCellOutput[];
 	metadata?: Record<string, any>;
 	executionSummary?: vscode.NotebookCellExecutionSummary;
 
-	constructor(kind: NotebookCellKind, value: string, languageId: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
+	constructor(kind: NotebookCellKind, value: string, languageId: string, mime?: string, outputs?: vscode.NotebookCellOutput[], metadata?: Record<string, any>, executionSummary?: vscode.NotebookCellExecutionSummary) {
 		this.kind = kind;
 		this.value = value;
 		this.languageId = languageId;
+		this.mime = mime;
 		this.outputs = outputs ?? [];
 		this.metadata = metadata;
 		this.executionSummary = executionSummary;
@@ -3310,23 +3335,29 @@ const rangeComparator = (a: vscode.Range | undefined, b: vscode.Range | undefine
 	return a.isEqual(b);
 };
 
-export class TestItemImpl implements vscode.TestItem<unknown> {
+export class TestRunRequest<T> implements vscode.TestRunRequest<T> {
+	constructor(
+		public readonly tests: vscode.TestItem<T>[],
+		public readonly exclude?: vscode.TestItem<T>[] | undefined,
+		public readonly debug = false,
+	) { }
+}
+
+export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 	public readonly id!: string;
 	public readonly uri!: vscode.Uri | undefined;
-	public readonly children!: ReadonlyMap<string, TestItemImpl>;
-	public readonly parent!: TestItemImpl | undefined;
+	public readonly children!: ReadonlyMap<string, TestItemImpl<T>>;
+	public readonly parent!: TestItemImpl<T> | undefined;
 
 	public range!: vscode.Range | undefined;
 	public description!: string | undefined;
 	public runnable!: boolean;
 	public debuggable!: boolean;
+	public label!: string;
 	public error!: string | vscode.MarkdownString;
 	public status!: vscode.TestItemStatus;
 
-	/** Extension-owned resolve handler */
-	public resolveHandler?: (token: vscode.CancellationToken) => void;
-
-	constructor(id: string, public label: string, uri: vscode.Uri | undefined, public data: unknown) {
+	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: T, parent: vscode.TestItem | undefined) {
 		const api = getPrivateApiFor(this);
 
 		Object.defineProperties(this, {
@@ -3342,7 +3373,8 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 			},
 			parent: {
 				enumerable: false,
-				get: () => api.parent,
+				value: parent,
+				writable: false,
 			},
 			children: {
 				value: new ReadonlyMapView(api.children),
@@ -3350,12 +3382,27 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 				writable: false,
 			},
 			range: testItemPropAccessor(api, 'range', undefined, rangeComparator),
+			label: testItemPropAccessor(api, 'label', label, strictEqualComparator),
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
 			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
 			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
+
+		if (parent) {
+			if (!(parent instanceof TestItemImpl)) {
+				throw new Error(`The "parent" passed in for TestItem ${id} is invalid`);
+			}
+
+			const parentApi = getPrivateApiFor(parent);
+			if (parentApi.children.has(id)) {
+				throw new Error(`Attempted to insert a duplicate test item ID ${id}`);
+			}
+
+			parentApi.children.set(id, this);
+			parentApi.bus.fire([ExtHostTestItemEventType.NewChild, this]);
+		}
 	}
 
 	public invalidate() {
@@ -3363,26 +3410,11 @@ export class TestItemImpl implements vscode.TestItem<unknown> {
 	}
 
 	public dispose() {
-		const api = getPrivateApiFor(this);
-		if (api.parent) {
-			getPrivateApiFor(api.parent).children.delete(this.id);
+		if (this.parent) {
+			getPrivateApiFor(this.parent).children.delete(this.id);
 		}
 
-		api.bus.fire([ExtHostTestItemEventType.Disposed]);
-	}
-
-	public addChild(child: vscode.TestItem<unknown>) {
-		if (!(child instanceof TestItemImpl)) {
-			throw new Error('Test child must be created through vscode.test.createTestItem()');
-		}
-
-		const api = getPrivateApiFor(this);
-		if (api.children.has(child.id)) {
-			throw new Error(`Attempted to insert a duplicate test item ID ${child.id}`);
-		}
-
-		api.children.set(child.id, child);
-		api.bus.fire([ExtHostTestItemEventType.NewChild, child]);
+		getPrivateApiFor(this).bus.fire([ExtHostTestItemEventType.Disposed]);
 	}
 }
 
@@ -3422,5 +3454,6 @@ export enum PortAutoForwardAction {
 	OpenBrowser = 2,
 	OpenPreview = 3,
 	Silent = 4,
-	Ignore = 5
+	Ignore = 5,
+	OpenBrowserOnce = 6
 }

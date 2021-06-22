@@ -670,6 +670,9 @@ class MockLabelService implements ILabelService {
 	getHostLabel(scheme: string, authority?: string): string {
 		throw new Error('Method not implemented.');
 	}
+	public getHostTooltip(): string | undefined {
+		throw new Error('Method not implemented.');
+	}
 	getSeparator(scheme: string, authority?: string): '/' | '\\' {
 		throw new Error('Method not implemented.');
 	}

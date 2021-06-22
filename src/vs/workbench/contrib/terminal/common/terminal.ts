@@ -207,6 +207,12 @@ export interface ITerminalConfiguration {
 		focusMode: 'singleClick' | 'doubleClick';
 	},
 	bellDuration: number;
+	defaultLocation: TerminalLocation;
+}
+
+export const enum TerminalLocation {
+	TerminalView = 'view',
+	Editor = 'editor'
 }
 
 export const DEFAULT_LOCAL_ECHO_EXCLUDE: ReadonlyArray<string> = ['vim', 'vi', 'nano', 'tmux'];
@@ -297,7 +303,7 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly onEnvironmentVariableInfoChanged: Event<IEnvironmentVariableInfo>;
 
 	dispose(immediate?: boolean): void;
-	detachFromProcess(): void;
+	detachFromProcess(): Promise<void>;
 	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean): Promise<ITerminalLaunchError | undefined>;
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, isScreenReaderModeEnabled: boolean, reset: boolean): Promise<ITerminalLaunchError | undefined>;
 	write(data: string): void;
@@ -397,6 +403,7 @@ export const enum TerminalCommandId {
 	Relaunch = 'workbench.action.terminal.relaunch',
 	FocusPreviousPane = 'workbench.action.terminal.focusPreviousPane',
 	ShowTabs = 'workbench.action.terminal.showTabs',
+	CreateTerminalEditor = 'workbench.action.createTerminalEditor',
 	FocusTabs = 'workbench.action.terminal.focusTabs',
 	FocusNextPane = 'workbench.action.terminal.focusNextPane',
 	ResizePaneLeft = 'workbench.action.terminal.resizePaneLeft',
@@ -447,7 +454,11 @@ export const enum TerminalCommandId {
 	NavigationModeFocusPrevious = 'workbench.action.terminal.navigationModeFocusPrevious',
 	ShowEnvironmentInformation = 'workbench.action.terminal.showEnvironmentInformation',
 	SearchWorkspace = 'workbench.action.terminal.searchWorkspace',
-	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession'
+	AttachToRemoteTerminal = 'workbench.action.terminal.attachToSession',
+	DetachProcess = 'workbench.action.terminal.detachProcess',
+	MoveToEditor = 'workbench.action.terminal.moveToEditor',
+	MoveToEditorInstance = 'workbench.action.terminal.moveToEditorInstance',
+	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 }
 
 export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [

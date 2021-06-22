@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.58.0",
-  "distro": "68c5c22efa9f79309df7a4e7c94b480124a43384",
+  "distro": "e77be315b42bf74d65842082db09c7b33f7edd3b",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -78,7 +78,7 @@
     "vscode-oniguruma": "1.5.1",
     "vscode-proxy-agent": "^0.11.0",
     "vscode-regexpp": "^3.1.0",
-    "vscode-ripgrep": "^1.11.3",
+    "vscode-ripgrep": "^1.12.0",
     "vscode-sqlite3": "4.0.11",
     "vscode-textmate": "5.4.0",
     "xterm": "4.13.0-beta.1",
@@ -126,7 +126,7 @@
     "cssnano": "^4.1.11",
     "debounce": "^1.0.0",
     "deemon": "^1.4.0",
-    "electron": "12.0.9",
+    "electron": "12.0.11",
     "eslint": "6.8.0",
     "eslint-plugin-jsdoc": "^19.1.0",
     "event-stream": "3.3.4",

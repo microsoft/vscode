@@ -109,6 +109,7 @@
 	padding: 2px;
 	margin-right: 2px;
 	display: flex;
+	color: inherit;
 	align-items: center;
 	justify-content: center;
 }

@@ -158,10 +158,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 						properties: {
 							'onAutoForward': {
 								type: 'string',
-								enum: ['notify', 'openBrowser', 'openPreview', 'silent', 'ignore'],
+								enum: ['notify', 'openBrowser', 'openBrowserOnce', 'openPreview', 'silent', 'ignore'],
 								enumDescriptions: [
 									localize('remote.portsAttributes.notify', "Shows a notification when a port is automatically forwarded."),
 									localize('remote.portsAttributes.openBrowser', "Opens the browser when the port is automatically forwarded. Depending on your settings, this could open an embedded browser."),
+									localize('remote.portsAttributes.openBrowserOnce', "Opens the browser when the port is automatically forwarded, but only the first time the port is forward during a session. Depending on your settings, this could open an embedded browser."),
 									localize('remote.portsAttributes.openPreview', "Opens a preview in the same window when the port is automatically forwarded."),
 									localize('remote.portsAttributes.silent', "Shows no notification and takes no action when this port is automatically forwarded."),
 									localize('remote.portsAttributes.ignore', "This port will not be automatically forwarded.")

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IRevertOptions, isTextEditorPane, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { URI } from 'vs/base/common/uri';
 import { ITextFileService, ITextFileSaveOptions, IModeSupport } from 'vs/workbench/services/textfile/common/textfiles';
@@ -106,6 +106,10 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		return TextResourceEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
 	private cachedModel: TextResourceEditorModel | undefined = undefined;
 	private modelReference: Promise<IReference<ITextEditorModel>> | undefined = undefined;
 
@@ -201,7 +205,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		return model;
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}

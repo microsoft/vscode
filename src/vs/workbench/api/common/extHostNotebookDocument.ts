@@ -54,6 +54,7 @@ export class ExtHostCell {
 	readonly cellKind: notebookCommon.CellKind;
 
 	private _apiCell: vscode.NotebookCell | undefined;
+	private _mime: string | undefined;
 
 	constructor(
 		readonly notebook: ExtHostNotebookDocument,
@@ -85,6 +86,8 @@ export class ExtHostCell {
 				notebook: that.notebook.apiNotebook,
 				kind: extHostTypeConverters.NotebookCellKind.to(this._cellData.cellKind),
 				document: data.document,
+				get mime() { return that._mime; },
+				set mime(value: string | undefined) { that._mime = value; },
 				get outputs() { return that._outputs.slice(0); },
 				get metadata() { return that._metadata; },
 				get executionSummary() { return that._previousResult; }
@@ -115,6 +118,10 @@ export class ExtHostCell {
 	setInternalMetadata(newInternalMetadata: notebookCommon.NotebookCellInternalMetadata): void {
 		this._internalMetadata = newInternalMetadata;
 		this._previousResult = extHostTypeConverters.NotebookCellExecutionSummary.to(newInternalMetadata);
+	}
+
+	setMime(newMime: string | undefined) {
+
 	}
 }
 
@@ -223,6 +230,8 @@ export class ExtHostNotebookDocument {
 				this._setCellOutputItems(rawEvent.index, rawEvent.outputId, rawEvent.append, rawEvent.outputItems);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeLanguage) {
 				this._changeCellLanguage(rawEvent.index, rawEvent.language);
+			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMime) {
+				this._changeCellMime(rawEvent.index, rawEvent.mime);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellMetadata) {
 				this._changeCellMetadata(rawEvent.index, rawEvent.metadata);
 			} else if (rawEvent.kind === notebookCommon.NotebookCellsChangeType.ChangeCellInternalMetadata) {
@@ -343,6 +352,11 @@ export class ExtHostNotebookDocument {
 		if (cell.apiCell.document.languageId !== newModeId) {
 			this._textDocuments.$acceptModelModeChanged(cell.uri, newModeId);
 		}
+	}
+
+	private _changeCellMime(index: number, newMime: string | undefined): void {
+		const cell = this._cells[index];
+		cell.apiCell.mime = newMime;
 	}
 
 	private _changeCellMetadata(index: number, newMetadata: notebookCommon.NotebookCellMetadata): void {

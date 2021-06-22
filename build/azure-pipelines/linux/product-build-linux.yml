@@ -12,6 +12,7 @@ steps:
     inputs:
       azureSubscription: "vscode-builds-subscription"
       KeyVaultName: vscode
+      SecretsFilter: 'github-distro-mixin-password,builds-docdb-key-readwrite,vscode-storage-key'
 
   - task: DownloadPipelineArtifact@2
     inputs:
@@ -92,6 +93,7 @@ steps:
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
     displayName: Install dependencies
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
@@ -144,12 +146,6 @@ steps:
     condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - script: |
-      set -e
-      yarn --cwd test/integration/browser compile
-    displayName: Compile integration tests
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
       # Figure out the full absolute path of the product we just built
       # including the remote server and configure the integration tests
       # to run with these builds instead of running out of sources.
@@ -186,12 +182,6 @@ steps:
 
   - script: |
       set -e
-      yarn --cwd test/smoke compile
-    displayName: Compile smoke tests
-    condition: and(succeeded(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
-
-  - script: |
-      set -e
       APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
       yarn smoketest-no-compile --build "$APP_PATH" --electronArgs="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
     timeoutInMinutes: 5
@@ -217,11 +207,19 @@ steps:
 
   - task: PublishPipelineArtifact@0
     inputs:
-      artifactName: "crash-dump-linux-$(VSCODE_ARCH)"
+      artifactName: crash-dump-linux-$(VSCODE_ARCH)
       targetPath: .build/crashes
     displayName: "Publish Crash Reports"
     continueOnError: true
     condition: failed()
+
+  - task: PublishPipelineArtifact@0
+    inputs:
+      artifactName: logs-linux-$(VSCODE_ARCH)-$(System.JobAttempt)
+      targetPath: .build/logs
+    displayName: "Publish Log Files"
+    continueOnError: true
+    condition: and(succeededOrFailed(), eq(variables['VSCODE_ARCH'], 'x64'), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
   - task: PublishTestResults@2
     displayName: Publish Tests Results

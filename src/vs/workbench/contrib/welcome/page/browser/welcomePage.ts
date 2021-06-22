@@ -57,7 +57,6 @@ const oldConfigurationKey = 'workbench.welcome.enabled';
 const telemetryFrom = 'welcomePage';
 
 export class WelcomePageContribution implements IWorkbenchContribution {
-	private experimentManagementComplete: Promise<void>;
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -71,18 +70,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) {
-
-		// Run immediately to minimize time spent waiting for exp service.
-		this.experimentManagementComplete = this.manageDefaultValuesForGettingStartedExperiment().catch(onUnexpectedError);
 		this.run().then(undefined, onUnexpectedError);
-	}
-
-	private async manageDefaultValuesForGettingStartedExperiment() {
-		const config = this.configurationService.inspect(configurationKey);
-
-		if (this.lifecycleService.startupKind === StartupKind.ReloadedWindow || config.value !== config.defaultValue) {
-			return;
-		}
 	}
 
 	private async run() {
@@ -135,10 +123,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	}
 
 	private async openWelcome() {
-		await this.experimentManagementComplete;
-
 		const startupEditorSetting = this.configurationService.getValue(configurationKey);
-		const startupEditorTypeID = (startupEditorSetting === 'gettingStarted' || startupEditorSetting === 'gettingStartedInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
+		const startupEditorTypeID = (startupEditorSetting === 'welcomePage' || startupEditorSetting === 'welcomePageInEmptyWorkbench') ? gettingStartedInputTypeId : welcomeInputTypeId;
 		const editor = this.editorService.activeEditor;
 
 		// Ensure that the welcome editor won't get opened more than once
@@ -170,9 +156,9 @@ function isWelcomePageEnabled(configurationService: IConfigurationService, conte
 		console.error('Warning: `workbench.startupEditor: readme` setting ignored due to being set somewhere other than user settings');
 	}
 	return startupEditor.value === 'welcomePage'
-		|| startupEditor.value === 'gettingStarted'
+		|| startupEditor.value === 'legacy_welcomePage'
 		|| startupEditor.userValue === 'readme'
-		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'welcomePageInEmptyWorkbench' || startupEditor.value === 'gettingStartedInEmptyWorkbench'));
+		|| (contextService.getWorkbenchState() === WorkbenchState.EMPTY && (startupEditor.value === 'legacy_welcomePageInEmptyWorkbench' || startupEditor.value === 'welcomePageInEmptyWorkbench'));
 }
 
 export class WelcomePageAction extends Action {

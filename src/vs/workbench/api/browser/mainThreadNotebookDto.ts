@@ -28,7 +28,10 @@ export namespace NotebookDto {
 		return {
 			cellKind: cell.cellKind,
 			language: cell.language,
+			mime: cell.mime,
 			source: cell.source,
+			internalMetadata: cell.internalMetadata,
+			metadata: cell.metadata,
 			outputs: cell.outputs.map(toNotebookOutputDto)
 		};
 	}
@@ -59,6 +62,7 @@ export namespace NotebookDto {
 		return {
 			cellKind: cell.cellKind,
 			language: cell.language,
+			mime: cell.mime,
 			source: cell.source,
 			outputs: cell.outputs.map(fromNotebookOutputDto),
 			metadata: cell.metadata,

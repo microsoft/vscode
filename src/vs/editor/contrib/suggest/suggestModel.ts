@@ -24,6 +24,8 @@ import { isLowSurrogate, isHighSurrogate, getLeadingWhitespace } from 'vs/base/c
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -95,6 +97,20 @@ export const enum State {
 	Auto = 2
 }
 
+function shouldPreventQuickSuggest(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	return (
+		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowQuickSuggestions'))
+	);
+}
+
+function shouldPreventSuggestOnTriggerCharacters(contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	return (
+		Boolean(contextKeyService.getContextKeyValue<boolean>('inlineSuggestionVisible'))
+		&& !Boolean(configurationService.getValue<boolean>('editor.inlineSuggest.allowSuggestOnTriggerCharacters'))
+	);
+}
+
 export class SuggestModel implements IDisposable {
 
 	private readonly _toDispose = new DisposableStore();
@@ -123,6 +139,8 @@ export class SuggestModel implements IDisposable {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -212,6 +230,10 @@ export class SuggestModel implements IDisposable {
 
 
 		const checkTriggerCharacter = (text?: string) => {
+
+			if (shouldPreventSuggestOnTriggerCharacters(this._contextKeyService, this._configurationService)) {
+				return;
+			}
 
 			if (!text) {
 				// came here from the compositionEnd-event
@@ -349,6 +371,11 @@ export class SuggestModel implements IDisposable {
 					if (!inValidScope) {
 						return;
 					}
+				}
+
+				if (shouldPreventQuickSuggest(this._contextKeyService, this._configurationService)) {
+					// do not trigger quick suggestions if inline suggestions are shown
+					return;
 				}
 
 				// we made it till here -> trigger now

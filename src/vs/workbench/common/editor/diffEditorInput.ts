@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -25,10 +25,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
  */
 export class DiffEditorInput extends SideBySideEditorInput {
 
-	static override readonly ID = 'workbench.editors.diffEditorInput';
+	static override readonly ID: string = 'workbench.editors.diffEditorInput';
 
 	override get typeId(): string {
 		return DiffEditorInput.ID;
+	}
+
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
 	private cachedModel: DiffEditorModel | undefined = undefined;
@@ -149,7 +153,7 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return undefined;
 	}
 
-	override matches(otherInput: unknown): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (!super.matches(otherInput)) {
 			return false;
 		}

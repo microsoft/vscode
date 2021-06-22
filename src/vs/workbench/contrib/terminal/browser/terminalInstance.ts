@@ -22,9 +22,9 @@ import { INotificationService, IPromptChoice, NeverShowAgainScope, Severity } fr
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { EDITOR_PANE_BACKGROUND, PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ProcessState, TERMINAL_VIEW_ID, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, INavigationMode, DEFAULT_COMMANDS_TO_SKIP_SHELL, TERMINAL_CREATION_COMMANDS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, SUGGESTED_RENDERER_TYPE, ITerminalProfileResolverService, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorIdentifiers, ansiColorMap, TERMINAL_BACKGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalLinkManager } from 'vs/workbench/contrib/terminal/browser/links/terminalLinkManager';
@@ -62,6 +62,7 @@ import { containsDragType, DragAndDropObserver, IDragAndDropObserverCallbacks } 
 import { getColorClass } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { Color } from 'vs/base/common/color';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -149,12 +150,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	readonly statusList: ITerminalStatusList = new TerminalStatusList();
 	disableLayout: boolean = false;
+	target?: TerminalLocation;
 	get instanceId(): number { return this._instanceId; }
 	get resource(): URI {
 		return URI.from({
 			scheme: Schemas.vscodeTerminal,
-			path: this.title,
-			fragment: this.instanceId.toString(),
+			path: `/${this.instanceId}`,
+			fragment: this.title,
 		});
 	}
 	get cols(): number {
@@ -629,14 +631,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		return xterm;
 	}
 
-	reattachToElement(container: HTMLElement): void {
-		if (!this._wrapperElement) {
-			throw new Error('The terminal instance has not been attached to a container yet');
-		}
+	detachFromElement(): void {
+		this._detachWrapperElement();
+		this._wrapperElement = undefined;
+		this._container = undefined;
+	}
 
-		this._wrapperElement.parentNode?.removeChild(this._wrapperElement);
-		this._container = container;
-		this._container.appendChild(this._wrapperElement);
+	private _detachWrapperElement() {
+		this._wrapperElement?.parentNode?.removeChild(this._wrapperElement);
 	}
 
 	attachToElement(container: HTMLElement): Promise<void> | void {
@@ -650,8 +652,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return this._attachToElement(container);
 		}
 
+		// Update the theme when attaching as the terminal location could have changed
+		if (this._xterm) {
+			this._updateTheme(this._xterm);
+		}
+
 		// The container changed, reattach
-		this._container?.removeChild(this._wrapperElement);
+		this._detachWrapperElement();
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
 		setTimeout(() => this._initDragAndDrop(container));
@@ -676,12 +683,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.xterm = this._xterm;
 
 		xterm.open(this._xtermElement);
-
-		const suggestedRendererType = this._storageService.get(SUGGESTED_RENDERER_TYPE, StorageScope.GLOBAL);
-		if (this._configHelper.config.gpuAcceleration === 'auto' && (suggestedRendererType === 'auto' || suggestedRendererType === undefined)
-			|| this._configHelper.config.gpuAcceleration === 'on') {
-			this._enableWebglRenderer();
-		}
 
 		if (!xterm.element || !xterm.textarea) {
 			throw new Error('xterm elements not set after open');
@@ -839,8 +840,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private async _measureRenderTime(): Promise<void> {
 		await this._xtermReadyPromise;
 		const frameTimes: number[] = [];
-		const textRenderLayer = this._xtermCore!._renderService._renderer._renderLayers[0];
-		const originalOnGridChanged = textRenderLayer.onGridChanged;
+		if (!this._xtermCore?._renderService) {
+			return;
+		}
+		const textRenderLayer = this._xtermCore!._renderService?._renderer._renderLayers[0];
+		const originalOnGridChanged = textRenderLayer?.onGridChanged;
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer
 			frameTimes.shift();
@@ -982,8 +986,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		super.dispose();
 	}
 
-	detachFromProcess(): void {
-		this._processManager.detachFromProcess();
+	async detachFromProcess(): Promise<void> {
+		await this._processManager.detachFromProcess();
+		this.dispose();
 	}
 
 	forceRedraw(): void {
@@ -1454,7 +1459,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _enableWebglRenderer(): Promise<void> {
-		if (!this._xterm || this._webglAddon) {
+		if (!this._xterm?.element || this._webglAddon) {
 			return;
 		}
 		const Addon = await this._terminalInstanceService.getXtermWebglConstructor();
@@ -1466,7 +1471,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				this._disposeOfWebglRenderer();
 				this._safeSetOption('rendererType', 'dom');
 			});
-			this._storageService.store(SUGGESTED_RENDERER_TYPE, 'auto', StorageScope.GLOBAL, StorageTarget.MACHINE);
 		} catch (e) {
 			this._logService.warn(`Webgl could not be loaded. Falling back to the canvas renderer type.`, e);
 			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
@@ -1689,6 +1693,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				}
 				break;
 		}
+
+		// Remove special characters that could mess with rendering
+		title = title.replace(/[\n\r\t]/g, '');
+
 		const didTitleChange = title !== this._title;
 		this._title = title;
 		this._titleSource = eventSource;
@@ -1794,7 +1802,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		const backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));
+		let backgroundColor: Color | undefined;
+		if (this.target === TerminalLocation.Editor) {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(EDITOR_PANE_BACKGROUND);
+		} else {
+			backgroundColor = theme.getColor(TERMINAL_BACKGROUND_COLOR) || (location === ViewContainerLocation.Sidebar ? theme.getColor(SIDE_BAR_BACKGROUND) : theme.getColor(PANEL_BACKGROUND));
+		}
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
@@ -1928,6 +1941,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.hide();
 		document.body.removeChild(styleElement);
 	}
+
+	static getInstanceIdFromUri(resource: URI): number | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+		const basename = path.basename(resource.path);
+		if (basename === '') {
+			return undefined;
+		}
+		return parseInt(basename);
+	}
 }
 
 class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {
@@ -1955,7 +1979,7 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 	}
 
 	onDragEnter(e: DragEvent) {
-		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, 'terminals')) {
+		if (!containsDragType(e, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
 			return;
 		}
 
@@ -1964,10 +1988,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			this._dropOverlay.classList.add('terminal-drop-overlay');
 		}
 
-		const types = e.dataTransfer?.types || [];
-
 		// Dragging terminals
-		if (types.includes('terminals')) {
+		if (containsDragType(e, DataTransfers.TERMINALS)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');
@@ -1990,10 +2012,8 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			return;
 		}
 
-		const types = e.dataTransfer?.types || [];
-
 		// Dragging terminals
-		if (types.includes('terminals')) {
+		if (containsDragType(e, DataTransfers.TERMINALS)) {
 			const side = this._getDropSide(e);
 			this._dropOverlay.classList.toggle('drop-before', side === 'before');
 			this._dropOverlay.classList.toggle('drop-after', side === 'after');
@@ -2009,21 +2029,29 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 			return;
 		}
 
+		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
+		if (terminalResources) {
+			const uri = URI.parse(JSON.parse(terminalResources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				const side = this._getDropSide(e);
+				this._onDropTerminal.fire({ uri, side });
+				return;
+			}
+		}
+
 		// Check if files were dragged from the tree explorer
 		let path: string | undefined;
 		const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 		if (resources) {
 			const uri = URI.parse(JSON.parse(resources)[0]);
 			if (uri.scheme === Schemas.vscodeTerminal) {
-				this._onDropTerminal.fire({
-					uri,
-					side: this._getDropSide(e)
-				});
+				const side = this._getDropSide(e);
+				this._onDropTerminal.fire({ uri, side });
 				return;
 			} else {
 				path = uri.fsPath;
 			}
-		} else if (e.dataTransfer.files?.[0].path /* Electron only */) {
+		} else if (e.dataTransfer.files.length > 0 && e.dataTransfer.files[0].path /* Electron only */) {
 			// Check if the file was dragged from the filesystem
 			path = URI.file(e.dataTransfer.files[0].path).fsPath;
 		}
@@ -2061,7 +2089,9 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const border = theme.getColor(activeContrastBorder);
 	if (border) {
 		collector.addRule(`
+			.monaco-workbench.hc-black .editor-instance .xterm.focus::before,
 			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm.focus::before,
+			.monaco-workbench.hc-black .editor-instance .xterm:focus::before,
 			.monaco-workbench.hc-black .pane-body.integrated-terminal .xterm:focus::before { border-color: ${border}; }`
 		);
 	}
@@ -2070,10 +2100,15 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
+			.monaco-workbench .editor-instance .find-focused .xterm .xterm-viewport,
 			.monaco-workbench .pane-body.integrated-terminal .find-focused .xterm .xterm-viewport,
+			.monaco-workbench .editor-instance .xterm.focus .xterm-viewport,
 			.monaco-workbench .pane-body.integrated-terminal .xterm.focus .xterm-viewport,
+			.monaco-workbench .editor-instance .xterm:focus .xterm-viewport,
 			.monaco-workbench .pane-body.integrated-terminal .xterm:focus .xterm-viewport,
+			.monaco-workbench .editor-instance .xterm:hover .xterm-viewport,
 			.monaco-workbench .pane-body.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }
+			.monaco-workbench .editor-instance .xterm-viewport,
 			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport { scrollbar-color: ${scrollbarSliderBackgroundColor} transparent; }
 		`);
 	}
@@ -2081,13 +2116,18 @@ registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) =
 	const scrollbarSliderHoverBackgroundColor = theme.getColor(scrollbarSliderHoverBackground);
 	if (scrollbarSliderHoverBackgroundColor) {
 		collector.addRule(`
+			.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover,
 			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:hover { background-color: ${scrollbarSliderHoverBackgroundColor}; }
+			.monaco-workbench .editor-instance .xterm-viewport:hover,
 			.monaco-workbench .pane-body.integrated-terminal .xterm-viewport:hover { scrollbar-color: ${scrollbarSliderHoverBackgroundColor} transparent; }
 		`);
 	}
 
 	const scrollbarSliderActiveBackgroundColor = theme.getColor(scrollbarSliderActiveBackground);
 	if (scrollbarSliderActiveBackgroundColor) {
-		collector.addRule(`.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }`);
+		collector.addRule(`
+			.monaco-workbench .editor-instance .xterm .xterm-viewport::-webkit-scrollbar-thumb:active,
+			.monaco-workbench .pane-body.integrated-terminal .xterm .xterm-viewport::-webkit-scrollbar-thumb:active { background-color: ${scrollbarSliderActiveBackgroundColor}; }
+		`);
 	}
 });

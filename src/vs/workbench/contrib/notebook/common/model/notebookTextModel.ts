@@ -291,7 +291,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		const mainCells = cells.map(cell => {
 			const cellHandle = this._cellhandlePool++;
 			const cellUri = CellUri.generate(this.uri, cellHandle);
-			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._modeService);
+			return new NotebookCellTextModel(cellUri, cellHandle, cell.source, cell.language, cell.mime, cell.cellKind, cell.outputs, cell.metadata, cell.internalMetadata, this.transientOptions, this._modeService);
 		});
 
 		for (let i = 0; i < mainCells.length; i++) {
@@ -306,12 +306,20 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 		this._alternativeVersionId = this._generateAlternativeId();
 	}
 
-	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language') {
+	private _bindCellContentHandler(cell: NotebookCellTextModel, e: 'content' | 'language' | 'mime') {
 		this._increaseVersionId(e === 'content');
-		if (e === 'content') {
-			this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
-		} else {
-			this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }, true);
+		switch (e) {
+			case 'content':
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellContent, transient: false }, true);
+				break;
+
+			case 'language':
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeLanguage, index: this._getCellIndexByHandle(cell.handle), language: cell.language, transient: false }, true);
+				break;
+
+			case 'mime':
+				this._eventEmitter.emit({ kind: NotebookCellsChangeType.ChangeCellMime, index: this._getCellIndexByHandle(cell.handle), mime: cell.mime, transient: false }, true);
+				break;
 		}
 	}
 
@@ -544,7 +552,7 @@ export class NotebookTextModel extends Disposable implements INotebookTextModel 
 			const cellUri = CellUri.generate(this.uri, cellHandle);
 			const cell = new NotebookCellTextModel(
 				cellUri, cellHandle,
-				cellDto.source, cellDto.language, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, this.transientOptions,
+				cellDto.source, cellDto.language, cellDto.mime, cellDto.cellKind, cellDto.outputs || [], cellDto.metadata, cellDto.internalMetadata, this.transientOptions,
 				this._modeService
 			);
 			const textModel = this._modelService.getModel(cellUri);

@@ -34,14 +34,15 @@ import { URI } from 'vs/base/common/uri';
 import { normalizePath, originalFSPath, removeTrailingPathSeparator, extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
-import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier, IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
+import { getSingleFolderWorkspaceIdentifier, getWorkspaceIdentifier } from 'vs/platform/workspaces/electron-main/workspaces';
 import { once } from 'vs/base/common/functional';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
 import { isWindowsDriveLetter, toSlashes, parseLineAndColumnAware, sanitizeFilePath } from 'vs/base/common/extpath';
 import { CharCode } from 'vs/base/common/charCode';
-import { getPathLabel } from 'vs/base/common/labels';
+import { getPathLabel, mnemonicButtonLabel } from 'vs/base/common/labels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IFileService } from 'vs/platform/files/common/files';
 import { cwd } from 'vs/base/common/process';
@@ -702,7 +703,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				const options: MessageBoxOptions = {
 					title: this.productService.nameLong,
 					type: 'info',
-					buttons: [localize('ok', "OK")],
+					buttons: [mnemonicButtonLabel(localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"))],
+					defaultId: 0,
 					message: uri.scheme === Schemas.file ? localize('pathNotExistTitle', "Path does not exist") : localize('uriInvalidTitle', "URI can not be opened"),
 					detail: uri.scheme === Schemas.file ?
 						localize('pathNotExistDetail', "The path '{0}' does not seem to exist anymore on disk.", getPathLabel(uri.fsPath, this.environmentMainService)) :
@@ -910,7 +912,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		// Extract line/col information from path
 		let lineNumber: number | undefined;
 		let columnNumber: number | undefined;
-
 		if (options.gotoLineMode) {
 			({ path, line: lineNumber, column: columnNumber } = parseLineAndColumnAware(path));
 		}
@@ -989,6 +990,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 				if (options.forceOpenWorkspaceAsFile) {
 					return { fileUri: uri, lineNumber, columnNumber, remoteAuthority: options.remoteAuthority };
 				}
+
 				return { workspace: getWorkspaceIdentifier(uri), remoteAuthority };
 			}
 

@@ -203,7 +203,9 @@ export class TestResultService implements ITestResultService {
 
 		this._results = keep;
 		this.persistScheduler.schedule();
-		this.hasAnyResults.set(false);
+		if (keep.length === 0) {
+			this.hasAnyResults.set(false);
+		}
 		this.changeResultEmitter.fire({ removed });
 	}
 
