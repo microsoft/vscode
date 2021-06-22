@@ -7,6 +7,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -19,7 +20,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
-	private _createInstance: (() => ITerminalInstance) | undefined;
+	private _createInstance: ((config: any) => ITerminalInstance) | undefined;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
@@ -43,7 +44,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 	}
 
-	setCreateInstanceFactory(createInstance: () => ITerminalInstance): void {
+	setCreateInstanceFactory(createInstance: (config: any) => ITerminalInstance): void {
 		this._createInstance = createInstance;
 	}
 
@@ -76,11 +77,12 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		});
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput {
 		const cachedEditor = this._editorInputs.get(instance.instanceId);
 		if (cachedEditor) {
 			return cachedEditor;
 		}
+		instance = 'processId' in instance ? instance : this._createInstance!({ attachPersistentProcess: instance });
 		const input = new TerminalEditorInput(instance, this._createInstance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);

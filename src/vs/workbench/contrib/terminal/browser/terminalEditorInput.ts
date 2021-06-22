@@ -29,7 +29,7 @@ export class TerminalEditorInput extends EditorInput {
 		if (!this._createInstance) {
 			throw new Error('copy terminal editor instance failed');
 		}
-		const instance = this._createInstance();
+		const instance = this._createInstance(undefined);
 		instance.target = TerminalLocation.Editor;
 		return new TerminalEditorInput(instance, this._createInstance);
 	}
@@ -48,7 +48,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	constructor(
 		terminalInstance: ITerminalInstance,
-		private readonly _createInstance?: () => ITerminalInstance
+		private readonly _createInstance?: (config: any) => ITerminalInstance
 	) {
 		super();
 		this._terminalInstance = terminalInstance;
