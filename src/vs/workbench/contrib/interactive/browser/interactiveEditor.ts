@@ -148,6 +148,7 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
+		this.#widgetDisposableStore.add(editorModel);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -250,6 +251,10 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
+	}
+
+	override focus() {
+		this.#codeEditorWidget.focus();
 	}
 
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
