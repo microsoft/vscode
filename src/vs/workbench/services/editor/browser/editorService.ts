@@ -514,17 +514,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
-			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
+			const [resolvedGroup, resolvedOptions] = result;
 
 			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				const overrideResult = await this.editorOverrideService.resolveEditorOverride(resolvedEditor, resolvedOptions, resolvedGroup);
+				const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, resolvedGroup);
 				if (overrideResult === OverrideStatus.ABORT) {
 					return;
-				} else if (overrideResult === OverrideStatus.NONE) {
-					return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
-				}
-				if (overrideResult) {
+				} else if (overrideResult !== OverrideStatus.NONE) {
 					return resolvedGroup.openEditor(
 						overrideResult.editor,
 						overrideResult.options ?? resolvedOptions
@@ -532,6 +529,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 
+			const resolvedEditor = editor instanceof EditorInput ? editor : this.createEditorInput(editor);
 			// Override handling: disabled or no override found
 			return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
 		}
@@ -539,58 +537,55 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	private doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
+	private doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, IEditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
-		let typedEditor: EditorInput | undefined;
 		let options: IEditorOptions | undefined;
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
-			typedEditor = editor;
 			options = optionsOrGroup as IEditorOptions;
 
 			candidateGroup = group;
-			resolvedGroup = this.findTargetGroup(typedEditor, options, candidateGroup);
+			resolvedGroup = this.findTargetGroup(editor, options, candidateGroup);
 		}
 
 		// Untyped Text Editor Support
 		else {
 			const textInput = editor as IUntypedEditorInput;
-			typedEditor = this.createEditorInput(textInput);
-			if (typedEditor) {
-				options = textInput.options;
+			candidateGroup = optionsOrGroup as OpenInEditorGroup;
+			options = textInput.options;
+			resolvedGroup = this.findTargetGroup(textInput, options, candidateGroup);
+		}
 
-				candidateGroup = optionsOrGroup as OpenInEditorGroup;
-				resolvedGroup = this.findTargetGroup(typedEditor, options, candidateGroup);
+		if (
+			this.editorGroupService.activeGroup !== resolvedGroup && 	// only if target group is not already active
+			options && !options.inactive &&								// never for inactive editors
+			options.preserveFocus &&									// only if preserveFocus
+			typeof options.activation !== 'number' &&					// only if activation is not already defined (either true or false)
+			candidateGroup !== SIDE_GROUP								// never for the SIDE_GROUP
+		) {
+			// If the resolved group is not the active one, we typically
+			// want the group to become active. There are a few cases
+			// where we stay away from encorcing this, e.g. if the caller
+			// is already providing `activation`.
+			//
+			// Specifically for historic reasons we do not activate a
+			// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
+			// repeated Alt-clicking of files in the explorer always open
+			// into the same side group and not cause a group to be created each time.
+			options.activation = EditorActivation.ACTIVATE;
+
+			if (!(editor instanceof EditorInput)) {
+				(editor as IUntypedEditorInput).options = options;
 			}
 		}
 
-		if (typedEditor && resolvedGroup) {
-			if (
-				this.editorGroupService.activeGroup !== resolvedGroup && 	// only if target group is not already active
-				options && !options.inactive &&								// never for inactive editors
-				options.preserveFocus &&									// only if preserveFocus
-				typeof options.activation !== 'number' &&					// only if activation is not already defined (either true or false)
-				candidateGroup !== SIDE_GROUP								// never for the SIDE_GROUP
-			) {
-				// If the resolved group is not the active one, we typically
-				// want the group to become active. There are a few cases
-				// where we stay away from encorcing this, e.g. if the caller
-				// is already providing `activation`.
-				//
-				// Specifically for historic reasons we do not activate a
-				// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
-				// repeated Alt-clicking of files in the explorer always open
-				// into the same side group and not cause a group to be created each time.
-				options.activation = EditorActivation.ACTIVATE;
-			}
 
-			return [resolvedGroup, typedEditor, options];
-		}
 
-		return undefined;
+		return [resolvedGroup, options];
+
 	}
 
 	private findTargetGroup(editor: IEditorInput | IUntypedEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
@@ -727,7 +722,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			for (const { editor, options } of editorsWithOptions) {
 				let editorOverride: IEditorInputWithOptions | undefined;
 				if (options?.override !== EditorOverride.DISABLED) {
-					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
+					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, group);
 					if (overrideResult === OverrideStatus.ABORT) {
 						continue;
 					} else {
@@ -930,7 +925,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (replaceEditorArg.editor instanceof EditorInput) {
 				const replacementArg = replaceEditorArg as IEditorReplacement;
 				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
-					const override = await this.editorOverrideService.resolveEditorOverride(replacementArg.replacement, replacementArg.options, targetGroup);
+					const override = await this.editorOverrideService.resolveEditorOverride(replacementArg.replacement, targetGroup);
 					if (override === OverrideStatus.ABORT) {
 						continue;
 					} else if (override !== OverrideStatus.NONE) {

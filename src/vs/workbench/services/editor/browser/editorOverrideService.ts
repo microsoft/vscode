@@ -418,8 +418,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 					if (!picked) {
 						return;
 					}
-					// TODO @lramos15 Need to use an untyped editor input here as there's no options anymore
-					const replacementEditor = await this.resolveEditorOverride(currentEditor, group);
+					untypedInput.options = picked;
+					const replacementEditor = await this.resolveEditorOverride(untypedInput, group);
 					if (replacementEditor === OverrideStatus.ABORT || replacementEditor === OverrideStatus.NONE) {
 						return;
 					}

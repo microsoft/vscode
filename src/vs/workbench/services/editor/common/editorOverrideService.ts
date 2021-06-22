@@ -12,7 +12,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorInputWithOptions, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
@@ -146,7 +146,7 @@ export interface IEditorOverrideService {
 	 * @param group The current group
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IUntypedEditorInput, options: IEditorOptions | undefined, group: IEditorGroup): Promise<ReturnedOverride>;
+	resolveEditorOverride(editor: IUntypedEditorInput, group: IEditorGroup): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
