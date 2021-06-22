@@ -47,16 +47,22 @@ export class TerminalEditor extends EditorPane {
 			// since the editor does not monitor focus changes, for ex. between the terminal
 			// panel and the editors, this is needed so that the active instance gets set
 			// when focus changes between them.
-			this._register(this._editorInput.terminalInstance.onFocused(() => this.focus()));
+			this._register(this._editorInput.terminalInstance.onFocused(() => this._setActiveInstance()));
 		}
+	}
+
+	private _setActiveInstance(): void {
+		if (!this._editorInput?.terminalInstance) {
+			return;
+		}
+		this._terminalEditorService.setActiveInstance(this._editorInput.terminalInstance);
 	}
 
 	override focus() {
 		if (!this._editorInput?.terminalInstance) {
 			return;
 		}
-		this._editorInput?.terminalInstance?.focus();
-		this._terminalEditorService.setActiveInstance(this._editorInput.terminalInstance);
+		this._editorInput.terminalInstance.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
