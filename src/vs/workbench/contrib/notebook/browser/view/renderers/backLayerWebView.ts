@@ -598,7 +598,7 @@ var requirejs = (function() {
 				case 'toggleMarkupPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
+						if (cell && !this.notebookEditor.creationOptions.isReadOnly) {
 							this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
 							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
 						}
