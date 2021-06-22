@@ -925,7 +925,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (replaceEditorArg.editor instanceof EditorInput) {
 				const replacementArg = replaceEditorArg as IEditorReplacement;
 				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
-					const override = await this.editorOverrideService.resolveEditorOverride(replacementArg.replacement, targetGroup);
+					const override = await this.editorOverrideService.resolveEditorOverride({ resource: replacementArg.replacement.resource, options: replacementArg.options }, targetGroup);
 					if (override === OverrideStatus.ABORT) {
 						continue;
 					} else if (override !== OverrideStatus.NONE) {
