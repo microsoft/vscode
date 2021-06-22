@@ -1007,7 +1007,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		options.fileKind = FileKind.FILE;
 		label.description = node.element.description || undefined;
 
-		if (node.element.duration) {
+		if (node.element.duration !== undefined) {
 			label.description = label.description
 				? `${label.description}: ${formatDuration(node.element.duration)}`
 				: formatDuration(node.element.duration);
