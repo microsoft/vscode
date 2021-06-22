@@ -38,6 +38,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
+export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -133,6 +134,7 @@ type StepProgress = { done?: boolean; };
 export interface IGettingStartedStepWithProgress extends IGettingStartedStep, Required<StepProgress> { }
 
 export interface IGettingStartedCategoryWithProgress extends Omit<IGettingStartedCategory, 'content'> {
+	priority: number
 	content:
 	| {
 		type: 'steps',
@@ -743,7 +745,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	getCategories(): IGettingStartedCategoryWithProgress[] {
 		const registeredCategories = [...this.gettingStartedContributions.values()];
 		const categoriesWithCompletion = registeredCategories
-			.sort((a, b) => a.order - b.order)
 			.filter(category => this.contextService.contextMatchesRules(category.when))
 			.map(category => {
 				if (category.content.type === 'steps') {
@@ -758,20 +759,21 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				return category;
 			})
 			.filter(category => category.content.type !== 'steps' || category.content.steps.length)
-			.map(category => this.getCategoryProgress(category));
+			.map(category => this.getCategoryProgress(category))
+			.sort((a, b) => a.priority - b.priority);
 		return categoriesWithCompletion;
 	}
 
 	private getCategoryProgress(category: IGettingStartedCategory): IGettingStartedCategoryWithProgress {
 		if (category.content.type === 'startEntry') {
-			return { ...category, content: category.content };
+			return { ...category, content: category.content, priority: 0 };
 		}
-
 		const stepsWithProgress = category.content.steps.map(step => this.getStepProgress(step));
 		const stepsComplete = stepsWithProgress.filter(step => step.done);
 
 		return {
 			...category,
+			priority: 1 - (stepsComplete.length / stepsWithProgress.length),
 			content: {
 				type: 'steps',
 				steps: stepsWithProgress,
@@ -906,6 +908,14 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const gettingStartedService = accessor.get(IGettingStartedService);
+		const storageService = accessor.get(IStorageService);
+
+		storageService.store(
+			hiddenEntriesConfigurationKey,
+			JSON.stringify([]),
+			StorageScope.GLOBAL,
+			StorageTarget.USER);
+
 		const memento = new Memento('gettingStartedService', accessor.get(IStorageService));
 		const record = memento.getMemento(StorageScope.GLOBAL, StorageTarget.USER);
 		for (const key in record) {
