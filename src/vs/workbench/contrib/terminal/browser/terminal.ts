@@ -218,6 +218,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
+	setCreateInstanceFactory(createInstance: () => ITerminalInstance): void;
 }
 
 /**
