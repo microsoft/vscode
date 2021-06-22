@@ -41,6 +41,16 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			const activeEditor = this._editorService.activeEditor;
 			this._setActiveInstance(activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined);
 		}));
+		this._register(this._editorService.onDidVisibleEditorsChange(() => {
+			// add any terminal editors created via the editor service split command
+			const knownIds = this.instances.map(i => i.instanceId);
+			const terminalEditors = this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
+			const unknownEditor = terminalEditors.find(input => !knownIds.includes((input as any).terminalInstance.instanceId));
+			if (unknownEditor instanceof TerminalEditorInput && unknownEditor.terminalInstance) {
+				this._editorInputs.set(unknownEditor.terminalInstance.instanceId, unknownEditor);
+				this.instances.push(unknownEditor.terminalInstance);
+			}
+		}));
 	}
 
 	setCreateInstanceFactory(createInstance: (obj?: any) => ITerminalInstance): void {
@@ -64,8 +74,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
-		console.log('looking for instance id', instance?.instanceId);
-		console.log('ids', this.instances.map(i => i.instanceId));
 		const newActiveInstance = this.activeInstance;
 		this._onDidChangeActiveInstance.fire(newActiveInstance);
 	}
@@ -79,11 +87,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
+		if (!this._createInstance) {
+			throw new Error('no create instance');
+		}
 		const cachedEditor = this._editorInputs.get(instance.instanceId);
 		if (cachedEditor) {
 			return cachedEditor;
 		}
-		instance = 'processId' in instance ? instance : this._createInstance!({ attachPersistentProcess: instance });
+		instance = 'processId' in instance ? instance : this._createInstance({ attachPersistentProcess: instance });
 		const input = new TerminalEditorInput(instance, this._createInstance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
