@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, EditorExtensions, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditorPane, EditorExtensions, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -94,7 +94,7 @@ interface IStackEntry {
 interface IRecentlyClosedEditor {
 	resource: URI | undefined;
 	associatedResources: URI[];
-	serialized: { typeId: string, value: string };
+	editor: IUntypedEditorInput;
 	index: number;
 	sticky: boolean;
 }
@@ -698,14 +698,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor);
-		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
-			return; // we need a serializer from this point that can serialize this editor
-		}
-
-		const serialized = editorSerializer.serialize(editor);
-		if (typeof serialized !== 'string') {
-			return; // we need something to deserialize from
+		const untypedEditor = editor.asResourceEditorInput(event.groupId);
+		if (!untypedEditor) {
+			return; // we need a untyped editor to restore from going forward
 		}
 
 		const associatedResources: URI[] = [];
@@ -723,7 +718,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.recentlyClosedEditors.push({
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			serialized: { typeId: editor.typeId, value: serialized },
+			editor: untypedEditor,
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -767,10 +762,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			options = { pinned: true, index: lastClosedEditor.index, ignoreError: true };
 		}
 
-		// Deserialize and open editor unless already opened
-		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
+		// Re-open editor unless already opened
 		let editorPane: IEditorPane | undefined = undefined;
-		if (restoredEditor && !this.editorGroupService.activeGroup.contains(restoredEditor)) {
+		if (!this.editorGroupService.activeGroup.contains(lastClosedEditor.editor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do
@@ -778,7 +772,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			//  to prevent endless loops.
 			this.ignoreEditorCloseEvent = true;
 			try {
-				editorPane = await this.editorService.openEditor(restoredEditor, options);
+				editorPane = await this.editorService.openEditor({
+					...lastClosedEditor.editor,
+					options: {
+						...lastClosedEditor.editor.options,
+						...options
+					}
+				});
 			} finally {
 				this.ignoreEditorCloseEvent = false;
 			}
