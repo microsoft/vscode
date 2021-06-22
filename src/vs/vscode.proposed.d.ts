@@ -1396,38 +1396,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/39441
-
-	export interface CompletionItem {
-		/**
-		 * Will be merged into CompletionItem#label
-		 */
-		label2?: CompletionItemLabel;
-	}
-
-	export interface CompletionItemLabel {
-
-		/**
-		 * The label of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
-		 */
-		label: string;
-
-		/**
-		 * A string which is rendered less prominent and directly after {@link CompletionItemLabel.label name}
-		 * without any spacing. Should be used for function signatures or type annotations.
-		 */
-		detail?: string;
-
-		/**
-		 * The fully qualified name, like package name or file path. Rendered after `detail`.
-		 */
-		description?: string;
-	}
-
-	//#endregion
-
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
 	export interface NotebookRendererMessage<T> {

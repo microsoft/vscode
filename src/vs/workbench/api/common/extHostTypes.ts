@@ -1475,8 +1475,7 @@ export interface CompletionItemLabel {
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
 
-	label: string;
-	label2?: CompletionItemLabel;
+	label: string | CompletionItemLabel;
 	kind?: CompletionItemKind;
 	tags?: CompletionItemTag[];
 	detail?: string;
@@ -1492,7 +1491,7 @@ export class CompletionItem implements vscode.CompletionItem {
 	additionalTextEdits?: TextEdit[];
 	command?: vscode.Command;
 
-	constructor(label: string, kind?: CompletionItemKind) {
+	constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind) {
 		this.label = label;
 		this.kind = kind;
 	}
@@ -1500,7 +1499,6 @@ export class CompletionItem implements vscode.CompletionItem {
 	toJSON(): any {
 		return {
 			label: this.label,
-			label2: this.label2,
 			kind: this.kind && CompletionItemKind[this.kind],
 			detail: this.detail,
 			documentation: this.documentation,
