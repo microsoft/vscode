@@ -983,7 +983,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config);
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
 		if (options?.cwd) {
 			shellLaunchConfig.cwd = options.cwd;
