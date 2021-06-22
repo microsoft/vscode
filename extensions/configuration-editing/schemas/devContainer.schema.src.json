@@ -436,6 +436,16 @@
 						]
 					},
 					"description": "Build arguments."
+				},
+				"cacheFrom": {
+					"type": [
+						"string",
+						"array"
+					],
+					"description": "The image to consider as a cache. Use an array to specify multiple images.",
+					"items": {
+						"type": "string"
+					}
 				}
 			}
 		},
