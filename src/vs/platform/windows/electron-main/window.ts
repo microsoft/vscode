@@ -817,7 +817,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		const configuration = Object.assign({}, this.currentConfig);
 
 		// Validate workspace
-		configuration.workspace = await this.validateWorkspace(configuration);
+		configuration.workspace = await this.validateWorkspaceBeforeReload(configuration);
 
 		// Delete some properties we do not want during reload
 		delete configuration.filesToOpenOrCreate;
@@ -840,14 +840,14 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this.load(configuration, { isReload: true, disableExtensions: cli?.['disable-extensions'] });
 	}
 
-	private async validateWorkspace(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
+	private async validateWorkspaceBeforeReload(configuration: INativeWindowConfiguration): Promise<IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined> {
 
 		// Multi folder
 		if (isWorkspaceIdentifier(configuration.workspace)) {
 			const configPath = configuration.workspace.configPath;
 			if (configPath.scheme === Schemas.file) {
-				const workspaceExists = await this.fileService.exists(configPath);
-				if (!workspaceExists) {
+				const workspace = await this.workspacesManagementMainService.resolveLocalWorkspace(configPath);
+				if (!workspace || workspace.transient /* transient workspaces only valid once (https://github.com/microsoft/vscode/issues/119695) */) {
 					return undefined;
 				}
 			}
