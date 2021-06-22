@@ -2579,9 +2579,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 	}
 
 	setMarkupCellEditState(cellId: string, editState: CellEditState): void {
-		if (this.viewModel?.options.isReadOnly) {
-			return;
-		}
 		const cell = this.getCellById(cellId);
 		if (cell instanceof MarkupCellViewModel) {
 			cell.updateEditState(editState, 'setMarkdownCellEditState');
