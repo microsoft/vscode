@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -79,7 +79,7 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 
 	private _currentItemIds: string[] = [];
 
-	private _currentExecutingStateTimer: any;
+	private _currentExecutingStateTimer: IDisposable | undefined;
 
 	constructor(
 		private readonly _notebookViewModel: NotebookViewModel,
@@ -110,12 +110,12 @@ class ExecutionStateCellStatusBarHelper extends Disposable {
 
 		// Show the execution spinner for a minimum time
 		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
-			this._currentExecutingStateTimer = setTimeout(() => {
+			this._currentExecutingStateTimer = this._register(disposableTimeout(() => {
 				this._currentExecutingStateTimer = undefined;
 				if (cell.internalMetadata.runState !== NotebookCellExecutionState.Executing) {
 					this._update();
 				}
-			}, ExecutionStateCellStatusBarHelper.MIN_SPINNER_TIME);
+			}, ExecutionStateCellStatusBarHelper.MIN_SPINNER_TIME));
 		}
 
 		return item ? [item] : [];
