@@ -61,7 +61,7 @@ import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/cont
 import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { GoToTest, internalTestActionIds } from './testExplorerActions';
+import { GoToTest } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -770,13 +770,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const actionable = actualContext.filter((t): t is TestItemTreeElement => t instanceof TestItemTreeElement);
-
-		// Is there a better way to do this?
-		if (internalTestActionIds.has(action.id)) {
-			await action.run(...actionable);
-		} else {
-			await action.run(...actionable.map(a => a.test.item.extId));
-		}
+		await action.run(...actionable);
 	}
 }
 
