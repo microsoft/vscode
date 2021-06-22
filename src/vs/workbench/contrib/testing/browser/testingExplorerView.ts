@@ -1017,7 +1017,17 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	}
 }
 
-const formatDuration = (ms: number) => ms < 10 ? ms.toFixed(1) : ms.toFixed(0);
+const formatDuration = (ms: number) => {
+	if (ms < 10) {
+		return `${ms.toFixed(1)}ms`;
+	}
+
+	if (ms < 1_000) {
+		return `${ms.toFixed(0)}ms`;
+	}
+
+	return `${(ms / 1000).toFixed(1)}s`;
+};
 
 const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
