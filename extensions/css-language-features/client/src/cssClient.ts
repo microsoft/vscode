@@ -49,9 +49,9 @@ export function startClient(context: ExtensionContext, newLanguageClient: Langua
 				}
 				function updateLabel(item: CompletionItem) {
 					if (item.kind === CompletionItemKind.Color) {
-						item.label2 = {
-							name: item.label,
-							type: (item.documentation as string)
+						item.label = {
+							label: item.label as string,
+							description: (item.documentation as string)
 						};
 					}
 				}

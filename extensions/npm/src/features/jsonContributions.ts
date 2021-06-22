@@ -109,8 +109,11 @@ export class JSONCompletionItemProvider implements CompletionItemProvider {
 		const proposed: { [key: string]: boolean } = {};
 		const collector: ISuggestionsCollector = {
 			add: (suggestion: CompletionItem) => {
-				if (!proposed[suggestion.label]) {
-					proposed[suggestion.label] = true;
+				const key = typeof suggestion.label === 'string'
+					? suggestion.label
+					: suggestion.label.label;
+				if (!proposed[key]) {
+					proposed[key] = true;
 					suggestion.range = { replacing: overwriteRange, inserting: new Range(overwriteRange.start, overwriteRange.start) };
 					items.push(suggestion);
 				}
