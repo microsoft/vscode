@@ -33,7 +33,7 @@ export function setup(opts: minimist.ParsedArgs) {
 			const result = await app.workbench.localization.getLocalizedStrings();
 			if (app.quality === Quality.Dev || app.remote) {
 				if (result.open !== 'open' || result.close !== 'close' || result.find !== 'find') {
-					throw new Error(`Received localized strings: ${JSON.stringify(result, undefined, 0)}`);
+					throw new Error(`Received wrong localized strings: ${JSON.stringify(result, undefined, 0)}`);
 				}
 				return;
 			}
