@@ -1396,43 +1396,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/39441
-
-	export interface CompletionItem {
-		/**
-		 * Will be merged into CompletionItem#label
-		 */
-		label2?: CompletionItemLabel;
-	}
-
-	export interface CompletionItemLabel {
-		/**
-		 * The name of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
-		 */
-		name: string;
-
-		/**
-		 * The signature of this completion item. Will be rendered right after the
-		 * {@link CompletionItemLabel.name name}.
-		 */
-		signature?: string;
-
-		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
-		 */
-		//todo@API find better name
-		qualifier?: string;
-
-		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
-		 */
-		type?: string;
-	}
-
-	//#endregion
-
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
 	export interface NotebookRendererMessage<T> {
@@ -1829,10 +1792,11 @@ declare module 'vscode' {
 	//#region https://github.com/microsoft/vscode/issues/107467
 	export namespace test {
 		/**
-		 * Registers a controller that can discover and
-		 * run tests in workspaces and documents.
+		 * Creates a new test controller.
+		 *
+		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function registerTestController<T>(testController: TestController<T>): Disposable;
+		export function createTestController<T>(id: string): TestController<T>;
 
 		/**
 		 * Requests that tests be run by their controller.
@@ -1842,47 +1806,10 @@ declare module 'vscode' {
 		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
 
 		/**
-		 * Returns an observer that retrieves tests in the given workspace folder.
+		 * Returns an observer that watches and can request tests.
 		 * @stability experimental
 		 */
-		export function createWorkspaceTestObserver(workspaceFolder: WorkspaceFolder): TestObserver;
-
-		/**
-		 * Returns an observer that retrieves tests in the given text document.
-		 * @stability experimental
-		 */
-		export function createDocumentTestObserver(document: TextDocument): TestObserver;
-
-		/**
-		 * Creates a {@link TestRun<T>}. This should be called by the
-		 * {@link TestRunner} when a request is made to execute tests, and may also
-		 * be called if a test run is detected externally. Once created, tests
-		 * that are included in the results will be moved into the
-		 * {@link TestResultState.Pending} state.
-		 *
-		 * @param request Test run request. Only tests inside the `include` may be
-		 * modified, and tests in its `exclude` are ignored.
-		 * @param name The human-readable name of the run. This can be used to
-		 * disambiguate multiple sets of results in a test run. It is useful if
-		 * tests are run across multiple platforms, for example.
-		 * @param persist Whether the results created by the run should be
-		 * persisted in the editor. This may be false if the results are coming from
-		 * a file already saved externally, such as a coverage information file.
-		 */
-		export function createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
-
-		/**
-		 * Creates a new managed {@link TestItem} instance.
-		 * @param options Initial/required options for the item
-		 * @param data Custom data to be stored in {@link TestItem.data}
-		 */
-		export function createTestItem<T, TChildren = T>(options: TestItemOptions, data: T): TestItem<T, TChildren>;
-
-		/**
-		 * Creates a new managed {@link TestItem} instance.
-		 * @param options Initial/required options for the item
-		 */
-		export function createTestItem<T = void, TChildren = any>(options: TestItemOptions): TestItem<T, TChildren>;
+		export function createTestObserver(): TestObserver;
 
 		/**
 		 * List of test results stored by the editor, sorted in descending
@@ -1915,16 +1842,6 @@ declare module 'vscode' {
 		readonly onDidChangeTest: Event<TestsChangeEvent>;
 
 		/**
-		 * An event that fires when all test providers have signalled that the tests
-		 * the observer references have been discovered. Providers may continue to
-		 * watch for changes and cause {@link onDidChangeTest} to fire as files
-		 * change, until the observer is disposed.
-		 *
-		 * @todo as below
-		 */
-		readonly onDidDiscoverInitialTests: Event<void>;
-
-		/**
 		 * Dispose of the observer, allowing the editor to eventually tell test
 		 * providers that they no longer need to update tests.
 		 */
@@ -1954,43 +1871,68 @@ declare module 'vscode' {
 	/**
 	 * Interface to discover and execute tests.
 	 */
-	export interface TestController<T> {
+	export interface TestController<T = any> {
 		/**
-		 * Requests that tests be provided for the given workspace. This will
-		 * be called when tests need to be enumerated for the workspace, such as
-		 * when the user opens the test explorer.
+		 * Root test item. Tests in the workspace should be added as children of
+		 * the root. The extension controls when to add these, although the
+		 * editor may request children using the {@link resolveChildrenHandler},
+		 * and the extension should add tests for a file when
+		 * {@link vscode.workspace.onDidOpenTextDocument} fires in order for
+		 * decorations for tests within the file to be visible.
 		 *
-		 * It's guaranteed that this method will not be called again while
-		 * there is a previous uncancelled call for the given workspace folder.
-		 *
-		 * @param workspace The workspace in which to observe tests
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
-		 * @returns the root test item for the workspace
+		 * Tests in this collection should be watched and updated by the extension
+		 * as files change. See  {@link resolveChildrenHandler} for details around
+		 * for the lifecycle of watches.
 		 */
-		createWorkspaceTestRoot(workspace: WorkspaceFolder, token: CancellationToken): ProviderResult<TestItem<T>>;
+		readonly root: TestItem;
 
 		/**
-		 * Requests that tests be provided for the given document. This will be
-		 * called when tests need to be enumerated for a single open file, for
-		 * instance by code lens UI.
-		 *
-		 * It's suggested that the provider listen to change events for the text
-		 * document to provide information for tests that might not yet be
-		 * saved.
-		 *
-		 * If the test system is not able to provide or estimate for tests on a
-		 * per-file basis, this method may not be implemented. In that case, the
-		 * editor will request and use the information from the workspace tree.
-		 *
-		 * @param document The document in which to observe tests
-		 * @param cancellationToken Token that signals the used asked to abort the test run.
-		 * @returns the root test item for the document
+		 * Creates a new managed {@link TestItem} instance as a child of this
+		 * one.
+		 * @param id Unique identifier for the TestItem.
+		 * @param label Human-readable label of the test item.
+		 * @param parent Parent of the item. This is required; top-level items
+		 * should be created as children of the {@link root}.
+		 * @param uri URI this TestItem is associated with. May be a file or directory.
+		 * @param data Custom data to be stored in {@link TestItem.data}
 		 */
-		createDocumentTestRoot?(document: TextDocument, token: CancellationToken): ProviderResult<TestItem<T>>;
+		createTestItem<TChild = T>(
+			id: string,
+			label: string,
+			parent: TestItem,
+			uri?: Uri,
+			data?: TChild,
+		): TestItem<TChild>;
+
+
+		/**
+		 * A function provided by the extension that the editor may call to request
+		 * children of a test item, if the {@link TestItem.status} is `Pending`.
+		 *
+		 * When called, the item should discover tests and call {@link TestItem.addChild}.
+		 * The items should set its {@link TestItem.status} to `Resolved` when
+		 * discovery is finished.
+		 *
+		 * The item should continue watching for changes to the children and
+		 * firing updates until the `token` is cancelled. The process of watching
+		 * the tests may involve creating a file watcher, for example. After the
+		 * token is cancelled and watching stops, the TestItem should set its
+		 * {@link TestItem.status} back to `Pending`.
+		 *
+		 * The editor will only call this method when it's interested in refreshing
+		 * the children of the item, and will not call it again while there's an
+		 * existing, uncancelled discovery for an item.
+		 *
+		 * @param item An unresolved test item for which
+		 * children are being requested
+		 * @param token Cancellation for the request. Cancellation will be
+		 * requested if the test changes before the previous call completes.
+		 */
+		resolveChildrenHandler?: (item: TestItem<T>, token: CancellationToken) => void;
 
 		/**
 		 * Starts a test run. When called, the controller should call
-		 * {@link vscode.test.createTestRun}. All tasks associated with the
+		 * {@link TestController.createTestRun}. All tasks associated with the
 		 * run should be created before the function returns or the reutrned
 		 * promise is resolved.
 		 *
@@ -2000,13 +1942,36 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runTests(request: TestRunRequest<T>, token: CancellationToken): Thenable<void> | void;
+		runHandler?: (request: TestRunRequest<T>, token: CancellationToken) => Thenable<void> | void;
+		/**
+		 * Creates a {@link TestRun<T>}. This should be called by the
+		 * {@link TestRunner} when a request is made to execute tests, and may also
+		 * be called if a test run is detected externally. Once created, tests
+		 * that are included in the results will be moved into the
+		 * {@link TestResultState.Pending} state.
+		 *
+		 * @param request Test run request. Only tests inside the `include` may be
+		 * modified, and tests in its `exclude` are ignored.
+		 * @param name The human-readable name of the run. This can be used to
+		 * disambiguate multiple sets of results in a test run. It is useful if
+		 * tests are run across multiple platforms, for example.
+		 * @param persist Whether the results created by the run should be
+		 * persisted in the editor. This may be false if the results are coming from
+		 * a file already saved externally, such as a coverage information file.
+		 */
+		createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
+
+		/**
+		 * Unregisters the test controller, disposing of its associated tests
+		 * and unpersisted results.
+		 */
+		dispose(): void;
 	}
 
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export interface TestRunRequest<T> {
+	export class TestRunRequest<T> {
 		/**
 		 * Array of specific tests to run. The controllers should run all of the
 		 * given tests and all children of the given tests, excluding any tests
@@ -2025,6 +1990,13 @@ declare module 'vscode' {
 		 * Whether tests in this run should be debugged.
 		 */
 		debug: boolean;
+
+		/**
+		 * @param tests Array of specific tests to run.
+		 * @param exclude Tests to exclude from the run
+		 * @param debug Whether tests in this run should be debugged.
+		 */
+		constructor(tests: readonly TestItem<T>[], exclude?: readonly TestItem<T>[], debug?: boolean);
 	}
 
 	/**
@@ -2099,32 +2071,10 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options initially passed into `vscode.test.createTestItem`
-	 */
-	export interface TestItemOptions {
-		/**
-		 * Unique identifier for the TestItem. This is used to correlate
-		 * test results and tests in the document with those in the workspace
-		 * (test explorer). This cannot change for the lifetime of the TestItem.
-		 */
-		id: string;
-
-		/**
-		 * URI this TestItem is associated with. May be a file or directory.
-		 */
-		uri?: Uri;
-
-		/**
-		 * Display name describing the test item.
-		 */
-		label: string;
-	}
-
-	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem<T, TChildren = any> {
+	export interface TestItem<T = any> {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2140,7 +2090,7 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
-		readonly children: ReadonlyMap<string, TestItem<TChildren>>;
+		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
 		 * The parent of this item, if any. Assigned automatically when calling
@@ -2211,35 +2161,6 @@ declare module 'vscode' {
 		 * Extensions should generally not override this method.
 		 */
 		invalidate(): void;
-
-		/**
-		 * A function provided by the extension that the editor may call to request
-		 * children of the item, if the {@link TestItem.status} is `Pending`.
-		 *
-		 * When called, the item should discover tests and call {@link TestItem.addChild}.
-		 * The items should set its {@link TestItem.status} to `Resolved` when
-		 * discovery is finished.
-		 *
-		 * The item should continue watching for changes to the children and
-		 * firing updates until the token is cancelled. The process of watching
-		 * the tests may involve creating a file watcher, for example. After the
-		 * token is cancelled and watching stops, the TestItem should set its
-		 * {@link TestItem.status} back to `Pending`.
-		 *
-		 * The editor will only call this method when it's interested in refreshing
-		 * the children of the item, and will not call it again while there's an
-		 * existing, uncancelled discovery for an item.
-		 *
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
-		 */
-		resolveHandler?: (token: CancellationToken) => void;
-
-		/**
-		 * Attaches a child, created from the {@link test.createTestItem} function,
-		 * to this item. A `TestItem` may be a child of at most one other item.
-		 */
-		addChild(child: TestItem<TChildren>): void;
 
 		/**
 		 * Removes the test and its children from the tree. Any tokens passed to

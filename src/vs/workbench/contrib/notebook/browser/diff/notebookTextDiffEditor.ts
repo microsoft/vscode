@@ -9,7 +9,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
+import { getDefaultNotebookCreationOptions, notebookCellBorder, NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { NotebookDiffEditorInput } from '../notebookDiffEditorInput';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -23,7 +23,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, ICellOutputViewModel, IDisplayOutputLayoutUpdateRequest, IGenericCellViewModel, IInsetRenderOutput, INotebookEditorCreationOptions, INotebookEditorOptions, NotebookLayoutInfo, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } from 'vs/workbench/contrib/notebook/browser/diff/notebookDiffEditorBrowser';
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -45,6 +45,7 @@ import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOp
 const $ = DOM.$;
 
 export class NotebookTextDiffEditor extends EditorPane implements INotebookTextDiffEditor {
+	creationOptions: INotebookEditorCreationOptions = getDefaultNotebookCreationOptions();
 	static readonly ID: string = NOTEBOOK_DIFF_EDITOR_ID;
 
 	private _rootElement!: HTMLElement;
@@ -184,7 +185,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				multipleSelectionSupport: false,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
-				useActiveIcons: false,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {

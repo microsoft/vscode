@@ -6,7 +6,7 @@
 import { AbstractSideBySideEditorInputSerializer, SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { TEXT_DIFF_EDITOR_ID, BINARY_DIFF_EDITOR_ID, Verbosity, IEditorDescriptor, IEditorPane, GroupIdentifier, IResourceDiffEditorInput, IEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
 import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorModel';
@@ -137,9 +137,9 @@ export class DiffEditorInput extends SideBySideEditorInput {
 		return new DiffEditorModel(withNullAsUndefined(originalEditorModel), withNullAsUndefined(modifiedEditorModel));
 	}
 
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceDiffEditorInput | undefined {
-		const originalResourceEditorInput = this.secondary.asResourceEditorInput(groupId);
-		const modifiedResourceEditorInput = this.primary.asResourceEditorInput(groupId);
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput | undefined {
+		const originalResourceEditorInput = this.secondary.toUntyped(group, context);
+		const modifiedResourceEditorInput = this.primary.toUntyped(group, context);
 
 		if (originalResourceEditorInput && modifiedResourceEditorInput) {
 			return {

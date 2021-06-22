@@ -74,7 +74,7 @@ export class OutOfProcessWin32FolderWatcher {
 								this.log(absolutePath);
 							}
 
-							return;
+							continue;
 						}
 
 						// Otherwise record as event

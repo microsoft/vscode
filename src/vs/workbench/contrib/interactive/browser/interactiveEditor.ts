@@ -27,7 +27,7 @@ import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/notebookEditorService';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { NotebookStatusBarController } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
+import { ExecutionStateCellStatusBarContrib, TimerCellStatusBarContrib } from 'vs/workbench/contrib/notebook/browser/contrib/cellStatusBar/executionStatusBarItemController';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -111,7 +111,8 @@ export class InteractiveEditor extends EditorPane {
 			isEmbedded: true,
 			isReadOnly: true,
 			contributions: NotebookEditorExtensionsRegistry.getSomeEditorContributions([
-				NotebookStatusBarController.id
+				ExecutionStateCellStatusBarContrib.id,
+				TimerCellStatusBarContrib.id
 			]),
 			menuIds: {
 				notebookToolbar: MenuId.InteractiveToolbar,
@@ -119,7 +120,8 @@ export class InteractiveEditor extends EditorPane {
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute
-			}
+			},
+			cellEditorContributions: []
 		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 
@@ -136,6 +138,8 @@ export class InteractiveEditor extends EditorPane {
 		if (model === null) {
 			throw new Error('?');
 		}
+
+		this.#widgetDisposableStore.add(model);
 
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
@@ -266,6 +270,9 @@ export class InteractiveEditor extends EditorPane {
 		if (this.#codeEditorWidget) {
 			this.#codeEditorWidget.dispose();
 		}
+
+		this.#notebookWidget = { value: undefined };
+		this.#widgetDisposableStore.clear();
 
 		super.clearInput();
 	}

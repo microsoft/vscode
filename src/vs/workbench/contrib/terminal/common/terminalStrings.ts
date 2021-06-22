@@ -27,6 +27,11 @@ export const terminalStrings = {
 		original: 'Kill Terminal',
 		short: localize('killTerminal.short', "Kill"),
 	},
+	moveToEditor: {
+		value: localize('moveToEditor', "Move Terminal into Editor Group"),
+		original: 'Move Terminal into Editor Group',
+		short: 'Move into Editor Group'
+	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
 		original: 'Split Terminal',

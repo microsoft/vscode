@@ -235,7 +235,13 @@ export class PackageJSONContribution implements IJSONContribution {
 
 	public resolveSuggestion(resource: Uri | undefined, item: CompletionItem): Thenable<CompletionItem | null> | null {
 		if (item.kind === CompletionItemKind.Property && !item.documentation) {
-			return this.fetchPackageInfo(item.label, resource).then(info => {
+
+			let name = item.label;
+			if (typeof name !== 'string') {
+				name = name.label;
+			}
+
+			return this.fetchPackageInfo(name, resource).then(info => {
 				if (info) {
 					item.documentation = this.getDocumentation(info.description, info.version, info.homepage);
 					return item;

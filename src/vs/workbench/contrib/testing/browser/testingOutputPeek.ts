@@ -49,7 +49,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { WorkbenchCompressibleObjectTree } from 'vs/platform/list/browser/listService';
 import { textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IColorTheme, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
@@ -66,7 +65,7 @@ import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates
 import { buildTestUri, ParsedTestUri, parseTestUri, TestUriType } from 'vs/workbench/contrib/testing/common/testingUri';
 import { getPathForTestInResult, ITestResult, maxCountPriority, resultItemParents, TestResultItemChange, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService, ResultChangeEvent } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getAllTestsInHierarchy, ITestService } from 'vs/workbench/contrib/testing/common/testService';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 class TestDto {
@@ -215,45 +214,39 @@ export class TestingPeekOpener extends Disposable implements ITestingPeekOpener 
 	 * Gets the message closest to the given position from a test in the file.
 	 */
 	private async getFileCandidateMessage(uri: URI, position: Position | null) {
-		const tests = this.testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, uri);
-		try {
-			await getAllTestsInHierarchy(tests.object);
+		let best: TestUriWithDocument | undefined;
+		let bestDistance = Infinity;
 
-			let best: TestUriWithDocument | undefined;
-			let bestDistance = Infinity;
-
-			// Get all tests for the document. In those, find one that has a test
-			// message closest to the cursor position.
-			for (const test of tests.object.all) {
-				const result = this.testResults.getStateById(test.item.extId);
-				if (!result) {
-					continue;
-				}
-
-				mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
-					if (!message.location || message.location.uri.toString() !== uri.toString()) {
-						return;
-					}
-
-					const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
-					if (!best || distance <= bestDistance) {
-						bestDistance = distance;
-						best = {
-							type: TestUriType.ResultMessage,
-							testExtId: result[1].item.extId,
-							resultId: result[0].id,
-							taskIndex,
-							messageIndex,
-							documentUri: uri,
-						};
-					}
-				});
+		// Get all tests for the document. In those, find one that has a test
+		// message closest to the cursor position.
+		const demandedUriStr = uri.toString();
+		for (const test of this.testService.collection.all) {
+			const result = this.testResults.getStateById(test.item.extId);
+			if (!result) {
+				continue;
 			}
 
-			return best;
-		} finally {
-			tests.dispose();
+			mapFindTestMessage(result[1], (_task, message, messageIndex, taskIndex) => {
+				if (!message.location || message.location.uri.toString() !== demandedUriStr) {
+					return;
+				}
+
+				const distance = position ? Math.abs(position.lineNumber - message.location.range.startLineNumber) : 0;
+				if (!best || distance <= bestDistance) {
+					bestDistance = distance;
+					best = {
+						type: TestUriType.ResultMessage,
+						testExtId: result[1].item.extId,
+						resultId: result[0].id,
+						taskIndex,
+						messageIndex,
+						documentUri: uri,
+					};
+				}
+			});
 		}
+
+		return best;
 	}
 
 	/**

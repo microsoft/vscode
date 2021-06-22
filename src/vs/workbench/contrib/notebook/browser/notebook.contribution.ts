@@ -27,7 +27,7 @@ import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchCo
 import { IEditorInput, IEditorInputSerializer, IEditorInputFactoryRegistry, IEditorInputWithOptions, EditorExtensions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { NotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookEditor';
-import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
+import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { NotebookService } from 'vs/workbench/contrib/notebook/browser/notebookServiceImpl';
 import { CellKind, CellToolbarLocation, CellToolbarVisibility, CellUri, DisplayOrderKey, UndoRedoPerCell, ExperimentalUseMarkdownRenderer, IResolvedNotebookEditorModel, NotebookDocumentBackupData, NotebookTextDiffEditorPreview, NotebookWorkingCopyTypeIdentifier, ShowCellStatusBar, CompactView, FocusIndicator, InsertToolbarLocation, GlobalToolbar, ConsolidatedOutputButton, ShowFoldingControls, DragAndDropEnabled, NotebookCellEditorOptionsCustomizations, ConsolidatedRunButton } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -526,7 +526,13 @@ class ComplexNotebookWorkingCopyEditorHandler extends Disposable implements IWor
 
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => workingCopy.resource.scheme === Schemas.vscodeNotebook,
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource),
+			isOpen: (workingCopy, editor) => {
+				if (isCompositeNotebookEditorInput(editor)) {
+					return !!editor.editorInputs.find(input => isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: input.resource.toString() }), workingCopy.resource));
+				}
+
+				return editor instanceof NotebookEditorInput && isEqual(URI.from({ scheme: Schemas.vscodeNotebook, path: editor.resource.toString() }), workingCopy.resource);
+			},
 			createEditor: async workingCopy => {
 				// TODO this is really bad and should adopt the `typeId`
 				// for backups instead of storing that information in the

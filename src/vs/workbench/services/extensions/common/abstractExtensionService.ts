@@ -11,8 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import * as perf from 'vs/base/common/performance';
 import { isEqualOrParent } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
-import { BetterMergeId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { EnablementState, IWebExtensionsScannerService, IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -763,7 +762,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		this._checkEnableProposedApi(extensions);
 
 		// keep only enabled extensions
-		return extensions.filter(extension => this._isEnabled(extension, ignoreWorkspaceTrust));
+		return this._filterEnabledExtensions(extensions, ignoreWorkspaceTrust);
 	}
 
 	/**
@@ -771,30 +770,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	 * @argument ignoreWorkspaceTrust Do not take workspace trust into account.
 	 */
 	protected _isEnabled(extension: IExtensionDescription, ignoreWorkspaceTrust: boolean): boolean {
-		if (extension.isUnderDevelopment) {
-			// Never disable extensions under development
-			return true;
-		}
-
-		if (ExtensionIdentifier.equals(extension.identifier, BetterMergeId)) {
-			// Check if this is the better merge extension which was migrated to a built-in extension
-			return false;
-		}
-
-		const ext = toExtension(extension);
-
-		const isEnabled = this._safeInvokeIsEnabled(ext);
-		if (isEnabled) {
-			return true;
-		}
-
-		if (ignoreWorkspaceTrust && this._safeInvokeIsDisabledByWorkspaceTrust(ext)) {
-			// This extension is disabled, but the reason for it being disabled
-			// is workspace trust, so we will consider it enabled
-			return true;
-		}
-
-		return false;
+		return this._filterEnabledExtensions([extension], ignoreWorkspaceTrust).includes(extension);
 	}
 
 	protected _safeInvokeIsEnabled(extension: IExtension): boolean {
@@ -807,10 +783,34 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 
 	protected _safeInvokeIsDisabledByWorkspaceTrust(extension: IExtension): boolean {
 		try {
-			return this._extensionEnablementService.isDisabledByWorkspaceTrust(extension);
+			const enablementState = this._extensionEnablementService.getEnablementState(extension);
+			return enablementState === EnablementState.DisabledByTrustRequirement;
 		} catch (err) {
 			return false;
 		}
+	}
+
+	private _filterEnabledExtensions(extensions: IExtensionDescription[], ignoreWorkspaceTrust: boolean): IExtensionDescription[] {
+		const enabledExtensions: IExtensionDescription[] = [], extensionsToCheck: IExtensionDescription[] = [], mappedExtensions: IExtension[] = [];
+		for (const extension of extensions) {
+			if (extension.isUnderDevelopment) {
+				// Never disable extensions under development
+				enabledExtensions.push(extension);
+			}
+			else {
+				extensionsToCheck.push(extension);
+				mappedExtensions.push(toExtension(extension));
+			}
+		}
+
+		const enablementStates = this._extensionEnablementService.getEnablementStates(mappedExtensions);
+		for (let index = 0; index < enablementStates.length; index++) {
+			if (enablementStates[index] === EnablementState.EnabledGlobally || enablementStates[index] === EnablementState.EnabledWorkspace || (ignoreWorkspaceTrust && enablementStates[index] === EnablementState.DisabledByTrustRequirement)) {
+				enabledExtensions.push(extensionsToCheck[index]);
+			}
+		}
+
+		return enabledExtensions;
 	}
 
 	protected _doHandleExtensionPoints(affectedExtensions: IExtensionDescription[]): void {

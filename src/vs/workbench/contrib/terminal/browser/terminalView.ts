@@ -364,6 +364,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
+
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],

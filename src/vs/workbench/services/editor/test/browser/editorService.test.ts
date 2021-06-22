@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -485,7 +485,7 @@ suite('EditorService', () => {
 		assert(input instanceof DiffEditorInput);
 		assert.strictEqual(input.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
 		assert.strictEqual(input.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
-		const untypedDiffInput = input.asResourceEditorInput(0) as IResourceDiffEditorInput;
+		const untypedDiffInput = input.toUntyped(0, UntypedEditorContext.Default) as IResourceDiffEditorInput;
 		assert.strictEqual(untypedDiffInput.originalInput.resource?.toString(), resourceDiffInput.originalInput.resource.toString());
 		assert.strictEqual(untypedDiffInput.modifiedInput.resource?.toString(), resourceDiffInput.modifiedInput.resource.toString());
 	});

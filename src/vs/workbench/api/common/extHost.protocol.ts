@@ -56,7 +56,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ExtensionRunTestsRequest, InternalTestItem, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForProviderRequest, RunTestsRequest, TestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, RunTestsRequest, ITestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -1392,14 +1392,10 @@ export const enum ISuggestDataDtoField {
 	additionalTextEdits = 'l',
 	command = 'm',
 	kindModifier = 'n',
-
-	// to merge into label
-	label2 = 'o',
 }
 
 export interface ISuggestDataDto {
-	[ISuggestDataDtoField.label]: string;
-	[ISuggestDataDtoField.label2]?: string | modes.CompletionItemLabel;
+	[ISuggestDataDtoField.label]: string | modes.CompletionItemLabel;
 	[ISuggestDataDtoField.kind]?: modes.CompletionItemKind;
 	[ISuggestDataDtoField.detail]?: string;
 	[ISuggestDataDtoField.documentation]?: string | IMarkdownString;
@@ -2066,36 +2062,39 @@ export const enum ExtHostTestingResource {
 }
 
 export interface ExtHostTestingShape {
-	$runTestsForProvider(req: RunTestForProviderRequest, token: CancellationToken): Promise<void>;
+	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
-	$subscribeToTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-	$unsubscribeFromTests(resource: ExtHostTestingResource, uri: UriComponents): void;
-	$lookupTest(test: TestIdWithSrc): Promise<InternalTestItem | undefined>;
-	$acceptDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
+
+	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
+	$acceptDiff(diff: TestsDiff): void;
+
+	/** Publishes that a test run finished. */
 	$publishTestResults(results: ISerializedTestResults[]): void;
-	$expandTest(src: TestIdWithSrc, levels: number): Promise<void>;
+	/** Expands a test item's children, by the given number of levels. */
+	$expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
 }
 
 export interface MainThreadTestingShape {
 	/** Registeres that there's a test controller with the given ID */
-	$registerTestController(id: string): void;
+	$registerTestController(controllerId: string): void;
 	/** Diposes of the test controller with the given ID */
-	$unregisterTestController(id: string): void;
-	/** Requests tests from the given resource/uri, from the observer API. */
-	$subscribeToDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
-	/** Stops requesting tests from the given resource/uri, from the observer API. */
-	$unsubscribeFromDiffs(resource: ExtHostTestingResource, uri: UriComponents): void;
+	$unregisterTestController(controllerId: string): void;
+	/** Requests tests published to VS Code. */
+	$subscribeToDiffs(): void;
+	/** Stops requesting tests published to VS Code. */
+	$unsubscribeFromDiffs(): void;
 	/** Publishes that new tests were available on the given source. */
-	$publishDiff(resource: ExtHostTestingResource, uri: UriComponents, diff: TestsDiff): void;
+	$publishDiff(controllerId: string, diff: TestsDiff): void;
 	/** Request by an extension to run tests. */
 	$runTests(req: RunTestsRequest, token: CancellationToken): Promise<string>;
 
 	// --- test run handling:
+
 	/**
 	 * Adds tests to the run. The tests are given in descending depth. The first
 	 * item will be a previously-known test, or a test root.
 	 */
-	$addTestsToRun(runId: string, tests: ITestItem[]): void;
+	$addTestsToRun(controllerId: string, runId: string, tests: ITestItem[]): void;
 	/** Updates the state of a test run in the given run. */
 	$updateTestStateInRun(runId: string, taskId: string, testId: string, state: TestResultState, duration?: number): void;
 	/** Appends a message to a test in the run. */

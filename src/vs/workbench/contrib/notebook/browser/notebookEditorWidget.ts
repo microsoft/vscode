@@ -852,7 +852,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditor 
 				selectionNavigation: true,
 				enableKeyboardNavigation: true,
 				additionalScrollHeight: 0,
-				useActiveIcons: false,
 				transformOptimization: false, //(isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list; },
 				overrideStyles: {

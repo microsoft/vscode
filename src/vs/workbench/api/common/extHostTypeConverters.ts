@@ -997,11 +997,7 @@ export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
 
-		const result = new types.CompletionItem(typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name);
-		if (typeof suggestion.label !== 'string') {
-			result.label2 = suggestion.label;
-		}
-
+		const result = new types.CompletionItem(suggestion.label);
 		result.insertText = suggestion.insertText;
 		result.kind = CompletionItemKind.to(suggestion.kind);
 		result.tags = suggestion.tags?.map(CompletionItemTag.to);
@@ -1672,7 +1668,6 @@ export namespace TestItem {
 			label: item.label,
 			uri: URI.revive(item.uri),
 			range: Range.to(item.range || undefined),
-			addChild: () => undefined,
 			dispose: () => undefined,
 			status: types.TestItemStatus.Pending,
 			data: undefined as never,
@@ -1683,7 +1678,7 @@ export namespace TestItem {
 	}
 
 	export function to(item: ITestItem): types.TestItemImpl {
-		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined);
+		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined, undefined);
 		testItem.range = Range.to(item.range || undefined);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description || undefined;

@@ -23,7 +23,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { localizeManifest } from 'vs/platform/extensionManagement/common/extensionNls';
 import { localize } from 'vs/nls';
 import * as semver from 'vs/base/common/semver/semver';
-import { isFunction, isString, isUndefined } from 'vs/base/common/types';
+import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 
@@ -79,11 +79,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 * All system extensions bundled with the product
 	 */
 	private async readSystemExtensions(): Promise<IExtension[]> {
-		let builtinExtensions = await this.builtinExtensionsScannerService.scanBuiltinExtensions();
-		if (isFunction(this.environmentService.options?.builtinExtensionsFilter)) {
-			builtinExtensions = builtinExtensions.filter(e => this.environmentService.options!.builtinExtensionsFilter!(e.identifier.id));
-		}
-		return builtinExtensions;
+		return this.builtinExtensionsScannerService.scanBuiltinExtensions();
 	}
 
 	/**

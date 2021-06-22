@@ -214,7 +214,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.MoveToEditor,
-				title: { value: localize('workbench.action.terminal.moveToEditor', "Move From Terminal View to Editor"), original: 'Move From Terminal View to Editor' },
+				title: terminalStrings.moveToEditor,
 				f1: true,
 				category
 			});
@@ -228,8 +228,31 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.MoveToTerminalView,
-				title: { value: localize('workbench.action.terminal.moveToTerminalView', "Move From Editor to Terminal View"), original: 'Move From Editor to Terminal View' },
+				id: TerminalCommandId.MoveToEditorInstance,
+				title: terminalStrings.moveToEditor,
+				f1: false,
+				category,
+				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN)
+			});
+		}
+		async run(accessor: ServicesAccessor) {
+			const selectedInstances = getSelectedInstances(accessor);
+			if (!selectedInstances || selectedInstances.length === 0) {
+				return;
+			}
+			const terminalService = accessor.get(ITerminalService);
+			for (const instance of selectedInstances) {
+				terminalService.moveToEditor(instance);
+			}
+			selectedInstances[selectedInstances.length - 1].focus();
+		}
+	});
+
+	registerAction2(class extends Action2 {
+		constructor() {
+			super({
+				id: TerminalCommandId.MoveToTerminalPanel,
+				title: { value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"), original: 'Move Terminal into Panel' },
 				f1: true,
 				category
 			});

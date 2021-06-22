@@ -417,6 +417,24 @@ export const enum EditorInputCapabilities {
 	RequiresTrust = 1 << 4,
 }
 
+export const enum UntypedEditorContext {
+
+	/**
+	 * The untyped editor should preserve minimal state of the
+	 * typed editor to restore properly.
+	 */
+	Default = 0,
+
+	/**
+	 * The untyped editor should try to preserve as much of the
+	 * state of the typed editor as possible.
+	 *
+	 * For example: the untyped editor may be dragged to another
+	 * window to fully restore there, including contents.
+	 */
+	Full = 1
+}
+
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput;
 
 export interface IEditorInput extends IDisposable {
@@ -568,7 +586,7 @@ export interface IEditorInput extends IDisposable {
 	 *
 	 * May return `undefined` if a untyped representatin is not supported.
 	 */
-	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined;
+	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined;
 
 	/**
 	 * Returns if the other object matches this input.

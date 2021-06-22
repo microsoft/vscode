@@ -17,7 +17,7 @@ import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { EditorInputCapabilities, GroupIdentifier, IEditorInput, IRevertOptions, ISaveOptions, IUntypedEditorInput, UntypedEditorContext, Verbosity } from 'vs/workbench/common/editor';
 import { decorateFileEditorLabel } from 'vs/workbench/common/editor/resourceEditorInput';
 import { defaultCustomEditor } from 'vs/workbench/contrib/customEditor/common/contributedCustomEditors';
 import { ICustomEditorModel, ICustomEditorService } from 'vs/workbench/contrib/customEditor/common/customEditor';
@@ -397,7 +397,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._untitledDocumentData;
 	}
 
-	public override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	public override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput {
 		return {
 			resource: this.resource,
 			options: {
