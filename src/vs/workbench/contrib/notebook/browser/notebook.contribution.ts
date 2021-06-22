@@ -81,6 +81,7 @@ import 'vs/workbench/contrib/notebook/browser/contrib/cellOperations/cellOperati
 import 'vs/workbench/contrib/notebook/browser/contrib/viewportCustomMarkdown/viewportCustomMarkdown';
 import 'vs/workbench/contrib/notebook/browser/contrib/troubleshoot/layout';
 import 'vs/workbench/contrib/notebook/browser/contrib/codeRenderer/codeRenderer';
+import 'vs/workbench/contrib/notebook/browser/contrib/breakpoints/notebookBreakpoints';
 
 // Diff Editor Contribution
 import 'vs/workbench/contrib/notebook/browser/diff/notebookDiffActions';
