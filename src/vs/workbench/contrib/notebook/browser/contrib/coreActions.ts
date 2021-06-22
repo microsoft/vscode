@@ -1289,7 +1289,10 @@ registerAction2(class EditCellAction extends NotebookCellAction {
 				id: EDIT_CELL_COMMAND_ID,
 				title: localize('notebookActions.editCell', "Edit Cell"),
 				keybinding: {
-					when: ContextKeyExpr.and(NOTEBOOK_CELL_LIST_FOCUSED, ContextKeyExpr.not(InputFocusedContextKey)),
+					when: ContextKeyExpr.and(
+						NOTEBOOK_CELL_LIST_FOCUSED,
+						ContextKeyExpr.not(InputFocusedContextKey),
+						NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true)),
 					primary: KeyCode.Enter,
 					weight: KeybindingWeight.WorkbenchContrib
 				},
