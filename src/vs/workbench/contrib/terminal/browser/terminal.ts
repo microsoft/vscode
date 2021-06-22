@@ -19,6 +19,7 @@ import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/co
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -215,10 +216,10 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
-	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput;
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
-	setCreateInstanceFactory(createInstance: () => ITerminalInstance): void;
+	setCreateInstanceFactory(createInstance: (obj?: any) => ITerminalInstance): void;
 }
 
 /**

@@ -5,6 +5,7 @@
 
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -48,7 +49,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	constructor(
 		terminalInstance: ITerminalInstance,
-		private readonly _createInstance?: () => ITerminalInstance
+		private readonly _createInstance?: (shellLaunchConfig?: IShellLaunchConfig) => ITerminalInstance
 	) {
 		super();
 		this._terminalInstance = terminalInstance;

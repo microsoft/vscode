@@ -19,7 +19,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
-	private _createInstance: (() => ITerminalInstance) | undefined;
+	private _createInstance: ((obj: any) => ITerminalInstance) | undefined;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
@@ -43,7 +43,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 	}
 
-	setCreateInstanceFactory(createInstance: () => ITerminalInstance): void {
+	setCreateInstanceFactory(createInstance: (obj?: any) => ITerminalInstance): void {
 		this._createInstance = createInstance;
 	}
 
@@ -64,6 +64,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
+		console.log('looking for instance id', instance?.instanceId);
+		console.log('ids', this.instances.map(i => i.instanceId));
 		const newActiveInstance = this.activeInstance;
 		this._onDidChangeActiveInstance.fire(newActiveInstance);
 	}
@@ -81,6 +83,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (cachedEditor) {
 			return cachedEditor;
 		}
+		instance = 'processId' in instance ? instance : this._createInstance!({ attachPersistentProcess: instance });
 		const input = new TerminalEditorInput(instance, this._createInstance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);

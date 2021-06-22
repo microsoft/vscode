@@ -157,7 +157,7 @@ export class TerminalService implements ITerminalService {
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 
-		this._terminalEditorService.setCreateInstanceFactory(() => this.createInstance({}));
+		this._terminalEditorService.setCreateInstanceFactory((obj?: any) => this.createInstance(obj));
 
 		editorOverrideService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
