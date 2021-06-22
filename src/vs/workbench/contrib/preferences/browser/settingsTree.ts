@@ -215,7 +215,17 @@ function getBoolObjectDisplayValue(element: SettingsTreeSettingElement): IBoolOb
 		{ ...elementDefaultValue, ...elementScopeValue } :
 		elementDefaultValue;
 
+	const { objectProperties } = element.setting;
+
 	return Object.keys(data).map(key => {
+		if (objectProperties && key in objectProperties) {
+			return {
+				key,
+				value: data[key],
+				description: objectProperties[key].description
+			} as IBoolObjectDataItem;
+		}
+
 		return {
 			key,
 			value: data[key],

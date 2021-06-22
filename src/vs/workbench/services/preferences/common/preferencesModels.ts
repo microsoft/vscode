@@ -641,13 +641,6 @@ export class DefaultSettings extends Disposable {
 					});
 				}
 
-				if (enumToUse && listItemType === 'enum') {
-					console.log('dbg enumArray ' + key);
-				}
-				if (allKeysAreBoolean) {
-					console.log('dbg allKeysAreBoolean ' + key);
-				}
-
 				result.push({
 					key,
 					value,

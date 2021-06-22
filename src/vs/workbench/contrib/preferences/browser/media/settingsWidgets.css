@@ -34,6 +34,10 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
 	margin-top: 3px;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value .value-description {
+	font-style: italic;
+	white-space: normal;
+}
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 0;
 }
@@ -53,7 +57,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
 	display: inline-block;
 	line-height: 24px;
-	height: 24px;
+	min-height: 24px;
 }
 
 /* Use monospace to display glob patterns in exclude widget */

@@ -342,16 +342,18 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
 		const header = this.renderHeader();
-		const ITEM_HEIGHT = 24;
-		let listHeight = ITEM_HEIGHT * this.model.items.length;
+		let listHeight = 0;
 
 		if (header) {
-			listHeight += ITEM_HEIGHT;
 			this.listElement.appendChild(header);
+			listHeight += header.clientHeight;
 		}
 
 		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
-		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
+		this.rowElements.forEach(rowElement => {
+			this.listElement.appendChild(rowElement);
+			listHeight += rowElement.clientHeight;
+		});
 
 		this.listElement.style.height = listHeight + 'px';
 	}
@@ -1183,6 +1185,7 @@ interface IBoolObjectSetValueOptions {
 export interface IBoolObjectDataItem {
 	key: string;
 	value: boolean;
+	description?: string;
 }
 
 export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObjectDataItem> {
@@ -1244,8 +1247,13 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		rowElement.appendChild(element);
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
+		const valueTitleElement = DOM.append(valueElement, $('.value-title'));
 		const { label } = settingKeyToDisplayFormat(changedItem.key);
-		valueElement.textContent = label;
+		valueTitleElement.textContent = label;
+		const valueDescriptionElement = DOM.append(valueElement, $('.value-description'));
+		if (item.description) {
+			valueDescriptionElement.textContent = item.description;
+		}
 		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {
