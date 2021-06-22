@@ -686,25 +686,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		// Convert to typed editors and options
-		const typedEditors: IEditorInputWithOptions[] = editors.map(editor => {
-			if (isEditorInputWithOptions(editor)) {
-				return editor;
-			}
-
-			return {
-				editor: this.createEditorInput(editor),
-				options: editor.options
-			};
-		});
-
 		// Find target groups to open
-		const mapGroupToEditorsCandidates = new Map<IEditorGroup, IEditorInputWithOptions[]>();
+		const mapGroupToEditorsCandidates = new Map<IEditorGroup, Array<IEditorInputWithOptions | IUntypedEditorInput>>();
 		if (group === SIDE_GROUP) {
-			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), typedEditors);
+			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), editors);
 		} else {
-			for (const typedEditor of typedEditors) {
-				const targetGroup = this.findTargetGroup(typedEditor.editor, typedEditor.options, group);
+			for (const editor of editors) {
+
+				const targetGroup = isEditorInputWithOptions(editor) ? this.findTargetGroup(editor.editor, editor.options, group) : this.findTargetGroup(editor, editor.options, group);
 
 				let targetGroupEditors = mapGroupToEditorsCandidates.get(targetGroup);
 				if (!targetGroupEditors) {
@@ -712,15 +701,29 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					mapGroupToEditorsCandidates.set(targetGroup, targetGroupEditors);
 				}
 
-				targetGroupEditors.push(typedEditor);
+				targetGroupEditors.push(editor);
 			}
 		}
 
 		// Resolve overrides
 		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
-		for (const [group, editorsWithOptions] of mapGroupToEditorsCandidates) {
-			for (const { editor, options } of editorsWithOptions) {
+		for (const [group, editors] of mapGroupToEditorsCandidates) {
+			for (const editor of editors) {
+
+				const targetGroup = group;
+				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
+				if (!targetGroupEditors) {
+					targetGroupEditors = [];
+					mapGroupToEditors.set(targetGroup, targetGroupEditors);
+				}
+
+				if (isEditorInputWithOptions(editor)) {
+					targetGroupEditors.push(editor);
+					continue;
+				}
+
 				let editorOverride: IEditorInputWithOptions | undefined;
+				const options = editor.options;
 				if (options?.override !== EditorOverride.DISABLED) {
 					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, group);
 					if (overrideResult === OverrideStatus.ABORT) {
@@ -730,17 +733,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 				}
 
-				const targetGroup = group;
-				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
-				if (!targetGroupEditors) {
-					targetGroupEditors = [];
-					mapGroupToEditors.set(targetGroup, targetGroupEditors);
+				if (editorOverride) {
+					targetGroupEditors.push(
+						{ editor: editorOverride.editor, options: editorOverride.options }
+					);
 				}
-
-				targetGroupEditors.push(editorOverride ?
-					{ editor: editorOverride.editor, options: editorOverride.options } :
-					{ editor, options }
-				);
 			}
 		}
 
