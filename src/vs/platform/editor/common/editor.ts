@@ -104,6 +104,12 @@ export interface IResourceEditorInput extends IBaseResourceEditorInput {
 	readonly resource: URI;
 }
 
+export function isResourceEditorInput(editor: unknown): editor is IResourceEditorInput {
+	const candidate = editor as IResourceEditorInput | undefined;
+
+	return URI.isUri(candidate?.resource);
+}
+
 export interface ITextResourceEditorInput extends IResourceEditorInput, IBaseTextResourceEditorInput {
 
 	/**

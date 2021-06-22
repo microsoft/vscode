@@ -940,6 +940,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 	}
 
 	private async openAnything(resourceOrEditor: URI | IEditorInput | IResourceEditorInput, options: { keyMods?: IKeyMods, preserveFocus?: boolean, range?: IRange, forceOpenSideBySide?: boolean, forcePinned?: boolean }): Promise<void> {
+
+		// Craft some editor options based on quick access usage
 		const editorOptions: ITextEditorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -953,14 +955,32 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			await this.pickState.restoreEditorViewState();
 		}
 
-		// Open editor
+		// Open editor (typed)
 		if (resourceOrEditor instanceof EditorInput) {
 			await this.editorService.openEditor(resourceOrEditor, editorOptions);
-		} else {
-			await this.editorService.openEditor({
-				resource: URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource,
-				options: editorOptions
-			}, targetGroup);
+		}
+
+		// Open editor (untyped)
+		else {
+			let resourceEditorInput: IResourceEditorInput;
+			if (URI.isUri(resourceOrEditor)) {
+				resourceEditorInput = {
+					resource: resourceOrEditor,
+					options
+				};
+			} else {
+				resourceOrEditor = resourceOrEditor as IResourceEditorInput;
+
+				resourceEditorInput = {
+					...resourceOrEditor,
+					options: {
+						// ...resourceOrEditor.options, TODO@bpasero enable after https://github.com/microsoft/vscode/issues/126923 is fixed
+						...editorOptions
+					}
+				};
+			}
+
+			await this.editorService.openEditor(resourceEditorInput, targetGroup);
 		}
 
 	}

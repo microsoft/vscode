@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
@@ -129,7 +129,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return firstOrDefault(editors);
 	}
 
-	asResourceEditorInput(group: GroupIdentifier | undefined): IUntypedEditorInput | undefined {
+	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 
