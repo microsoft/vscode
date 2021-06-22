@@ -6,7 +6,7 @@
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IBaseResourceEditorInput, IEditorModel } from 'vs/platform/editor/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
@@ -129,7 +129,7 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return firstOrDefault(editors);
 	}
 
-	asResourceEditorInput(groupId: GroupIdentifier): IBaseResourceEditorInput | undefined {
+	asResourceEditorInput(group: GroupIdentifier | undefined): IUntypedEditorInput | undefined {
 		return undefined;
 	}
 

@@ -277,7 +277,7 @@ export class SearchEditorInput extends EditorInput {
 		return joinPath(await this.fileDialogService.defaultFilePath(this.pathService.defaultUriScheme), searchFileName);
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): IResourceEditorInput | undefined {
+	override asResourceEditorInput(group: GroupIdentifier | undefined): IResourceEditorInput | undefined {
 		if (this.hasCapability(EditorInputCapabilities.Untitled)) {
 			return undefined;
 		}

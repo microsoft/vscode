@@ -110,7 +110,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): IResourceDiffEditorInput {
+	override asResourceEditorInput(group: GroupIdentifier | undefined): IResourceDiffEditorInput {
 		return {
 			originalInput: { resource: this.originalInput.resource },
 			modifiedInput: { resource: this.resource },

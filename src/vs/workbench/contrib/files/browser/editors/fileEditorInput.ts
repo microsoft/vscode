@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IFileEditorInput, Verbosity, GroupIdentifier, IMoveResult, EditorInputCapabilities, IEditorDescriptor, IEditorPane, IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
-import { EditorOverride, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { ITextFileService, TextFileEditorModelState, TextFileResolveReason, TextFileOperationError, TextFileOperationResult, ITextFileEditorModel, EncodingMode } from 'vs/workbench/services/textfile/common/textfiles';
@@ -390,7 +390,7 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		};
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): ITextResourceEditorInput {
+	override asResourceEditorInput(group: GroupIdentifier | undefined): ITextResourceEditorInput {
 		return {
 			resource: this.preferredResource,
 			forceFile: true,
@@ -405,8 +405,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 				return undefined;
 			})(),
 			options: {
-				viewState: this.getViewStateFor(group),
-				override: EditorOverride.DISABLED
+				viewState: typeof group === 'number' ? this.getViewStateFor(group) : undefined,
+				override: this.editorId
 			}
 		};
 	}

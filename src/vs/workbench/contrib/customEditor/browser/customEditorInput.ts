@@ -397,7 +397,7 @@ export class CustomEditorInput extends LazilyResolvedWebviewEditorInput {
 		return this._untitledDocumentData;
 	}
 
-	public override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	public override asResourceEditorInput(group: GroupIdentifier | undefined): IResourceEditorInput {
 		return {
 			resource: this.resource,
 			options: {

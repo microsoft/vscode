@@ -228,7 +228,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object;
 	}
 
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	override asResourceEditorInput(group: GroupIdentifier | undefined): IResourceEditorInput {
 		return {
 			resource: this.preferredResource,
 			options: {
