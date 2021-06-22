@@ -203,23 +203,27 @@ export class HoverWidget extends Widget {
 		this.adjustVerticalHoverPosition(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
+		this._hover.containerDomNode.style.paddingLeft = '';
+		this._hover.containerDomNode.style.paddingRight = '';
+		this._hover.containerDomNode.style.paddingTop = '';
+		this._hover.containerDomNode.style.paddingBottom = '';
+		this._hover.containerDomNode.style.left = '';
+		this._hover.containerDomNode.style.right = '';
 		if (this._hoverPointer) {
 			switch (this._hoverPosition) {
 				case HoverPosition.RIGHT:
-					targetRect.left += Constants.PointerSize;
-					targetRect.right += Constants.PointerSize;
+					this._hover.containerDomNode.style.paddingLeft = `${Constants.PointerSize}px`;
+					this._hover.containerDomNode.style.left = `-${Constants.PointerSize * 2}px`;
 					break;
 				case HoverPosition.LEFT:
-					targetRect.left -= Constants.PointerSize;
-					targetRect.right -= Constants.PointerSize;
+					this._hover.containerDomNode.style.paddingRight = `${Constants.PointerSize}px`;
+					this._hover.containerDomNode.style.right = `-${Constants.PointerSize * 2}px`;
 					break;
 				case HoverPosition.BELOW:
-					targetRect.top += Constants.PointerSize;
-					targetRect.bottom += Constants.PointerSize;
+					this._hover.containerDomNode.style.paddingTop = `${Constants.PointerSize}px`;
 					break;
 				case HoverPosition.ABOVE:
-					targetRect.top -= Constants.PointerSize;
-					targetRect.bottom -= Constants.PointerSize;
+					this._hover.containerDomNode.style.paddingBottom = `${Constants.PointerSize}px`;
 					break;
 			}
 
