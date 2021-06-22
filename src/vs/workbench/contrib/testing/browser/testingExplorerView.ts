@@ -10,7 +10,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -226,11 +226,6 @@ export class TestingExplorerViewModel extends Disposable {
 	 * and do it then if so.
 	 */
 	private hasPendingReveal = false;
-
-	/**
-	 * Fires when the selected tests change.
-	 */
-	public readonly onDidChangeSelection: Event<ITreeEvent<TestExplorerTreeElement | null>>;
 	/**
 	 * Fires when the visibility of the placeholder state changes.
 	 */
@@ -354,8 +349,11 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.updatePreferredProjection();
 
-		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(async evt => {
+			if (evt.browserEvent instanceof MouseEvent && evt.browserEvent.altKey) {
+				return; // don't focus when alt-clicking to multi select
+			}
+
 			const selected = evt.elements[0];
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
