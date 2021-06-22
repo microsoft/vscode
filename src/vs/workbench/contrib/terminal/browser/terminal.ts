@@ -51,6 +51,12 @@ export interface ITerminalInstanceService {
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
+
+	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance;
+
+	onEditorInstanceCreated: Event<ITerminalInstance>;
+	//TODO: adopt in group service
+	onGroupInstanceCreated: Event<ITerminalInstance>;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -219,7 +225,6 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
-	setCreateInstanceFactory(createInstance: (obj?: any) => ITerminalInstance): void;
 }
 
 /**

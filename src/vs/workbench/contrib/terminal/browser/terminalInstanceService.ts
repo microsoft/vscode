@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IRemoteTerminalService, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -11,10 +11,15 @@ import type { WebglAddon as XTermWebglAddon } from 'xterm-addon-webgl';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ILocalTerminalService, TerminalShellType, WindowsShellType } from 'vs/platform/terminal/common/terminal';
-import { optional } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
 import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
+import { KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { Emitter, Event } from 'vs/base/common/event';
 
 let Terminal: typeof XTermTerminal;
 let SearchAddon: typeof XTermSearchAddon;
@@ -24,12 +29,44 @@ let WebglAddon: typeof XTermWebglAddon;
 export class TerminalInstanceService extends Disposable implements ITerminalInstanceService {
 	declare _serviceBrand: undefined;
 	private readonly _localTerminalService?: ILocalTerminalService;
+	private _terminalFocusContextKey: IContextKey<boolean>;
+	private _terminalShellTypeContextKey: IContextKey<string>;
+	private _terminalAltBufferActiveContextKey: IContextKey<boolean>;
+	private _configHelper: TerminalConfigHelper;
+	private readonly _onEditorInstanceCreated = new Emitter<ITerminalInstance>();
+	get onEditorInstanceCreated(): Event<ITerminalInstance> { return this._onEditorInstanceCreated.event; }
+	private readonly _onGroupInstanceCreated = new Emitter<ITerminalInstance>();
+	get onGroupInstanceCreated(): Event<ITerminalInstance> { return this._onGroupInstanceCreated.event; }
+
 	constructor(
 		@IRemoteTerminalService private readonly _remoteTerminalService: IRemoteTerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		super();
 		this._localTerminalService = localTerminalService;
+		this._terminalFocusContextKey = KEYBINDING_CONTEXT_TERMINAL_FOCUS.bindTo(this._contextKeyService);
+		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
+		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
+		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+	}
+
+	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance {
+		const instance = this._instantiationService.createInstance(TerminalInstance,
+			this._terminalFocusContextKey,
+			this._terminalShellTypeContextKey,
+			this._terminalAltBufferActiveContextKey,
+			this._configHelper,
+			options
+		);
+		if (target) {
+			instance.target = TerminalLocation.Editor;
+			this._onEditorInstanceCreated.fire(instance);
+		} else {
+			this._onGroupInstanceCreated.fire(instance);
+		}
+		return instance;
 	}
 
 	async getXtermConstructor(): Promise<typeof XTermTerminal> {

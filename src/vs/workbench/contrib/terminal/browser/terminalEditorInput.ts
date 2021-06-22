@@ -5,10 +5,9 @@
 
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 
@@ -27,12 +26,8 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override copy(): IEditorInput {
-		if (!this._createInstance) {
-			throw new Error('copy terminal editor instance failed');
-		}
-		const instance = this._createInstance({});
-		instance.target = TerminalLocation.Editor;
-		return new TerminalEditorInput(instance, this._createInstance);
+		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		return new TerminalEditorInput(instance, this._terminalInstanceService);
 	}
 
 	private readonly _terminalInstance: ITerminalInstance;
@@ -49,7 +44,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	constructor(
 		terminalInstance: ITerminalInstance,
-		private readonly _createInstance?: (shellLaunchConfig?: IShellLaunchConfig) => ITerminalInstance
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 		this._terminalInstance = terminalInstance;

@@ -5,8 +5,9 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -19,8 +20,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _editorInputs: Map</*instanceId*/number, TerminalEditorInput> = new Map();
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
-	private _createInstance: ((obj: any) => ITerminalInstance) | undefined;
-
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
@@ -29,7 +28,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -51,10 +51,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 				this.instances.push(unknownEditor.terminalInstance);
 			}
 		}));
-	}
-
-	setCreateInstanceFactory(createInstance: (obj?: any) => ITerminalInstance): void {
-		this._createInstance = createInstance;
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -86,16 +82,22 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		});
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
-		if (!this._createInstance) {
-			throw new Error('no create instance');
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput {
+		let cachedEditor;
+		if ('id' in instance) {
+			cachedEditor = this._editorInputs.get(instance.id);
+		} else if ('instanceId' in instance) {
+			cachedEditor = this._editorInputs.get(instance.instanceId);
 		}
-		const cachedEditor = this._editorInputs.get(instance.instanceId);
 		if (cachedEditor) {
 			return cachedEditor;
 		}
-		instance = 'processId' in instance ? instance : this._createInstance({ attachPersistentProcess: instance });
-		const input = new TerminalEditorInput(instance, this._createInstance);
+
+		if ('pid' in instance) {
+			instance = this._terminalInstanceService.createInstance({ config: { attachPersistentProcess: instance } }, TerminalLocation.Editor);
+		}
+
+		const input = new TerminalEditorInput(instance, this._terminalInstanceService);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [
