@@ -20,6 +20,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DISASSEMBLY_VIEW_ID, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
+import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -108,7 +109,7 @@ export class DisassemblyView extends EditorPane {
 				multipleSelectionSupport: false,
 				setRowLineHeight: false,
 				openOnSingleClick: false,
-				// TODO: accessibilityProvider
+				accessibilityProvider: new AccessibilityProvider()
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
@@ -181,6 +182,7 @@ export class DisassemblyView extends EditorPane {
 
 		return false;
 	}
+
 }
 
 interface IBreakpointColumnTemplateData {
@@ -262,6 +264,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		templateData.container.onmouseover = null;
 		templateData.container.onmouseout = null;
 	}
+
 }
 
 interface IInstructionColumnTemplateData {
@@ -327,6 +330,7 @@ class InstructionRenderer implements ITableRenderer<IDisassembledInstructionEntr
 		element.style.fontFeatureSettings = fontInfo.fontFeatureSettings;
 		element.style.letterSpacing = fontInfo.letterSpacing + 'px';
 	}
+
 }
 
 export class DisassemblyViewInput extends EditorInput {
@@ -355,4 +359,32 @@ export class DisassemblyViewInput extends EditorInput {
 	override matches(other: unknown): boolean {
 		return other instanceof DisassemblyViewInput;
 	}
+
+}
+
+class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledInstructionEntry> {
+
+	getWidgetAriaLabel(): string {
+		return localize('disassemblyView', "Disassembly View");
+	}
+
+	getAriaLabel(element: IDisassembledInstructionEntry): string | null {
+		let label = '';
+
+		if (element.isBreakpointSet) {
+			label += localize('breakpointIsSet', "Breakpoint is set");
+		} else if (element.allowBreakpoint) {
+			label += localize('breakpointAllowed', "Can set breakpoint");
+		}
+
+		const instruction = element.instruction;
+		label += `, ${localize('instructionAddress', "Instruction address")}: ${instruction.address}`;
+		if (instruction.instructionBytes) {
+			label += `, ${localize('instructionBytes', "Instruction bytes")}: ${instruction.instructionBytes}`;
+		}
+		label += `, ${localize(`instructionText`, "Instruction")}: ${instruction.instruction}`;
+
+		return label;
+	}
+
 }
