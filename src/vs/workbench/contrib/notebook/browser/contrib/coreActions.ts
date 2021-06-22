@@ -527,6 +527,7 @@ registerAction2(class ExecuteCell extends NotebookMultiCellAction<INotebookActio
 				description: localize('notebookActions.execute', "Execute Cell"),
 				args: [
 					{
+						isOptional: true,
 						name: 'options',
 						description: 'The cell range options',
 						schema: {
