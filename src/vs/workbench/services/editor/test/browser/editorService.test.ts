@@ -1099,10 +1099,11 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
@@ -1134,10 +1135,11 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
@@ -1165,10 +1167,11 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);

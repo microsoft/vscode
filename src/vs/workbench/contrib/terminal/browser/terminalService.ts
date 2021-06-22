@@ -169,7 +169,9 @@ export class TerminalService implements ITerminalService {
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			(resource, options, group) => {
+			(editorInput, group) => {
+				const resource = editorInput.resource;
+				const options = editorInput.options;
 				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
 				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
 				if (instance) {

@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -124,7 +124,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource, options) => ({ editor: this.createEditorInput({ resource, options }) }),
+			editorInput => ({ editor: this.createEditorInput(editorInput) }),
+			untitledInput => ({ editor: this.createEditorInput(untitledInput) }),
 			diffEditor => ({ editor: this.createEditorInput(diffEditor) })
 		));
 	}
@@ -524,7 +525,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					return resolvedGroup.openEditor(resolvedEditor, resolvedOptions);
 				}
 				if (overrideResult) {
-					return (overrideResult.group ?? resolvedGroup).openEditor(
+					return resolvedGroup.openEditor(
 						overrideResult.editor,
 						overrideResult.options ?? resolvedOptions
 					);
@@ -724,7 +725,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		for (const [group, editorsWithOptions] of mapGroupToEditorsCandidates) {
 			for (const { editor, options } of editorsWithOptions) {
-				let editorOverride: IEditorInputWithOptionsAndGroup | undefined;
+				let editorOverride: IEditorInputWithOptions | undefined;
 				if (options?.override !== EditorOverride.DISABLED) {
 					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, options, group);
 					if (overrideResult === OverrideStatus.ABORT) {
@@ -734,7 +735,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					}
 				}
 
-				const targetGroup = editorOverride?.group ?? group;
+				const targetGroup = group;
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];

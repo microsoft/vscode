@@ -70,7 +70,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 					...overridenInput?.options ?? options,
 					override: EditorOverride.DISABLED
 				}
-			}], overridenInput?.group ?? this.group);
+			}], this.group);
 		}
 	}
 

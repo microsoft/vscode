@@ -154,7 +154,9 @@ export class NotebookProviderInfoStore extends Disposable {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
 				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = (resource, options, group) => {
+			const notebookEditorInputFactory: EditorInputFactoryFunction = (editorInput, group) => {
+				const resource = editorInput.resource;
+				const options = editorInput.options;
 				const data = CellUri.parse(resource);
 				let notebookUri: URI = resource;
 				let cellOptions: IResourceEditorInput | undefined;
@@ -178,6 +180,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorInfo,
 				notebookEditorOptions,
 				notebookEditorInputFactory,
+				undefined,
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
@@ -186,6 +189,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
 				notebookEditorOptions,
 				notebookEditorInputFactory,
+				undefined,
 				notebookEditorDiffFactory
 			));
 		}
