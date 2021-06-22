@@ -48,6 +48,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { PANEL_BORDER } from 'vs/workbench/common/theme';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 
 const collapseIcon = registerIcon('review-comment-collapse', Codicon.chevronUp, nls.localize('collapseIcon', 'Icon to collapse a review comment.'));
@@ -666,7 +667,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			action.run({
 				thread: this._commentThread,
 				text: this._commentReplyComponent?.editor.getValue(),
-				$mid: 8
+				$mid: MarshalledId.CommentThreadReply
 			});
 
 			this.hideReplyArea();
