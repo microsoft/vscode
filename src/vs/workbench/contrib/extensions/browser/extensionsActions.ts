@@ -2129,6 +2129,11 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
+		if (this.extension.enablementState === EnablementState.DisabledByExtensionDependency) {
+			this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+			this.tooltip = localize('extension disabled because of dependency', "This extension has been disabled because it depends on an extension that is disabled.");
+			return;
+		}
 		if (this.extensionManagementServerService.localExtensionManagementServer && this.extensionManagementServerService.remoteExtensionManagementServer) {
 			if (isLanguagePackExtension(this.extension.local.manifest)) {
 				if (!this.extensionsWorkbenchService.installed.some(e => areSameExtensions(e.identifier, this.extension!.identifier) && e.server !== this.extension!.server)) {
