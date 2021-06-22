@@ -383,7 +383,7 @@ export class TestRunDto {
 			}
 		}
 
-		return true;
+		return false;
 	}
 }
 
