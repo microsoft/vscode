@@ -24,7 +24,7 @@
 }
 
 /* Override monaco's styles for terminal editors */
-.monaco-workbench .editor-instance textarea:focus {
+.monaco-workbench .editor-instance .xterm textarea:focus {
 	opacity: 0 !important;
 	outline: 0 !important;
 }
