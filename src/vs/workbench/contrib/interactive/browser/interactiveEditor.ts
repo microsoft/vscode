@@ -119,7 +119,8 @@ export class InteractiveEditor extends EditorPane {
 				cellInsertToolbar: MenuId.NotebookCellBetween,
 				cellTopInsertToolbar: MenuId.NotebookCellListTop,
 				cellExecuteToolbar: MenuId.InteractiveCellExecute
-			}
+			},
+			cellEditorContributions: []
 		});
 		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
 

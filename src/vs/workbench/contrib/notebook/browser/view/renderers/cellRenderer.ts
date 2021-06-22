@@ -721,7 +721,9 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 				height: 0
 			},
 			// overflowWidgetsDomNode: this.notebookEditor.getOverflowContainerDomNode()
-		}, {});
+		}, {
+			contributions: this.notebookEditor.creationOptions.cellEditorContributions
+		});
 
 		disposables.add(editor);
 		const { collapsedPart, expandButton } = this.setupCollapsedPart(container);
