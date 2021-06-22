@@ -1406,29 +1406,24 @@ declare module 'vscode' {
 	}
 
 	export interface CompletionItemLabel {
+
 		/**
-		 * The name of this completion item. By default
+		 * The label of this completion item. By default
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		name: string;
+		label: string;
 
 		/**
-		 * The signature of this completion item. Will be rendered right after the
-		 * {@link CompletionItemLabel.name name}.
+		 * A string which is rendered less prominent and directly after {@link CompletionItemLabel.label name}
+		 * without any spacing. Should be used for function signatures or type annotations.
 		 */
-		signature?: string;
+		detail?: string;
 
 		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
+		 * The fully qualified name, like package name or file path. Rendered after `detail`.
 		 */
-		//todo@API find better name
-		qualifier?: string;
-
-		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
-		 */
-		type?: string;
+		description?: string;
 	}
 
 	//#endregion

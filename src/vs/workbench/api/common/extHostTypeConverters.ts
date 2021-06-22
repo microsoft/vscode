@@ -997,7 +997,7 @@ export namespace CompletionItem {
 
 	export function to(suggestion: modes.CompletionItem, converter?: CommandsConverter): types.CompletionItem {
 
-		const result = new types.CompletionItem(typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.name);
+		const result = new types.CompletionItem(typeof suggestion.label === 'string' ? suggestion.label : suggestion.label.label);
 		if (typeof suggestion.label !== 'string') {
 			result.label2 = suggestion.label;
 		}

@@ -1467,12 +1467,10 @@ export enum CompletionItemTag {
 }
 
 export interface CompletionItemLabel {
-	name: string;
-	parameters?: string;
-	qualifier?: string;
-	type?: string;
+	label: string;
+	detail?: string;
+	description?: string;
 }
-
 
 @es5ClassCompat
 export class CompletionItem implements vscode.CompletionItem {
