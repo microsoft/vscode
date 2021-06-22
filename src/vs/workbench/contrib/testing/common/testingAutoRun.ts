@@ -129,7 +129,8 @@ export class TestingAutoRun extends Disposable implements ITestingAutoRun {
 							t => rerunIds.has(getTestKey(identifyTest(test))),
 						);
 
-						if (!isQueued) {
+						const state = this.results.getStateById(test.item.extId);
+						if (!isQueued && (!state || state[1].retired)) {
 							addToRerun(identifyTest(test));
 						}
 					}
