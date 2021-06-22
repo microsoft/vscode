@@ -7,11 +7,12 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { TerminalIcon, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { IEditorInputSerializer } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 
 export class TerminalInputSerializer implements IEditorInputSerializer {
 	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) { }
 
@@ -29,14 +30,15 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 
 	public deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput | undefined {
 		const terminalInstance = JSON.parse(serializedEditorInput);
-		const editor = this._terminalEditorService.getOrCreateEditorInput(terminalInstance);
-		editor.terminalInstance?.onExit(() => editor.dispose());
+		const terminal = this._terminalService.createInstance({ attachPersistentProcess: terminalInstance });
+		const editor = this._terminalEditorService.getOrCreateEditorInput(terminal);
+		terminal.onExit(() => editor.dispose());
 		return editor;
 	}
 
 	private _toJson(instance: ITerminalInstance): SerializedTerminalEditorInput {
 		return {
-			instanceId: instance.persistentProcessId!,
+			id: instance.persistentProcessId!,
 			pid: instance.processId || 0,
 			title: instance.title,
 			titleSource: instance.titleSource,
@@ -47,8 +49,8 @@ export class TerminalInputSerializer implements IEditorInputSerializer {
 	}
 }
 
-export interface SerializedTerminalEditorInput {
-	readonly instanceId: number;
+interface SerializedTerminalEditorInput {
+	readonly id: number;
 	readonly pid: number;
 	readonly title: string;
 	readonly titleSource: TitleEventSource;
