@@ -8,25 +8,26 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { parse } from 'vs/base/common/marshalling';
+import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { IFileService } from 'vs/platform/files/common/files';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { EditorExtensions, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
-import { CellEditType, CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellOutput } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -65,7 +66,36 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				contentOptions.transientDocumentMetadata = newOptions.transientDocumentMetadata;
 				contentOptions.transientOutputs = newOptions.transientOutputs;
 			},
-			open: async (_uri: URI, _backupId: string | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
+			open: async (_uri: URI, _backupId: string | VSBuffer | undefined, _untitledDocumentData: VSBuffer | undefined, _token: CancellationToken) => {
+				if (_backupId instanceof VSBuffer) {
+					const backup = _backupId.toString();
+					try {
+						const document = JSON.parse(backup) as { cells: { kind: CellKind, language: string, metadata: any, mime: string | undefined, content: string, outputs?: ICellOutput[] }[] };
+						return {
+							data: {
+								metadata: {},
+								cells: document.cells.map(cell => ({
+									source: cell.content,
+									language: cell.language,
+									cellKind: cell.kind,
+									mime: cell.mime,
+									outputs: cell.outputs
+										? cell.outputs.map(output => ({
+											outputId: output.outputId,
+											outputs: output.outputs.map(ot => ({
+												mime: ot.mime,
+												data: Uint8Array.from(ot.data)
+											}))
+										}))
+										: [],
+									metadata: cell.metadata
+								}))
+							},
+							transientOptions: contentOptions
+						};
+					} catch (_e) { }
+				}
+
 				return {
 					data: {
 						metadata: {},
@@ -83,8 +113,33 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				return false;
 			},
 			backup: async (uri: URI, token: CancellationToken) => {
-				// return this._proxy.$backupNotebook(viewType, uri, token);
-				return '';
+				const doc = notebookService.listNotebookDocuments().find(document => document.uri.toString() === uri.toString());
+				if (doc) {
+					const cells = doc.cells.map(cell => ({
+						kind: cell.cellKind,
+						language: cell.language,
+						metadata: cell.metadata,
+						mine: cell.mime,
+						outputs: cell.outputs.map(output => {
+							return {
+								outputId: output.outputId,
+								outputs: output.outputs.map(ot => ({
+									mime: ot.mime,
+									data: Array.from(ot.data)
+								}))
+							};
+						}),
+						content: cell.getValue()
+					}));
+
+					const buffer = VSBuffer.fromString(JSON.stringify({
+						cells: cells
+					}));
+
+					return buffer;
+				} else {
+					return '';
+				}
 			}
 		};
 		this._register(notebookService.registerNotebookController('interactive', {
@@ -92,20 +147,57 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 			location: URI.parse('interactive://test')
 		}, controller));
 
-		this._register(notebookService.registerContributedNotebookType('interactive', {
-			extension: new ExtensionIdentifier('interactive.builtin'),
-			providerDisplayName: 'Interactive Notebook',
-			displayName: 'Interactive',
-			filenamePattern: ['*.interactive'],
-			exclusive: true
-		}));
+		const info = notebookService.getContributedNotebookType('interactive');
+
+		if (info) {
+			info.update({ selectors: ['*.interactive'] });
+		} else {
+			this._register(notebookService.registerContributedNotebookType('interactive', {
+				providerDisplayName: 'Interactive Notebook',
+				displayName: 'Interactive',
+				filenamePattern: ['*.interactive'],
+				exclusive: true
+			}));
+		}
 	}
 }
 
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
-// TODO@rebornix, we set it to Eventually since we want to make sure the contributedEditors in notebookserviceImpl was not flushed by the extension update
-workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Eventually);
+workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
+class InteractiveEditorSerializer implements IEditorInputSerializer {
+	canSerialize(): boolean {
+		return true;
+	}
+
+	serialize(input: EditorInput): string {
+		assertType(input instanceof InteractiveEditorInput);
+		return JSON.stringify({
+			resource: input.primary.resource,
+			inputResource: input.inputResource,
+		});
+	}
+
+	deserialize(instantiationService: IInstantiationService, raw: string) {
+		type Data = { resource: URI, inputResource: URI; };
+		const data = <Data>parse(raw);
+		if (!data) {
+			return undefined;
+		}
+		const { resource, inputResource } = data;
+		if (!data || !URI.isUri(resource) || !URI.isUri(inputResource)) {
+			return undefined;
+		}
+
+		const input = InteractiveEditorInput.create(instantiationService, resource, inputResource);
+		return input;
+	}
+}
+
+Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+	InteractiveEditorInput.ID,
+	InteractiveEditorSerializer
+);
 
 let counter = 1;
 
@@ -144,7 +236,7 @@ registerAction2(class extends Action2 {
 
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorInput = new InteractiveEditorInput(notebookUri, undefined, inputUri, accessor.get(ILabelService), accessor.get(IFileService), accessor.get(IInstantiationService));
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		const group = viewColumnToEditorGroup(editorGroupService, column);
 		await editorService.openEditor(editorInput, undefined, group);
 		counter++;

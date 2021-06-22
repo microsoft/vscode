@@ -366,11 +366,23 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext,
 				item: {
-					group: ContextMenuGroup.Create,
 					command: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split.value
-					}
+					},
+					group: ContextMenuGroup.Create,
+					order: 1
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveToEditor,
+						title: terminalStrings.moveToEditor.short
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
 				}
 			},
 			{
@@ -427,7 +439,19 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SplitInstance,
 						title: terminalStrings.split.value,
 					},
-					group: ContextMenuGroup.Create
+					group: ContextMenuGroup.Create,
+					order: 1
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveToEditor,
+						title: terminalStrings.moveToEditor.short
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
 				}
 			},
 			{

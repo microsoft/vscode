@@ -8,11 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, ISideBySideEditorInput, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, ISideBySideEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
-
 /**
  * Side by side editor inputs that have a primary and secondary side.
  */
@@ -129,13 +127,13 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		return this.primary.revert(group, options);
 	}
 
-	override matches(otherInput: IEditorInput | IResourceEditorInputType): boolean {
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (super.matches(otherInput)) {
 			return true;
 		}
 
 		if (isResourceDiffEditorInput(otherInput)) {
-			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId === otherInput.options?.override;
+			return this.primary.matches(otherInput.modifiedInput) && this.secondary.matches(otherInput.originalInput) && this.editorId !== undefined && this.editorId === otherInput.options?.override;
 		}
 
 		if (otherInput instanceof SideBySideEditorInput) {

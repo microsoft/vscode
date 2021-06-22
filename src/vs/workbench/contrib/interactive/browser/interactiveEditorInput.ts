@@ -4,16 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as paths from 'vs/base/common/path';
+import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
-import { AbstractResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
+import { IEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IResolvedNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 
-export class InteractiveEditorInput extends AbstractResourceEditorInput implements ICompositeNotebookEditorInput {
-	typeId: string = 'workbench.input.interactive';
+export class InteractiveEditorInput extends SideBySideEditorInput implements ICompositeNotebookEditorInput {
+	static create(instantiationService: IInstantiationService, resource: URI, inputResource: URI) {
+		return instantiationService.createInstance(InteractiveEditorInput, resource, inputResource);
+	}
+
+	static override readonly ID: string = 'workbench.input.interactive';
+
+	override get typeId(): string {
+		return InteractiveEditorInput.ID;
+	}
 
 	private _notebookEditorInput: NotebookEditorInput;
 	get notebookEditorInput() {
@@ -24,34 +32,64 @@ export class InteractiveEditorInput extends AbstractResourceEditorInput implemen
 		return [this._notebookEditorInput];
 	}
 
+	override get resource() {
+		return this.primary.resource;
+	}
+
 	private _inputResource: URI;
 
 	get inputResource() {
 		return this._inputResource;
 	}
+
+	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
 	constructor(
 		resource: URI,
-		preferredResource: URI | undefined,
 		inputResource: URI,
-		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(resource, preferredResource, labelService, fileService);
-		// do something similar to untitled file
-		this._notebookEditorInput = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
+		const input = NotebookEditorInput.create(instantiationService, resource, 'interactive', {});
+		super(undefined, undefined, input, input);
+		this._notebookEditorInput = input;
 		this._register(this._notebookEditorInput);
 		this._inputResource = inputResource;
+		this._inputResolver = null;
+	}
+
+	override isDirty() {
+		return false;
 	}
 
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
-		return this._notebookEditorInput.resolve();
+		if (this._inputResolver) {
+			return this._inputResolver;
+		}
+
+		this._inputResolver = this._notebookEditorInput.resolve();
+		return this._inputResolver;
+	}
+
+
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
+			return true;
+		}
+		if (otherInput instanceof InteractiveEditorInput) {
+			return isEqual(this.resource, otherInput.resource);
+		}
+		return false;
 	}
 
 	override getName() {
-		const p = this.resource.path;
+		const p = this.primary.resource!.path;
 		const basename = paths.basename(p);
 
 		return basename.substr(0, basename.length - paths.extname(p).length);
+	}
+
+	override dispose() {
+		this._notebookEditorInput?.dispose();
+		this._inputResolver = null;
+		super.dispose();
 	}
 }

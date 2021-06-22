@@ -10,6 +10,7 @@ import { IDecorationData, IDecorationsProvider } from 'vs/workbench/services/dec
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 
 export interface ITerminalDecorationData {
 	tooltip: string,
@@ -36,12 +37,12 @@ export class TerminalDecorationsProvider implements IDecorationsProvider {
 			return undefined;
 		}
 
-		const instanceId = parseInt(resource.fragment);
+		const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
 		if (!instanceId) {
 			return undefined;
 		}
 
-		const instance = this._terminalService.getInstanceFromId(parseInt(resource.fragment));
+		const instance = this._terminalService.getInstanceFromId(instanceId);
 		const primaryStatus = instance?.statusList?.primary;
 		if (!primaryStatus?.icon) {
 			return undefined;

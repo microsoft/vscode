@@ -1179,10 +1179,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
-		if (styles.listActiveSelectionIconForeground) {
-			content.push(`.monaco-list${suffix}:focus > div.monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important };`);
-		}
-
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
 				.monaco-drag-image,

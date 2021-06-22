@@ -732,10 +732,14 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 	) {
 		super();
 
-		this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrustChangeEvent(isTrusted)));
-		this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
+		this.workspaceTrustManagementService.workspaceTrustInitialized
+			.then(() => {
+				this.logInitialWorkspaceTrustInfo();
+				this.logWorkspaceTrust(this.workspaceTrustManagementService.isWorkpaceTrusted());
 
-		this.logInitialWorkspaceTrustInfo();
+				this._register(this.workspaceTrustManagementService.onDidChangeTrust(isTrusted => this.logWorkspaceTrust(isTrusted)));
+				this._register(this.workspaceTrustRequestService.onDidInitiateWorkspaceTrustRequest(_ => this.logWorkspaceTrustRequest()));
+			});
 	}
 
 	private logInitialWorkspaceTrustInfo(): void {
@@ -769,7 +773,7 @@ class WorkspaceTrustTelemetryContribution extends Disposable implements IWorkben
 		});
 	}
 
-	private async logWorkspaceTrustChangeEvent(isTrusted: boolean): Promise<void> {
+	private async logWorkspaceTrust(isTrusted: boolean): Promise<void> {
 		if (!this.workspaceTrustManagementService.workspaceTrustEnabled) {
 			return;
 		}

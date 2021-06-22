@@ -165,8 +165,17 @@ class FileAccessImpl {
 			return RemoteAuthorities.rewrite(uri);
 		}
 
-		// Only convert the URI if we are in a native context and it has `file:` scheme
-		if (platform.isNative && uri.scheme === Schemas.file) {
+		// Convert to `vscode-file` resource in some cases..
+		if (
+			// ...only ever for `file` resources
+			uri.scheme === Schemas.file &&
+			(
+				// ...and we run in native environments
+				platform.isNative ||
+				// ...or web worker extensions on desktop
+				(typeof platform.globals.importScripts === 'function' && platform.globals.origin === `${Schemas.vscodeFileResource}://${this.FALLBACK_AUTHORITY}`)
+			)
+		) {
 			return uri.with({
 				scheme: Schemas.vscodeFileResource,
 				// We need to provide an authority here so that it can serve

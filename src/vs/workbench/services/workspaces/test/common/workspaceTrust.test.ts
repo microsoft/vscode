@@ -9,9 +9,10 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
+import { Memento } from 'vs/workbench/common/memento';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/common/workspaceTrust';
@@ -46,7 +47,10 @@ suite('Workspace Trust', () => {
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
 	});
 
-	teardown(() => testObject.dispose());
+	teardown(() => {
+		testObject.dispose();
+		Memento.clear(StorageScope.WORKSPACE);
+	});
 
 	suite('Initialization', () => {
 		test('workspace trust disabled (user settings)', async () => {
@@ -63,14 +67,14 @@ suite('Workspace Trust', () => {
 			assert.strictEqual(true, testObject.isWorkpaceTrusted());
 		});
 
-		test.skip('empty workspace - trusted', async () => {
+		test('empty workspace - trusted', async () => {
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
 
 			testObject = await initializeTestObject();
 			assert.strictEqual(true, testObject.isWorkpaceTrusted());
 		});
 
-		test.skip('empty workspace - untrusted', async () => {
+		test('empty workspace - untrusted', async () => {
 			workspaceService.setWorkspace(new Workspace('empty-workspace'));
 			await configurationService.setUserConfiguration('security', getUserSettings(true, false));
 

@@ -341,7 +341,7 @@ export class CellOutputElement extends Disposable {
 		const pickAction = new Action('notebook.output.pickMimetype', nls.localize('pickMimeType', "Choose a different output mimetype"), ThemeIcon.asClassName(mimetypeIcon), undefined,
 			async _context => this._pickActiveMimeTypeRenderer(notebookTextModel, kernel, this.output));
 		if (index === 0 && useConsolidatedButton) {
-			const menu = this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService);
+			const menu = this._renderDisposableStore.add(this.menuService.createMenu(MenuId.NotebookOutputToolbar, this.contextKeyService));
 			const updateMenuToolbar = () => {
 				const primary: IAction[] = [];
 				const secondary: IAction[] = [];

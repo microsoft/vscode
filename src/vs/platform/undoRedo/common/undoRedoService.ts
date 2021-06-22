@@ -1109,7 +1109,7 @@ export class UndoRedoService implements IUndoRedoService {
 			Severity.Info,
 			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
 			[
-				nls.localize('confirmDifferentSource.ok', "Undo"),
+				nls.localize('confirmDifferentSource.yes', "Yes"),
 				nls.localize('cancel', "Cancel"),
 			],
 			{

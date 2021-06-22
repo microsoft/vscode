@@ -137,12 +137,12 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		const productWorkspaceTrustRequest = this.getProductExtensionWorkspaceTrustRequest(manifest);
 
 		// Use settings.json override value if it exists
-		if (configuredWorkspaceTrustRequest) {
+		if (configuredWorkspaceTrustRequest !== undefined) {
 			return configuredWorkspaceTrustRequest;
 		}
 
 		// Use product.json override value if it exists
-		if (productWorkspaceTrustRequest?.override) {
+		if (productWorkspaceTrustRequest?.override !== undefined) {
 			return productWorkspaceTrustRequest.override;
 		}
 
@@ -152,7 +152,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		}
 
 		// Use product.json default value if it exists
-		if (productWorkspaceTrustRequest?.default) {
+		if (productWorkspaceTrustRequest?.default !== undefined) {
 			return productWorkspaceTrustRequest.default;
 		}
 

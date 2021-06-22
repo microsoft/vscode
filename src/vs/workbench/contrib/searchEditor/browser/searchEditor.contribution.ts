@@ -21,7 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { ActiveEditorContext, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
+import { ActiveEditorContext, IEditorInputSerializer, IEditorInputFactoryRegistry, EditorExtensions, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { getSearchView } from 'vs/workbench/contrib/search/browser/searchActions';
 import { searchNewEditorIcon, searchRefreshIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
@@ -32,7 +32,7 @@ import { createEditorFromSearchResult, modifySearchEditorContextLinesCommand, op
 import { getOrMakeSearchEditorInput, SearchConfiguration, SearchEditorInput, SEARCH_EDITOR_EXT } from 'vs/workbench/contrib/searchEditor/browser/searchEditorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VIEW_ID } from 'vs/workbench/services/search/common/search';
-import { RegisteredEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 

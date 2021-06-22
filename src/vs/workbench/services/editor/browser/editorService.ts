@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities, isResourceDiffEditorInput } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IResourceEditorInputType, SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -34,7 +34,7 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { RegisteredEditorPriority, DEFAULT_EDITOR_ASSOCIATION, IEditorOverrideService, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -124,7 +124,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			resource => ({ editor: this.createEditorInput({ resource }) }),
+			(resource, options) => ({ editor: this.createEditorInput({ resource, options }) }),
 			diffEditor => ({ editor: this.createEditorInput(diffEditor) })
 		));
 	}
@@ -303,7 +303,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						replacement: {
 							...moveResult.editor,
 							options: {
-								...(moveResult.editor as IResourceEditorInputType).options,
+								...(moveResult.editor as IUntypedEditorInput).options,
 								...optionOverrides
 							}
 						}
@@ -510,7 +510,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
 		if (result) {
 			const [resolvedGroup, resolvedEditor, resolvedOptions] = result;
@@ -538,7 +538,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
+	private doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
@@ -556,7 +556,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untyped Text Editor Support
 		else {
-			const textInput = editor as IResourceEditorInputType;
+			const textInput = editor as IUntypedEditorInput;
 			typedEditor = this.createEditorInput(textInput);
 			if (typedEditor) {
 				options = textInput.options;
@@ -592,7 +592,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	private findTargetGroup(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
+	private findTargetGroup(editor: IEditorInput | IUntypedEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
 		let targetGroup: IEditorGroup | undefined;
 
 		// Group: Instance of Group
@@ -677,8 +677,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	//#region openEditors()
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	openEditors(editors: IResourceEditorInputType[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
+	openEditors(editors: IUntypedEditorInput[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if
 		// we should proceed with opening the editors if we
@@ -757,7 +757,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return coalesce(await Promises.settled(result));
 	}
 
-	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): Promise<boolean> {
+	private async handleWorkspaceTrust(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): Promise<boolean> {
 		const { resources, diffMode } = this.extractEditorResources(editors);
 
 		const trustResult = await this.workspaceTrustRequestService.requestOpenFilesTrust(resources);
@@ -772,7 +772,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 	}
 
-	private extractEditorResources(editors: Array<IEditorInputWithOptions | IResourceEditorInputType>): { resources: URI[], diffMode?: boolean } {
+	private extractEditorResources(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>): { resources: URI[], diffMode?: boolean } {
 		const resources = new ResourceMap<boolean>();
 		let diffMode = false;
 
@@ -966,7 +966,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
-	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IResourceEditorInputType): EditorInput {
+	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IUntypedEditorInput): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {

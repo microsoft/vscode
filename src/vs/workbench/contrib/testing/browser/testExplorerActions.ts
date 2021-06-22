@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { flatten } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { Iterable } from 'vs/base/common/iterator';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -20,8 +19,6 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { FocusedViewContext } from 'vs/workbench/common/views';
 import { IExtensionsViewPaneContainer, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/contrib/extensions/common/extensions';
@@ -32,15 +29,14 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/t
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { InternalTestItem, ITestItem, TestIdPath, TestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { isFailedState } from 'vs/workbench/contrib/testing/common/testingStates';
 import { getPathForTestInResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { getAllTestsInHierarchy, getTestByPath, ITestService, waitForAllRoots } from 'vs/workbench/contrib/testing/common/testService';
-import { IWorkspaceTestCollectionService } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { getTestByPath, IMainThreadTestCollection, ITestService, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
@@ -178,7 +174,7 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 	 * @override
 	 */
 	public runInView(accessor: ServicesAccessor, view: TestingExplorerView): Promise<ITestResult | undefined> {
-		const tests = this.getActionableTests(accessor.get(IWorkspaceTestCollectionService), view.viewModel);
+		const tests = this.getActionableTests(accessor.get(ITestService), view.viewModel);
 		if (!tests.length) {
 			return Promise.resolve(undefined);
 		}
@@ -186,23 +182,16 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 		return accessor.get(ITestService).runTests({ tests, debug: this.debug });
 	}
 
-	private getActionableTests(testCollection: IWorkspaceTestCollectionService, viewModel: TestingExplorerViewModel) {
+	private getActionableTests(testService: ITestService, viewModel: TestingExplorerViewModel) {
 		const selected = viewModel.getSelectedTests();
-		const tests: TestIdWithSrc[] = [];
+		let tests: ITestIdWithSrc[];
 		if (!selected.length) {
-			for (const folder of testCollection.workspaceFolders()) {
-				for (const child of folder.getChildren()) {
-					if (this.filter(child)) {
-						tests.push({ testId: child.item.extId, src: child.src });
-					}
-				}
-			}
+			tests = ([...testService.collection.rootItems].map(identifyTest));
 		} else {
-			for (const treeElement of selected) {
-				if (treeElement instanceof TestItemTreeElement && this.filter(treeElement.test)) {
-					tests.push({ testId: treeElement.test.item.extId, src: treeElement.test.src });
-				}
-			}
+			tests = selected
+				.map(treeElement => treeElement instanceof TestItemTreeElement && this.filter(treeElement.test) ? treeElement.test : undefined)
+				.filter(isDefined)
+				.map(identifyTest);
 		}
 
 		return tests;
@@ -260,7 +249,7 @@ const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): 
 	);
 };
 
-abstract class RunOrDebugAllAllAction extends Action2 {
+abstract class RunOrDebugAllTestsAction extends Action2 {
 	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string, keybinding: IAction2Options['keybinding']) {
 		super({
 			id,
@@ -288,38 +277,19 @@ abstract class RunOrDebugAllAllAction extends Action2 {
 
 	public async run(accessor: ServicesAccessor) {
 		const testService = accessor.get(ITestService);
-		const workspace = accessor.get(IWorkspaceContextService);
 		const notifications = accessor.get(INotificationService);
-		const progress = accessor.get(IProgressService);
 
-		const tests: TestIdWithSrc[] = [];
-		const todo = workspace.getWorkspace().folders.map(async (folder) => {
-			const ref = testService.subscribeToDiffs(ExtHostTestingResource.Workspace, folder.uri);
-			try {
-				await waitForAllRoots(ref.object);
-				for (const root of ref.object.rootIds) {
-					const node = ref.object.getNodeById(root);
-					if (node && (this.debug ? node.item.debuggable : node.item.runnable)) {
-						tests.push({ testId: node.item.extId, src: node.src });
-					}
-				}
-			} finally {
-				ref.dispose();
-			}
-		});
-
-		await showDiscoveringWhile(progress, Promise.all(todo));
-
-		if (tests.length === 0) {
+		const roots = [...testService.collection.rootItems];
+		if (!roots.length) {
 			notifications.info(this.noTestsFoundError);
 			return;
 		}
 
-		await testService.runTests({ tests, debug: this.debug });
+		await testService.runTests({ tests: roots.map(identifyTest), debug: this.debug });
 	}
 }
 
-export class RunAllAction extends RunOrDebugAllAllAction {
+export class RunAllAction extends RunOrDebugAllTestsAction {
 	public static readonly ID = 'testing.runAll';
 	constructor() {
 		super(
@@ -336,7 +306,7 @@ export class RunAllAction extends RunOrDebugAllAllAction {
 	}
 }
 
-export class DebugAllAction extends RunOrDebugAllAllAction {
+export class DebugAllAction extends RunOrDebugAllTestsAction {
 	public static readonly ID = 'testing.debugAll';
 	constructor() {
 		super(
@@ -771,35 +741,19 @@ abstract class RunOrDebugAtCursor extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
-
-		let bestDepth = -1;
 		let bestNode: InternalTestItem | undefined;
 
-		try {
-			await showDiscoveringWhile(accessor.get(IProgressService), getAllTestsInHierarchy(collection.object));
-
-			const queue: [depth: number, nodes: Iterable<string>][] = [[0, collection.object.rootIds]];
-			while (queue.length > 0) {
-				const [depth, candidates] = queue.pop()!;
-				for (const id of candidates) {
-					const candidate = collection.object.getNodeById(id);
-					if (candidate) {
-						if (depth > bestDepth && this.filter(candidate) && candidate.item.range && Range.containsPosition(candidate.item.range, position)) {
-							bestDepth = depth;
-							bestNode = candidate;
-						}
-
-						queue.push([depth + 1, candidate.children]);
-					}
+		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
+			for await (const test of testsInFile(testService.collection, model.uri)) {
+				if (this.filter(test) && test.item.range && Range.containsPosition(test.item.range, position)) {
+					bestNode = test;
 				}
 			}
+		})());
 
-			if (bestNode) {
-				await this.runTest(testService, bestNode);
-			}
-		} finally {
-			collection.dispose();
+
+		if (bestNode) {
+			await this.runTest(testService, bestNode);
 		}
 	}
 
@@ -830,7 +784,7 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
 		return service.runTests({
 			debug: false,
-			tests: [{ testId: internalTest.item.extId, src: internalTest.src }],
+			tests: [identifyTest(internalTest)],
 		});
 	}
 }
@@ -857,7 +811,7 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
 		return service.runTests({
 			debug: true,
-			tests: [{ testId: internalTest.item.extId, src: internalTest.src }],
+			tests: [identifyTest(internalTest)],
 		});
 	}
 }
@@ -876,7 +830,7 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 	/**
 	 * @override
 	 */
-	public async run(accessor: ServicesAccessor) {
+	public run(accessor: ServicesAccessor) {
 		const control = accessor.get(IEditorService).activeTextEditorControl;
 		const position = control?.getPosition();
 		const model = control?.getModel();
@@ -885,23 +839,17 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 		}
 
 		const testService = accessor.get(ITestService);
-		const collection = testService.subscribeToDiffs(ExtHostTestingResource.TextDocument, model.uri);
 
-		try {
-			await waitForAllRoots(collection.object);
-
-			const roots = [...collection.object.rootIds]
-				.map(r => collection.object.getNodeById(r))
-				.filter(isDefined)
-				.filter(n => this.filter(n));
-
-			if (roots.length) {
-				await this.runTest(testService, roots);
+		const demandedUri = model.uri.toString();
+		for (const test of testService.collection.all) {
+			if (test.item.uri?.toString() === demandedUri) {
+				return this.runTest(testService, [test]);
 			}
-		} finally {
-			collection.dispose();
 		}
+
+		return undefined;
 	}
+
 
 	protected abstract filter(node: InternalTestItem): boolean;
 
@@ -934,7 +882,7 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: false,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src })),
+			tests: internalTests.map(identifyTest),
 		});
 	}
 }
@@ -961,28 +909,20 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: true,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src }))
+			tests: internalTests.map(identifyTest)
 		});
 	}
 }
 
 export const runTestsByPath = async (
-	workspaceTests: IWorkspaceTestCollectionService,
+	collection: IMainThreadTestCollection,
 	progress: IProgressService,
 	paths: ReadonlyArray<TestIdPath>,
 	runTests: (tests: ReadonlyArray<InternalTestItem>) => Promise<ITestResult>,
 ): Promise<ITestResult | undefined> => {
-	const subscription = workspaceTests.subscribeToWorkspaceTests();
-	try {
-		const todo = Promise.all([...subscription.workspaceFolderCollections.values()].map(
-			c => Promise.all(paths.map(p => getTestByPath(c, p))),
-		));
-
-		const tests = flatten(await showDiscoveringWhile(progress, todo)).filter(isDefined);
-		return tests.length ? await runTests(tests) : undefined;
-	} finally {
-		subscription.dispose();
-	}
+	const todo = Promise.all(paths.map(p => getTestByPath(collection, p)));
+	const tests = (await showDiscoveringWhile(progress, todo)).filter(isDefined);
+	return tests.length ? await runTests(tests) : undefined;
 };
 
 abstract class RunOrDebugExtsByPath extends Action2 {
@@ -992,7 +932,7 @@ abstract class RunOrDebugExtsByPath extends Action2 {
 	public async run(accessor: ServicesAccessor, ...args: unknown[]) {
 		const testService = accessor.get(ITestService);
 		await runTestsByPath(
-			accessor.get(IWorkspaceTestCollectionService),
+			accessor.get(ITestService).collection,
 			accessor.get(IProgressService),
 			[...this.getTestExtIdsToRun(accessor, ...args)],
 			tests => this.runTest(testService, tests),
@@ -1092,7 +1032,7 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: false,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src })),
+			tests: internalTests.map(identifyTest),
 		});
 	}
 }
@@ -1118,7 +1058,7 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: true,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src })),
+			tests: internalTests.map(identifyTest),
 		});
 	}
 }
@@ -1144,7 +1084,7 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: false,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src })),
+			tests: internalTests.map(identifyTest),
 		});
 	}
 }
@@ -1170,7 +1110,7 @@ export class DebugLastRun extends RunOrDebugLastRun {
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
 			debug: true,
-			tests: internalTests.map(t => ({ testId: t.item.extId, src: t.src })),
+			tests: internalTests.map(identifyTest),
 		});
 	}
 }

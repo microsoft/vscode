@@ -756,7 +756,7 @@ export class DefaultStyleController implements IStyleController {
 		}
 
 		if (styles.listActiveSelectionIconForeground) {
-			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground} !important; }`);
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listFocusAndSelectionBackground) {

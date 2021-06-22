@@ -66,13 +66,12 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IListService listService: IListService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IDecorationsService _decorationsService: IDecorationsService,
+		@IDecorationsService decorationsService: IDecorationsService,
 		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super('TerminalTabsList', container,
@@ -89,7 +88,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 					getId: e => e?.instanceId
 				},
 				accessibilityProvider: instantiationService.createInstance(TerminalTabsAccessibilityProvider),
-				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
+				smoothScrolling: _configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: true,
 				additionalScrollHeight: TerminalTabsListSizes.TabHeight,
 				dnd: instantiationService.createInstance(TerminalTabsDragAndDrop)
@@ -97,7 +96,7 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			contextKeyService,
 			listService,
 			themeService,
-			configurationService,
+			_configurationService,
 			keybindingService,
 		);
 		this._terminalGroupService.onDidChangeInstances(() => this.refresh());
@@ -115,21 +114,24 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			}
 		});
 
-		this.onMouseDblClick(async () => {
-			if (this.getFocus().length === 0) {
+		this.onMouseDblClick(async e => {
+			const focus = this.getFocus();
+			if (focus.length === 0) {
 				const instance = this._terminalService.createTerminal();
 				this._terminalGroupService.setActiveInstance(instance);
 				await instance.focusWhenReady();
+			}
+			if (this._getFocusMode() === 'doubleClick' && this.getFocus().length === 1) {
+				e.element?.focus(true);
 			}
 		});
 
 		// on left click, if focus mode = single click, focus the element
 		// unless multi-selection is in progress
 		this.onMouseClick(e => {
-			const focusMode = configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 			if (e.browserEvent.altKey && e.element) {
 				this._terminalService.splitInstance(e.element);
-			} else if (focusMode === 'singleClick') {
+			} else if (this._getFocusMode() === 'singleClick') {
 				if (this.getSelection().length <= 1) {
 					e.element?.focus(true);
 				}
@@ -170,9 +172,13 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 		});
 		if (!this._decorationsProvider) {
 			this._decorationsProvider = instantiationService.createInstance(TerminalDecorationsProvider);
-			_decorationsService.registerDecorationsProvider(this._decorationsProvider);
+			decorationsService.registerDecorationsProvider(this._decorationsProvider);
 		}
 		this.refresh();
+	}
+
+	private _getFocusMode(): 'singleClick' | 'doubleClick' {
+		return this._configurationService.getValue<'singleClick' | 'doubleClick'>(TerminalSettingId.TabsFocusMode);
 	}
 
 	refresh(): void {
@@ -522,9 +528,9 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 
 	constructor(
-		@ITerminalService private _terminalService: ITerminalService,
-		@ITerminalGroupService private _terminalGroupService: ITerminalGroupService,
-		@ITerminalInstanceService private _terminalInstanceService: ITerminalInstanceService
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) { }
 
 	getDragURI(instance: ITerminalInstance): string | null {
@@ -554,6 +560,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
+		if (containsDragType(originalEvent, DataTransfers.TERMINALS)) {
+			return {
+				feedback: targetIndex ? [targetIndex] : undefined,
+				accept: true,
+				effect: ListDragOverEffect.Move
+			};
+		}
+
 		if (data instanceof NativeDragAndDropData) {
 			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
 				return false;
@@ -588,21 +602,35 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		this._autoFocusDisposable.dispose();
 		this._autoFocusInstance = undefined;
 
-		if (!(data instanceof ElementsDragAndDropData)) {
-			this._handleExternalDrop(targetInstance, originalEvent);
-			return;
+		let sourceInstances: ITerminalInstance[] | undefined;
+		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
+		if (terminalResources) {
+			const uri = URI.parse(JSON.parse(terminalResources)[0]);
+			if (uri.scheme === Schemas.vscodeTerminal) {
+				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
+				if (instance) {
+					sourceInstances = [instance];
+				}
+				this._terminalService.moveToTerminalView(instance);
+			}
 		}
 
-		const draggedElement = data.getData();
-		if (!draggedElement || !Array.isArray(draggedElement)) {
-			return;
-		}
-		let focused = false;
+		if (sourceInstances === undefined) {
+			if (!(data instanceof ElementsDragAndDropData)) {
+				this._handleExternalDrop(targetInstance, originalEvent);
+				return;
+			}
 
-		let sourceInstances: ITerminalInstance[] = [];
-		for (const e of draggedElement) {
-			if ('instanceId' in e) {
-				sourceInstances.push(e as ITerminalInstance);
+			const draggedElement = data.getData();
+			if (!draggedElement || !Array.isArray(draggedElement)) {
+				return;
+			}
+
+			sourceInstances = [];
+			for (const e of draggedElement) {
+				if ('instanceId' in e) {
+					sourceInstances.push(e as ITerminalInstance);
+				}
 			}
 		}
 
@@ -613,6 +641,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			return;
 		}
 
+		let focused = false;
 		for (const instance of sourceInstances) {
 			this._terminalGroupService.moveGroup(instance, targetInstance);
 			if (!focused) {

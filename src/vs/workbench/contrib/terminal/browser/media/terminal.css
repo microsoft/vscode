@@ -23,8 +23,9 @@
 	height: 100%;
 }
 
-/* Override monaco's cursor focus outline */
+/* Override monaco's styles for terminal editors */
 .monaco-workbench .editor-instance textarea:focus {
+	opacity: 0 !important;
 	outline: 0 !important;
 }
 

@@ -169,8 +169,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	setActiveInstanceByIndex(index: number) {
+		const activeInstance = this.activeInstance;
 		const instanceLocation = this._getInstanceLocation(index);
-		if (!instanceLocation || (this.activeInstanceIndex > 0 && this.activeInstanceIndex === index)) {
+		const newActiveInstance = instanceLocation?.group.terminalInstances[instanceLocation.instanceIndex];
+		if (!instanceLocation || activeInstance === newActiveInstance) {
 			return;
 		}
 

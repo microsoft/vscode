@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent } from 'vs/workbench/common/editor';
+import { IEditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorInputFactoryRegistry, IEditorInputSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextEditorPane, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, IEditorMoveEvent, EditorExtensions as Extensions, EditorInputCapabilities, IEditorOpenEvent, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorServiceImpl, IEditorGroupView, IEditorGroupsAccessor, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
@@ -23,7 +23,7 @@ import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbe
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, BeforeShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent } from 'vs/platform/files/common/files';
+import { FileOperationEvent, IFileService, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, ICreateFileOptions, IFileSystemProvider, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileType, FileDeleteOptions, FileOverwriteOptions, FileWriteOptions, FileOpenOptions, IFileStatWithMetadata, IResolveMetadataFileOptions, IWriteFileOptions, IReadFileOptions, IFileContent, IFileStreamContent, FileOperationError, IFileSystemProviderWithFileReadStreamCapability, FileReadStreamOptions, IReadFileStreamOptions, IFileSystemProviderCapabilitiesChangeEvent, IRawFileChangesEvent } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
@@ -52,7 +52,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IEditorReplacement, IGroupChangeEvent, IFindGroupScope, EditorGroupLayout, ICloseEditorOptions, GroupOrientation, ICloseAllEditorsOptions, ICloseEditorsFilter } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, IResourceEditorInputType, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorRegistry, EditorDescriptor } from 'vs/workbench/browser/editor';
 import { Dimension, IDimension } from 'vs/base/browser/dom';
@@ -731,8 +731,8 @@ export class TestEditorGroupView implements IEditorGroupView {
 	openEditors(_editors: IEditorInputWithOptions[]): Promise<IEditorPane> { throw new Error('not implemented'); }
 	isPinned(_editor: IEditorInput): boolean { return false; }
 	isSticky(_editor: IEditorInput): boolean { return false; }
-	isActive(_editor: IEditorInput): boolean { return false; }
-	contains(candidate: IEditorInput): boolean { return false; }
+	isActive(_editor: IEditorInput | IUntypedEditorInput): boolean { return false; }
+	contains(candidate: IEditorInput | IUntypedEditorInput): boolean { return false; }
 	moveEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	copyEditor(_editor: IEditorInput, _target: IEditorGroup, _options?: IEditorOptions): void { }
 	async closeEditor(_editor?: IEditorInput, options?: ICloseEditorOptions): Promise<void> { }
@@ -808,10 +808,10 @@ export class TestEditorService implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IResourceEditorInputType, optionsOrGroup?: IEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
 		throw new Error('not implemented');
 	}
-	doResolveEditorOpenRequest(editor: IEditorInput | IResourceEditorInputType): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
+	doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput): [IEditorGroup, EditorInput, IEditorOptions | undefined] | undefined {
 		if (!this.editorGroupService) {
 			return undefined;
 		}
@@ -835,6 +835,9 @@ export class TestFileService implements IFileService {
 	private readonly _onDidFilesChange = new Emitter<FileChangesEvent>();
 	get onDidFilesChange(): Event<FileChangesEvent> { return this._onDidFilesChange.event; }
 	fireFileChanges(event: FileChangesEvent): void { this._onDidFilesChange.fire(event); }
+
+	private readonly _onDidChangeFilesRaw = new Emitter<IRawFileChangesEvent>();
+	get onDidChangeFilesRaw(): Event<IRawFileChangesEvent> { return this._onDidChangeFilesRaw.event; }
 
 	private readonly _onDidRunOperation = new Emitter<FileOperationEvent>();
 	get onDidRunOperation(): Event<FileOperationEvent> { return this._onDidRunOperation.event; }

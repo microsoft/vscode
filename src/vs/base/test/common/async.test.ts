@@ -1026,4 +1026,189 @@ suite('Async', () => {
 			assert.ok(p3Handled);
 		});
 	});
+
+	suite('ThrottledWorker', () => {
+
+		function assertArrayEquals(actual: unknown[], expected: unknown[]) {
+			assert.strictEqual(actual.length, expected.length);
+
+			for (let i = 0; i < actual.length; i++) {
+				assert.strictEqual(actual[i], expected[i]);
+			}
+		}
+
+		test('basics', async () => {
+			let handled: number[] = [];
+
+			let handledCallback: Function;
+			let handledPromise = new Promise(resolve => handledCallback = resolve);
+			let handledCounterToResolve = 1;
+			let currentHandledCounter = 0;
+
+			const handler = (units: readonly number[]) => {
+				handled.push(...units);
+
+				currentHandledCounter++;
+				if (currentHandledCounter === handledCounterToResolve) {
+					handledCallback();
+
+					handledPromise = new Promise(resolve => handledCallback = resolve);
+					currentHandledCounter = 0;
+				}
+			};
+
+			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+
+			// Work less than chunk size
+
+			let worked = worker.work([1, 2, 3]);
+
+			assertArrayEquals(handled, [1, 2, 3]);
+			assert.strictEqual(worker.pending, 0);
+			assert.strictEqual(worked, true);
+
+			worker.work([4, 5]);
+			worked = worker.work([6]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6]);
+			assert.strictEqual(worker.pending, 0);
+			assert.strictEqual(worked, true);
+
+			// Work more than chunk size (variant 1)
+
+			handled = [];
+			handledCounterToResolve = 2;
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worker.pending, 2);
+			assert.strictEqual(worked, true);
+
+			await handledPromise;
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7]);
+
+			handled = [];
+			handledCounterToResolve = 4;
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worker.pending, 14);
+			assert.strictEqual(worked, true);
+
+			await handledPromise;
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]);
+
+			// Work more than chunk size (variant 2)
+
+			handled = [];
+			handledCounterToResolve = 2;
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worker.pending, 5);
+			assert.strictEqual(worked, true);
+
+			await handledPromise;
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+
+			// Work more while throttled (variant 1)
+
+			handled = [];
+			handledCounterToResolve = 3;
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worker.pending, 2);
+			assert.strictEqual(worked, true);
+
+			worker.work([8]);
+			worked = worker.work([9, 10, 11]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worker.pending, 6);
+			assert.strictEqual(worked, true);
+
+			await handledPromise;
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+			assert.strictEqual(worker.pending, 0);
+
+			// Work more while throttled (variant 2)
+
+			handled = [];
+			handledCounterToResolve = 2;
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worked, true);
+
+			worker.work([8]);
+			worked = worker.work([9, 10]);
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5]);
+			assert.strictEqual(worked, true);
+
+			await handledPromise;
+
+			assertArrayEquals(handled, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+		});
+
+		test('do not accept too much work', async () => {
+			let handled: number[] = [];
+			const handler = (units: readonly number[]) => handled.push(...units);
+
+			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+
+			let worked = worker.work([1, 2, 3]);
+			assert.strictEqual(worked, true);
+
+			worked = worker.work([1, 2, 3, 4, 5, 6]);
+			assert.strictEqual(worked, true);
+			assert.strictEqual(worker.pending, 1);
+
+			worked = worker.work([7]);
+			assert.strictEqual(worked, true);
+			assert.strictEqual(worker.pending, 2);
+
+			worked = worker.work([8, 9, 10, 11]);
+			assert.strictEqual(worked, false);
+			assert.strictEqual(worker.pending, 2);
+		});
+
+		test('do not accept too much work (account for max chunk size', async () => {
+			let handled: number[] = [];
+			const handler = (units: readonly number[]) => handled.push(...units);
+
+			const worker = new async.ThrottledWorker<number>(5, 5, 1, handler);
+
+			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+			assert.strictEqual(worked, false);
+			assert.strictEqual(worker.pending, 0);
+
+			worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+			assert.strictEqual(worked, true);
+			assert.strictEqual(worker.pending, 5);
+		});
+
+		test('disposed', async () => {
+			let handled: number[] = [];
+			const handler = (units: readonly number[]) => handled.push(...units);
+
+			const worker = new async.ThrottledWorker<number>(5, undefined, 1, handler);
+			worker.dispose();
+			const worked = worker.work([1, 2, 3]);
+
+			assertArrayEquals(handled, []);
+			assert.strictEqual(worker.pending, 0);
+			assert.strictEqual(worked, false);
+		});
+	});
 });

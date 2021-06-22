@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage, TestTreeWorkspaceFolder } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
+import { TestExplorerTreeElement, TestItemTreeElement, TestTreeErrorMessage } from 'vs/workbench/contrib/testing/browser/explorerProjections/index';
 import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
@@ -12,15 +12,13 @@ import { applyTestItemUpdate, InternalTestItem, ITestItemUpdate } from 'vs/workb
 export class ByLocationTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;
 
-	public override readonly parent: ByLocationFolderElement | ByLocationTestItemElement;
 
 	constructor(
 		test: InternalTestItem,
-		parent: ByLocationFolderElement | ByLocationTestItemElement,
+		parent: null | ByLocationTestItemElement,
 		protected readonly addedOrRemoved: (n: TestExplorerTreeElement) => void,
 	) {
 		super({ ...test, item: { ...test.item } }, parent);
-		this.parent = parent;
 		this.updateErrorVisiblity();
 	}
 
@@ -40,11 +38,4 @@ export class ByLocationTestItemElement extends TestItemTreeElement {
 			this.addedOrRemoved(this.errorChild);
 		}
 	}
-}
-
-/**
- * Workspace folder in the location view.
- */
-export class ByLocationFolderElement extends TestTreeWorkspaceFolder {
-	public override readonly children = new Set<ByLocationTestItemElement>();
 }

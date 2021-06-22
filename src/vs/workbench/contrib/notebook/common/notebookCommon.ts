@@ -463,7 +463,7 @@ export interface NotebookData {
 
 
 export interface INotebookContributionData {
-	extension: ExtensionIdentifier,
+	extension?: ExtensionIdentifier,
 	providerDisplayName: string;
 	displayName: string;
 	filenamePattern: (string | glob.IRelativePattern | INotebookExclusiveDocumentFilter)[];

@@ -216,7 +216,7 @@ export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPo
 					type: 'string',
 					description: localize('startEntries.command', "Command to run.")
 				},
-				catagory: {
+				category: {
 					type: 'string',
 					description: localize('startEntries.category', "Category of the new entry."),
 					enum: ['window', 'file', 'folder', 'notebook', 'terminal', 'configuration'],

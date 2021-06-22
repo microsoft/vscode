@@ -43,6 +43,10 @@ export class TerminalEditor extends EditorPane {
 		this._editorInput.terminalInstance?.setVisible(true);
 	}
 
+	override focus() {
+		this._editorInput?.terminalInstance?.focus();
+	}
+
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._parentElement = parent;

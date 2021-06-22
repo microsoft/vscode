@@ -74,7 +74,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
 		const cachedEditor = this._editorInputs.get(instance.instanceId);
 		if (cachedEditor) {
-			console.log('cached');
 			return cachedEditor;
 		}
 		const input = new TerminalEditorInput(instance);
