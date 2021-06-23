@@ -20,12 +20,16 @@ suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
 	const testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustManagementService(), new NullLogService());
 
-	test('declarative with extension dependencies => workspace, web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), ['workspace', 'web']);
+	test('declarative with extension dependencies => workspace', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), ['workspace']);
 	});
 
-	test('declarative extension pack => workspace, web', () => {
-		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), ['workspace', 'web']);
+	test('declarative extension pack => workspace', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), ['workspace']);
+	});
+
+	test('declarative extension pack and extension dependencies => workspace', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), ['workspace']);
 	});
 
 	test('declarative with unknown contribution point => workspace', () => {
