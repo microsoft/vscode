@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getPixelRatio, getZoomLevel } from 'vs/base/browser/browser';
-import { Dimension, append, $ } from 'vs/base/browser/dom';
+import { Dimension, append, $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { ITableRenderer, ITableVirtualDelegate } from 'vs/base/browser/ui/table/table';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { localize } from 'vs/nls';
@@ -290,7 +290,7 @@ export class DisassemblyView extends EditorPane {
 interface IBreakpointColumnTemplateData {
 	container: HTMLElement,
 	icon: HTMLElement,
-	stackFrameChangedHandler?: IDisposable
+	disposables: IDisposable[]
 }
 
 class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
@@ -315,7 +315,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		icon.style.alignItems = 'center';
 		icon.style.justifyContent = 'center';
 
-		return { container, icon };
+		return { container, icon, disposables: [] };
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
@@ -325,13 +325,13 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			templateData.icon.classList.remove(this.debugStackframe);
 		}
 
-		templateData.stackFrameChangedHandler = this._disassemblyView.onDidChangeStackFrame(() => {
+		templateData.disposables.push(this._disassemblyView.onDidChangeStackFrame(() => {
 			if (element.instruction.address === this._disassemblyView.currentInstructionAddress) {
 				templateData.icon.classList.add(this.debugStackframe);
 			} else {
 				templateData.icon.classList.remove(this.debugStackframe);
 			}
-		});
+		}));
 
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
@@ -343,15 +343,15 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			}
 
 
-			templateData.container.onmouseover = () => {
+			templateData.disposables.push(addStandardDisposableListener(templateData.container, 'mouseover', () => {
 				templateData.icon.classList.add(this.breakpointHintIcon);
-			};
+			}));
 
-			templateData.container.onmouseout = () => {
+			templateData.disposables.push(addStandardDisposableListener(templateData.container, 'mouseout', () => {
 				templateData.icon.classList.remove(this.breakpointHintIcon);
-			};
+			}));
 
-			templateData.container.onclick = () => {
+			templateData.disposables.push(addStandardDisposableListener(templateData.container, 'click', () => {
 				if (element.isBreakpointSet) {
 					this.debugService.removeInstructionBreakpoints(element.instruction.address).then(() => {
 						element.isBreakpointSet = false;
@@ -364,16 +364,15 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 						templateData.icon.classList.add(this.breakpointIcon);
 					});
 				}
-			};
+			}));
 		}
 	}
 
-	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
-		templateData.stackFrameChangedHandler?.dispose();
-		templateData.container.onclick = null;
-		templateData.container.onmouseover = null;
-		templateData.container.onmouseout = null;
+	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
+		templateData.disposables.forEach(disposable => disposable.dispose());
 	}
+
+	disposeTemplate(templateData: IBreakpointColumnTemplateData): void { }
 
 }
 
