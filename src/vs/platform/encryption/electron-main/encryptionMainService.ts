@@ -30,6 +30,7 @@ export class EncryptionMainService implements ICommonEncryptionService {
 			const encryption = await this.encryption();
 			return encryption.encrypt(this.machineId, value);
 		} catch (e) {
+			console.error(e);
 			return value;
 		}
 	}
@@ -39,6 +40,7 @@ export class EncryptionMainService implements ICommonEncryptionService {
 			const encryption = await this.encryption();
 			return encryption.decrypt(this.machineId, value);
 		} catch (e) {
+			console.error(e);
 			return value;
 		}
 	}
