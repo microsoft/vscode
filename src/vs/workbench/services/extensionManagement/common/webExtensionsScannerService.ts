@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
-import { Promises, Queue } from 'vs/base/common/async';
+import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -114,10 +114,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			}
 		}
 
-		await Promises.allSettled([
+		await Promise.allSettled([
 			(async () => {
 				if (extensionLocations.length) {
-					await Promises.allSettled(extensionLocations.map(async location => {
+					await Promise.allSettled(extensionLocations.map(async location => {
 						try {
 							const webExtension = await this.toWebExtensionFromLocation(location);
 							result.push(await this.toExtension(webExtension, true));
@@ -243,7 +243,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const devExtensions = this.environmentService.options?.developmentOptions?.extensions;
 		const result: IExtension[] = [];
 		if (Array.isArray(devExtensions)) {
-			await Promises.allSettled(devExtensions.map(async devExtension => {
+			await Promise.allSettled(devExtensions.map(async devExtension => {
 				try {
 					const location = URI.revive(devExtension);
 					if (URI.isUri(location)) {
@@ -352,7 +352,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
 
-		const [result1, result2] = await Promises.allSettled([
+		const [result1, result2] = await Promise.allSettled([
 			this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None),
 			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None)
 		]);
