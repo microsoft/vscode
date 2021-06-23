@@ -1444,16 +1444,22 @@ declare namespace monaco.editor {
 		 */
 		afterContentClassName?: string | null;
 		/**
-		 * If set, the content will be injected in the text after the range.
+		 * If set, text will be injected in the view after the range.
 		 */
 		after?: InjectedTextOptions | null;
 		/**
-		 * If set, the content will be injected in the text before the range.
+		 * If set, text will be injected in the view before the range.
 		 */
 		before?: InjectedTextOptions | null;
 	}
 
+	/**
+	 * Configures text that is injected into the view without changing the underlying document.
+	*/
 	export interface InjectedTextOptions {
+		/**
+		 * Sets the text to inject.
+		*/
 		content: string;
 	}
 
