@@ -394,7 +394,16 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const value of extGroupTree.values()) {
-			extGroups.push(value);
+			if (value.children!.length === 1) {
+				// push a flattened setting
+				extGroups.push({
+					id: value.id,
+					label: value.label,
+					settings: value.children![0].settings
+				});
+			} else {
+				extGroups.push(value);
+			}
 		}
 
 		return {

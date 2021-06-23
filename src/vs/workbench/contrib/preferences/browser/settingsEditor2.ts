@@ -309,7 +309,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.modelDisposables.clear();
 		this.modelDisposables.add(model.onDidChangeGroups(() => {
 			this.updatedConfigSchemaDelayer.trigger(() => {
-				this.onConfigUpdate(undefined, undefined, true);
+				this.onConfigUpdate(undefined, false, true);
 			});
 		}));
 		this.defaultSettingsEditorModel = model;

@@ -562,12 +562,15 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
-	font-size: 24px;
+	font-size: 26px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
-	padding-top: 32px;
-	font-size: 20px;
+	font-size: 22px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-3 {
+	font-size: 18px;
 }
 
 .settings-editor.search-mode > .settings-body .settings-toc-container .monaco-list-row .settings-toc-count {
