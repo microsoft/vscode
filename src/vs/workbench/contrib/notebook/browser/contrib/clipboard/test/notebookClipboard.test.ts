@@ -15,7 +15,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
-suite.only('Notebook Clipboard', () => {
+suite('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override getId(): string {
