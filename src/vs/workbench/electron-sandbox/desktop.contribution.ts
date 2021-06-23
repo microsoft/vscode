@@ -307,6 +307,10 @@ import { EditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/c
 					type: 'string'
 				}
 			},
+			'enable-blink-features': {
+				type: 'string',
+				description: localize('argv.enableBlinkFeatures', 'Enables Blink features that implement new and proposed web features. https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/platform/RuntimeEnabledFeatures.md')
+			},
 			'log-level': {
 				type: 'string',
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.")

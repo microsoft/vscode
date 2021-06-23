@@ -141,6 +141,8 @@ async function onReady() {
  */
 function configureCommandlineSwitchesSync(cliArgs) {
 	const SUPPORTED_ELECTRON_SWITCHES = [
+		// Blink features: https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/platform/RuntimeEnabledFeatures.md
+		'enable-blink-features',
 
 		// alias from us for --disable-gpu
 		'disable-hardware-acceleration',
@@ -181,6 +183,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
+			// Blink features: https://chromium.googlesource.com/chromium/src/+/HEAD/third_party/blink/renderer/platform/RuntimeEnabledFeatures.md
+			if (argvKey === 'enable-blink-features') {
+				if (argvValue) {
+					app.commandLine.appendSwitch(argvKey, argvValue);
+				}
+			}
 
 			// Color profile
 			if (argvKey === 'force-color-profile') {
