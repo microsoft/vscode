@@ -72,12 +72,7 @@ suite('suggest, word distance', function () {
 					EOL: model.getEOL(),
 					versionId: model.getVersionId()
 				});
-				model.onDidChangeContent(e => {
-					if (e.versionId !== null) {
-						this._worker.acceptModelChanged(model.uri.toString(), { ...e, versionId: e.versionId });
-					}
-				}
-				);
+				model.onDidChangeContent(e => this._worker.acceptModelChanged(model.uri.toString(), e));
 			}
 			override computeWordRanges(resource: URI, range: IRange): Promise<{ [word: string]: IRange[] } | null> {
 				return this._worker.computeWordRanges(resource.toString(), range, DEFAULT_WORD_REGEXP.source, DEFAULT_WORD_REGEXP.flags);

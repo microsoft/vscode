@@ -57,9 +57,8 @@ export interface IModelContentChangedEvent {
 	readonly eol: string;
 	/**
 	 * The new version id the model has transitioned to.
-	 * If null, the actual model text did not change and this event was caused by a change of injected text.
 	 */
-	readonly versionId: number | null;
+	readonly versionId: number;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -286,9 +285,8 @@ export class ModelRawContentChangedEvent {
 	public readonly changes: ModelRawChange[];
 	/**
 	 * The new version id the model has transitioned to.
-	 * If null, the actual model text did not change and this event was caused by a change of injected text.
 	 */
-	public readonly versionId: number | null;
+	public readonly versionId: number;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -300,7 +298,7 @@ export class ModelRawContentChangedEvent {
 
 	public resultingSelection: Selection[] | null;
 
-	constructor(changes: ModelRawChange[], versionId: number | null, isUndoing: boolean, isRedoing: boolean) {
+	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
 		this.changes = changes;
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
@@ -324,6 +322,19 @@ export class ModelRawContentChangedEvent {
 		const isUndoing = (a.isUndoing || b.isUndoing);
 		const isRedoing = (a.isRedoing || b.isRedoing);
 		return new ModelRawContentChangedEvent(changes, versionId, isUndoing, isRedoing);
+	}
+}
+
+/**
+ * An event describing a change in injected text.
+ * @internal
+ */
+export class ModelInjectedTextChangedEvent {
+
+	public readonly changes: ModelRawLineChanged[];
+
+	constructor(changes: ModelRawLineChanged[]) {
+		this.changes = changes;
 	}
 }
 

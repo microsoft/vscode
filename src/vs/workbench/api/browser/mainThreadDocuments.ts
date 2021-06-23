@@ -88,12 +88,8 @@ class ModelTracker extends Disposable {
 		super();
 		this._knownVersionId = this._model.getVersionId();
 		this._register(this._model.onDidChangeContent((e) => {
-			if (e.versionId === null) {
-				// No actual model change.
-				return;
-			}
 			this._knownVersionId = e.versionId;
-			this._proxy.$acceptModelChanged(this._model.uri, { ...e, versionId: e.versionId }, this._textFileService.isDirty(this._model.uri));
+			this._proxy.$acceptModelChanged(this._model.uri, e, this._textFileService.isDirty(this._model.uri));
 			if (this.isCaughtUpWithContentChanges()) {
 				this._onIsCaughtUpWithContentChanges.fire(this._model.uri);
 			}

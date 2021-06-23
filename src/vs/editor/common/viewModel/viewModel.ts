@@ -119,6 +119,7 @@ export class LineBreakData {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
 				if (inputOffset > this.injectionOffsets[i]) {
 					if (inputOffset < this.injectionOffsets[i] + this.injectionTexts![i].length) {
+						// `inputOffset` is within injected text
 						inputOffset = this.injectionOffsets[i];
 					} else {
 						inputOffset -= this.injectionTexts![i].length;

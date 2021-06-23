@@ -251,7 +251,7 @@ export class ViewModel extends Disposable implements IViewModel {
 
 	private _registerModelEvents(): void {
 
-		this._register(this.model.onDidChangeRawContentFast((e) => {
+		this._register(this.model.onDidChangeContentOrInjectedText((e) => {
 			try {
 				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
 
@@ -259,7 +259,7 @@ export class ViewModel extends Disposable implements IViewModel {
 				let hadModelLineChangeThatChangedLineMapping = false;
 
 				const changes = e.changes;
-				const versionId = e.versionId;
+				const versionId = (e instanceof textModelEvents.ModelRawContentChangedEvent ? e.versionId : null);
 
 				// Do a first pass to compute line mappings, and a second pass to actually interpret them
 				const lineBreaksComputer = this._lines.createLineBreaksComputer();
@@ -342,7 +342,6 @@ export class ViewModel extends Disposable implements IViewModel {
 					}
 				}
 
-				// Don't leak the null versionId into the world.
 				if (versionId !== null) {
 					this._lines.acceptVersionId(versionId);
 				}
@@ -373,11 +372,13 @@ export class ViewModel extends Disposable implements IViewModel {
 				}
 			}
 
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-				this._cursor.onModelContentChanged(eventsCollector, e);
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
+			if (e instanceof textModelEvents.ModelRawContentChangedEvent) {
+				try {
+					const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
+					this._cursor.onModelContentChanged(eventsCollector, e);
+				} finally {
+					this._eventDispatcher.endEmitViewEvents();
+				}
 			}
 		}));
 
