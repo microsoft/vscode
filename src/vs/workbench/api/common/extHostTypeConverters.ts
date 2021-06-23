@@ -1669,7 +1669,7 @@ export namespace TestItem {
 			uri: URI.revive(item.uri),
 			range: Range.to(item.range || undefined),
 			dispose: () => undefined,
-			canExpand: false,
+			canResolveChildren: false,
 			busy: false,
 			data: undefined as never,
 			debuggable: item.debuggable,
