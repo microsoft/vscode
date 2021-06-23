@@ -68,9 +68,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 					priority: RegisteredEditorPriority.builtin,
 				},
 				{},
-				(editorInput, group): IEditorInputWithOptions => {
-					const resource = editorInput.resource;
-					const options = editorInput.options;
+				({ resource, options }, group): IEditorInputWithOptions => {
 					// Global User Settings File
 					if (isEqual(resource, this.environmentService.settingsResource)) {
 						return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource, group), options };
