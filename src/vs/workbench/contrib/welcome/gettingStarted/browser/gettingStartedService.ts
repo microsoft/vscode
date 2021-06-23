@@ -425,7 +425,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 								tooltip: localize('change keybinding', "Configure Keybinding")
 							}
 						] : [],
-						detail: '',
+						detail: entry.description,
 						description: entry.from,
 					});
 				});
