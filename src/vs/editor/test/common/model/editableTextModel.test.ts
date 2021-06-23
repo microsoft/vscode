@@ -1050,11 +1050,13 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		model.onDidChangeContent((e: IModelContentChangedEvent) => {
 			let versionId = e.versionId;
-			if (versionId < mirrorModel2PrevVersionId) {
-				console.warn('Model version id did not advance between edits (2)');
+			if (versionId !== null) {
+				if (versionId < mirrorModel2PrevVersionId) {
+					console.warn('Model version id did not advance between edits (2)');
+				}
+				mirrorModel2PrevVersionId = versionId;
+				mirrorModel2.onEvents({ ...e, versionId: versionId });
 			}
-			mirrorModel2PrevVersionId = versionId;
-			mirrorModel2.onEvents(e);
 		});
 
 		let assertMirrorModels = () => {

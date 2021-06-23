@@ -47,8 +47,10 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 
 		this._register(this._model.onDidChangeContent((e) => {
 			if (this._isSynced) {
-				this._worker.acceptModelChanged(this._model.uri.toString(), e);
-				this._pendingChanges.push(e);
+				if (e.versionId !== null) {
+					this._worker.acceptModelChanged(this._model.uri.toString(), { ...e, versionId: e.versionId });
+					this._pendingChanges.push(e);
+				}
 			}
 		}));
 
@@ -93,7 +95,7 @@ class ModelWorkerTextMateTokenizer extends Disposable {
 	}
 
 	private _confirm(versionId: number): void {
-		while (this._pendingChanges.length > 0 && this._pendingChanges[0].versionId <= versionId) {
+		while (this._pendingChanges.length > 0 && (this._pendingChanges[0].versionId === null || this._pendingChanges[0].versionId <= versionId)) {
 			this._pendingChanges.shift();
 		}
 	}

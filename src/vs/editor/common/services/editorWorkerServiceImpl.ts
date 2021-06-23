@@ -350,7 +350,11 @@ class EditorModelManager extends Disposable {
 
 		const toDispose = new DisposableStore();
 		toDispose.add(model.onDidChangeContent((e) => {
-			this._proxy.acceptModelChanged(modelUrl.toString(), e);
+			if (e.versionId === null) {
+				// Only injected text changed.
+				return;
+			}
+			this._proxy.acceptModelChanged(modelUrl.toString(), { ...e, versionId: e.versionId });
 		}));
 		toDispose.add(model.onWillDispose(() => {
 			this._stopModelSync(modelUrl);

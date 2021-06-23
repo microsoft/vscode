@@ -330,6 +330,11 @@ export class CursorsController extends Disposable {
 
 	public onModelContentChanged(eventsCollector: ViewModelEventsCollector, e: ModelRawContentChangedEvent): void {
 
+		if (e.versionId === null) {
+			// TODO @hediet investigate what would be the correct thing to do here
+			return;
+		}
+
 		this._knownModelVersionId = e.versionId;
 		if (this._isHandling) {
 			return;

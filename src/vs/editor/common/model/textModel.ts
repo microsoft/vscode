@@ -219,7 +219,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 	private readonly _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	public readonly onWillDispose: Event<void> = this._onWillDispose.event;
 
-	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter());
+	private readonly _onDidChangeDecorations: DidChangeDecorationsEmitter = this._register(new DidChangeDecorationsEmitter(affectedInjectedTextLines => this.handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines)));
 	public readonly onDidChangeDecorations: Event<IModelDecorationsChangedEvent> = this._onDidChangeDecorations.event;
 
 	private readonly _onDidChangeLanguage: Emitter<IModelLanguageChangedEvent> = this._register(new Emitter<IModelLanguageChangedEvent>());
@@ -1553,6 +1553,28 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 	//#region Decorations
 
+	private handleBeforeFireDecorationsChangedEvent(affectedInjectedTextLines: Set<number> | null): void {
+		// This is called before the decoration changed event is fired.
+
+		if (affectedInjectedTextLines === null || affectedInjectedTextLines.size === 0) {
+			return;
+		}
+
+		this._emitContentChangedEvent(
+			new ModelRawContentChangedEvent([...affectedInjectedTextLines].map(lineNumber =>
+				new ModelRawLineChanged(lineNumber, this.getLineContent(lineNumber), this._getInjectedTextInLine(lineNumber))
+			), null, false, false),
+			{
+				changes: [],
+				eol: this.getEOL(),
+				isFlush: false,
+				isRedoing: false,
+				isUndoing: false,
+				versionId: null
+			}
+		);
+	}
+
 	public changeDecorations<T>(callback: (changeAccessor: model.IModelDecorationsChangeAccessor) => T, ownerId: number = 0): T | null {
 		this._assertNotDisposed();
 
@@ -1728,12 +1750,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._ensureNodesHaveRanges(result);
 	}
 
-	public getInjectedTextInLine(lineNumber: number, ownerId: number): LineInjectedText[] {
+	private _getInjectedTextInLine(lineNumber: number): LineInjectedText[] {
 		const versionId = this.getVersionId();
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
 		const endOffset = startOffset + this._buffer.getLineLength(lineNumber);
 
-		const result = this._decorationsTree.getInjectedTextInInterval(startOffset, endOffset, ownerId, versionId);
+		const result = this._decorationsTree.getInjectedTextInInterval(startOffset, endOffset, 0, versionId);
 
 		this._ensureNodesHaveRanges(result);
 
@@ -1856,7 +1878,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 					const nodeRange = this._getDecorationRange(node);
 
 					this._decorationsTree.delete(node);
-					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 
 					if (node.options.after) {
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
@@ -1864,6 +1885,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 					if (node.options.before) {
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 					}
+
+					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
 				}
 			}
 
@@ -3439,7 +3462,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	private _affectsOverviewRuler: boolean;
 	private _affectedInjectedTextLines: Set<number> | null = null;
 
-	constructor() {
+	constructor(private readonly handleBeforeFire: (affectedInjectedTextLines: Set<number> | null) => void) {
 		super();
 		this._deferredCnt = 0;
 		this._shouldFire = false;
@@ -3455,10 +3478,11 @@ export class DidChangeDecorationsEmitter extends Disposable {
 		this._deferredCnt--;
 		if (this._deferredCnt === 0) {
 			if (this._shouldFire) {
+				this.handleBeforeFire(this._affectedInjectedTextLines);
+
 				const event: IModelDecorationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
-					affectsOverviewRuler: this._affectsOverviewRuler,
-					affectedInjectedTextLines: this._affectedInjectedTextLines,
+					affectsOverviewRuler: this._affectsOverviewRuler
 				};
 				this._shouldFire = false;
 				this._affectsMinimap = false;

@@ -250,78 +250,6 @@ export class ViewModel extends Disposable implements IViewModel {
 	}
 
 	private _registerModelEvents(): void {
-		this._register(this.model.onDidChangeDecorations(e => {
-			if (!e.affectedInjectedTextLines || e.affectedInjectedTextLines.size === 0) {
-				return;
-			}
-
-			const changedLines = [...e.affectedInjectedTextLines];
-			changedLines.sort();
-
-			try {
-				const eventsCollector = this._eventDispatcher.beginEmitViewEvents();
-
-				let hadOtherModelChange = false;
-				let hadModelLineChangeThatChangedLineMapping = false;
-
-				// Do a first pass to compute line mappings, and a second pass to actually interpret them
-				const lineBreaksComputer = this._lines.createLineBreaksComputer();
-				for (const changedLine of changedLines) {
-					const lineContent = this.model.getLineContent(changedLine);
-					const injectedText = this.model.getInjectedTextInLine(changedLine);
-
-					lineBreaksComputer.addRequest(lineContent, injectedText, null);
-				}
-				const lineBreaks = lineBreaksComputer.finalize();
-				let lineBreaksOffset = 0;
-
-				for (const changedLine of changedLines) {
-
-					const changedLineBreakData = lineBreaks[lineBreaksOffset];
-					lineBreaksOffset++;
-
-					const [lineMappingChanged, linesChangedEvent, linesInsertedEvent, linesDeletedEvent] =
-						this._lines.onModelLineChanged(undefined, changedLine, changedLineBreakData);
-					hadModelLineChangeThatChangedLineMapping = lineMappingChanged;
-					if (linesChangedEvent) {
-						eventsCollector.emitViewEvent(linesChangedEvent);
-					}
-					if (linesInsertedEvent) {
-						eventsCollector.emitViewEvent(linesInsertedEvent);
-						this.viewLayout.onLinesInserted(linesInsertedEvent.fromLineNumber, linesInsertedEvent.toLineNumber);
-					}
-					if (linesDeletedEvent) {
-						eventsCollector.emitViewEvent(linesDeletedEvent);
-						this.viewLayout.onLinesDeleted(linesDeletedEvent.fromLineNumber, linesDeletedEvent.toLineNumber);
-					}
-				}
-				this.viewLayout.onHeightMaybeChanged();
-
-				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
-					eventsCollector.emitViewEvent(new viewEvents.ViewLineMappingChangedEvent());
-					eventsCollector.emitViewEvent(new viewEvents.ViewDecorationsChangedEvent(null));
-					this._cursor.onLineMappingChanged(eventsCollector);
-					this._decorations.onLineMappingChanged();
-				}
-			} finally {
-				this._eventDispatcher.endEmitViewEvents();
-			}
-
-			// Update the configuration and reset the centered view line
-			this._viewportStartLine = -1;
-			this._configuration.setMaxLineNumber(this.model.getLineCount());
-			this._updateConfigurationViewLineCountNow();
-
-			// Recover viewport
-			if (!this._hasFocus && this.model.getAttachedEditorCount() >= 2 && this._viewportStartLineTrackedRange) {
-				const modelRange = this.model._getTrackedRange(this._viewportStartLineTrackedRange);
-				if (modelRange) {
-					const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(modelRange.getStartPosition());
-					const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
-					this.viewLayout.setScrollPosition({ scrollTop: viewPositionTop + this._viewportStartLineDelta }, ScrollType.Immediate);
-				}
-			}
-		}));
 
 		this._register(this.model.onDidChangeRawContentFast((e) => {
 			try {
@@ -413,7 +341,11 @@ export class ViewModel extends Disposable implements IViewModel {
 						}
 					}
 				}
-				this._lines.acceptVersionId(versionId);
+
+				// Don't leak the null versionId into the world.
+				if (versionId !== null) {
+					this._lines.acceptVersionId(versionId);
+				}
 				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {

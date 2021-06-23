@@ -2492,8 +2492,9 @@ declare namespace monaco.editor {
 		readonly eol: string;
 		/**
 		 * The new version id the model has transitioned to.
+		 * If null, the actual model text did not change and this event was caused by a change of injected text.
 		 */
-		readonly versionId: number;
+		readonly versionId: number | null;
 		/**
 		 * Flag that indicates that this event was generated while undoing.
 		 */
@@ -2515,7 +2516,6 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
-		readonly affectedInjectedTextLines: Set<number> | null;
 	}
 
 	export interface IModelOptionsChangedEvent {

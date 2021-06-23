@@ -57,8 +57,9 @@ export interface IModelContentChangedEvent {
 	readonly eol: string;
 	/**
 	 * The new version id the model has transitioned to.
+	 * If null, the actual model text did not change and this event was caused by a change of injected text.
 	 */
-	readonly versionId: number;
+	readonly versionId: number | null;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -80,7 +81,6 @@ export interface IModelContentChangedEvent {
 export interface IModelDecorationsChangedEvent {
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
-	readonly affectedInjectedTextLines: Set<number> | null;
 }
 
 /**
@@ -286,8 +286,9 @@ export class ModelRawContentChangedEvent {
 	public readonly changes: ModelRawChange[];
 	/**
 	 * The new version id the model has transitioned to.
+	 * If null, the actual model text did not change and this event was caused by a change of injected text.
 	 */
-	public readonly versionId: number;
+	public readonly versionId: number | null;
 	/**
 	 * Flag that indicates that this event was generated while undoing.
 	 */
@@ -299,7 +300,7 @@ export class ModelRawContentChangedEvent {
 
 	public resultingSelection: Selection[] | null;
 
-	constructor(changes: ModelRawChange[], versionId: number, isUndoing: boolean, isRedoing: boolean) {
+	constructor(changes: ModelRawChange[], versionId: number | null, isUndoing: boolean, isRedoing: boolean) {
 		this.changes = changes;
 		this.versionId = versionId;
 		this.isUndoing = isUndoing;
