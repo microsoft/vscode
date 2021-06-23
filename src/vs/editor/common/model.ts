@@ -174,7 +174,7 @@ export interface InjectedTextOptions {
 	/**
 	 * Sets the text to inject. Must be a single line.
 	*/
-	content: string;
+	readonly content: string;
 }
 
 /**
