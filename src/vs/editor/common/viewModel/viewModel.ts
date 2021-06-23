@@ -118,7 +118,11 @@ export class LineBreakData {
 		if (this.injectionOffsets !== null) {
 			for (let i = 0; i < this.injectionOffsets.length; i++) {
 				if (inputOffset > this.injectionOffsets[i]) {
-					inputOffset -= Math.min(inputOffset - this.injectionOffsets[i], this.injectionTexts![i].length);
+					if (inputOffset < this.injectionOffsets[i] + this.injectionTexts![i].length) {
+						inputOffset = this.injectionOffsets[i];
+					} else {
+						inputOffset -= this.injectionTexts![i].length;
+					}
 				} else {
 					break;
 				}

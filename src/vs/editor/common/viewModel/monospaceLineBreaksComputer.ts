@@ -361,8 +361,10 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
 	if (firstLineBreakColumn === -1) {
+		if (injectedTexts === null || injectedTexts.length === 0) {
+			return null;
+		}
 		// TODO: return LineBreakData that only has injected text if necessary
-		return null;
 	}
 
 	const len = lineText.length;
