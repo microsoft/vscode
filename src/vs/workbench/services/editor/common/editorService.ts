@@ -207,10 +207,10 @@ export interface IEditorService {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
-	 * Find out if the provided editor is active in any editor group.
+	 * Find out if the provided editor is visible in any editor group.
 	 */
-	isActive(editor: IUntypedEditorInput): boolean;
-	isActive(editor: IEditorInput): boolean;
+	isVisible(editor: IUntypedEditorInput): boolean;
+	isVisible(editor: IEditorInput): boolean;
 
 	/**
 	 * This method will return an entry for each editor that reports

@@ -109,9 +109,9 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isOpened(input), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
 		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId' }), false);
-		assert.strictEqual(service.isActive(input), true);
-		assert.strictEqual(service.isActive({ resource: input.resource, options: { override: input.typeId } }), true);
-		assert.strictEqual(service.isActive({ resource: input.resource, options: { override: 'unknownTypeId' } }), false);
+		assert.strictEqual(service.isVisible(input), true);
+		assert.strictEqual(service.isVisible({ resource: input.resource, options: { override: input.typeId } }), true);
+		assert.strictEqual(service.isVisible({ resource: input.resource, options: { override: 'unknownTypeId' } }), false);
 		assert.strictEqual(activeEditorChangeEventCounter, 1);
 		assert.strictEqual(visibleEditorChangeEventCounter, 1);
 
@@ -533,7 +533,7 @@ suite('EditorService', () => {
 		assert.strictEqual(part.count, 2);
 		assert.strictEqual(editor?.group, part.groups[1]);
 
-		assert.strictEqual(service.isActive(input1), true);
+		assert.strictEqual(service.isVisible(input1), true);
 		assert.strictEqual(service.isOpened(input1), true);
 
 		// Open to the side uses existing neighbour group if any
@@ -542,7 +542,7 @@ suite('EditorService', () => {
 		assert.strictEqual(part.count, 2);
 		assert.strictEqual(editor?.group, part.groups[1]);
 
-		assert.strictEqual(service.isActive(input2), true);
+		assert.strictEqual(service.isVisible(input2), true);
 		assert.strictEqual(service.isOpened(input2), true);
 	});
 

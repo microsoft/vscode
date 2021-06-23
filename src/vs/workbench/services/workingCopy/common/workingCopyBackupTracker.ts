@@ -283,7 +283,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		// We only do that for editors that are not active in a group
 		// already to prevent calling `resolve` twice!
 		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
-			if (this.editorService.isActive(openedEditorForBackup)) {
+			if (this.editorService.isVisible(openedEditorForBackup)) {
 				return;
 			}
 

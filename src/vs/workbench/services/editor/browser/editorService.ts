@@ -839,9 +839,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region isOpened()
 
-	isActive(editor: IUntypedEditorInput): boolean;
-	isActive(editor: IEditorInput): boolean;
-	isActive(editor: IUntypedEditorInput | IEditorInput): boolean {
+	isVisible(editor: IUntypedEditorInput): boolean;
+	isVisible(editor: IEditorInput): boolean;
+	isVisible(editor: IUntypedEditorInput | IEditorInput): boolean {
 		for (const group of this.editorGroupService.groups) {
 			if (group.activeEditor?.matches(editor)) {
 				return true;

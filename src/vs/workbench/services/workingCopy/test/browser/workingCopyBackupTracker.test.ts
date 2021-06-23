@@ -384,7 +384,7 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 			assert.ok(editor instanceof TestUntitledTextEditorInput);
 
 			// assert that we only call `resolve` on inactive editors
-			if (accessor.editorService.isActive(editor)) {
+			if (accessor.editorService.isVisible(editor)) {
 				assert.strictEqual(editor.resolved, false);
 			} else {
 				assert.strictEqual(editor.resolved, true);
