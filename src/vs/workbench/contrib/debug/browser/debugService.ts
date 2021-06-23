@@ -129,7 +129,7 @@ export class DebugService implements IDebugService {
 		this.taskRunner = this.instantiationService.createInstance(DebugTaskRunner);
 
 		this.toDispose.push(this.fileService.onDidFilesChange(e => this.onFileChanges(e)));
-		this.toDispose.push(this.lifecycleService.onDidShutdown(this.dispose, this));
+		this.toDispose.push(this.lifecycleService.onWillShutdown(this.dispose, this));
 
 		this.toDispose.push(this.extensionHostDebugService.onAttachSession(event => {
 			const session = this.model.getSession(event.sessionId, true);
