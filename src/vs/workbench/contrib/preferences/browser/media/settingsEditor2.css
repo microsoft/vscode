@@ -281,7 +281,7 @@
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
-	max-width: 1000px;
+	max-width: min(100%, 1000px);
 	margin: auto;
 	box-sizing: border-box;
 	padding-left: 221px;
@@ -559,17 +559,16 @@
 	padding-left: 15px;
 	width: 100%;
 	position: relative;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-1 {
 	font-size: 26px;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-2 {
 	font-size: 22px;
 }
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-level-3 {
+.settings-editor > .settings-body > .settings-tree-container .settings-group-title-label.settings-group-level-3 {
 	font-size: 18px;
 }
 
