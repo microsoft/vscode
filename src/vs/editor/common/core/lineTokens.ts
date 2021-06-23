@@ -170,31 +170,28 @@ export class LineTokens implements IViewLineTokens {
 
 	/**
 	 * @pure
+	 * @param insertTokens Must be sorted by offset.
 	*/
 	public withInserted(insertTokens: { offset: number, text: string, tokenMetadata: number }[]): LineTokens {
 		if (insertTokens.length === 0) {
 			return this;
 		}
 
-		insertTokens.sort((t1, t2) => t1.offset - t2.offset);
-
 		let nextOriginalTokenIdx = 0;
 		let nextInsertTokenIdx = 0;
-
 		let text = '';
 		const newTokens = new Array<number>();
-		let delta = 0;
 
 		let originalEndOffset = 0;
 		while (true) {
-			let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : null;
+			let nextOriginalTokenEndOffset = nextOriginalTokenIdx < this._tokensCount ? this._tokens[nextOriginalTokenIdx << 1] : -1;
 			let nextInsertToken = nextInsertTokenIdx < insertTokens.length ? insertTokens[nextInsertTokenIdx] : null;
 
-			if (nextOriginalTokenEndOffset !== null && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
+			if (nextOriginalTokenEndOffset !== -1 && (nextInsertToken === null || nextOriginalTokenEndOffset <= nextInsertToken.offset)) {
 				// original token ends before next insert token
 				text += this._text.substring(originalEndOffset, nextOriginalTokenEndOffset);
 				const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
-				newTokens.push(nextOriginalTokenEndOffset + delta, metadata);
+				newTokens.push(text.length, metadata);
 				nextOriginalTokenIdx++;
 				originalEndOffset = nextOriginalTokenEndOffset;
 
@@ -203,13 +200,12 @@ export class LineTokens implements IViewLineTokens {
 					// insert token is in the middle of the next token.
 					text += this._text.substring(originalEndOffset, nextInsertToken.offset);
 					const metadata = this._tokens[(nextOriginalTokenIdx << 1) + 1];
-					newTokens.push(nextInsertToken.offset + delta, metadata);
+					newTokens.push(text.length, metadata);
 					originalEndOffset = nextInsertToken.offset;
 				}
 
 				text += nextInsertToken.text;
-				newTokens.push(nextInsertToken.offset + delta + nextInsertToken.text.length, nextInsertToken.tokenMetadata);
-				delta += nextInsertToken.text.length;
+				newTokens.push(text.length, nextInsertToken.tokenMetadata);
 				nextInsertTokenIdx++;
 			} else {
 				break;
