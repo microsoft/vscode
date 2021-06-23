@@ -223,6 +223,9 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
+	private readonly _onDidStopFind = this._register(new Emitter<void>());
+	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
+
 	public startFind(value: string, options?: FindInPageOptions) {
 		if (!value || !this.element) {
 			return;
@@ -275,6 +278,7 @@ export class ElectronWebviewBasedWebview extends BaseWebview<WebviewTag> impleme
 		}
 		this._findStarted = false;
 		this.element.stopFindInPage(keepSelection ? 'keepSelection' : 'clearSelection');
+		this._onDidStopFind.fire();
 	}
 
 	public showFind() {

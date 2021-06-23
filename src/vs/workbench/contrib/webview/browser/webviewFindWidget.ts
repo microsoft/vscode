@@ -11,6 +11,7 @@ import { Event } from 'vs/base/common/event';
 
 export interface WebviewFindDelegate {
 	readonly hasFindResult: Event<boolean>;
+	readonly onDidStopFind: Event<void>;
 	readonly checkImeCompletionState: boolean;
 	find(value: string, previous: boolean): void;
 	startFind(value: string): void;
@@ -31,6 +32,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 
 		this._register(_delegate.hasFindResult(hasResult => {
 			this.updateButtons(hasResult);
+			this.focusFindBox();
+		}));
+
+		this._register(_delegate.onDidStopFind(() => {
+			this.updateButtons(false);
 		}));
 	}
 

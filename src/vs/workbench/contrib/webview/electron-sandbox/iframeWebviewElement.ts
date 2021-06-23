@@ -87,6 +87,12 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 				this._hasFindResult.fire(e.result.matches > 0);
 			}));
 
+			this._register(this.on(WebviewMessageChannels.doUpdateState, () => {
+				if (this._findStarted) {
+					this.stopFind(false);
+				}
+			}));
+
 			this._register(this._webviewMainService.onFoundInFrame((result) => {
 				this._hasFindResult.fire(result.matches > 0);
 			}));
@@ -132,6 +138,9 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 	private readonly _hasFindResult = this._register(new Emitter<boolean>());
 	public readonly hasFindResult: Event<boolean> = this._hasFindResult.event;
 
+	private readonly _onDidStopFind = this._register(new Emitter<void>());
+	public readonly onDidStopFind: Event<void> = this._onDidStopFind.event;
+
 	public startFind(value: string) {
 		if (!value || !this.element) {
 			return;
@@ -172,7 +181,6 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 	}
 
 	public stopFind(keepSelection?: boolean): void {
-		this._hasFindResult.fire(false);
 		if (!this.element) {
 			return;
 		}
@@ -180,6 +188,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		this._webviewMainService.stopFindInFrame({ windowId: this.nativeHostService.windowId }, this.id, {
 			keepSelection
 		});
+		this._onDidStopFind.fire();
 	}
 
 	public override showFind() {

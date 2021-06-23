@@ -74,6 +74,8 @@ export abstract class SimpleFindWidget extends Widget {
 				this.foundMatch = this._onInputChanged();
 
 				this.updateButtons(this.foundMatch);
+				this.focusFindBox();
+
 				this._delayedUpdateHistory();
 			}
 		}));
@@ -273,6 +275,11 @@ export abstract class SimpleFindWidget extends Widget {
 		const hasInput = this.inputValue.length > 0;
 		this.prevBtn.setEnabled(this._isVisible && hasInput && foundMatch);
 		this.nextBtn.setEnabled(this._isVisible && hasInput && foundMatch);
+	}
+
+	protected focusFindBox() {
+		// Focus back onto the find box, which
+		// requires focusing onto the next button first
 		this.nextBtn.focus();
 		this._findInput.inputBox.focus();
 	}
