@@ -12,6 +12,7 @@ import { Command } from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
@@ -36,7 +37,7 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
 	toJSON(): any {
 		return {
-			$mid: 4,
+			$mid: MarshalledId.ScmResourceGroup,
 			sourceControlHandle: this.sourceControlHandle,
 			groupHandle: this.handle
 		};
@@ -78,7 +79,7 @@ class MainThreadSCMResource implements ISCMResource {
 
 	toJSON(): any {
 		return {
-			$mid: 3,
+			$mid: MarshalledId.ScmResource,
 			sourceControlHandle: this.sourceControlHandle,
 			groupHandle: this.groupHandle,
 			handle: this.handle
@@ -256,7 +257,7 @@ class MainThreadSCMProvider implements ISCMProvider {
 
 	toJSON(): any {
 		return {
-			$mid: 5,
+			$mid: MarshalledId.ScmProvider,
 			handle: this.handle
 		};
 	}

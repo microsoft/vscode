@@ -250,7 +250,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div:not(.preview) > div {
-						overflow-x: scroll;
+						overflow-x: overlay;
 					}
 
 					#container .no-renderer-error {
@@ -598,7 +598,7 @@ var requirejs = (function() {
 				case 'toggleMarkupPreview':
 					{
 						const cell = this.notebookEditor.getCellById(data.cellId);
-						if (cell) {
+						if (cell && !this.notebookEditor.creationOptions.isReadOnly) {
 							this.notebookEditor.setMarkupCellEditState(data.cellId, CellEditState.Editing);
 							this.notebookEditor.focusNotebookCell(cell, 'editor', { skipReveal: true });
 						}

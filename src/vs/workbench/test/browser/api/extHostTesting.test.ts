@@ -303,19 +303,28 @@ suite('ExtHost Testing', () => {
 		let c: TestRunCoordinator;
 		let cts: CancellationTokenSource;
 
-		const req: TestRunRequest<unknown> = { tests: [], debug: false };
-		const dto = TestRunDto.fromInternal({
-			controllerId: 'ctrl',
-			debug: false,
-			excludeExtIds: [],
-			runId: 'run-id',
-			testIds: [],
-		});
+		let req: TestRunRequest<unknown>;
+
+		let dto: TestRunDto;
 
 		setup(() => {
 			proxy = mockObject();
 			cts = new CancellationTokenSource();
 			c = new TestRunCoordinator(proxy);
+
+			req = {
+				tests: [single.root],
+				exclude: [single.root.children.get('id-b')!],
+				debug: false,
+			};
+
+			dto = TestRunDto.fromInternal({
+				controllerId: 'ctrl',
+				debug: false,
+				excludeExtIds: ['id-b'],
+				runId: 'run-id',
+				testIds: [single.root.id],
+			});
 		});
 
 		test('tracks a run started from a main thread request', () => {
@@ -348,8 +357,8 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
 				[{
 					id: tracker.id,
-					tests: [],
-					exclude: [],
+					tests: [single.root.id],
+					exclude: ['id-b'],
 					debug: false,
 					persist: false,
 				}]
@@ -415,6 +424,30 @@ suite('ExtHost Testing', () => {
 			assert.strictEqual(proxy.$addTestsToRun.called, false);
 			assert.strictEqual(proxy.$appendOutputToRun.called, false);
 			assert.strictEqual(proxy.$appendTestMessageInRun.called, false);
+		});
+
+		test('excludes tests outside tree or explicitly excluded', () => {
+			single.expand(single.root.id, Infinity);
+
+			const task = c.createTestRun('ctrl', {
+				debug: false,
+				tests: [single.root.children.get('id-a')!],
+				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
+			}, 'hello world', false);
+
+			task.setState(single.root.children.get('b')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-aa')!, TestResultState.Passed);
+			task.setState(single.root.children.get('id-a')!.children.get('id-ab')!, TestResultState.Passed);
+
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args.length, 1);
+			const args = proxy.$updateTestStateInRun.args[0];
+			assert.deepStrictEqual(proxy.$updateTestStateInRun.args, [[
+				args[0],
+				args[1],
+				'id-ab',
+				TestResultState.Passed,
+				undefined,
+			]]);
 		});
 	});
 });

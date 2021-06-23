@@ -30,7 +30,7 @@ import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ISerializedTestResults, ITestItem, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
@@ -1677,13 +1677,22 @@ export namespace TestItem {
 		};
 	}
 
-	export function to(item: ITestItem): types.TestItemImpl {
-		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined, undefined);
+	export function to(item: ITestItem, parent?: vscode.TestItem<void>): types.TestItemImpl<void> {
+		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined, parent);
 		testItem.range = Range.to(item.range || undefined);
 		testItem.debuggable = item.debuggable;
 		testItem.description = item.description || undefined;
 		testItem.runnable = item.runnable;
 		return testItem;
+	}
+
+	export function toItemFromContext(context: ITestItemContext): types.TestItemImpl<void> {
+		let node: types.TestItemImpl<void> | undefined;
+		for (const test of context.tests) {
+			node = to(test.item, node);
+		}
+
+		return node!;
 	}
 }
 

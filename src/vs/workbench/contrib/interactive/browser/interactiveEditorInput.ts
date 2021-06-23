@@ -41,8 +41,9 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	get inputResource() {
 		return this._inputResource;
 	}
-
 	private _inputResolver: Promise<IResolvedNotebookEditorModel | null> | null;
+	private _editorModelReference: IResolvedNotebookEditorModel | null;
+
 	constructor(
 		resource: URI,
 		inputResource: URI,
@@ -54,18 +55,31 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 		this._register(this._notebookEditorInput);
 		this._inputResource = inputResource;
 		this._inputResolver = null;
+		this._editorModelReference = null;
 	}
 
 	override isDirty() {
 		return false;
 	}
 
+	private async _resolveEditorModel() {
+		if (!this._editorModelReference) {
+			this._editorModelReference = await this._notebookEditorInput.resolve();
+		}
+
+		return this._editorModelReference;
+	}
+
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+		if (this._editorModelReference) {
+			return this._editorModelReference;
+		}
+
 		if (this._inputResolver) {
 			return this._inputResolver;
 		}
 
-		this._inputResolver = this._notebookEditorInput.resolve();
+		this._inputResolver = this._resolveEditorModel();
 		return this._inputResolver;
 	}
 
@@ -88,8 +102,12 @@ export class InteractiveEditorInput extends SideBySideEditorInput implements ICo
 	}
 
 	override dispose() {
+		// we support closing the interactive window without prompt, so the editor model should not be dirty
+		this._editorModelReference?.revert({ soft: true });
+
 		this._notebookEditorInput?.dispose();
-		this._inputResolver = null;
+		this._editorModelReference?.dispose();
+		this._editorModelReference = null;
 		super.dispose();
 	}
 }
