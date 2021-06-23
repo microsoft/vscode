@@ -17,15 +17,18 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DISASSEMBLY_VIEW_ID, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
 	isBreakpointSet: boolean;
 	instruction: DebugProtocol.DisassembledInstruction;
+	instructionAddress?: bigint;
 }
 
 export class DisassemblyView extends EditorPane {
@@ -33,11 +36,11 @@ export class DisassemblyView extends EditorPane {
 	private static readonly NUM_INSTRUCTIONS_TO_LOAD = 50;
 
 	// Used in instruction renderer
-	fontInfo: BareFontInfo;
-	currentInstructionAddress: string = '';
-
+	private _fontInfo: BareFontInfo;
+	private _currentInstructionAddress: string | undefined;
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
-	private _debugService: IDebugService;
+	private _onDidChangeStackFrame: Emitter<void>;
+	private _privousDebuggingState: State;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -45,21 +48,28 @@ export class DisassemblyView extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IDebugService debugService: IDebugService
+		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
-		this._debugService = debugService;
 
-		this.fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+		this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('editor')) {
-				this.fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
+				this._fontInfo = BareFontInfo.createFromRawSettings(configurationService.getValue('editor'), getZoomLevel(), getPixelRatio());
 				this._disassembledInstructions?.rerender();
 			}
 		}));
 
 		this._disassembledInstructions = undefined;
+		this._onDidChangeStackFrame = new Emitter<void>();
+		this._privousDebuggingState = _debugService.state;
 	}
+
+	get fontInfo() { return this._fontInfo; }
+
+	get currentInstructionAddress() { return this._currentInstructionAddress; }
+
+	get onDidChangeStackFrame() { return this._onDidChangeStackFrame.event; }
 
 	protected createEditor(parent: HTMLElement): void {
 		const lineHeight = this.fontInfo.lineHeight;
@@ -69,12 +79,6 @@ export class DisassemblyView extends EditorPane {
 				return lineHeight;
 			}
 		};
-
-		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
-			this.currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference!;
-
-			// TODO: rerender the marker
-		}));
 
 		this._disassembledInstructions = this._register(this._instantiationService.createInstance(WorkbenchTable,
 			'DisassemblyView', parent, delegate,
@@ -113,12 +117,7 @@ export class DisassemblyView extends EditorPane {
 			}
 		)) as WorkbenchTable<IDisassembledInstructionEntry>;
 
-		this.loadDisassembledInstructions(undefined, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
-			// on load, set the target instruction in the middle of the page.
-			if (this._disassembledInstructions!.length > 0) {
-				this._disassembledInstructions?.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
-			}
-		});
+		this.reloadDisassembly();
 
 		this._register(this._disassembledInstructions.onDidScroll(e => {
 			if (e.oldScrollTop > e.scrollTop && e.scrollTop < e.height) {
@@ -131,6 +130,46 @@ export class DisassemblyView extends EditorPane {
 			} else if (e.oldScrollTop < e.scrollTop && e.scrollTop + e.height > e.scrollHeight - e.height) {
 				this.scrollDown_LoadDisassembledInstructions(DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD);
 			}
+		}));
+
+		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
+			if (this._disassembledInstructions) {
+				this._currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference;
+				if (this._currentInstructionAddress) {
+					const index = this.getIndexFromAddress(this._currentInstructionAddress);
+					if (index >= 0) {
+						// If the row is out of the viewport, reveal it
+						const topElement = Math.floor(this._disassembledInstructions.scrollTop / this.fontInfo.lineHeight);
+						const bottomElement = Math.ceil((this._disassembledInstructions.scrollTop + this._disassembledInstructions.renderHeight) / this.fontInfo.lineHeight);
+						if (index > topElement && index < bottomElement) {
+							// Inside the viewport, don't do anything here
+						} else if (index < topElement && index > topElement - 5) {
+							// Not too far from top, review it at the top
+							this._disassembledInstructions.reveal(index, 0);
+						} else if (index > bottomElement && index < bottomElement + 5) {
+							// Not too far from bottom, review it at the bottom
+							this._disassembledInstructions.reveal(index, 1);
+						} else {
+							// Far from the current viewport, reveal it
+							this._disassembledInstructions.reveal(index, 0.5);
+						}
+					} else {
+						// Stack frame is very far from what's shown in the view now. Clear the table and reload.
+						this.reloadDisassembly();
+					}
+				}
+			}
+
+			this._onDidChangeStackFrame.fire();
+		}));
+
+		this._register(this._debugService.onDidChangeState(e => {
+			if ((e === State.Running || e === State.Stopped) &&
+				(this._privousDebuggingState !== State.Running && this._privousDebuggingState !== State.Stopped)) {
+				// Just started debugging, clear the view
+				this._disassembledInstructions?.splice(0, this._disassembledInstructions.length);
+			}
+			this._privousDebuggingState = e;
 		}));
 	}
 
@@ -156,7 +195,7 @@ export class DisassemblyView extends EditorPane {
 			const frame = this._debugService.getViewModel().focusedStackFrame;
 			if (frame?.instructionPointerReference) {
 				address = frame.instructionPointerReference;
-				this.currentInstructionAddress = address;
+				this._currentInstructionAddress = address;
 			}
 		}
 
@@ -172,8 +211,7 @@ export class DisassemblyView extends EditorPane {
 			// request is either at the start or end
 			if (instructionOffset >= 0) {
 				this._disassembledInstructions.splice(this._disassembledInstructions.length, 0, newEntries);
-			}
-			else {
+			} else {
 				this._disassembledInstructions.splice(0, 0, newEntries);
 			}
 
@@ -183,11 +221,76 @@ export class DisassemblyView extends EditorPane {
 		return false;
 	}
 
+	private getIndexFromAddress(instructionAddress: string): number {
+		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+			const address = BigInt(instructionAddress);
+			if (address) {
+				let startIndex = 0;
+				let endIndex = this._disassembledInstructions.length - 1;
+				const start = this._disassembledInstructions.row(startIndex);
+				const end = this._disassembledInstructions.row(endIndex);
+
+				this.ensureAddressParsed(start);
+				this.ensureAddressParsed(end);
+				if (start.instructionAddress! > address ||
+					end.instructionAddress! < address) {
+					return -1;
+				} else if (start.instructionAddress! === address) {
+					return startIndex;
+				} else if (end.instructionAddress! === address) {
+					return endIndex;
+				}
+
+				while (endIndex > startIndex) {
+					const midIndex = Math.floor((endIndex - startIndex) / 2) + startIndex;
+					const mid = this._disassembledInstructions.row(midIndex);
+
+					this.ensureAddressParsed(mid);
+					if (mid.instructionAddress! > address) {
+						endIndex = midIndex;
+					} else if (mid.instructionAddress! < address) {
+						startIndex = midIndex;
+					} else {
+						return midIndex;
+					}
+				}
+
+				return startIndex;
+			}
+		}
+
+		return -1;
+	}
+
+	private ensureAddressParsed(entry: IDisassembledInstructionEntry) {
+		if (entry.instructionAddress !== undefined) {
+			return;
+		} else {
+			entry.instructionAddress = BigInt(entry.instruction.address);
+		}
+	}
+
+	/**
+	 * Clears the table and reload instructions near the target address
+	 */
+	private reloadDisassembly(targetAddress?: string) {
+		if (this._disassembledInstructions) {
+			this._disassembledInstructions.splice(0, this._disassembledInstructions.length);
+			this.loadDisassembledInstructions(targetAddress, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2).then(() => {
+				// on load, set the target instruction in the middle of the page.
+				if (this._disassembledInstructions!.length > 0) {
+					this._disassembledInstructions!.reveal(Math.floor(this._disassembledInstructions!.length / 2), 0.5);
+				}
+			});
+		}
+	}
+
 }
 
 interface IBreakpointColumnTemplateData {
 	container: HTMLElement,
-	icon: HTMLElement
+	icon: HTMLElement,
+	stackFrameChangedHandler?: IDisposable
 }
 
 class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry, IBreakpointColumnTemplateData> {
@@ -195,12 +298,12 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	static readonly TEMPLATE_ID = 'breakpoint';
 	private breakpointIcon = 'codicon-' + icons.breakpoint.regular.id;
 	private breakpointHintIcon = 'codicon-' + icons.debugBreakpointHint.id;
-	// private debugStackframe = 'codicon-' + icons.debugStackframe.id;
-	private debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
+	private debugStackframe = 'codicon-' + icons.debugStackframe.id;
+	// private debugStackframeFocused = 'codicon-' + icons.debugStackframeFocused.id;
 
 	templateId: string = BreakpointRenderer.TEMPLATE_ID;
 
-	constructor(private readonly disassemblyView: DisassemblyView,
+	constructor(private readonly _disassemblyView: DisassemblyView,
 		@IDebugService private readonly debugService: IDebugService) {
 	}
 
@@ -216,20 +319,26 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	renderElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		if (element.instruction.address === this.disassemblyView.currentInstructionAddress) {
-			templateData.icon.classList.add(this.debugStackframeFocused);
+		if (element.instruction.address === this._disassemblyView.currentInstructionAddress) {
+			templateData.icon.classList.add(this.debugStackframe);
+		} else {
+			templateData.icon.classList.remove(this.debugStackframe);
 		}
-		else {
-			templateData.icon.classList.remove(this.debugStackframeFocused);
-		}
+
+		templateData.stackFrameChangedHandler = this._disassemblyView.onDidChangeStackFrame(() => {
+			if (element.instruction.address === this._disassemblyView.currentInstructionAddress) {
+				templateData.icon.classList.add(this.debugStackframe);
+			} else {
+				templateData.icon.classList.remove(this.debugStackframe);
+			}
+		});
 
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
 		if (element.allowBreakpoint) {
 			if (element.isBreakpointSet) {
 				templateData.icon.classList.add(this.breakpointIcon);
-			}
-			else {
+			} else {
 				templateData.icon.classList.remove(this.breakpointIcon);
 			}
 
@@ -260,6 +369,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	disposeTemplate(templateData: IBreakpointColumnTemplateData): void {
+		templateData.stackFrameChangedHandler?.dispose();
 		templateData.container.onclick = null;
 		templateData.container.onmouseover = null;
 		templateData.container.onmouseout = null;
