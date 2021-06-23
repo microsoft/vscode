@@ -151,7 +151,7 @@ export class LineInjectedText {
 	public static fromDecorations(decorations: IModelDecoration[]): LineInjectedText[] {
 		const result: LineInjectedText[] = [];
 		for (const decoration of decorations) {
-			if (decoration.options.before) {
+			if (decoration.options.before && decoration.options.before.content.length > 0) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.startLineNumber,
@@ -160,7 +160,7 @@ export class LineInjectedText {
 					decoration.options.before.content
 				));
 			}
-			if (decoration.options.after) {
+			if (decoration.options.after && decoration.options.after.content.length > 0) {
 				result.push(new LineInjectedText(
 					decoration.ownerId,
 					decoration.range.endLineNumber,
