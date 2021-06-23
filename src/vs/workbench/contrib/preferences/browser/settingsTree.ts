@@ -366,12 +366,11 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 			const rootEntry = {
 				id: extensionId,
 				label: extensionName,
-				children: [childEntry]
+				children: []
 			};
 			extGroupTree.set(extensionId, rootEntry);
-		} else {
-			extGroupTree.get(extensionId)!.children!.push(childEntry);
 		}
+		extGroupTree.get(extensionId)!.children!.push(childEntry);
 	};
 	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = arrays.flatten(
@@ -379,16 +378,12 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
-		let extensionName = group.title;
-		if (extension) {
-			extensionName = extension.displayName ?? extension.name;
-		}
-
+		const extensionName = extension!.displayName ?? extension!.name;
 		const childEntry = {
 			id: group.id,
 			label: group.title,
 			settings: flatSettings
-		} as ITOCEntry<ISetting>;
+		};
 		addEntryToTree(extensionId, extensionName, childEntry);
 	};
 
@@ -399,12 +394,7 @@ export async function resolveExtensionsSettings(extensionService: IExtensionServ
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const value of extGroupTree.values()) {
-			if (value.children!.length === 1) {
-				// only one child,so no need to nest it
-				extGroups.push(value.children![0]);
-			} else {
-				extGroups.push(value);
-			}
+			extGroups.push(value);
 		}
 
 		return {
