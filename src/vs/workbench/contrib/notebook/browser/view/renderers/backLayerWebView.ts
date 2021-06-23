@@ -250,7 +250,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Disposable {
 					}
 
 					#container > div > div:not(.preview) > div {
-						overflow-x: scroll;
+						overflow-x: auto;
 					}
 
 					#container .no-renderer-error {
