@@ -5,7 +5,7 @@
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput, isResourceEditorInput } from 'vs/platform/editor/common/editor';
-import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -717,15 +717,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					mapGroupToEditors.set(targetGroup, targetGroupEditors);
 				}
 
-				if (isEditorInputWithOptions(editor)) {
-					targetGroupEditors.push(editor);
-					continue;
-				}
-
 				let editorOverride: IEditorInputWithOptions | undefined;
 				const options = editor.options;
 				if (options?.override !== EditorOverride.DISABLED) {
-					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, group);
+					const editorToOverride = isEditorInputWithOptions(editor) ? editor.editor.toUntyped(group.id, UntypedEditorContext.Default) : editor;
+					if (!editorToOverride) {
+						continue;
+					}
+					if (isEditorInputWithOptions(editor)) {
+						editorToOverride.options = { ...editorToOverride.options, ...editor.options };
+					}
+					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editorToOverride, group);
 					if (overrideResult === OverrideStatus.ABORT) {
 						continue;
 					} else {
@@ -737,6 +739,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					targetGroupEditors.push(
 						{ editor: editorOverride.editor, options: editorOverride.options }
 					);
+				} else if (isEditorInputWithOptions(editor)) {
+					targetGroupEditors.push(editor);
 				}
 			}
 		}

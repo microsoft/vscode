@@ -1107,8 +1107,8 @@ suite('EditorService', () => {
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
-		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		const input1 = { resource: URI.parse('file://test/path/resource1.txt') };
+		const input2 = { resource: URI.parse('file://test/path/resource1.md') };
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditor(input1);
 		assert.strictEqual(overrideCount, 0);
@@ -1116,7 +1116,7 @@ suite('EditorService', () => {
 		await service.openEditor(input2);
 		assert.strictEqual(overrideCount, 1);
 		// Because we specify an override we shouldn't see it triggered even if it matches
-		await service.openEditor(input2, { override: 'default' });
+		await service.openEditor({ ...input2, options: { override: 'default' } });
 		assert.strictEqual(overrideCount, 1);
 
 		registrationDisposable.dispose();
