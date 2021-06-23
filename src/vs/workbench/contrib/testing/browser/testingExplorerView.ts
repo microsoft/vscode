@@ -10,7 +10,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultKeyboardNavigationDelegate, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { ITreeContextMenuEvent, ITreeEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
+import { ITreeContextMenuEvent, ITreeFilter, ITreeNode, ITreeRenderer, ITreeSorter, TreeFilterResult, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action, ActionRunner, IAction, Separator } from 'vs/base/common/actions';
 import { disposableTimeout, RunOnceScheduler } from 'vs/base/common/async';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -61,7 +61,7 @@ import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/cont
 import { getPathForTestInResult, TestResultItemChangeReason } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, testCollectionIsEmpty } from 'vs/workbench/contrib/testing/common/testService';
-import { GoToTest, internalTestActionIds } from './testExplorerActions';
+import { GoToTest } from './testExplorerActions';
 
 export class TestingExplorerView extends ViewPane {
 	public viewModel!: TestingExplorerViewModel;
@@ -226,11 +226,6 @@ export class TestingExplorerViewModel extends Disposable {
 	 * and do it then if so.
 	 */
 	private hasPendingReveal = false;
-
-	/**
-	 * Fires when the selected tests change.
-	 */
-	public readonly onDidChangeSelection: Event<ITreeEvent<TestExplorerTreeElement | null>>;
 	/**
 	 * Fires when the visibility of the placeholder state changes.
 	 */
@@ -354,8 +349,11 @@ export class TestingExplorerViewModel extends Disposable {
 
 		this.updatePreferredProjection();
 
-		this.onDidChangeSelection = this.tree.onDidChangeSelection;
 		this._register(this.tree.onDidChangeSelection(async evt => {
+			if (evt.browserEvent instanceof MouseEvent && evt.browserEvent.altKey) {
+				return; // don't focus when alt-clicking to multi select
+			}
+
 			const selected = evt.elements[0];
 			if (selected && evt.browserEvent && selected instanceof TestItemTreeElement
 				&& selected.children.size === 0 && selected.test.expand === TestItemExpandState.NotExpandable) {
@@ -772,13 +770,7 @@ class TestExplorerActionRunner extends ActionRunner {
 		const contextIsSelected = selection.some(s => s === context);
 		const actualContext = contextIsSelected ? selection : [context];
 		const actionable = actualContext.filter((t): t is TestItemTreeElement => t instanceof TestItemTreeElement);
-
-		// Is there a better way to do this?
-		if (internalTestActionIds.has(action.id)) {
-			await action.run(...actionable);
-		} else {
-			await action.run(...actionable.map(a => a.test.item.extId));
-		}
+		await action.run(...actionable);
 	}
 }
 
@@ -1007,7 +999,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		options.fileKind = FileKind.FILE;
 		label.description = node.element.description || undefined;
 
-		if (node.element.duration) {
+		if (node.element.duration !== undefined) {
 			label.description = label.description
 				? `${label.description}: ${formatDuration(node.element.duration)}`
 				: formatDuration(node.element.duration);
@@ -1017,7 +1009,17 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	}
 }
 
-const formatDuration = (ms: number) => ms < 10 ? ms.toFixed(1) : ms.toFixed(0);
+const formatDuration = (ms: number) => {
+	if (ms < 10) {
+		return `${ms.toFixed(1)}ms`;
+	}
+
+	if (ms < 1_000) {
+		return `${ms.toFixed(0)}ms`;
+	}
+
+	return `${(ms / 1000).toFixed(1)}s`;
+};
 
 const getActionableElementActions = (
 	contextKeyService: IContextKeyService,

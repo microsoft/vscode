@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IExtensionManifest, ExtensionKind, ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManifest, ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { ExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -14,40 +14,54 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { isWeb } from 'vs/base/common/platform';
 import { TestWorkspaceTrustManagementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('ExtensionManifestPropertiesService - ExtensionKind', () => {
 
-	function check(manifest: Partial<IExtensionManifest>, expected: ExtensionKind[]): void {
-		const extensionManifestPropertiesService = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustManagementService());
-		assert.deepStrictEqual(extensionManifestPropertiesService.deduceExtensionKind(<IExtensionManifest>manifest), expected);
-	}
+	const testObject = new ExtensionManifestPropertiesService(TestProductService, new TestConfigurationService(), new TestWorkspaceTrustManagementService(), new NullLogService());
 
 	test('declarative with extension dependencies => workspace', () => {
-		check({ extensionDependencies: ['ext1'] }, ['workspace']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionDependencies: ['ext1'] }), ['workspace']);
 	});
 
 	test('declarative extension pack => workspace', () => {
-		check({ extensionPack: ['ext1', 'ext2'] }, ['workspace']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'] }), ['workspace']);
+	});
+
+	test('declarative extension pack and extension dependencies => workspace', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], extensionDependencies: ['ext1', 'ext2'] }), ['workspace']);
 	});
 
 	test('declarative with unknown contribution point => workspace', () => {
-		check({ contributes: <any>{ 'unknownPoint': { something: true } } }, ['workspace']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ contributes: <any>{ 'unknownPoint': { something: true } } }), ['workspace']);
+	});
+
+	test('declarative extension pack with unknown contribution point => workspace', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionPack: ['ext1', 'ext2'], contributes: <any>{ 'unknownPoint': { something: true } } }), ['workspace']);
 	});
 
 	test('simple declarative => ui, workspace, web', () => {
-		check({}, ['ui', 'workspace', 'web']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{}), ['ui', 'workspace', 'web']);
 	});
 
 	test('only browser => web', () => {
-		check({ browser: 'main.browser.js' }, ['web']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ browser: 'main.browser.js' }), ['web']);
 	});
 
 	test('only main => workspace', () => {
-		check({ main: 'main.js' }, ['workspace']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js' }), ['workspace']);
 	});
 
 	test('main and browser => workspace, web', () => {
-		check({ main: 'main.js', browser: 'main.browser.js' }, ['workspace', 'web']);
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', browser: 'main.browser.js' }), ['workspace', 'web']);
+	});
+
+	test('browser entry point with workspace extensionKind => workspace, web', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ main: 'main.js', browser: 'main.browser.js', extensionKind: ['workspace'] }), ['workspace', 'web']);
+	});
+
+	test('simple descriptive with workspace, ui extensionKind => workspace, ui, web', () => {
+		assert.deepStrictEqual(testObject.getExtensionKind(<IExtensionManifest>{ extensionKind: ['workspace', 'ui'] }), ['workspace', 'ui', 'web']);
 	});
 });
 
@@ -96,7 +110,7 @@ if (!isWeb) {
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
 		});
 
-		test('test extension workspace trust request when override exists in settings.json', async () => {
+		test('test extension workspace trust request when "true" override exists in settings.json', async () => {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{});
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
@@ -105,13 +119,31 @@ if (!isWeb) {
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
 		});
 
-		test('test extension workspace trust request when override for the version exists in settings.json', async () => {
+		test('test extension workspace trust request when override (false) exists in settings.json', async () => {
+			instantiationService.stub(IProductService, <Partial<IProductService>>{});
+			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: false } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
+			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+		});
+
+		test('test extension workspace trust request when override (true) for the version exists in settings.json', async () => {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{});
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
 			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: true, version: '1.0.0' } } });
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
+		});
+
+		test('test extension workspace trust request when override (false) for the version exists in settings.json', async () => {
+			instantiationService.stub(IProductService, <Partial<IProductService>>{});
+			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+
+			await testConfigurationService.setUserConfiguration('extensions', { supportUntrustedWorkspaces: { 'pub.a': { supported: false, version: '1.0.0' } } });
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: 'limited' } } });
+			assertUntrustedWorkspaceSupport(extensionMaifest, false);
 		});
 
 		test('test extension workspace trust request when override for a different version exists in settings.json', async () => {
@@ -123,7 +155,7 @@ if (!isWeb) {
 			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
 		});
 
-		test('test extension workspace trust request when default exists in product.json', () => {
+		test('test extension workspace trust request when default (true) exists in product.json', () => {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { default: true } } });
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
@@ -131,12 +163,28 @@ if (!isWeb) {
 			assertUntrustedWorkspaceSupport(extensionMaifest, true);
 		});
 
-		test('test extension workspace trust request when override exists in product.json', () => {
+		test('test extension workspace trust request when default (false) exists in product.json', () => {
+			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { default: false } } });
+			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js' });
+			assertUntrustedWorkspaceSupport(extensionMaifest, false);
+		});
+
+		test('test extension workspace trust request when override (limited) exists in product.json', () => {
 			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { override: 'limited' } } });
 			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
 
 			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: true } } });
 			assertUntrustedWorkspaceSupport(extensionMaifest, 'limited');
+		});
+
+		test('test extension workspace trust request when override (false) exists in product.json', () => {
+			instantiationService.stub(IProductService, <Partial<IProductService>>{ extensionUntrustedWorkspaceSupport: { 'pub.a': { override: false } } });
+			instantiationService.stub(IWorkspaceTrustManagementService, new TestWorkspaceTrustManagementService());
+
+			const extensionMaifest = getExtensionManifest({ main: './out/extension.js', capabilities: { untrustedWorkspaces: { supported: true } } });
+			assertUntrustedWorkspaceSupport(extensionMaifest, false);
 		});
 
 		test('test extension workspace trust request when value exists in package.json', () => {

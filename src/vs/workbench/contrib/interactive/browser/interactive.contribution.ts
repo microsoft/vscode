@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -199,8 +199,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 	InteractiveEditorSerializer
 );
 
-let counter = 1;
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -231,15 +229,29 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, column?: number): Promise<{ notebookUri: URI, inputUri: URI; }> {
-		const notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-		const inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
-
 		const editorService = accessor.get(IEditorService);
+
+		const existingNotebookDocument = new Set<string>();
+		editorService.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => {
+			if (editor.editor.resource) {
+				existingNotebookDocument.add(editor.editor.resource.toString());
+			}
+		});
+
+		let notebookUri: URI | undefined = undefined;
+		let inputUri: URI | undefined = undefined;
+		let counter = 1;
+		do {
+			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+
+			counter++;
+		} while (existingNotebookDocument.has(notebookUri.toString()));
+
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		const group = viewColumnToEditorGroup(editorGroupService, column);
 		await editorService.openEditor(editorInput, undefined, group);
-		counter++;
 
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };

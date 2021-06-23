@@ -831,8 +831,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
 			resource: this.uriIdentityService.asCanonicalUri(editor.resource),
-			typeId: editor.typeId
+			typeId: editor.typeId,
+			editorId: editor.editorId
 		});
+	}
+
+	//#endregion
+
+	//#region isOpened()
+
+	isVisible(editor: IEditorInput): boolean {
+		for (const group of this.editorGroupService.groups) {
+			if (group.activeEditor?.matches(editor)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	//#endregion
