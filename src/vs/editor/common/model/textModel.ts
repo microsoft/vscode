@@ -1870,14 +1870,14 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				// (2) remove the node from the tree (if it exists)
 				if (node) {
-					const nodeRange = this._getDecorationRange(node);
-
 					this._decorationsTree.delete(node);
 
 					if (node.options.after) {
+						const nodeRange = this._getDecorationRange(node);
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
 					}
 					if (node.options.before) {
+						const nodeRange = this._getDecorationRange(node);
 						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 					}
 
