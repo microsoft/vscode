@@ -15,7 +15,7 @@ import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookS
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/contrib/fold/foldingModel';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 
-suite('Notebook Clipboard', () => {
+suite.only('Notebook Clipboard', () => {
 	const createEditorService = (editor: IActiveNotebookEditor) => {
 		const visibleEditorPane = new class extends mock<IVisibleEditorPane>() {
 			override getId(): string {
@@ -35,7 +35,7 @@ suite('Notebook Clipboard', () => {
 		return editorService;
 	};
 
-	test.skip('Cut multiple selected cells', async function () {
+	test('Cut multiple selected cells', async function () {
 		await withTestNotebook(
 			[
 				['# header 1', 'markdown', CellKind.Markup, [], {}],
