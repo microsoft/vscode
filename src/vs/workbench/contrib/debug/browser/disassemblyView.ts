@@ -102,7 +102,7 @@ export class DisassemblyView extends EditorPane {
 			],
 			{
 				identityProvider: { getId: (e: IDisassembledInstructionEntry) => e.instruction.address },
-				horizontalScrolling: true,
+				horizontalScrolling: false,
 				overrideStyles: {
 					listBackground: editorBackground
 				},
