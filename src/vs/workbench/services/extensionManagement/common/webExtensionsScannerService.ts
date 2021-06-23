@@ -26,6 +26,7 @@ import * as semver from 'vs/base/common/semver/semver';
 import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -64,6 +65,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IRequestService private readonly requestService: IRequestService,
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super();
 		if (isWeb) {
@@ -282,7 +284,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (this.environmentService.options?.assumeGalleryExtensionsAreAddressable) {
 			return true;
 		}
-		return galleryExtension.webExtension && !!galleryExtension.webResource;
+		return galleryExtension.webExtension && (!!this.productService.extensionsGallery?.resourceUrl || !!galleryExtension.webResource);
 	}
 
 	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
@@ -329,7 +331,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IWebExtension> {
-		const extensionLocation = joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
+		const extensionLocation = this.productService.extensionsGallery?.resourceUrl
+			? joinPath(URI.parse(this.productService.extensionsGallery?.resourceUrl), galleryExtension.publisherId, galleryExtension.name, galleryExtension.version, 'extension')
+			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
 		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None);
 		const packageNLSExists = isSuccess(context);
