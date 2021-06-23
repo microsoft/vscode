@@ -27,17 +27,22 @@
 	margin-left: 4px;
 	min-width: 40%;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key-checkbox {
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
 	margin-left: 4px;
 	height: 24px;
 }
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
 	margin-top: 3px;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value .value-description {
-	font-style: italic;
-	white-space: normal;
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value {
+	cursor: pointer;
 }
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value .value-description {
+	white-space: normal;
+	padding-bottom: 8px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 0;
 }
