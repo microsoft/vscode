@@ -285,9 +285,6 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	// TODO @sandy081: Remove this when resourceUrlTemplate exists always
 	canAddExtension(galleryExtension: IGalleryExtension): boolean {
-		if (this.environmentService.options?.assumeGalleryExtensionsAreAddressable) {
-			return true;
-		}
 		return !!this.productService.extensionsGallery?.resourceUrlTemplate || !!galleryExtension.webResource;
 	}
 
