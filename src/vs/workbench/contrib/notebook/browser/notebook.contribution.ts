@@ -499,7 +499,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 
 		this._register(this._workingCopyEditorService.registerHandler({
 			handles: workingCopy => typeof this._getViewType(workingCopy) === 'string',
-			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy),
+			isOpen: (workingCopy, editor) => editor instanceof NotebookEditorInput && editor.viewType === this._getViewType(workingCopy) && isEqual(workingCopy.resource, editor.resource),
 			createEditor: workingCopy => NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!)
 		}));
 	}
