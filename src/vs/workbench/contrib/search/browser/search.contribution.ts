@@ -925,7 +925,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.maxResults': {
 			type: ['number', 'null'],
-			default: 10000,
+			default: 20000,
 			markdownDescription: nls.localize('search.maxResults', "Controls the maximum number of search results, this can be set to `null` (empty) to return unlimited results.")
 		},
 		'search.collapseResults': {
