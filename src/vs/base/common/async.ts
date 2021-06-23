@@ -1285,27 +1285,7 @@ export namespace Promises {
 	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
 	 */
 	export async function allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
-			return allSettledNative(promises); // in some environments we can benefit from native implementation
-		}
-
-		return allSettledShim(promises);
-	}
-
-	async function allSettledNative<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
 		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
-	}
-
-	async function allSettledShim<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return Promise.all(promises.map(promise => (promise.then(value => {
-			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
-
-			return fulfilled;
-		}, error => {
-			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
-
-			return rejected;
-		}))));
 	}
 
 	/**
