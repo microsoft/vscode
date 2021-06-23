@@ -105,8 +105,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				};
 			},
 			save: async (uri: URI) => {
-				// return this._proxy.$saveNotebook(viewType, uri, token);
-				return true;
+				// trigger backup always
+				return false;
 			},
 			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
 				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
