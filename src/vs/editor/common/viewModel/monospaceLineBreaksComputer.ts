@@ -91,7 +91,7 @@ export class MonospaceLineBreaksComputerFactory implements ILineBreaksComputerFa
 				for (let i = 0, len = requests.length; i < len; i++) {
 					const injectedText = injectedTexts[i];
 					const previousLineBreakData = previousBreakingData[i];
-					if (previousLineBreakData && !injectedText) {
+					if (previousLineBreakData && !previousLineBreakData.injectionTexts && !injectedText) {
 						result[i] = createLineBreaksFromPreviousLineBreaks(this.classifier, previousLineBreakData, requests[i], tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
 					} else {
 						result[i] = createLineBreaks(this.classifier, requests[i], injectedText, tabSize, wrappingColumn, columnsForFullWidthChar, wrappingIndent);
@@ -360,17 +360,33 @@ function createLineBreaksFromPreviousLineBreaks(classifier: WrappingCharacterCla
 function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: string, injectedTexts: LineInjectedText[] | null, tabSize: number, firstLineBreakColumn: number, columnsForFullWidthChar: number, wrappingIndent: WrappingIndent): LineBreakData | null {
 	const lineText = LineInjectedText.applyInjectedText(_lineText, injectedTexts);
 
+	let injectionTexts: string[] | null;
+	let injectionOffsets: number[] | null;
+	if (injectedTexts && injectedTexts.length > 0) {
+		injectionTexts = injectedTexts.map(t => t.text);
+		injectionOffsets = injectedTexts.map(text => text.column - 1);
+	} else {
+		injectionTexts = null;
+		injectionOffsets = null;
+	}
+
 	if (firstLineBreakColumn === -1) {
-		if (injectedTexts === null || injectedTexts.length === 0) {
+		if (!injectionTexts) {
 			return null;
 		}
-		// TODO: return LineBreakData that only has injected text if necessary
+		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
+		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
+		return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
 	}
 
 	const len = lineText.length;
 	if (len <= 1) {
-		// TODO: return LineBreakData that only has injected text if necessary
-		return null;
+		if (!injectionTexts) {
+			return null;
+		}
+		// creating a `LineBreakData` with an invalid `breakOffsetsVisibleColumn` is OK
+		// because `breakOffsetsVisibleColumn` will never be used because it contains injected text
+		return new LineBreakData([lineText.length], [], 0, injectionTexts, injectionOffsets);
 	}
 
 	const wrappedTextIndentLength = computeWrappedTextIndentLength(lineText, tabSize, firstLineBreakColumn, columnsForFullWidthChar, wrappingIndent);
@@ -447,16 +463,6 @@ function createLineBreaks(classifier: WrappingCharacterClassifier, _lineText: st
 	// Add last segment
 	breakingOffsets[breakingOffsetsCount] = len;
 	breakingOffsetsVisibleColumn[breakingOffsetsCount] = visibleColumn;
-
-	let injectionTexts: string[] | null;
-	let injectionOffsets: number[] | null;
-	if (injectedTexts) {
-		injectionTexts = injectedTexts.map(t => t.text);
-		injectionOffsets = injectedTexts.map(text => text.column - 1);
-	} else {
-		injectionTexts = null;
-		injectionOffsets = null;
-	}
 
 	return new LineBreakData(breakingOffsets, breakingOffsetsVisibleColumn, wrappedTextIndentLength, injectionTexts, injectionOffsets);
 }
