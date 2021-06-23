@@ -132,7 +132,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			(async () => {
 				if (extensionIds.length) {
 					try {
-						result.push(...await this.getStaticExtensionsFromGallery(extensionIds));
+						result.push(...await this.getAdditionalBuiltinExtensionsFromGallery(extensionIds));
 					} catch (error) {
 						this.logService.info('Ignoring following static extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
@@ -143,7 +143,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private async getStaticExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
+	private async getAdditionalBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
 			this.logService.info('Ignoring fetching static extensions from gallery as it is disabled.');
 			return [];
@@ -333,7 +333,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IWebExtension> {
 		const extensionLocation = this.productService.extensionsGallery?.resourceUrlTemplate
-			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisherId, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
+			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 
 		return this.toWebExtensionFromLocation(extensionLocation);
