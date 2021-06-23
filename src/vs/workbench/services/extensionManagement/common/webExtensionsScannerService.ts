@@ -132,7 +132,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			(async () => {
 				if (extensionIds.length) {
 					try {
-						result.push(...await this.getAdditionalBuiltinExtensionsFromGallery(extensionIds));
+						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensionIds));
 					} catch (error) {
 						this.logService.info('Ignoring following static extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
@@ -143,7 +143,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return result;
 	}
 
-	private async getAdditionalBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
+	private async getCustomBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
 			this.logService.info('Ignoring fetching static extensions from gallery as it is disabled.');
 			return [];
