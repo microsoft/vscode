@@ -139,7 +139,7 @@ export interface IStartEntry {
 	readonly description: string;
 	readonly command: string;
 	readonly when?: string;
-	readonly category: 'window' | 'file' | 'folder' | 'notebook';
+	readonly category: 'file' | 'folder' | 'notebook';
 }
 
 export interface IExtensionContributions {

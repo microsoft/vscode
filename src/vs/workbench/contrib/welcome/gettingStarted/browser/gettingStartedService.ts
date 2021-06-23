@@ -82,7 +82,6 @@ export interface IGettingStartedWalkthroughDescriptor {
 export enum IGettingStartedNewMenuEntryDescriptorCategory {
 	'file',
 	'notebook',
-	'window',
 	'folder',
 }
 
@@ -234,18 +233,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				title: localize('newUntitledTitle', "Text File"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
 				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
-				from: CoreNewEntryDisplayName,
-			},
-			{
-				title: localize('newWindowTitle', "Local Window"),
-				action: { runCommand: 'workbench.action.newWindow' },
-				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
-				from: CoreNewEntryDisplayName,
-			},
-			{
-				title: localize('newDuplicateWindowTitle', "Duplicate Current Window"),
-				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
-				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
 				from: CoreNewEntryDisplayName,
 			},
 			{
@@ -940,7 +927,6 @@ registerAction2(class extends Action2 {
 const displayCategory: Record<IGettingStartedNewMenuEntryDescriptorCategory, string> = {
 	[IGettingStartedNewMenuEntryDescriptorCategory.file]: localize('file', "File"),
 	[IGettingStartedNewMenuEntryDescriptorCategory.folder]: localize('folder', "Folder"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.window]: localize('window', "Window"),
 	[IGettingStartedNewMenuEntryDescriptorCategory.notebook]: localize('notebook', "Notebook"),
 };
 

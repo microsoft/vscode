@@ -63,16 +63,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 		}
 	},
 	{
-		id: 'welcome.showNewWindowEntries',
-		title: localize('gettingStarted.newWindow.title', "New Window..."),
-		description: localize('gettingStarted.newWindow.description', "Open a new window, either locally or over a remote connection"),
-		icon: Codicon.emptyWindow,
-		content: {
-			type: 'startEntry',
-			command: 'welcome.showNewWindowEntries',
-		}
-	},
-	{
 		id: 'welcome.showNewFolderEntries',
 		title: localize('gettingStarted.newFolder.title', "New Folder..."),
 		description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),

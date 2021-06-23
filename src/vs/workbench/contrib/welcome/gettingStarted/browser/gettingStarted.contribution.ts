@@ -216,33 +216,6 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'welcome.showNewWindowEntries',
-			title: localize('welcome.newWindow', "New Window..."),
-			category,
-			f1: true,
-			keybinding: {
-				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_W,
-				weight: KeybindingWeight.WorkbenchContrib,
-			},
-			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '1_new',
-				order: 4
-			}
-		});
-	}
-
-	run(accessor: ServicesAccessor) {
-		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.selectNewEntry([
-			IGettingStartedNewMenuEntryDescriptorCategory.window
-		]);
-	}
-});
-
-registerAction2(class extends Action2 {
-	constructor() {
-		super({
 			id: 'welcome.showNewFolderEntries',
 			title: localize('welcome.newFolder', "New Folder..."),
 			category,
@@ -275,7 +248,7 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, args?: ('window' | 'file' | 'folder' | 'notebook')[]) {
+	run(accessor: ServicesAccessor, args?: ('file' | 'folder' | 'notebook')[]) {
 		const gettingStartedService = accessor.get(IGettingStartedService);
 		const filters: IGettingStartedNewMenuEntryDescriptorCategory[] = [];
 		(args ?? []).forEach(arg => {
