@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { Mimes } from 'vs/base/common/mime';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
-import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellEditType, CellKind, ICellEditOperation, NotebookTextModelChangedEvent, NotebookTextModelWillAddRemoveEvent, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, TestCell, valueBytesFromString, withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 
 suite('NotebookTextModel', () => {
@@ -345,6 +345,10 @@ suite('NotebookTextModel', () => {
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
 				});
+				const willChangeEvents: NotebookTextModelWillAddRemoveEvent[] = [];
+				const willChangeListener = textModel.onWillAddRemoveCells(e => {
+					willChangeEvents.push(e);
+				});
 				const version = textModel.versionId;
 
 				textModel.applyEdits([
@@ -360,8 +364,10 @@ suite('NotebookTextModel', () => {
 				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
 				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.strictEqual(willChangeEvents.length, 2);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
+				willChangeListener.dispose();
 			}
 		);
 	});
@@ -380,6 +386,11 @@ suite('NotebookTextModel', () => {
 				const eventListener = textModel.onDidChangeContent(e => {
 					changeEvent = e;
 				});
+				const willChangeEvents: NotebookTextModelWillAddRemoveEvent[] = [];
+				const willChangeListener = textModel.onWillAddRemoveCells(e => {
+					willChangeEvents.push(e);
+				});
+
 				const version = textModel.versionId;
 
 				textModel.applyEdits([
@@ -394,8 +405,10 @@ suite('NotebookTextModel', () => {
 				assert.notStrictEqual(changeEvent, undefined);
 				assert.strictEqual(changeEvent!.rawEvents.length, 2);
 				assert.deepStrictEqual(changeEvent!.endSelectionState?.selections, [{ start: 0, end: 1 }]);
+				assert.strictEqual(willChangeEvents.length, 1);
 				assert.strictEqual(textModel.versionId, version + 1);
 				eventListener.dispose();
+				willChangeListener.dispose();
 			}
 		);
 	});

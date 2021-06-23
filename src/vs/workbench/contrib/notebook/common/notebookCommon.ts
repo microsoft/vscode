@@ -347,6 +347,10 @@ export type NotebookTextModelChangedEvent = {
 	readonly endSelectionState: ISelectionState | undefined;
 };
 
+export type NotebookTextModelWillAddRemoveEvent = {
+	readonly rawEvent: NotebookCellsModelChangedEvent<ICell>;
+};
+
 export const enum CellEditType {
 	Replace = 1,
 	Output = 2,
