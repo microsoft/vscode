@@ -62,7 +62,7 @@ registerAction2(class extends Action2 {
 			}
 
 			// Otherwise, try to find a welcome input somewhere with no selected walkthrough, and open it to this one.
-			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, resource: GettingStartedInput.RESOURCE });
+			const result = editorService.findEditors({ typeId: GettingStartedInput.ID, editorId: undefined, resource: GettingStartedInput.RESOURCE });
 			for (const { editor, groupId } of result) {
 				if (editor instanceof GettingStartedInput) {
 					if (!editor.selectedCategory) {

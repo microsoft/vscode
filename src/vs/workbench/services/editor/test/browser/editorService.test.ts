@@ -107,11 +107,12 @@ suite('EditorService', () => {
 		assert.ok(!service.activeTextEditorMode);
 		assert.strictEqual(service.visibleTextEditorControls.length, 0);
 		assert.strictEqual(service.isOpened(input), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId' }), false);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: 'unknownTypeId' }), false);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: input.editorId }), false);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: 'unknownTypeId', editorId: 'unknownTypeId' }), false);
 		assert.strictEqual(service.isVisible(input), true);
-		assert.strictEqual(service.isVisible({ resource: input.resource, options: { override: input.typeId } }), true);
-		assert.strictEqual(service.isVisible({ resource: input.resource, options: { override: 'unknownTypeId' } }), false);
+		assert.strictEqual(service.isVisible(otherInput), false);
 		assert.strictEqual(activeEditorChangeEventCounter, 1);
 		assert.strictEqual(visibleEditorChangeEventCounter, 1);
 
@@ -144,9 +145,9 @@ suite('EditorService', () => {
 		assert.strictEqual(otherInput, service.getEditors(EditorsOrder.SEQUENTIAL)[1].editor);
 		assert.strictEqual(service.visibleEditorPanes.length, 1);
 		assert.strictEqual(service.isOpened(input), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
 		assert.strictEqual(service.isOpened(otherInput), true);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		assert.strictEqual(activeEditorChangeEventCounter, 4);
 		assert.strictEqual(visibleEditorChangeEventCounter, 4);
@@ -189,31 +190,31 @@ suite('EditorService', () => {
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		const editor2 = await service.openEditor(input, { pinned: true });
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		assert.strictEqual(service.isOpened(input), true);
 		assert.strictEqual(service.isOpened(otherInput), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), true);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), true);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		await editor2?.group?.closeEditor(input);
 		assert.strictEqual(part.activeGroup.count, 1);
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), true);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), true);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), true);
 
 		await editor1?.group?.closeEditor(sideBySideInput);
 
 		assert.strictEqual(service.isOpened(input), false);
 		assert.strictEqual(service.isOpened(otherInput), false);
-		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId }), false);
-		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId }), false);
+		assert.strictEqual(service.isOpened({ resource: input.resource, typeId: input.typeId, editorId: input.editorId }), false);
+		assert.strictEqual(service.isOpened({ resource: otherInput.resource, typeId: otherInput.typeId, editorId: otherInput.editorId }), false);
 	});
 
 	test('openEditors() / replaceEditors()', async () => {
@@ -1226,7 +1227,7 @@ suite('EditorService', () => {
 			const found1 = service.findEditors(URI.parse('my://no-such-resource'), part.activeGroup);
 			assert.strictEqual(found1.length, 0);
 
-			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '' }, part.activeGroup);
+			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '', editorId: TEST_EDITOR_INPUT_ID }, part.activeGroup);
 			assert.strictEqual(found2, undefined);
 		}
 
@@ -1297,7 +1298,7 @@ suite('EditorService', () => {
 			const found1 = service.findEditors(URI.parse('my://no-such-resource'));
 			assert.strictEqual(found1.length, 0);
 
-			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '' });
+			const found2 = service.findEditors({ resource: URI.parse('my://no-such-resource'), typeId: '', editorId: TEST_EDITOR_INPUT_ID });
 			assert.strictEqual(found2.length, 0);
 		}
 
