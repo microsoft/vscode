@@ -95,8 +95,8 @@ export class DebugSession implements IDebugSession {
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onDidShutdown(() => {
-				this.shutdown();
+			toDispose.push(lifecycleService.onWillShutdown((e) => {
+				e.join(this.shutdown(), 'debugSessionShutdown');
 				dispose(toDispose);
 			}));
 		}
@@ -228,7 +228,7 @@ export class DebugSession implements IDebugSession {
 
 		if (this.raw) {
 			// if there was already a connection make sure to remove old listeners
-			this.shutdown();
+			await this.shutdown();
 		}
 
 		try {
@@ -258,7 +258,7 @@ export class DebugSession implements IDebugSession {
 		} catch (err) {
 			this.initialized = true;
 			this._onDidChangeState.fire();
-			this.shutdown();
+			await this.shutdown();
 			throw err;
 		}
 	}
@@ -1063,10 +1063,10 @@ export class DebugSession implements IDebugSession {
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
-	private shutdown(): void {
+	private async shutdown(): Promise<void> {
 		dispose(this.rawListeners);
 		if (this.raw) {
-			this.raw.disconnect({});
+			await this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
 		}

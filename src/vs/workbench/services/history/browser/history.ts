@@ -101,9 +101,12 @@ interface IStackEntry {
 }
 
 interface IRecentlyClosedEditor {
+	editorId: string | undefined;
+	editor: IUntypedEditorInput;
+
 	resource: URI | undefined;
 	associatedResources: URI[];
-	editor: IUntypedEditorInput;
+
 	index: number;
 	sticky: boolean;
 }
@@ -300,17 +303,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.moveInNavigationStack(event);
 	}
 
-	private remove(input: IEditorInput | IResourceEditorInput): void;
+	private remove(input: IEditorInput): void;
 	private remove(event: FileChangesEvent): void;
 	private remove(event: FileOperationEvent): void;
-	private remove(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private remove(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.removeFromHistory(arg1);
 		this.removeFromNavigationStack(arg1);
 		this.removeFromRecentlyClosedEditors(arg1);
 		this.removeFromRecentlyOpened(arg1);
 	}
 
-	private removeFromRecentlyOpened(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromRecentlyOpened(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		let resource: URI | undefined = undefined;
 		if (arg1 instanceof EditorInput) {
 			resource = EditorResourceAccessor.getOriginalUri(arg1);
@@ -627,7 +630,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private removeFromNavigationStack(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromNavigationStack(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.navigationStack = this.navigationStack.filter(e => {
 			const matches = this.matches(arg1, e.editor);
 
@@ -740,9 +743,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// ...adding it as last recently closed
 		this.recentlyClosedEditors.push({
+			editorId: editor.editorId,
+			editor: untypedEditor,
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			editor: untypedEditor,
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -821,17 +825,21 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private removeFromRecentlyClosedEditors(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromRecentlyClosedEditors(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => {
+			if (arg1 instanceof EditorInput && recentlyClosedEditor.editorId !== arg1.editorId) {
+				return true; // keep: different editor identifiers
+			}
+
 			if (recentlyClosedEditor.resource && this.matchesFile(recentlyClosedEditor.resource, arg1)) {
-				return false; // editor matches directly
+				return false; // remove: editor matches directly
 			}
 
 			if (recentlyClosedEditor.associatedResources.some(associatedResource => this.matchesFile(associatedResource, arg1))) {
-				return false; // an associated resource matches
+				return false; // remove: an associated resource matches
 			}
 
-			return true;
+			return true; // keep
 		});
 
 		// Update context

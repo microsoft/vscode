@@ -217,9 +217,9 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 
 		let result: ExtensionKind[] = ['ui', 'workspace', 'web'];
 
-		// Not an UI extension if extension has dependencies or an extension pack
-		if (isNonEmptyArray(manifest.extensionDependencies) || isNonEmptyArray(manifest.extensionPack)) {
-			result = ['workspace', 'web'];
+		// Extension pack defaults to workspace extensionKind
+		if (isNonEmptyArray(manifest.extensionPack) || isNonEmptyArray(manifest.extensionDependencies)) {
+			result = ['workspace'];
 		}
 
 		if (manifest.contributes) {
