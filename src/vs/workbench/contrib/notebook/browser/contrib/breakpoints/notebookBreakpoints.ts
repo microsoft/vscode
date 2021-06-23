@@ -54,10 +54,6 @@ class NotebookBreakpoints extends Disposable implements IWorkbenchContribution {
 		}));
 	}
 
-	// private handleModelChanges(model: NotebookTextModel, event: ) {
-
-	// }
-
 	private updateBreakpoints(model: NotebookTextModel): void {
 		const bps = this._debugService.getModel().getBreakpoints();
 		if (!bps.length || !model.cells.length) {
