@@ -282,8 +282,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (this.environmentService.options?.assumeGalleryExtensionsAreAddressable) {
 			return true;
 		}
-
-		return !!galleryExtension.properties.webExtension && !!galleryExtension.webResource;
+		return galleryExtension.webExtension && !!galleryExtension.webResource;
 	}
 
 	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
