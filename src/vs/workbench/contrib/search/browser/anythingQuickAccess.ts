@@ -974,7 +974,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				resourceEditorInput = {
 					...resourceOrEditor,
 					options: {
-						// ...resourceOrEditor.options, TODO@bpasero enable after https://github.com/microsoft/vscode/issues/126923 is fixed
+						...resourceOrEditor.options,
 						...editorOptions
 					}
 				};

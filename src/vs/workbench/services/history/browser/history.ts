@@ -96,7 +96,7 @@ interface ISerializedEditorHistoryEntry {
 }
 
 interface IStackEntry {
-	input: IEditorInput | IResourceEditorInput;
+	editor: IEditorInput | IResourceEditorInput;
 	selection?: Selection;
 }
 
@@ -402,11 +402,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 		};
 
-		if (location.input instanceof EditorInput) {
-			return this.editorService.openEditor(location.input, options);
+		if (location.editor instanceof EditorInput) {
+			return this.editorService.openEditor(location.editor, options);
 		}
 
-		return this.editorService.openEditor({ resource: location.input.resource, options });
+		location.editor = location.editor as IResourceEditorInput;
+
+		return this.editorService.openEditor({
+			...location.editor,
+			options: {
+				...location.editor.options,
+				...options
+			}
+		});
 	}
 
 	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
@@ -470,7 +478,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const currentStack = this.navigationStack[this.navigationStackIndex];
-		if (currentStack && this.matches(editor.input, currentStack.input)) {
+		if (currentStack && this.matches(editor.input, currentStack.editor)) {
 			return; // do not push same editor input again
 		}
 
@@ -504,7 +512,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (currentEntry) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
-			} else if (this.matches(input, currentEntry.input) && this.sameSelection(currentEntry.selection, selection)) {
+			} else if (this.matches(input, currentEntry.editor) && this.sameSelection(currentEntry.selection, selection)) {
 				replace = true; // replace if the input is the same as the current one and the selection as well
 			}
 		}
@@ -514,7 +522,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		const entry = { input: stackEditorInput, selection };
+		const entry = { editor: stackEditorInput, selection };
 
 		// Replace at current position
 		let removedEntries: IStackEntry[] = [];
@@ -550,7 +558,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Clear editor listeners from removed entries
-		removedEntries.forEach(removedEntry => this.clearOnEditorDispose(removedEntry.input, this.editorStackListeners));
+		removedEntries.forEach(removedEntry => this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners));
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
@@ -621,7 +629,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private removeFromNavigationStack(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.navigationStack = this.navigationStack.filter(e => {
-			const matches = this.matches(arg1, e.input);
+			const matches = this.matches(arg1, e.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
@@ -837,7 +845,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private lastEditLocation: IStackEntry | undefined;
 
 	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorControl: ICodeEditor): void {
-		this.lastEditLocation = { input: activeEditor };
+		this.lastEditLocation = { editor: activeEditor };
 		this.canNavigateToLastEditLocationContextKey.set(true);
 
 		const position = activeTextEditorControl.getPosition();
