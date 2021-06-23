@@ -28,6 +28,7 @@ import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { format2 } from 'vs/base/common/strings';
+import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -67,6 +68,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@ILogService private readonly logService: ILogService,
 		@IExtensionGalleryService private readonly galleryService: IExtensionGalleryService,
 		@IProductService private readonly productService: IProductService,
+		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
 		if (isWeb) {
@@ -281,16 +283,17 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return null;
 	}
 
+	// TODO @sandy081: Remove this when resourceUrlTemplate exists always
 	canAddExtension(galleryExtension: IGalleryExtension): boolean {
 		if (this.environmentService.options?.assumeGalleryExtensionsAreAddressable) {
 			return true;
 		}
-		return galleryExtension.webExtension && (!!this.productService.extensionsGallery?.resourceUrlTemplate || !!galleryExtension.webResource);
+		return !!this.productService.extensionsGallery?.resourceUrlTemplate || !!galleryExtension.webResource;
 	}
 
 	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
 		if (!this.canAddExtension(galleryExtension)) {
-			throw new Error(localize('cannot be installed', "Cannot install '{0}' because this extension is not a web extension.", galleryExtension.displayName || galleryExtension.name));
+			throw new Error(localize('cannot be added', "Cannot add gallery extension '{0}'.", galleryExtension.displayName || galleryExtension.name));
 		}
 
 		const webExtension = await this.toWebExtensionFromGallery(galleryExtension);
@@ -335,45 +338,52 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensionLocation = this.productService.extensionsGallery?.resourceUrlTemplate
 			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisherId, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
-		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
-		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None);
-		const packageNLSExists = isSuccess(context);
-		return {
-			identifier: galleryExtension.identifier,
-			version: galleryExtension.version,
-			location: extensionLocation,
-			readmeUri: galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
-			changelogUri: galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
-			packageNLSUri: packageNLSExists ? packageNLSUri : undefined
-		};
+
+		return this.toWebExtensionFromLocation(extensionLocation);
 	}
 
 	private async toWebExtensionFromLocation(extensionLocation: URI): Promise<IWebExtension> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
+		const readmeTextUri: URI = joinPath(extensionLocation, 'readme.txt');
+		const readmeMarkdownUri: URI = joinPath(extensionLocation, 'readme.md');
+		const changelogTextUri: URI = joinPath(extensionLocation, 'changelog.txt');
+		const changelogMarkdownUri: URI = joinPath(extensionLocation, 'changelog.md');
 
-		const [result1, result2] = await Promise.allSettled([
-			this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None)
-		]);
-
-		if (result1.status === 'rejected' || !isSuccess(result1.value)) {
+		const packageJSONResult = await this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None);
+		if (!isSuccess(packageJSONResult)) {
 			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'`);
 		}
 
-		const content = await asText(result1.value);
+		const content = await asText(packageJSONResult);
 		if (!content) {
 			throw new Error(`Error while fetching package.json for extension '${extensionLocation.toString()}'. Server returned no content`);
 		}
 
 		const manifest = JSON.parse(content);
-		const packageNLSExists = result2.status === 'fulfilled' && isSuccess(result2.value);
+		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
+			throw new Error(localize('not a web extension', "Cannot add '{0}' because this extension is not a web extension.", manifest.displayName || manifest.name));
+		}
+
+		const [packageNLSResult, readmeTextResult, readmeMarkdownResult, changelogTextResult, changelogMarkdownResult] = await Promise.allSettled([
+			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: readmeTextUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: readmeMarkdownUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: changelogTextUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: changelogMarkdownUri.toString() }, CancellationToken.None)
+		]);
 
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
 			version: manifest.version,
 			location: extensionLocation,
-			packageNLSUri: packageNLSExists ? packageNLSUri : undefined
+			readmeUri: (readmeTextResult.status === 'fulfilled' && isSuccess(readmeTextResult.value)) ? readmeTextUri
+				: (readmeMarkdownResult.status === 'fulfilled' && isSuccess(readmeMarkdownResult.value)) ? readmeMarkdownUri
+					: undefined,
+			changelogUri: (changelogTextResult.status === 'fulfilled' && isSuccess(changelogTextResult.value)) ? changelogTextUri
+				: (changelogMarkdownResult.status === 'fulfilled' && isSuccess(changelogMarkdownResult.value)) ? changelogMarkdownUri
+					: undefined,
+			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined
 		};
 	}
 
