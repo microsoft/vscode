@@ -7,7 +7,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
 export interface ITestIdWithSrc {
