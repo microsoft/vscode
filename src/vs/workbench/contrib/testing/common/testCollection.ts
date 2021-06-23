@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { ExtHostTestingResource } from 'vs/workbench/api/common/extHost.protocol';
 import { TestMessageSeverity, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 
 export interface ITestIdWithSrc {
@@ -200,10 +200,14 @@ export type TestsDiffOp =
 	| [op: TestDiffOpType.IncrementPendingExtHosts, amount: number];
 
 /**
- * Utility function to get a unique string for a subscription to a resource,
- * useful to keep maps of document or workspace folder subscription info.
+ * Context for actions taken in the test explorer view.
  */
-export const getTestSubscriptionKey = (resource: ExtHostTestingResource, uri: URI) => `${resource}:${uri.toString()}`;
+export interface ITestItemContext {
+	/** Marshalling marker */
+	$mid: MarshalledId.TestItemContext;
+	/** Tests and parents from the root to the current items */
+	tests: InternalTestItem[];
+}
 
 /**
  * Request from the ext host or main thread to indicate that tests have

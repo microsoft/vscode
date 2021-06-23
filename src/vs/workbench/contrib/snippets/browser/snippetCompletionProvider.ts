@@ -33,7 +33,7 @@ export class SnippetCompletion implements CompletionItem {
 		readonly snippet: Snippet,
 		range: IRange | { insert: IRange, replace: IRange }
 	) {
-		this.label = { name: snippet.prefix, type: snippet.name };
+		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
 		this.range = range;
@@ -48,7 +48,7 @@ export class SnippetCompletion implements CompletionItem {
 	}
 
 	static compareByLabel(a: SnippetCompletion, b: SnippetCompletion): number {
-		return compare(a.label.name, b.label.name);
+		return compare(a.label.label, b.label.label);
 	}
 }
 
@@ -156,10 +156,10 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 			let item = suggestions[i];
 			let to = i + 1;
 			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
-				suggestions[to].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.name, suggestions[to].snippet.name);
+				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
 			}
 			if (to > i + 1) {
-				suggestions[i].label.name = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.name, suggestions[i].snippet.name);
+				suggestions[i].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[i].label.label, suggestions[i].snippet.name);
 				i = to;
 			}
 		}

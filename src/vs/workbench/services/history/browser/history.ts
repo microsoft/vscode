@@ -5,9 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditorPane, EditorExtensions, IEditorCloseEvent, IEditorInputFactoryRegistry, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor } from 'vs/workbench/common/editor';
+import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions, isResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
@@ -16,7 +17,6 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Registry } from 'vs/platform/registry/common/platform';
 import { Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -82,19 +82,31 @@ export class TextEditorState {
 }
 
 interface ISerializedEditorHistoryEntry {
-	resourceJSON?: object;
-	editorInputJSON?: { typeId: string; deserialized: string; };
+
+	/**
+	 * The editor for the history entry. We currently only
+	 * support untyped editor inputs with `resource`.
+	 */
+	editor: IResourceEditorInput;
+
+	/**
+	 * @deprecated TODO@bpasero remove me after a few releases
+	 */
+	resourceJSON?: UriComponents;
 }
 
 interface IStackEntry {
-	input: IEditorInput | IResourceEditorInput;
+	editor: IEditorInput | IResourceEditorInput;
 	selection?: Selection;
 }
 
 interface IRecentlyClosedEditor {
+	editorId: string | undefined;
+	editor: IUntypedEditorInput;
+
 	resource: URI | undefined;
 	associatedResources: URI[];
-	serialized: { typeId: string, value: string };
+
 	index: number;
 	sticky: boolean;
 }
@@ -108,8 +120,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHistoryListeners = new Map();
 	private readonly editorStackListeners = new Map();
-
-	private readonly editorInputFactory = Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories);
 
 	constructor(
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -293,17 +303,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.moveInNavigationStack(event);
 	}
 
-	private remove(input: IEditorInput | IResourceEditorInput): void;
+	private remove(input: IEditorInput): void;
 	private remove(event: FileChangesEvent): void;
 	private remove(event: FileOperationEvent): void;
-	private remove(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private remove(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.removeFromHistory(arg1);
 		this.removeFromNavigationStack(arg1);
 		this.removeFromRecentlyClosedEditors(arg1);
 		this.removeFromRecentlyOpened(arg1);
 	}
 
-	private removeFromRecentlyOpened(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromRecentlyOpened(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		let resource: URI | undefined = undefined;
 		if (arg1 instanceof EditorInput) {
 			resource = EditorResourceAccessor.getOriginalUri(arg1);
@@ -395,11 +405,19 @@ export class HistoryService extends Disposable implements IHistoryService {
 			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 		};
 
-		if (location.input instanceof EditorInput) {
-			return this.editorService.openEditor(location.input, options);
+		if (location.editor instanceof EditorInput) {
+			return this.editorService.openEditor(location.editor, options);
 		}
 
-		return this.editorService.openEditor({ resource: location.input.resource, options });
+		location.editor = location.editor as IResourceEditorInput;
+
+		return this.editorService.openEditor({
+			...location.editor,
+			options: {
+				...location.editor.options,
+				...options
+			}
+		});
 	}
 
 	private handleEditorEventInNavigationStack(control: IEditorPane | undefined, event?: ICursorPositionChangedEvent): void {
@@ -463,7 +481,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		const currentStack = this.navigationStack[this.navigationStackIndex];
-		if (currentStack && this.matches(editor.input, currentStack.input)) {
+		if (currentStack && this.matches(editor.input, currentStack.editor)) {
 			return; // do not push same editor input again
 		}
 
@@ -497,7 +515,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		if (currentEntry) {
 			if (forceReplace) {
 				replace = true; // replace if we are forced to
-			} else if (this.matches(input, currentEntry.input) && this.sameSelection(currentEntry.selection, selection)) {
+			} else if (this.matches(input, currentEntry.editor) && this.sameSelection(currentEntry.selection, selection)) {
 				replace = true; // replace if the input is the same as the current one and the selection as well
 			}
 		}
@@ -507,7 +525,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		const entry = { input: stackEditorInput, selection };
+		const entry = { editor: stackEditorInput, selection };
 
 		// Replace at current position
 		let removedEntries: IStackEntry[] = [];
@@ -543,7 +561,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 
 		// Clear editor listeners from removed entries
-		removedEntries.forEach(removedEntry => this.clearOnEditorDispose(removedEntry.input, this.editorStackListeners));
+		removedEntries.forEach(removedEntry => this.clearOnEditorDispose(removedEntry.editor, this.editorStackListeners));
 
 		// Remove this from the stack unless the stack input is a resource
 		// that can easily be restored even when the input gets disposed
@@ -559,29 +577,38 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private preferResourceEditorInput(input: IResourceEditorInput): IResourceEditorInput | undefined;
 	private preferResourceEditorInput(input: IEditorInput | IResourceEditorInput): IEditorInput | IResourceEditorInput | undefined;
 	private preferResourceEditorInput(input: IEditorInput | IResourceEditorInput): IEditorInput | IResourceEditorInput | undefined {
-		let resource: URI | undefined = undefined;
-		if (input instanceof EditorInput) {
-			resource = EditorResourceAccessor.getOriginalUri(input);
-		} else {
-			resource = input.resource;
-		}
+		const resource = EditorResourceAccessor.getOriginalUri(input);
 
-		// for now, only prefer well known schemes that we control to prevent
+		// For now, only prefer well known schemes that we control to prevent
 		// issues such as https://github.com/microsoft/vscode/issues/85204
 		// from being used as resource inputs
 		// resource inputs survive editor disposal and as such are a lot more
 		// durable across editor changes and restarts
-		const validResourceEditorInputScheme =
+		const hasValidResourceEditorInputScheme =
 			resource?.scheme === Schemas.file ||
 			resource?.scheme === Schemas.vscodeRemote ||
 			resource?.scheme === Schemas.userData ||
 			resource?.scheme === this.pathService.defaultUriScheme;
 
-		if (input instanceof EditorInput) {
-			return validResourceEditorInputScheme && resource ? { resource } : input;
+		// Scheme is valid: prefer the untyped input
+		// over the typed input if possible to keep
+		// the entry across restarts
+		if (hasValidResourceEditorInputScheme) {
+			if (input instanceof EditorInput) {
+				const untypedInput = input.toUntyped(undefined, UntypedEditorContext.Default);
+				if (isResourceEditorInput(untypedInput)) {
+					return untypedInput;
+				}
+			}
+
+			return input;
 		}
 
-		return validResourceEditorInputScheme ? input : undefined;
+		// Scheme is invalid: allow the editor input
+		// for as long as it is not disposed
+		else {
+			return input instanceof EditorInput ? input : undefined;
+		}
 	}
 
 	private sameSelection(selectionA?: Selection, selectionB?: Selection): boolean {
@@ -603,9 +630,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private removeFromNavigationStack(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromNavigationStack(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.navigationStack = this.navigationStack.filter(e => {
-			const matches = this.matches(arg1, e.input);
+			const matches = this.matches(arg1, e.editor);
 
 			// Cleanup any listeners associated with the input when removing
 			if (matches) {
@@ -698,14 +725,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // ignore if editor was replaced
 		}
 
-		const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editor);
-		if (!editorSerializer || !editorSerializer.canSerialize(editor)) {
-			return; // we need a serializer from this point that can serialize this editor
-		}
-
-		const serialized = editorSerializer.serialize(editor);
-		if (typeof serialized !== 'string') {
-			return; // we need something to deserialize from
+		const untypedEditor = editor.toUntyped(event.groupId, UntypedEditorContext.Default);
+		if (!untypedEditor) {
+			return; // we need a untyped editor to restore from going forward
 		}
 
 		const associatedResources: URI[] = [];
@@ -721,9 +743,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// ...adding it as last recently closed
 		this.recentlyClosedEditors.push({
+			editorId: editor.editorId,
+			editor: untypedEditor,
 			resource: EditorResourceAccessor.getOriginalUri(editor),
 			associatedResources,
-			serialized: { typeId: editor.typeId, value: serialized },
 			index: event.index,
 			sticky: event.sticky
 		});
@@ -767,10 +790,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			options = { pinned: true, index: lastClosedEditor.index, ignoreError: true };
 		}
 
-		// Deserialize and open editor unless already opened
-		const restoredEditor = this.editorInputFactory.getEditorInputSerializer(lastClosedEditor.serialized.typeId)?.deserialize(this.instantiationService, lastClosedEditor.serialized.value);
+		// Re-open editor unless already opened
 		let editorPane: IEditorPane | undefined = undefined;
-		if (restoredEditor && !this.editorGroupService.activeGroup.contains(restoredEditor)) {
+		if (!this.editorGroupService.activeGroup.contains(lastClosedEditor.editor)) {
 			// Fix for https://github.com/microsoft/vscode/issues/107850
 			// If opening an editor fails, it is possible that we get
 			// another editor-close event as a result. But we really do
@@ -778,7 +800,13 @@ export class HistoryService extends Disposable implements IHistoryService {
 			//  to prevent endless loops.
 			this.ignoreEditorCloseEvent = true;
 			try {
-				editorPane = await this.editorService.openEditor(restoredEditor, options);
+				editorPane = await this.editorService.openEditor({
+					...lastClosedEditor.editor,
+					options: {
+						...lastClosedEditor.editor.options,
+						...options
+					}
+				});
 			} finally {
 				this.ignoreEditorCloseEvent = false;
 			}
@@ -797,17 +825,21 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}
 	}
 
-	private removeFromRecentlyClosedEditors(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): void {
+	private removeFromRecentlyClosedEditors(arg1: IEditorInput | FileChangesEvent | FileOperationEvent): void {
 		this.recentlyClosedEditors = this.recentlyClosedEditors.filter(recentlyClosedEditor => {
+			if (arg1 instanceof EditorInput && recentlyClosedEditor.editorId !== arg1.editorId) {
+				return true; // keep: different editor identifiers
+			}
+
 			if (recentlyClosedEditor.resource && this.matchesFile(recentlyClosedEditor.resource, arg1)) {
-				return false; // editor matches directly
+				return false; // remove: editor matches directly
 			}
 
 			if (recentlyClosedEditor.associatedResources.some(associatedResource => this.matchesFile(associatedResource, arg1))) {
-				return false; // an associated resource matches
+				return false; // remove: an associated resource matches
 			}
 
-			return true;
+			return true; // keep
 		});
 
 		// Update context
@@ -821,7 +853,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 	private lastEditLocation: IStackEntry | undefined;
 
 	private rememberLastEditLocation(activeEditor: IEditorInput, activeTextEditorControl: ICodeEditor): void {
-		this.lastEditLocation = { input: activeEditor };
+		this.lastEditLocation = { editor: activeEditor };
 		this.canNavigateToLastEditLocationContextKey.set(true);
 
 		const position = activeTextEditorControl.getPosition();
@@ -983,7 +1015,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			try {
-				entries = coalesce(JSON.parse(entriesRaw));
+				entries = coalesce(parse(entriesRaw));
 			} catch (error) {
 				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
 			}
@@ -998,26 +1030,17 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}));
 	}
 
-	private safeLoadHistoryEntry(entry: ISerializedEditorHistoryEntry): IEditorInput | IResourceEditorInput | undefined {
+	private safeLoadHistoryEntry(entry: ISerializedEditorHistoryEntry): IResourceEditorInput | undefined {
 		const serializedEditorHistoryEntry = entry;
 
-		// File resource: via URI.revive()
-		if (serializedEditorHistoryEntry.resourceJSON) {
-			return { resource: URI.revive(<UriComponents>serializedEditorHistoryEntry.resourceJSON) };
+		// Untyped editor: take as is
+		if (serializedEditorHistoryEntry.editor) {
+			return serializedEditorHistoryEntry.editor;
 		}
 
-		// Editor input: via serializer
-		const { editorInputJSON } = serializedEditorHistoryEntry;
-		if (editorInputJSON?.deserialized) {
-			const editorSerializer = this.editorInputFactory.getEditorInputSerializer(editorInputJSON.typeId);
-			if (editorSerializer) {
-				const input = editorSerializer.deserialize(this.instantiationService, editorInputJSON.deserialized);
-				if (input instanceof EditorInput) {
-					this.onEditorDispose(input, () => this.removeFromHistory(input), this.editorHistoryListeners);
-				}
-
-				return withNullAsUndefined(input);
-			}
+		// Legacy: old `resourceJSON` format
+		if (serializedEditorHistoryEntry.resourceJSON) {
+			return { resource: URI.revive(serializedEditorHistoryEntry.resourceJSON) };
 		}
 
 		return undefined;
@@ -1028,28 +1051,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return; // nothing to save because history was not used
 		}
 
-		const entries: ISerializedEditorHistoryEntry[] = coalesce(this.history.map((input): ISerializedEditorHistoryEntry | undefined => {
-
-			// Editor input: try via serializer
-			if (input instanceof EditorInput) {
-				const editorSerializer = this.editorInputFactory.getEditorInputSerializer(input);
-				if (editorSerializer) {
-					const deserialized = editorSerializer.serialize(input);
-					if (deserialized) {
-						return { editorInputJSON: { typeId: input.typeId, deserialized } };
-					}
-				}
+		const entries: ISerializedEditorHistoryEntry[] = [];
+		for (const editor of this.history) {
+			if (editor instanceof EditorInput || !isResourceEditorInput(editor)) {
+				continue; // only save resource editor inputs
 			}
 
-			// File resource: via URI.toJSON()
-			else {
-				return { resourceJSON: (input as IResourceEditorInput).resource.toJSON() };
-			}
+			entries.push({ editor });
+		}
 
-			return undefined;
-		}));
-
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion

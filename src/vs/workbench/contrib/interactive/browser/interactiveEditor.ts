@@ -123,7 +123,12 @@ export class InteractiveEditor extends EditorPane {
 			},
 			cellEditorContributions: []
 		});
-		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
+		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), {
+			...getSimpleCodeEditorWidgetOptions(),
+			...{
+				isSimpleWidget: false
+			}
+		});
 
 		if (this.#dimension) {
 			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
@@ -139,15 +144,14 @@ export class InteractiveEditor extends EditorPane {
 			throw new Error('?');
 		}
 
-		this.#widgetDisposableStore.add(model);
-
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
+		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, false);
+		this.#widgetDisposableStore.add(editorModel);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -250,6 +254,10 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
+	}
+
+	override focus() {
+		this.#codeEditorWidget.focus();
 	}
 
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

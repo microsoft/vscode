@@ -127,7 +127,7 @@ class DecorationRule {
 			color: ${getColor(theme, color)};
 			font-family: codicon;
 			font-size: 16px;
-			padding-right: 14px;
+			margin-right: 14px;
 			font-weight: normal;
 			${modifier === 'spin' ? 'animation: codicon-spin 1.5s steps(30) infinite' : ''};
 			`,

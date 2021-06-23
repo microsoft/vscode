@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { IEditorInput, GroupIdentifier, ISaveOptions, IMoveResult, IRevertOptions, EditorInputCapabilities, Verbosity, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { URI } from 'vs/base/common/uri';
 import { isEqual, joinPath } from 'vs/base/common/resources';
@@ -197,7 +197,17 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		}
 	}
 
+	private _resolve?: Promise<IResolvedNotebookEditorModel | null>;
+
 	override async resolve(): Promise<IResolvedNotebookEditorModel | null> {
+		if (!this._resolve) {
+			// prevent re-entrant invocations and duplicated references
+			this._resolve = this._doResolve();
+		}
+		return this._resolve;
+	}
+
+	private async _doResolve(): Promise<IResolvedNotebookEditorModel | null> {
 		if (!await this._notebookService.canResolve(this.viewType)) {
 			return null;
 		}
@@ -228,7 +238,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		return this._editorModelReference.object;
 	}
 
-	override asResourceEditorInput(groupId: GroupIdentifier): IResourceEditorInput {
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceEditorInput {
 		return {
 			resource: this.preferredResource,
 			options: {

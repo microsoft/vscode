@@ -987,8 +987,7 @@ class SuggestAdapter {
 			//
 			x: id,
 			//
-			[extHostProtocol.ISuggestDataDtoField.label]: item.label ?? '',
-			[extHostProtocol.ISuggestDataDtoField.label2]: item.label2,
+			[extHostProtocol.ISuggestDataDtoField.label]: item.label,
 			[extHostProtocol.ISuggestDataDtoField.kind]: item.kind !== undefined ? typeConvert.CompletionItemKind.from(item.kind) : undefined,
 			[extHostProtocol.ISuggestDataDtoField.kindModifier]: item.tags && item.tags.map(typeConvert.CompletionItemTag.from),
 			[extHostProtocol.ISuggestDataDtoField.detail]: item.detail,

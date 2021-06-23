@@ -27,6 +27,9 @@ parts:
       - gnome
     plugin: dump
     source: .
+    override-build: |
+      snapcraftctl build
+      chmod 4755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
     stage-packages:
       - ibus-gtk3
       - fcitx-frontend-gtk3

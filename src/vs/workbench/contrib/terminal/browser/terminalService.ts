@@ -579,6 +579,16 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+
+		// Use the URI from the base instance if it exists, this will correctly split local terminals
+		if (typeof shellLaunchConfig.cwd !== 'object' && typeof instanceToSplit.shellLaunchConfig.cwd === 'object') {
+			shellLaunchConfig.cwd = URI.from({
+				scheme: instanceToSplit.shellLaunchConfig.cwd.scheme,
+				path: shellLaunchConfig.cwd || instanceToSplit.shellLaunchConfig.cwd.path
+			});
+			this._evaluateLocalCwd(shellLaunchConfig);
+		}
+
 		const instance = group.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
@@ -1002,17 +1012,7 @@ export class TerminalService implements ITerminalService {
 			return instance;
 		}
 
-		// Add welcome message and title annotation for local terminals launched within remote or
-		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
-			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
-			} else if (this._remoteAgentService.getConnection()) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
-			}
-		}
+		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
 		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
@@ -1033,6 +1033,20 @@ export class TerminalService implements ITerminalService {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 		return instance;
+	}
+
+	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
+		// Add welcome message and title annotation for local terminals launched within remote or
+		// virtual workspaces
+		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
+			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			} else if (this._remoteAgentService.getConnection()) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			}
+		}
 	}
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {

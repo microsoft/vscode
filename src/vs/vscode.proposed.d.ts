@@ -1396,43 +1396,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/39441
-
-	export interface CompletionItem {
-		/**
-		 * Will be merged into CompletionItem#label
-		 */
-		label2?: CompletionItemLabel;
-	}
-
-	export interface CompletionItemLabel {
-		/**
-		 * The name of this completion item. By default
-		 * this is also the text that is inserted when selecting
-		 * this completion.
-		 */
-		name: string;
-
-		/**
-		 * The signature of this completion item. Will be rendered right after the
-		 * {@link CompletionItemLabel.name name}.
-		 */
-		signature?: string;
-
-		/**
-		 * The fully qualified name, like package name or file path. Rendered after `signature`.
-		 */
-		//todo@API find better name
-		qualifier?: string;
-
-		/**
-		 * The return-type of a function or type of a property/variable. Rendered rightmost.
-		 */
-		type?: string;
-	}
-
-	//#endregion
-
 	//#region @https://github.com/microsoft/vscode/issues/123601, notebook messaging
 
 	export interface NotebookRendererMessage<T> {
