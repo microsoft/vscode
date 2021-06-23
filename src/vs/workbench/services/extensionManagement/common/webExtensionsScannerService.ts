@@ -27,6 +27,7 @@ import { isString, isUndefined } from 'vs/base/common/types';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ResourceMap } from 'vs/base/common/map';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { format2 } from 'vs/base/common/strings';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -284,7 +285,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (this.environmentService.options?.assumeGalleryExtensionsAreAddressable) {
 			return true;
 		}
-		return galleryExtension.webExtension && (!!this.productService.extensionsGallery?.resourceUrl || !!galleryExtension.webResource);
+		return galleryExtension.webExtension && (!!this.productService.extensionsGallery?.resourceUrlTemplate || !!galleryExtension.webResource);
 	}
 
 	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
@@ -331,8 +332,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IWebExtension> {
-		const extensionLocation = this.productService.extensionsGallery?.resourceUrl
-			? joinPath(URI.parse(this.productService.extensionsGallery?.resourceUrl), galleryExtension.publisherId, galleryExtension.name, galleryExtension.version, 'extension')
+		const extensionLocation = this.productService.extensionsGallery?.resourceUrlTemplate
+			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisherId, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 		const packageNLSUri = joinPath(extensionLocation, 'package.nls.json');
 		const context = await this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None);

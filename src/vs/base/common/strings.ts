@@ -33,6 +33,12 @@ export function format(value: string, ...args: any[]): string {
 	});
 }
 
+const _format2Regexp = /{([^}]+)}/g;
+
+export function format2(template: string, values: Record<string, unknown>): string {
+	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
+}
+
 /**
  * Converts HTML characters inside the string to use entities instead. Makes the string safe from
  * being used e.g. in HTMLElement.innerHTML.
