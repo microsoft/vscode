@@ -105,8 +105,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				};
 			},
 			save: async (uri: URI) => {
-				// return this._proxy.$saveNotebook(viewType, uri, token);
-				return true;
+				// trigger backup always
+				return false;
 			},
 			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
 				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
@@ -221,6 +221,11 @@ registerAction2(class extends Action2 {
 							type: 'number',
 							default: -1
 						}
+					},
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
 					}
 				]
 			}
@@ -228,8 +233,24 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, column?: number, resource?: URI): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const group = viewColumnToEditorGroup(editorGroupService, column);
+
+		if (resource && resource.scheme === Schemas.vscodeInteractive) {
+			const resourceUri = URI.revive(resource);
+			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+			if (editors.length) {
+				const editorInput = editors[0].editor as InteractiveEditorInput;
+				const currentGroup = editors[0].groupId;
+				await editorService.openEditor(editorInput, undefined, currentGroup);
+				return {
+					notebookUri: editorInput.resource!,
+					inputUri: editorInput.inputResource
+				};
+			}
+		}
 
 		const existingNotebookDocument = new Set<string>();
 		editorService.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => {
@@ -248,9 +269,7 @@ registerAction2(class extends Action2 {
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
-		const editorGroupService = accessor.get(IEditorGroupsService);
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
-		const group = viewColumnToEditorGroup(editorGroupService, column);
 		await editorService.openEditor(editorInput, undefined, group);
 
 		// Extensions must retain references to these URIs to manipulate the interactive editor
