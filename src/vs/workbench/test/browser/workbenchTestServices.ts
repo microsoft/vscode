@@ -1301,6 +1301,10 @@ export class TestEditorInput extends EditorInput {
 		return this._typeId;
 	}
 
+	override get editorId(): string {
+		return this._typeId;
+	}
+
 	override resolve(): Promise<IEditorModel | null> {
 		return Promise.resolve(null);
 	}
