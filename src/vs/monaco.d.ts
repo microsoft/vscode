@@ -2515,7 +2515,7 @@ declare namespace monaco.editor {
 	export interface IModelDecorationsChangedEvent {
 		readonly affectsMinimap: boolean;
 		readonly affectsOverviewRuler: boolean;
-		readonly affectedInjectedTextLines: Set<number> | undefined;
+		readonly affectedInjectedTextLines: Set<number> | null;
 	}
 
 	export interface IModelOptionsChangedEvent {

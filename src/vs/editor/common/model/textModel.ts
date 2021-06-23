@@ -1681,6 +1681,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 		if (!node) {
 			return null;
 		}
+		return this._getDecorationRange(node);
+	}
+
+	private _getDecorationRange(node: IntervalNode): Range {
 		const versionId = this.getVersionId();
 		if (node.cachedVersionId !== versionId) {
 			this._decorationsTree.resolveNode(node, versionId);
@@ -1724,7 +1728,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 		return this._ensureNodesHaveRanges(result);
 	}
 
-	/** @internal */
 	public getInjectedTextInLine(lineNumber: number, ownerId: number): LineInjectedText[] {
 		const versionId = this.getVersionId();
 		const startOffset = this._buffer.getOffsetAt(lineNumber, 1);
@@ -1850,13 +1853,16 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				// (2) remove the node from the tree (if it exists)
 				if (node) {
+					const nodeRange = this._getDecorationRange(node);
+
 					this._decorationsTree.delete(node);
 					this._onDidChangeDecorations.checkAffectedAndFire(node.options);
+
 					if (node.options.after) {
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.endLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.endLineNumber);
 					}
 					if (node.options.before) {
-						this._onDidChangeDecorations.recordLineAffectedByInjectedText(node.range.startLineNumber);
+						this._onDidChangeDecorations.recordLineAffectedByInjectedText(nodeRange.startLineNumber);
 					}
 				}
 			}
@@ -3431,7 +3437,7 @@ export class DidChangeDecorationsEmitter extends Disposable {
 	private _shouldFire: boolean;
 	private _affectsMinimap: boolean;
 	private _affectsOverviewRuler: boolean;
-	private _afftectedInjectedTextLines: Set<number> | undefined = undefined;
+	private _affectedInjectedTextLines: Set<number> | null = null;
 
 	constructor() {
 		super();
@@ -3452,21 +3458,24 @@ export class DidChangeDecorationsEmitter extends Disposable {
 				const event: IModelDecorationsChangedEvent = {
 					affectsMinimap: this._affectsMinimap,
 					affectsOverviewRuler: this._affectsOverviewRuler,
-					affectedInjectedTextLines: this._afftectedInjectedTextLines,
+					affectedInjectedTextLines: this._affectedInjectedTextLines,
 				};
 				this._shouldFire = false;
 				this._affectsMinimap = false;
 				this._affectsOverviewRuler = false;
 				this._actual.fire(event);
 			}
+
+			this._affectedInjectedTextLines?.clear();
+			this._affectedInjectedTextLines = null;
 		}
 	}
 
 	public recordLineAffectedByInjectedText(lineNumber: number): void {
-		if (!this._afftectedInjectedTextLines) {
-			this._afftectedInjectedTextLines = new Set();
+		if (!this._affectedInjectedTextLines) {
+			this._affectedInjectedTextLines = new Set();
 		}
-		this._afftectedInjectedTextLines.add(lineNumber);
+		this._affectedInjectedTextLines.add(lineNumber);
 	}
 
 	public checkAffectedAndFire(options: ModelDecorationOptions): void {
