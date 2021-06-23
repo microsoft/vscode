@@ -987,7 +987,10 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const testHidden = this.testService.excludeTests.value.has(node.element.test.item.extId);
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
-		const icon = testingStatesToIcons.get(node.element.test.expand === TestItemExpandState.BusyExpanding ? TestResultState.Running : node.element.state);
+		const icon = testingStatesToIcons.get(
+			node.element.test.expand === TestItemExpandState.BusyExpanding || node.element.test.item.busy
+				? TestResultState.Running
+				: node.element.state);
 
 		data.icon.className = 'computed-state ' + (icon ? ThemeIcon.asClassName(icon) : '');
 		if (node.element.retired) {

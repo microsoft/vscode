@@ -90,6 +90,7 @@ export interface ITestItem {
 	/** ID of the test given by the test controller */
 	extId: string;
 	label: string;
+	busy?: boolean;
 	children?: never;
 	uri?: URI;
 	range: IRange | null;
