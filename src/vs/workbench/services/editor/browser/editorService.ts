@@ -837,6 +837,22 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#endregion
 
+	//#region isOpened()
+
+	isActive(editor: IUntypedEditorInput): boolean;
+	isActive(editor: IEditorInput): boolean;
+	isActive(editor: IUntypedEditorInput | IEditorInput): boolean {
+		for (const group of this.editorGroupService.groups) {
+			if (group.activeEditor?.matches(editor)) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	//#endregion
+
 	//#region findEditors()
 
 	findEditors(resource: URI): readonly IEditorIdentifier[];

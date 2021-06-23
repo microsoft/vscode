@@ -207,6 +207,12 @@ export interface IEditorService {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
+	 * Find out if the provided editor is active in any editor group.
+	 */
+	isActive(editor: IUntypedEditorInput): boolean;
+	isActive(editor: IEditorInput): boolean;
+
+	/**
 	 * This method will return an entry for each editor that reports
 	 * a `resource` that matches the provided one in the group or
 	 * across all groups.

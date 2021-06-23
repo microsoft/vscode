@@ -113,9 +113,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 		if (otherInput instanceof EditorInput) {
 			return this === otherInput;
-		} else {
-			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.editorId !== undefined && this.editorId === (otherInput as IUntypedEditorInput).options?.override;
 		}
+
+		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && 							// resources match
+			this.editorId !== undefined && this.editorId === (otherInput as IUntypedEditorInput).options?.override;		// editorId matches override
 	}
 
 	/**

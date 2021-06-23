@@ -270,11 +270,7 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		if (nonOpenedEditorsForBackups.size > 0) {
 			await this.editorService.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
-				options: {
-					pinned: true,
-					preserveFocus: true,
-					inactive: true
-				}
+				options: { pinned: true, preserveFocus: true, inactive: true }
 			})));
 
 			for (const nonOpenedEditorForBackup of nonOpenedEditorsForBackups) {
@@ -282,9 +278,17 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 			}
 		}
 
-		// Then, resolve each editor to make sure the working copy
+		// Then, resolve each opened editor to make sure the working copy
 		// is loaded and the dirty editor appears properly
-		await Promises.settled([...openedEditorsForBackups].map(openedEditorsForBackup => openedEditorsForBackup.resolve()));
+		// We only do that for editors that are not active in a group
+		// already to prevent calling `resolve` twice!
+		await Promises.settled([...openedEditorsForBackups].map(async openedEditorForBackup => {
+			if (this.editorService.isActive(openedEditorForBackup)) {
+				return;
+			}
+
+			return openedEditorForBackup.resolve();
+		}));
 
 		// Finally, remove all handled backups from the list
 		for (const restoredBackup of restoredBackups) {
