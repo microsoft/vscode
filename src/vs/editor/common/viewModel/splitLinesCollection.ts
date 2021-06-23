@@ -1233,13 +1233,17 @@ export class SplitLine implements ISplitLine {
 	}
 
 	public getViewLineLength(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number {
+		// TODO @hediet make this method a member of LineBreakData.
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
 
 		// These offsets refer to model text with injected text.
 		const startOffset = outputLineIndex > 0 ? this._lineBreakData.breakOffsets[outputLineIndex - 1] : 0;
-		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length ? this._lineBreakData.breakOffsets[outputLineIndex] : model.getLineLength(modelLineNumber);
+		const endOffset = outputLineIndex < this._lineBreakData.breakOffsets.length
+			? this._lineBreakData.breakOffsets[outputLineIndex]
+			// This case might not be possible anyway, but we clamp the value to be on the safe side.
+			: this._lineBreakData.breakOffsets[this._lineBreakData.breakOffsets.length - 1];
 
 		let r = endOffset - startOffset;
 
