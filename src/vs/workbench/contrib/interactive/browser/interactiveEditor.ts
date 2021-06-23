@@ -139,8 +139,6 @@ export class InteractiveEditor extends EditorPane {
 			throw new Error('?');
 		}
 
-		this.#widgetDisposableStore.add(model);
-
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
 		this.#notebookWidget.value!.setOptions({
