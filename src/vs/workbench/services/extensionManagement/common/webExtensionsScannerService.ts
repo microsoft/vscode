@@ -124,7 +124,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 							const webExtension = await this.toWebExtensionFromLocation(location);
 							result.push(await this.toExtension(webExtension, true));
 						} catch (error) {
-							this.logService.info(`Error while fetching the the static extension ${location.toString()}.`, getErrorMessage(error));
+							this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
 						}
 					}));
 				}
@@ -134,7 +134,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					try {
 						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensionIds));
 					} catch (error) {
-						this.logService.info('Ignoring following static extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
+						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
 				}
 			})(),
@@ -145,7 +145,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async getCustomBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
-			this.logService.info('Ignoring fetching static extensions from gallery as it is disabled.');
+			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
 		}
 
@@ -173,10 +173,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					if (this.canAddExtension(gallery)) {
 						webExtensions.push(await this.toWebExtensionFromGallery(gallery));
 					} else {
-						this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because it is not a web extension`);
+						this.logService.info(`Ignoring additional builtin gallery extension ${gallery.identifier.id} because it is not a web extension`);
 					}
 				} catch (error) {
-					this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}
 			}));
 		}
@@ -188,7 +188,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				try {
 					result.push(await this.toExtension(webExtension, true));
 				} catch (error) {
-					this.logService.info(`Ignoring static gallery extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
+					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
 				}
 			}));
 		}
@@ -196,7 +196,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		try {
 			await this.writeWebExtensions(this.customBuiltinExtensionsCacheResource, webExtensions);
 		} catch (error) {
-			this.logService.info(`Ignoring the error while adding static gallery extensions`, getErrorMessage(error));
+			this.logService.info(`Ignoring the error while adding additional builtin gallery extensions`, getErrorMessage(error));
 		}
 
 		return result;
