@@ -4,20 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Dimension } from 'vs/base/browser/dom';
+import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Codicon } from 'vs/base/common/codicons';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { localize } from 'vs/nls';
+import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
+import { MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
-import { ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
-import { KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
+import { ITerminalProfileResolverService, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
+import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 const xtermSelector = '.terminal.xterm';
@@ -44,8 +55,13 @@ export class TerminalEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
+		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
+		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
@@ -94,6 +110,82 @@ export class TerminalEditor extends EditorPane {
 	override setVisible(visible: boolean, group?: IEditorGroup): void {
 		super.setVisible(visible, group);
 		return this._editorInput?.terminalInstance?.setVisible(visible);
+	}
+
+	override getActionViewItem(action: IAction): IActionViewItem | undefined {
+		switch (action.id) {
+			case TerminalCommandId.CreateWithProfileButton: {
+				// if (this._tabButtons) {
+				// 	this._tabButtons.dispose();
+				// }
+				const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
+
+				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
+				// this._updateTabActionBar(this._terminalService.availableProfiles);
+				return button;
+			}
+		}
+		return super.getActionViewItem(action);
+	}
+
+	private _getTabActionBarArgs(profiles: ITerminalProfile[]): {
+		primaryAction: MenuItemAction,
+		dropdownAction: IAction,
+		dropdownMenuActions: IAction[],
+		className: string,
+		dropdownIcon?: string
+	} {
+		const dropdownActions: IAction[] = [];
+		const submenuActions: IAction[] = [];
+
+		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
+		// TODO: Pass in args to create an editor terminal specifically
+		for (const p of profiles) {
+			const isDefault = p.profileName === defaultProfileName;
+			if (isDefault) {
+				dropdownActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }));
+				submenuActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }));
+			} else {
+				dropdownActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }));
+				submenuActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }));
+			}
+		}
+
+		for (const contributed of this._terminalContributionService.terminalProfiles) {
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, false)));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, true)));
+		}
+
+		if (dropdownActions.length > 0) {
+			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));
+			dropdownActions.push(new Separator());
+		}
+
+		// for (const [, configureActions] of this._dropdownMenu.getActions()) {
+		// 	for (const action of configureActions) {
+		// 		// make sure the action is a MenuItemAction
+		// 		if ('alt' in action) {
+		// 			dropdownActions.push(action);
+		// 		}
+		// 	}
+		// }
+
+		const primaryAction = this._instantiationService.createInstance(
+			MenuItemAction,
+			{
+				id: TerminalCommandId.CreateTerminalEditor,
+				title: localize('terminal.new', "New Terminal"),
+				icon: Codicon.plus
+			},
+			{
+				id: 'workbench.action.splitEditor',
+				title: terminalStrings.split.value,
+				icon: Codicon.splitHorizontal
+			},
+			undefined);
+
+		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
+		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
 	}
 
 	focusFindWidget() {

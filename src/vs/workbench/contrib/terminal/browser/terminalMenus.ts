@@ -529,4 +529,14 @@ export function setupTerminalMenus(): void {
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
 		group: '2_files'
 	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+		command: {
+			id: TerminalCommandId.CreateWithProfileButton,
+			title: TerminalCommandId.CreateWithProfileButton
+		},
+		group: 'navigation',
+		order: 0,
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal)
+	});
 }
