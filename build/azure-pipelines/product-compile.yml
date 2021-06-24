@@ -129,7 +129,7 @@ steps:
 
   - script: |
       set -e
-      tar -czf --ignore-failed-read $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
+      tar -cz -f $(Build.ArtifactStagingDirectory)/compilation.tar.gz .build out-* test/integration/browser/out test/smoke/out test/automation/out
     displayName: Compress compilation artifact
 
   - task: PublishPipelineArtifact@1
