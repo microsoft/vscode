@@ -127,10 +127,6 @@ export const breakpointsExtPoint = extensionsRegistry.ExtensionsRegistry.registe
 	}
 });
 
-export interface IDisassemblyContribution {
-	language: string;
-}
-
 // debug general schema
 
 export const presentationSchema: IJSONSchema = {
