@@ -775,7 +775,7 @@ export class TerminalService implements ITerminalService {
 			// Do the focus call asynchronously as going through the
 			// command palette will force editor focus
 			await timeout(0);
-			const instance = this.activeInstance;
+			const instance = this.activeInstance || this.createTerminal({});
 			if (instance) {
 				await instance.focusWhenReady(true);
 			}
@@ -1112,7 +1112,9 @@ export class TerminalService implements ITerminalService {
 		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
 		if (location === ViewContainerLocation.Panel) {
 			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
+			console.log('hiding panel', panel, this._viewDescriptorService.getViewContainerModel(panel!).activeViewDescriptors.length === 1);
 			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+				console.log('done');
 				this._layoutService.setPanelHidden(true);
 				KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(this._contextKeyService).set(false);
 			}
