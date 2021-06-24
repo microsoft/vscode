@@ -692,7 +692,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			localize('untrustedDescription', "{0} is in a restricted mode intended for safe code browsing.", product.nameShort);
 
 		const headerDescriptionActions = append(this.headerDescription, $('div'));
-		const headerDescriptionActionsText = localize('workspaceTrustEditorHeaderActions', "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
+		const headerDescriptionActionsText = localize({ key: 'workspaceTrustEditorHeaderActions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[Configure your settings]({0}) or [learn more](https://aka.ms/vscode-workspace-trust).", `command:workbench.trust.configure`);
 		for (const node of parseLinkedText(headerDescriptionActionsText).nodes) {
 			if (typeof node === 'string') {
 				append(headerDescriptionActions, document.createTextNode(node));
@@ -817,13 +817,13 @@ export class WorkspaceTrustEditor extends EditorPane {
 			[
 				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
 			] :
 			[
 				localize('untrustedTasks', "Tasks are not allowed to run"),
 				localize('untrustedDebugging', "Debugging is disabled"),
-				numSettings ? localize('untrustedSettings', "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
-				localize('untrustedExtensions', "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
+				numSettings ? localize({ key: 'untrustedSettings', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} workspace settings]({1}) are not applied", numSettings, 'command:settings.filterUntrusted') : localize('no untrustedSettings', "Workspace settings requiring trust are not applied"),
+				localize({ key: 'untrustedExtensions', comment: ['Please ensure the markdown link syntax is not broken up with whitespace [text block](link block)'] }, "[{0} extensions]({1}) are disabled or have limited functionality", numExtensions, `command:${LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID}`)
 			];
 		this.renderLimitationsListElement(untrustedContainer, untrustedContainerItems, xListIcon.classNamesArray);
 
