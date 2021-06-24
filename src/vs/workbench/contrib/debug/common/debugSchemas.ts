@@ -131,27 +131,6 @@ export interface IDisassemblyContribution {
 	language: string;
 }
 
-// disassembly extension point
-export const disassemblyExtPoint = extensionsRegistry.ExtensionsRegistry.registerExtensionPoint<IDisassemblyContribution[]>({
-	extensionPoint: 'disassembly',
-	jsonSchema: {
-		description: nls.localize('vscode.extension.contributes.disassembly', 'Contributes disassembly.'),
-		type: 'array',
-		defaultSnippets: [{ body: [{ language: '' }] }],
-		items: {
-			type: 'object',
-			additionalProperties: false,
-			defaultSnippets: [{ body: { language: '' } }],
-			properties: {
-				language: {
-					description: nls.localize('vscode.extension.contributes.disassembly.language', "Allow disassembly view for this language."),
-					type: 'string'
-				},
-			}
-		}
-	}
-});
-
 // debug general schema
 
 export const presentationSchema: IJSONSchema = {

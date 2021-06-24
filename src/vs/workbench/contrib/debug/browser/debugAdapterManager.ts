@@ -18,7 +18,7 @@ import { IDebugConfiguration, IConfig, IDebugAdapterDescriptorFactory, IDebugAda
 import { Debugger } from 'vs/workbench/contrib/debug/common/debugger';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { launchSchema, debuggersExtPoint, breakpointsExtPoint, presentationSchema, disassemblyExtPoint } from 'vs/workbench/contrib/debug/common/debugSchemas';
+import { launchSchema, debuggersExtPoint, breakpointsExtPoint, presentationSchema } from 'vs/workbench/contrib/debug/common/debugSchemas';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -41,7 +41,6 @@ export class AdapterManager implements IAdapterManager {
 	private readonly _onDidRegisterDebugger = new Emitter<void>();
 	private readonly _onDidDebuggersExtPointRead = new Emitter<void>();
 	private breakpointModeIdsSet = new Set<string>();
-	private disassemblyModeIdsSet = new Set<string>();
 
 	constructor(
 		@IEditorService private readonly editorService: IEditorService,
@@ -154,15 +153,6 @@ export class AdapterManager implements IAdapterManager {
 			});
 			delta.added.forEach(added => {
 				added.value.forEach(breakpoints => this.breakpointModeIdsSet.add(breakpoints.language));
-			});
-		});
-
-		disassemblyExtPoint.setHandler((extensions, delta) => {
-			delta.removed.forEach(removed => {
-				removed.value.forEach(disassembly => this.disassemblyModeIdsSet.delete(disassembly.language));
-			});
-			delta.added.forEach(added => {
-				added.value.forEach(disassembly => this.disassemblyModeIdsSet.add(disassembly.language));
 			});
 		});
 	}
