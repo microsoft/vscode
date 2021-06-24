@@ -5,9 +5,11 @@
 
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -23,7 +25,6 @@ export class TerminalEditorInput extends EditorInput {
 		return TerminalEditor.ID;
 	}
 
-	private readonly _terminalInstance: ITerminalInstance;
 	/**
 	 * Returns the terminal instance for this input if it has not yet been detached from the input.
 	 */
@@ -36,10 +37,10 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		terminalInstance: ITerminalInstance
+		private readonly _terminalInstance: ITerminalInstance,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
-		this._terminalInstance = terminalInstance;
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));
 		this._register(this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()));
 		this._register(this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire()));
@@ -53,6 +54,22 @@ export class TerminalEditorInput extends EditorInput {
 
 	override getName() {
 		return this._terminalInstance.title;
+	}
+
+	override getLabelExtraClasses(): string[] {
+		const extraClasses: string[] = ['terminal-tab'];
+		const colorClass = getColorClass(this._terminalInstance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
+		}
+		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
+		}
+		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
+			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
+		}
+		return extraClasses;
 	}
 
 	/**
