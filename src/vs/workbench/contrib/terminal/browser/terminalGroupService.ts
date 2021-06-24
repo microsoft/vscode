@@ -120,22 +120,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	getFindState(): FindReplaceState {
-		return this._findState;
-	}
-
-
-	async focusFindWidget(): Promise<void> {
-		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusFindWidget();
-	}
-
-	hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.hideFindWidget();
-	}
-
 	async showPanel(focus?: boolean): Promise<void> {
 		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor) {
 			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
@@ -168,6 +152,21 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			pane.terminalTabbedView.showFindWidget();
 			pane.terminalTabbedView.getFindWidget().find(true);
 		}
+	}
+
+	getFindState(): FindReplaceState {
+		return this._findState;
+	}
+
+	async focusFindWidget(): Promise<void> {
+		await this.showPanel(false);
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.focusFindWidget();
+	}
+
+	hideFindWidget(): void {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.hideFindWidget();
 	}
 
 	private _removeGroup(group: ITerminalGroup) {

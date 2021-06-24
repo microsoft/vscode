@@ -287,7 +287,7 @@ export interface ITerminalInstanceHost {
 
 	setActiveInstance(instance: ITerminalInstance): void;
 
-	focusFindWidget(): Promise<void>;
+	focusFindWidget(): void;
 	hideFindWidget(): void;
 	getFindState(): FindReplaceState;
 	findNext(): void;
