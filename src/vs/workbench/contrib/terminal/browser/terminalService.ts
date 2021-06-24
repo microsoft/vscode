@@ -1099,32 +1099,8 @@ export class TerminalService implements ITerminalService {
 		this._onGroupsChanged.fire();
 	}
 
-	async focusFindWidget(): Promise<void> {
-		await this.showPanel(false);
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.focusFindWidget();
-	}
 
-	hideFindWidget(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		pane?.terminalTabbedView?.hideFindWidget();
-	}
 
-	findNext(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		if (pane?.terminalTabbedView) {
-			pane.terminalTabbedView.showFindWidget();
-			pane.terminalTabbedView.getFindWidget().find(false);
-		}
-	}
-
-	findPrevious(): void {
-		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
-		if (pane?.terminalTabbedView) {
-			pane.terminalTabbedView.showFindWidget();
-			pane.terminalTabbedView.getFindWidget().find(true);
-		}
-	}
 
 	async setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): Promise<void> {
 		this._configHelper.panelContainer = panelContainer;

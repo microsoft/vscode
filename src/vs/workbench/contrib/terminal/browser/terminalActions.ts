@@ -890,7 +890,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusFindWidget();
+			accessor.get(ITerminalGroupService).focusFindWidget();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -910,7 +910,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).hideFindWidget();
+			accessor.get(ITerminalGroupService).hideFindWidget();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1245,7 +1245,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
+			const state = accessor.get(ITerminalGroupService).getFindState();
 			state.change({ isRegex: !state.isRegex }, false);
 		}
 	});
@@ -1266,7 +1266,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
+			const state = accessor.get(ITerminalGroupService).getFindState();
 			state.change({ wholeWord: !state.wholeWord }, false);
 		}
 	});
@@ -1287,7 +1287,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
+			const state = accessor.get(ITerminalGroupService).getFindState();
 			state.change({ matchCase: !state.matchCase }, false);
 		}
 	});
@@ -1315,7 +1315,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).findNext();
+			accessor.get(ITerminalGroupService).findNext();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1342,7 +1342,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).findPrevious();
+			accessor.get(ITerminalGroupService).findPrevious();
 		}
 	});
 	registerAction2(class extends Action2 {

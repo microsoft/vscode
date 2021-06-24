@@ -114,7 +114,14 @@ export interface ICreateTerminalOptions {
 	target?: TerminalLocation;
 }
 
-export interface ITerminalService extends ITerminalInstanceHost {
+export interface ITerminalService {
+	readonly activeInstance: ITerminalInstance | undefined;
+
+	readonly onDidDisposeInstance: Event<ITerminalInstance>;
+	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
+	readonly onDidChangeInstances: Event<void>;
+
+	setActiveInstance(instance: ITerminalInstance): void;
 	readonly _serviceBrand: undefined;
 
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
@@ -178,11 +185,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
-	focusFindWidget(): Promise<void>;
-	hideFindWidget(): void;
-	getFindState(): FindReplaceState;
-	findNext(): void;
-	findPrevious(): void;
 	focusTabs(): void;
 	showTabs(): void;
 
@@ -284,6 +286,12 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+
+	focusFindWidget(): Promise<void>;
+	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
+	findNext(): void;
+	findPrevious(): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

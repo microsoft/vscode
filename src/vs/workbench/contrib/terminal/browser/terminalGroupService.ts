@@ -4,14 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
+import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { IViewsService } from 'vs/workbench/common/views';
 import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
-import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
+import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService {
 	declare _serviceBrand: undefined;
@@ -25,6 +30,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _container: HTMLElement | undefined;
+
+	private _findState: FindReplaceState;
+
+	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
@@ -45,7 +54,8 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IViewsService private readonly _viewsService: IViewsService
 	) {
 		super();
 
@@ -53,6 +63,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 
 		this._terminalGroupCountContextKey = KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT.bindTo(this._contextKeyService);
 		this.onDidChangeGroups(() => this._terminalGroupCountContextKey.set(this.groups.length));
+
+		this._findState = new FindReplaceState();
+
+		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {
@@ -104,6 +118,56 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 		this._onDidChangeGroups.fire();
 		return group;
+	}
+
+	getFindState(): FindReplaceState {
+		return this._findState;
+	}
+
+
+	async focusFindWidget(): Promise<void> {
+		await this.showPanel(false);
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.focusFindWidget();
+	}
+
+	hideFindWidget(): void {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.hideFindWidget();
+	}
+
+	async showPanel(focus?: boolean): Promise<void> {
+		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor) {
+			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
+				?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+			pane?.setExpanded(true);
+		}
+
+		if (focus) {
+			// Do the focus call asynchronously as going through the
+			// command palette will force editor focus
+			await timeout(0);
+			const instance = this.activeInstance;
+			if (instance) {
+				await instance.focusWhenReady(true);
+			}
+		}
+	}
+
+	findNext(): void {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		if (pane?.terminalTabbedView) {
+			pane.terminalTabbedView.showFindWidget();
+			pane.terminalTabbedView.getFindWidget().find(false);
+		}
+	}
+
+	findPrevious(): void {
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		if (pane?.terminalTabbedView) {
+			pane.terminalTabbedView.showFindWidget();
+			pane.terminalTabbedView.getFindWidget().find(true);
+		}
 	}
 
 	private _removeGroup(group: ITerminalGroup) {
