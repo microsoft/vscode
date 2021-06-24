@@ -88,8 +88,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			await instance.focusWhenReady(true);
 		}
 
-		const editor = this._getActiveTerminalEditor();
-		editor?.focusFindWidget();
+		this._getActiveTerminalEditor()?.focusFindWidget();
 	}
 
 	hideFindWidget(): void {
