@@ -39,7 +39,7 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
-import { DecreasingKeyFilter, filterSortedByKey } from 'vs/base/common/arrays';
+import { filterSortedByKey } from 'vs/base/common/arrays';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
