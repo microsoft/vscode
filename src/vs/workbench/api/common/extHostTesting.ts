@@ -27,7 +27,7 @@ import type * as vscode from 'vscode';
 export class ExtHostTesting implements ExtHostTestingShape {
 	private readonly resultsChangedEmitter = new Emitter<void>();
 	private readonly controllers = new Map</* controller ID */ string, {
-		controller: vscode.TestController<any>,
+		controller: vscode.TestController,
 		collection: SingleUseTestCollection,
 	}>();
 	private readonly proxy: MainThreadTestingShape;
@@ -51,22 +51,25 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.registerTestProvider
 	 */
-	public createTestController<T>(controllerId: string): vscode.TestController<T> {
+	public createTestController(controllerId: string): vscode.TestController {
 		const disposable = new DisposableStore();
 		const collection = disposable.add(new SingleUseTestCollection(controllerId));
 		const initialExpand = disposable.add(new RunOnceScheduler(() => collection.expand(collection.root.id, 0), 0));
 
-		const controller: vscode.TestController<T> = {
+		const controller: vscode.TestController = {
 			root: collection.root,
+			get id() {
+				return controllerId;
+			},
 			createTestRun: (request, name, persist = true) => {
 				return this.runTracker.createTestRun(controllerId, request, name, persist);
 			},
-			createTestItem<TChild>(id: string, label: string, parent: vscode.TestItem, uri: vscode.Uri, data?: TChild) {
+			createTestItem(id: string, label: string, parent: vscode.TestItem, uri: vscode.Uri, data?: unknown) {
 				if (!(parent instanceof TestItemImpl)) {
 					throw new Error(`The "parent" passed in for TestItem ${id} is invalid`);
 				}
 
-				return new TestItemImpl<TChild>(id, label, uri, data as TChild, parent);
+				return new TestItemImpl(id, label, uri, data, parent);
 			},
 			set resolveChildrenHandler(fn) {
 				collection.resolveHandler = fn;
@@ -104,8 +107,8 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Implements vscode.test.runTests
 	 */
-	public async runTests(req: vscode.TestRunRequest<unknown>, token = CancellationToken.None) {
-		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem<unknown>>) =>
+	public async runTests(req: vscode.TestRunRequest, token = CancellationToken.None) {
+		const testListToProviders = (tests: ReadonlyArray<vscode.TestItem>) =>
 			tests
 				.map(this.getInternalTestForReference, this)
 				.filter(isDefined)
@@ -181,7 +184,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			return;
 		}
 
-		const publicReq: vscode.TestRunRequest<unknown> = {
+		const publicReq: vscode.TestRunRequest = {
 			tests: includeTests.map(t => t.actual),
 			exclude: excludeTests.map(t => t.actual),
 			debug: req.debug,
@@ -214,14 +217,14 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	/**
 	 * Gets the internal test item associated with the reference from the extension.
 	 */
-	private getInternalTestForReference(test: vscode.TestItem<unknown>) {
+	private getInternalTestForReference(test: vscode.TestItem) {
 		return mapFind(this.controllers.values(), ({ collection }) => collection.getTestByReference(test))
 			?? this.observer.getMirroredTestDataByReference(test);
 	}
 }
 
-class TestRunTracker<T> extends Disposable {
-	private readonly task = new Set<TestRunImpl<T>>();
+class TestRunTracker extends Disposable {
+	private readonly task = new Set<TestRunImpl>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
@@ -283,7 +286,7 @@ class TestRunTracker<T> extends Disposable {
  * run so that `createTestRun` can be properly correlated.
  */
 export class TestRunCoordinator {
-	private tracked = new Map<vscode.TestRunRequest<unknown>, TestRunTracker<unknown>>();
+	private tracked = new Map<vscode.TestRunRequest, TestRunTracker>();
 
 	public get trackers() {
 		return this.tracked.values();
@@ -296,7 +299,7 @@ export class TestRunCoordinator {
 	 * `$startedExtensionTestRun` is not invoked. The run must eventually
 	 * be cancelled manually.
 	 */
-	public prepareForMainThreadTestRun(req: vscode.TestRunRequest<unknown>, dto: TestRunDto, token: CancellationToken) {
+	public prepareForMainThreadTestRun(req: vscode.TestRunRequest, dto: TestRunDto, token: CancellationToken) {
 		return this.getTracker(req, dto, token);
 	}
 
@@ -325,7 +328,7 @@ export class TestRunCoordinator {
 	/**
 	 * Implements the public `createTestRun` API.
 	 */
-	public createTestRun<T>(controllerId: string, request: vscode.TestRunRequest<T>, name: string | undefined, persist: boolean): vscode.TestRun<T> {
+	public createTestRun(controllerId: string, request: vscode.TestRunRequest, name: string | undefined, persist: boolean): vscode.TestRun {
 		const existing = this.tracked.get(request);
 		if (existing) {
 			return existing.createRun(name);
@@ -347,7 +350,7 @@ export class TestRunCoordinator {
 		return tracker.createRun(name);
 	}
 
-	private getTracker(req: vscode.TestRunRequest<unknown>, dto: TestRunDto, token?: CancellationToken) {
+	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, token?: CancellationToken) {
 		const tracker = new TestRunTracker(dto, this.proxy, token);
 		this.tracked.set(req, tracker);
 		tracker.onEnd(() => this.tracked.delete(req));
@@ -356,7 +359,7 @@ export class TestRunCoordinator {
 }
 
 export class TestRunDto {
-	public static fromPublic(controllerId: string, request: vscode.TestRunRequest<unknown>) {
+	public static fromPublic(controllerId: string, request: vscode.TestRunRequest) {
 		return new TestRunDto(
 			controllerId,
 			generateUuid(),
@@ -381,8 +384,8 @@ export class TestRunDto {
 		private readonly exclude: ReadonlySet<string>,
 	) { }
 
-	public isIncluded(test: vscode.TestItem<unknown>) {
-		for (let t: vscode.TestItem<unknown> | undefined = test; t; t = t.parent) {
+	public isIncluded(test: vscode.TestItem) {
+		for (let t: vscode.TestItem | undefined = test; t; t = t.parent) {
 			if (this.include.has(t.id)) {
 				return true;
 			} else if (this.exclude.has(t.id)) {
@@ -394,7 +397,7 @@ export class TestRunDto {
 	}
 }
 
-class TestRunImpl<T> implements vscode.TestRun<T> {
+class TestRunImpl implements vscode.TestRun {
 	readonly #proxy: MainThreadTestingShape;
 	readonly #req: TestRunDto;
 	readonly #sharedIds: Set<string>;
@@ -417,14 +420,14 @@ class TestRunImpl<T> implements vscode.TestRun<T> {
 		proxy.$startedTestRunTask(dto.id, { id: this.taskId, name, running: true });
 	}
 
-	setState(test: vscode.TestItem<T>, state: vscode.TestResultState, duration?: number): void {
+	setState(test: vscode.TestItem, state: vscode.TestResultState, duration?: number): void {
 		if (!this.#ended && this.#req.isIncluded(test)) {
 			this.ensureTestIsKnown(test);
 			this.#proxy.$updateTestStateInRun(this.#req.id, this.taskId, test.id, state, duration);
 		}
 	}
 
-	appendMessage(test: vscode.TestItem<T>, message: vscode.TestMessage): void {
+	appendMessage(test: vscode.TestItem, message: vscode.TestMessage): void {
 		if (!this.#ended && this.#req.isIncluded(test)) {
 			this.ensureTestIsKnown(test);
 			this.#proxy.$appendTestMessageInRun(this.#req.id, this.taskId, test.id, Convert.TestMessage.from(message));
@@ -445,7 +448,7 @@ class TestRunImpl<T> implements vscode.TestRun<T> {
 		}
 	}
 
-	private ensureTestIsKnown(test: vscode.TestItem<T>) {
+	private ensureTestIsKnown(test: vscode.TestItem) {
 		const sent = this.#sharedIds;
 		if (sent.has(test.id)) {
 			return;
@@ -475,7 +478,7 @@ class TestRunImpl<T> implements vscode.TestRun<T> {
  * @private
  */
 interface MirroredCollectionTestItem extends IncrementalTestCollectionItem {
-	revived: vscode.TestItem<never>;
+	revived: vscode.TestItem;
 	depth: number;
 }
 
@@ -579,7 +582,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 	/**
 	 * If the test item is a mirrored test item, returns its underlying ID.
 	 */
-	public getMirroredTestDataByReference(item: vscode.TestItem<unknown>) {
+	public getMirroredTestDataByReference(item: vscode.TestItem) {
 		return this.items.get(item.id);
 	}
 
@@ -590,7 +593,7 @@ export class MirroredTestCollection extends AbstractIncrementalTestCollection<Mi
 		return {
 			...item,
 			// todo@connor4312: make this work well again with children
-			revived: Convert.TestItem.toPlain(item.item) as vscode.TestItem<never>,
+			revived: Convert.TestItem.toPlain(item.item) as vscode.TestItem,
 			depth: parent ? parent.depth + 1 : 0,
 			children: new Set(),
 		};
@@ -636,7 +639,7 @@ class TestObservers {
 	/**
 	 * Gets the internal test data by its reference.
 	 */
-	public getMirroredTestDataByReference(ref: vscode.TestItem<unknown>) {
+	public getMirroredTestDataByReference(ref: vscode.TestItem) {
 		return this.current?.tests.getMirroredTestDataByReference(ref);
 	}
 

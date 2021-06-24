@@ -1796,14 +1796,14 @@ declare module 'vscode' {
 		 *
 		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function createTestController<T>(id: string): TestController<T>;
+		export function createTestController(id: string): TestController;
 
 		/**
 		 * Requests that tests be run by their controller.
 		 * @param run Run options to use
 		 * @param token Cancellation token for the test run
 		 */
-		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that watches and can request tests.
@@ -1832,7 +1832,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem<never>>;
+		readonly tests: ReadonlyArray<TestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -1855,25 +1855,27 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem<never>>;
+		readonly added: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem<never>>;
+		readonly updated: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem<never>>;
+		readonly removed: ReadonlyArray<TestItem>;
 	}
 
 	/**
 	 * Interface to discover and execute tests.
 	 */
-	export interface TestController<T = any> {
-
-		//todo@API expose `readonly id: string` that createTestController asked me for
+	export interface TestController {
+		/**
+		 * The ID of the controller, passed in {@link vscode.test.createTestController}
+		 */
+		readonly id: string;
 
 		/**
 		 * Root test item. Tests in the workspace should be added as children of
@@ -1901,13 +1903,12 @@ declare module 'vscode' {
 		 * @param uri URI this TestItem is associated with. May be a file or directory.
 		 * @param data Custom data to be stored in {@link TestItem.data}
 		 */
-		createTestItem<TChild = T>(
+		createTestItem(
 			id: string,
 			label: string,
 			parent: TestItem,
 			uri?: Uri,
-			data?: TChild,
-		): TestItem<TChild>;
+		): TestItem;
 
 
 		/**
@@ -1925,7 +1926,7 @@ declare module 'vscode' {
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
-		resolveChildrenHandler?: (item: TestItem<T>) => Thenable<void> | void;
+		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
 
 		/**
 		 * Starts a test run. When called, the controller should call
@@ -1939,7 +1940,7 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runHandler?: (request: TestRunRequest<T>, token: CancellationToken) => Thenable<void> | void;
+		runHandler?: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the
 		 * {@link TestRunner} when a request is made to execute tests, and may also
@@ -1956,7 +1957,7 @@ declare module 'vscode' {
 		 * persisted in the editor. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
 		 */
-		createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
+		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
 
 		/**
 		 * Unregisters the test controller, disposing of its associated tests
@@ -1968,20 +1969,20 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export class TestRunRequest<T> {
+	export class TestRunRequest {
 		/**
 		 * Array of specific tests to run. The controllers should run all of the
 		 * given tests and all children of the given tests, excluding any tests
 		 * that appear in {@link TestRunRequest.exclude}.
 		 */
-		tests: TestItem<T>[];
+		tests: TestItem[];
 
 		/**
 		 * An array of tests the user has marked as excluded in the editor. May be
 		 * omitted if no exclusions were requested. Test controllers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
-		exclude?: TestItem<T>[];
+		exclude?: TestItem[];
 
 		/**
 		 * Whether tests in this run should be debugged.
@@ -1993,13 +1994,13 @@ declare module 'vscode' {
 		 * @param exclude Tests to exclude from the run
 		 * @param debug Whether tests in this run should be debugged.
 		 */
-		constructor(tests: readonly TestItem<T>[], exclude?: readonly TestItem<T>[], debug?: boolean);
+		constructor(tests: readonly TestItem[], exclude?: readonly TestItem[], debug?: boolean);
 	}
 
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
-	export interface TestRun<T = void> {
+	export interface TestRun {
 		/**
 		 * The human-readable name of the run. This can be used to
 		 * disambiguate multiple sets of results in a test run. It is useful if
@@ -2023,7 +2024,7 @@ declare module 'vscode' {
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
 		//todo@API is this "update" state or set final state? should this be called setTestResult?
-		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
+		setState(test: TestItem, state: TestResultState, duration?: number): void;
 
 		/**
 		 * Appends a message, such as an assertion error, to the test item.
@@ -2034,7 +2035,7 @@ declare module 'vscode' {
 		 * @param test The test to update
 		 * @param message The message to add
 		 */
-		appendMessage(test: TestItem<T>, message: TestMessage): void;
+		appendMessage(test: TestItem, message: TestMessage): void;
 
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
@@ -2057,7 +2058,7 @@ declare module 'vscode' {
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem<T = any> {
+	export interface TestItem {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2077,12 +2078,10 @@ declare module 'vscode' {
 		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
-		 * The parent of this item, if any. Assigned automatically when calling
-		 * {@link TestItem.addChild}.
+		 * The parent of this item, given in {@link TestController.createTestItem}.
+		 * This is undefined only for the {@link TestController.root}.
 		 */
-		//todo@API jsdoc outdated (likely in many places)
-		//todo@API is this needed? with TestController#root this is never undefined but `root` is questionable (see above)
-		readonly parent?: TestItem<any>;
+		readonly parent?: TestItem;
 
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.
@@ -2137,14 +2136,6 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Custom extension data on the item. This data will never be serialized
-		 * or shared outside the extenion who created the item.
-		 */
-		// todo@API remove? this brings in a ton of generics, into every single type... extension own test items, they create and dispose them,
-		// and therefore can have a WeakMap<TestItem, T> or Map<id, T> to the side.
-		data: T;
-
-		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically rerun after a short delay. Invoking this on a
@@ -2152,8 +2143,7 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
-		// todo@API boolean property instead? stale: boolean
-		invalidate(): void;
+		invalidateResults(): void;
 
 		/**
 		 * Removes the test and its children from the tree.
