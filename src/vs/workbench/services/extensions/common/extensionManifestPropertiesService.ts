@@ -244,7 +244,18 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 			ExtensionsRegistry.getExtensionPoints().forEach(e => extensionPointExtensionKindsMap.set(e.name, e.defaultExtensionKind || [] /* supports all */));
 			this._extensionPointExtensionKindsMap = extensionPointExtensionKindsMap;
 		}
-		return this._extensionPointExtensionKindsMap.get(extensionPoint) || ['workspace'] /* Unknown extension point => workspace */;
+
+		let extensionPointExtensionKind = this._extensionPointExtensionKindsMap.get(extensionPoint);
+		if (extensionPointExtensionKind) {
+			return extensionPointExtensionKind;
+		}
+
+		extensionPointExtensionKind = this.productService.extensionPointExtensionKind ? this.productService.extensionPointExtensionKind[extensionPoint] : undefined;
+		if (extensionPointExtensionKind) {
+			return extensionPointExtensionKind;
+		}
+
+		return ['workspace', 'web'] /* Unknown extension point => workspace, web */;
 	}
 
 	private getProductExtensionKind(manifest: IExtensionManifest): ExtensionKind[] | undefined {
