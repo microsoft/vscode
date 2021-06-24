@@ -260,7 +260,8 @@ export class TerminalService implements ITerminalService {
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
 
-		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.body));
+		// Create async as the class depends on `this`
+		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
