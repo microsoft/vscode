@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -204,12 +204,7 @@ registerAction2(class extends Action2 {
 		super({
 			id: 'interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
-			menu: [
-				{
-					id: MenuId.CommandPalette,
-					when: ContextKeyExpr.equals('config.interactive.experiments.enable', true)
-				}
-			],
+			f1: false,
 			category: 'Interactive',
 			description: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
