@@ -17,6 +17,7 @@ import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { coalesce } from 'vs/base/common/arrays';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;
@@ -298,7 +299,7 @@ export class NoTabsTitleControl extends TitleControl {
 				{
 					title,
 					italic: !isEditorPinned,
-					extraClasses: ['no-tabs', 'title-label'],
+					extraClasses: coalesce((['no-tabs', 'title-label'] as (string | undefined)[]).concat(editor.getLabelExtraClasses())),
 					fileDecorations: {
 						colors: Boolean(options.decorations?.colors),
 						badges: Boolean(options.decorations?.badges)
