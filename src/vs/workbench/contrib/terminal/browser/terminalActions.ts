@@ -945,6 +945,7 @@ export function registerTerminalActions() {
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
 			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 
 			const terms = await offProcTerminalService.listProcesses();
 
@@ -970,7 +971,7 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
-				accessor.get(ITerminalGroupService).showPanel(true);
+				terminalGroupService.showPanel(true);
 			}
 		}
 	});
