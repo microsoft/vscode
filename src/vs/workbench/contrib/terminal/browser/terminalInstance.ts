@@ -1153,11 +1153,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isDisposed) {
 			return;
 		}
+		const hadIcon = !!this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
 		});
+		if (!hadIcon && this.shellLaunchConfig.icon) {
+			this._onIconChanged.fire(this);
+		}
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {

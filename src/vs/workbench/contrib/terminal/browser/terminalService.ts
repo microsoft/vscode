@@ -1087,7 +1087,6 @@ class TerminalEditorStyle extends Themable {
 		container: HTMLElement,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		super(_themeService);
 		this._registerListeners();
@@ -1101,7 +1100,6 @@ class TerminalEditorStyle extends Themable {
 		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
-		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}
 
 	override updateStyles(): void {
