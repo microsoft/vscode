@@ -51,7 +51,7 @@ import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { stripIcons } from 'vs/base/common/iconLabels';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 interface IAnythingQuickPickItem extends IPickerQuickAccessItem, IQuickPickItemWithResource { }
 
@@ -873,13 +873,13 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
 
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
 		} else {
-			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : (resourceOrEditor as IResourceEditorInput).resource;
+			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
@@ -956,7 +956,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		// Open editor (typed)
-		if (resourceOrEditor instanceof EditorInput) {
+		if (isEditorInput(resourceOrEditor)) {
 			await this.editorService.openEditor(resourceOrEditor, editorOptions);
 		}
 
@@ -969,8 +969,6 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 					options
 				};
 			} else {
-				resourceOrEditor = resourceOrEditor as IResourceEditorInput;
-
 				resourceEditorInput = {
 					...resourceOrEditor,
 					options: {

@@ -114,12 +114,12 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
 
 		// Typed inputs: via  === check
-		if (otherInput instanceof EditorInput) {
+		if (isEditorInput(otherInput)) {
 			return this === otherInput;
 		}
 
 		// Untyped inputs: go into properties
-		const otherInputEditorId = (otherInput as IUntypedEditorInput).options?.override;
+		const otherInputEditorId = otherInput.options?.override;
 
 		if (this.editorId === undefined) {
 			return false; // untyped inputs can only match for editors that have adopted `editorId`
@@ -159,4 +159,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
+}
+
+export function isEditorInput(editor: unknown): editor is IEditorInput {
+	return editor instanceof EditorInput;
 }

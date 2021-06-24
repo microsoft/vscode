@@ -9,7 +9,7 @@ import { parse, stringify } from 'vs/base/common/marshalling';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceEditorInput, TextEditorSelectionRevealType, IEditorOptions, isResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IEditorInput, IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, isEditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG, FileOperationEvent, FileOperation } from 'vs/platform/files/common/files';
@@ -407,11 +407,9 @@ export class HistoryService extends Disposable implements IHistoryService {
 			selectionRevealType: TextEditorSelectionRevealType.CenterIfOutsideViewport
 		};
 
-		if (location.editor instanceof EditorInput) {
+		if (isEditorInput(location.editor)) {
 			return this.editorService.openEditor(location.editor, options);
 		}
-
-		location.editor = location.editor as IResourceEditorInput;
 
 		return this.editorService.openEditor({
 			...location.editor,
@@ -652,33 +650,30 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private matches(arg1: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent, inputB: IEditorInput | IResourceEditorInput): boolean {
 		if (arg1 instanceof FileChangesEvent || arg1 instanceof FileOperationEvent) {
-			if (inputB instanceof EditorInput) {
+			if (isEditorInput(inputB)) {
 				return false; // we only support this for `IResourceEditorInputs` that are file based
 			}
 
 			if (arg1 instanceof FileChangesEvent) {
-				return arg1.contains((inputB as IResourceEditorInput).resource, FileChangeType.DELETED);
+				return arg1.contains(inputB.resource, FileChangeType.DELETED);
 			}
 
-			return this.matchesFile((inputB as IResourceEditorInput).resource, arg1);
+			return this.matchesFile(inputB.resource, arg1);
 		}
 
-		if (arg1 instanceof EditorInput && inputB instanceof EditorInput) {
-			return arg1.matches(inputB);
+		if (isEditorInput(arg1)) {
+			if (isEditorInput(inputB)) {
+				return arg1.matches(inputB);
+			}
+
+			return this.matchesFile(inputB.resource, arg1);
 		}
 
-		if (arg1 instanceof EditorInput) {
-			return this.matchesFile((inputB as IResourceEditorInput).resource, arg1);
+		if (isEditorInput(inputB)) {
+			return this.matchesFile(arg1.resource, inputB);
 		}
 
-		if (inputB instanceof EditorInput) {
-			return this.matchesFile((arg1 as IResourceEditorInput).resource, inputB);
-		}
-
-		const resourceEditorInputA = arg1 as IResourceEditorInput;
-		const resourceEditorInputB = inputB as IResourceEditorInput;
-
-		return resourceEditorInputA && resourceEditorInputB && this.uriIdentityService.extUri.isEqual(resourceEditorInputA.resource, resourceEditorInputB.resource);
+		return arg1 && inputB && this.uriIdentityService.extUri.isEqual(arg1.resource, inputB.resource);
 	}
 
 	private matchesFile(resource: URI, arg2: IEditorInput | IResourceEditorInput | FileChangesEvent | FileOperationEvent): boolean {
@@ -690,7 +685,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return this.uriIdentityService.extUri.isEqualOrParent(resource, arg2.resource);
 		}
 
-		if (arg2 instanceof EditorInput) {
+		if (isEditorInput(arg2)) {
 			const inputResource = arg2.resource;
 			if (!inputResource) {
 				return false;
@@ -703,9 +698,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return this.uriIdentityService.extUri.isEqual(inputResource, resource);
 		}
 
-		const resourceEditorInput = arg2 as IResourceEditorInput;
-
-		return this.uriIdentityService.extUri.isEqual(resourceEditorInput?.resource, resource);
+		return this.uriIdentityService.extUri.isEqual(arg2?.resource, resource);
 	}
 
 	//#endregion
@@ -950,13 +943,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private includeInHistory(input: IEditorInput | IResourceEditorInput): boolean {
-		if (input instanceof EditorInput) {
+		if (isEditorInput(input)) {
 			return true; // include any non files
 		}
 
-		const resourceEditorInput = input as IResourceEditorInput;
-
-		return !this.resourceExcludeMatcher.value.matches(resourceEditorInput.resource);
+		return !this.resourceExcludeMatcher.value.matches(input.resource);
 	}
 
 	private removeExcludedFromHistory(): void {
@@ -1153,16 +1144,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// Multiple folders: find the last active one
 		for (const input of this.getHistory()) {
-			if (input instanceof EditorInput) {
+			if (isEditorInput(input)) {
 				continue;
 			}
 
-			const resourceEditorInput = input as IResourceEditorInput;
-			if (schemeFilter && resourceEditorInput.resource.scheme !== schemeFilter) {
+			if (schemeFilter && input.resource.scheme !== schemeFilter) {
 				continue;
 			}
 
-			const resourceWorkspace = this.contextService.getWorkspaceFolder(resourceEditorInput.resource);
+			const resourceWorkspace = this.contextService.getWorkspaceFolder(input.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace.uri;
 			}
@@ -1182,10 +1172,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 	getLastActiveFile(filterByScheme: string): URI | undefined {
 		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
-			if (input instanceof EditorInput) {
+			if (isEditorInput(input)) {
 				resource = EditorResourceAccessor.getOriginalUri(input, { filterByScheme });
 			} else {
-				resource = (input as IResourceEditorInput).resource;
+				resource = input.resource;
 			}
 
 			if (resource?.scheme === filterByScheme) {
