@@ -155,8 +155,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 					label,
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
-						await this.terminalService.showPanel(true);
-
+						await this.terminalGroupService.showPanel(true);
 						this.terminalService.setActiveInstance(terminal);
 					}
 				});

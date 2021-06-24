@@ -12,6 +12,7 @@ import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contri
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -29,7 +30,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	override copy(): IEditorInput {
 		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
-		return new TerminalEditorInput(instance, this._themeService, this._terminalInstanceService);
+		return this._instantiationService.createInstance(TerminalEditorInput, instance);
 	}
 
 	/**
@@ -46,7 +47,8 @@ export class TerminalEditorInput extends EditorInput {
 	constructor(
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));

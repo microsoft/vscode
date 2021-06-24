@@ -176,16 +176,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	refreshActiveGroup(): void;
 
-	showPanel(focus?: boolean): Promise<void>;
-	hidePanel(): void;
-	focusFindWidget(): Promise<void>;
-	hideFindWidget(): void;
-	getFindState(): FindReplaceState;
-	findNext(): void;
-	findPrevious(): void;
-	focusTabs(): void;
-	showTabs(): void;
-
 	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
@@ -206,13 +196,15 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+
+	getFindHost(): ITerminalFindHost;
 }
 
 /**
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService extends ITerminalInstanceHost {
+export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal editor_ instances. */
@@ -228,7 +220,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
  * within the terminal panel, not in an editor.
  */
-export interface ITerminalGroupService extends ITerminalInstanceHost {
+export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
@@ -269,6 +261,11 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 
 	setContainer(container: HTMLElement): void;
+
+	showPanel(focus?: boolean): Promise<void>;
+	hidePanel(): void;
+	focusTabs(): void;
+	showTabs(): void;
 }
 
 /**
@@ -284,6 +281,14 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+}
+
+export interface ITerminalFindHost {
+	focusFindWidget(): void;
+	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
+	findNext(): void;
+	findPrevious(): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

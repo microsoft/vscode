@@ -101,7 +101,7 @@ export class TerminalTabbedView extends Disposable {
 		this._terminalContainer = $('.terminal-groups-container');
 		terminalOuterContainer.appendChild(this._terminalContainer);
 
-		this._findWidget = this._register(this._instantiationService.createInstance(TerminalFindWidget, this._terminalService.getFindState()));
+		this._findWidget = this._register(this._instantiationService.createInstance(TerminalFindWidget, this._terminalGroupService.getFindState()));
 		terminalOuterContainer.appendChild(this._findWidget.getDomNode());
 
 		this._terminalService.setContainers(parentElement, this._terminalContainer);
