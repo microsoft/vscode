@@ -581,11 +581,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				(editor as IUntypedEditorInput).options = options;
 			}
 		}
-
-
-
 		return [resolvedGroup, options];
-
 	}
 
 	private findTargetGroup(editor: IEditorInput | IUntypedEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): IEditorGroup {
@@ -692,7 +688,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), editors);
 		} else {
 			for (const editor of editors) {
-
 				const targetGroup = isEditorInputWithOptions(editor) ? this.findTargetGroup(editor.editor, editor.options, group) : this.findTargetGroup(editor, editor.options, group);
 
 				let targetGroupEditors = mapGroupToEditorsCandidates.get(targetGroup);
@@ -718,8 +713,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				let editorOverride: IEditorInputWithOptions | undefined;
-				const options = editor.options;
-				if (options?.override !== EditorOverride.DISABLED) {
+				if (editor.options?.override !== EditorOverride.DISABLED) {
 					const editorToOverride = isEditorInputWithOptions(editor) ? editor.editor.toUntyped(group.id, UntypedEditorContext.Default) : editor;
 					if (!editorToOverride) {
 						continue;

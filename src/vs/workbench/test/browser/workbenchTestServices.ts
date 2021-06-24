@@ -1480,7 +1480,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.dirty = false;
 	}
 
-	override 	toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
 		return { resource: this.resource };
 	}
 	setDirty(): void { this.dirty = true; }
