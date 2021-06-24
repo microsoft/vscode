@@ -135,7 +135,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.multiSessionRepl.set(this.isMultiSessionView);
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
 		this.registerListeners();
@@ -544,6 +543,7 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		super.renderBody(parent);
 		this.container = dom.append(parent, $('.repl'));
 		this.treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
+		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.createReplInput(this.container);
 		this.createReplTree();
 	}
