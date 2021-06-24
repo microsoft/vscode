@@ -10,7 +10,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { alert as ariaAlert } from 'vs/base/browser/ui/aria/aria';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IInputOptions, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { CachedListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DefaultStyleController, IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { ISelectOptionItem, SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
@@ -500,7 +500,7 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
-	inputBox: InputBox;
+	inputBox?: InputBox;
 	validationErrorMessageElement: HTMLElement;
 }
 
@@ -600,6 +600,11 @@ function addChildrenToTabOrder(node: Element): void {
 	});
 }
 
+export interface HeightChangeParams {
+	element: SettingsTreeElement;
+	height: number;
+}
+
 export abstract class AbstractSettingRenderer extends Disposable implements ITreeRenderer<SettingsTreeElement, never, any> {
 	/** To override */
 	abstract get templateId(): string;
@@ -632,6 +637,9 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private ignoredSettings: string[];
 	private readonly _onDidChangeIgnoredSettings = this._register(new Emitter<void>());
 	readonly onDidChangeIgnoredSettings: Event<void> = this._onDidChangeIgnoredSettings.event;
+
+	protected readonly _onDidChangeSettingHeight = this._register(new Emitter<HeightChangeParams>());
+	readonly onDidChangeSettingHeight: Event<HeightChangeParams> = this._onDidChangeSettingHeight.event;
 
 	constructor(
 		private readonly settingActions: IAction[],
@@ -1424,39 +1432,12 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 		const common = this.renderCommonTemplate(null, _container, 'text');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
-		const inputBox = new InputBox(common.controlElement, this._contextViewService);
-		common.toDispose.add(inputBox);
-		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
-		}));
-		common.toDispose.add(
-			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
-				}
-			}));
-		common.toDispose.add(inputBox);
-		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
-
-		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
-		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
-		common.toDispose.add(DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
-			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
-				e.preventDefault();
-			}
-		}));
-
 		const template: ISettingTextItemTemplate = {
 			...common,
-			inputBox,
 			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
-
 		return template;
 	}
 
@@ -1465,6 +1446,10 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
+		if (!template.inputBox) {
+			template.inputBox = this.createInputBox(dataElement, template);
+		}
+
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
@@ -1474,6 +1459,40 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 		};
 
 		renderValidations(dataElement, template, true);
+	}
+
+	private createInputBox(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate): InputBox {
+		const useMultiline = dataElement.setting.editPresentation === 'multilineText';
+		const inputBoxOptions: IInputOptions = {
+			flexibleHeight: useMultiline,
+			flexibleWidth: false
+		};
+		const inputBox = new InputBox(template.controlElement, this._contextViewService, inputBoxOptions);
+		template.toDispose.add(inputBox);
+		template.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		template.toDispose.add(
+			inputBox.onDidChange(e => {
+				if (template.onChange) {
+					template.onChange(e);
+				}
+			})
+		);
+		template.toDispose.add(
+			inputBox.onDidHeightChange(e => {
+				this._onDidChangeSettingHeight.fire({
+					element: dataElement,
+					height: e
+				});
+			})
+		);
+		template.toDispose.add(inputBox);
+		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		inputBox.inputElement.tabIndex = 0;
+		return inputBox;
 	}
 }
 
@@ -1618,7 +1637,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		template.onChange = undefined;
-		template.inputBox.value = dataElement.value;
+		template.inputBox!.value = dataElement.value;
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1770,6 +1789,8 @@ export class SettingTreeRenderers {
 
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement>;
 
+	readonly onDidChangeSettingHeight: Event<HeightChangeParams>;
+
 	readonly allRenderers: ITreeRenderer<SettingsTreeElement, never, any>[];
 
 	private readonly settingActions: IAction[];
@@ -1815,6 +1836,7 @@ export class SettingTreeRenderers {
 		this.onDidOpenSettings = Event.any(...settingRenderers.map(r => r.onDidOpenSettings));
 		this.onDidClickSettingLink = Event.any(...settingRenderers.map(r => r.onDidClickSettingLink));
 		this.onDidFocusSetting = Event.any(...settingRenderers.map(r => r.onDidFocusSetting));
+		this.onDidChangeSettingHeight = Event.any(...settingRenderers.map(r => r.onDidChangeSettingHeight));
 
 		this.allRenderers = [
 			...settingRenderers,
@@ -1876,7 +1898,7 @@ export class SettingTreeRenderers {
  * Validate and render any error message. Returns true if the value is invalid.
  */
 function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean): boolean {
-	if (dataElement.setting.validator) {
+	if (dataElement.setting.validator && template.inputBox) {
 		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
 			template.containerElement.classList.add('invalid-input');

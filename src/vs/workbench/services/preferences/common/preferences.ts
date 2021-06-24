@@ -7,7 +7,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { IRange } from 'vs/editor/common/core/range';
-import { IJSONSchemaMap, IJSONSchema } from 'vs/base/common/jsonSchema';
+import { IJSONSchemaMap, IJSONSchema, EditPresentationTypes } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -84,6 +84,7 @@ export interface ISetting {
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
 	allKeysAreBoolean?: boolean;
+	editPresentation?: EditPresentationTypes;
 }
 
 export interface IExtensionSetting extends ISetting {

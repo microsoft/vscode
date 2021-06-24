@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 export type JSONSchemaType = 'string' | 'number' | 'integer' | 'boolean' | 'null' | 'array' | 'object';
+export type EditPresentationTypes = 'multilineText';
 
 export interface IJSONSchema {
 	id?: string;
@@ -66,6 +67,7 @@ export interface IJSONSchema {
 	suggestSortText?: string;
 	allowComments?: boolean;
 	allowTrailingCommas?: boolean;
+	editPresentation?: EditPresentationTypes;
 }
 
 export interface IJSONSchemaMap {
