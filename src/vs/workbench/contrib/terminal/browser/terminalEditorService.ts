@@ -94,8 +94,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	hideFindWidget(): void {
-		const editor = this._getActiveTerminalEditor();
-		editor?.hideFindWidget();
+		this._getActiveTerminalEditor()?.hideFindWidget();
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
