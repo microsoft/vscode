@@ -120,6 +120,11 @@ interface IPathToOpen extends IPath {
 	// the workspace to open
 	readonly workspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
 
+	// whether the path is considered to be transient or not
+	// for example, a transient workspace should not add to
+	// the workspaces history and should never restore
+	readonly transient?: boolean;
+
 	// the backup path to use
 	readonly backupPath?: string;
 
@@ -354,7 +359,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		if (!usedWindows.some(window => window.isExtensionDevelopmentHost) && !isDiff && !openConfig.noRecentEntry) {
 			const recents: IRecent[] = [];
 			for (const pathToOpen of pathsToOpen) {
-				if (isWorkspacePathToOpen(pathToOpen)) {
+				if (isWorkspacePathToOpen(pathToOpen) && !pathToOpen.transient /* never add transient workspaces to history */) {
 					recents.push({ label: pathToOpen.label, workspace: pathToOpen.workspace, remoteAuthority: pathToOpen.remoteAuthority });
 				} else if (isSingleFolderWorkspacePathToOpen(pathToOpen)) {
 					recents.push({ label: pathToOpen.label, folderUri: pathToOpen.workspace.uri, remoteAuthority: pathToOpen.remoteAuthority });
@@ -958,15 +963,12 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 					if (workspace) {
 
 						// If the workspace is transient and we are to ignore
-						// transient workspaces, reject it. Also remove traces
-						// in the history if any.
+						// transient workspaces, reject it.
 						if (workspace.transient && options.rejectTransientWorkspaces) {
-							this.workspacesHistoryMainService.removeRecentlyOpened([URI.file(path)]);
-
 							return undefined;
 						}
 
-						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true };
+						return { workspace: { id: workspace.id, configPath: workspace.configPath }, remoteAuthority: workspace.remoteAuthority, exists: true, transient: workspace.transient };
 					}
 				}
 
