@@ -123,7 +123,7 @@ export class ExtensionManifestPropertiesService extends Disposable implements IE
 		result = manifest.extensionKind;
 		if (typeof result !== 'undefined') {
 			result = this.toArray(result);
-			// Add web kind if the extension can run as web extension
+			// Override extension declared extensionKind by adding web kind if the extension can run as web extension
 			if (deducedExtensionKind.includes('web') && !result.includes('web')) {
 				result.push('web');
 			}
