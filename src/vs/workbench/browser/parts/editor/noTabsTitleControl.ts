@@ -17,7 +17,6 @@ import { withNullAsUndefined, assertIsDefined, assertAllDefined } from 'vs/base/
 import { IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
 import { equals } from 'vs/base/common/objects';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { coalesce } from 'vs/base/common/arrays';
 
 interface IRenderedEditorLabel {
 	editor?: IEditorInput;

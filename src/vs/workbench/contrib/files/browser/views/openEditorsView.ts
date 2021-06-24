@@ -52,7 +52,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { coalesce } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
