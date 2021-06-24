@@ -560,16 +560,8 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 	}
 
 	onDragOver(data: IDragAndDropData, targetInstance: ITerminalInstance | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | IListDragOverReaction {
-		if (containsDragType(originalEvent, DataTransfers.TERMINALS)) {
-			return {
-				feedback: targetIndex ? [targetIndex] : undefined,
-				accept: true,
-				effect: ListDragOverEffect.Move
-			};
-		}
-
 		if (data instanceof NativeDragAndDropData) {
-			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES)) {
+			if (!containsDragType(originalEvent, DataTransfers.FILES, DataTransfers.RESOURCES, DataTransfers.TERMINALS)) {
 				return false;
 			}
 		}
@@ -580,11 +572,11 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusInstance = targetInstance;
 		}
 
-		if (!targetInstance) {
+		if (!targetInstance && !containsDragType(originalEvent, DataTransfers.TERMINALS)) {
 			return data instanceof ElementsDragAndDropData;
 		}
 
-		if (didChangeAutoFocusInstance) {
+		if (didChangeAutoFocusInstance && targetInstance) {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;

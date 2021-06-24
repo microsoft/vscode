@@ -2026,12 +2026,13 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
-			const uri = URI.parse(JSON.parse(terminalResources)[0]);
-			if (uri.scheme === Schemas.vscodeTerminal) {
-				const side = this._getDropSide(e);
-				this._onDropTerminal.fire({ uri, side });
-				return;
-			}
+			const uri = URI.from({
+				scheme: Schemas.vscodeTerminal,
+				path: URI.parse(JSON.parse(terminalResources)[0]).path
+			});
+			const side = this._getDropSide(e);
+			this._onDropTerminal.fire({ uri, side });
+			return;
 		}
 
 		// Check if files were dragged from the tree explorer

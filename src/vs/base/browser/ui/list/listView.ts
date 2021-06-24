@@ -959,7 +959,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const elements = this.dnd.getDragElements(element);
 
 		event.dataTransfer.effectAllowed = 'copyMove';
-		event.dataTransfer.setData(DataTransfers.TEXT, uri);
+		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
 
 		if (event.dataTransfer.setDragImage) {
 			let label: string | undefined;
