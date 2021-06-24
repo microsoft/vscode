@@ -311,4 +311,23 @@ suite('Arrays', () => {
 		assert.strictEqual(arrays.maxIndex(array, _value => 0), 0);
 		assert.strictEqual(arrays.maxIndex(array, value => value === 'b' ? 5 : 0), 1);
 	});
+
+	test('DecreasingKeyFilter', () => {
+		const array = [1, 2, 5, 5, 7, 8];
+
+		const filter = new arrays.DecreasingKeyFilter(array, i => i);
+
+		assert.deepStrictEqual(filter.filterByDecreasedKey(8), [8]);
+		assert.deepStrictEqual(filter.filterByDecreasedKey(6), null);
+		assert.deepStrictEqual(filter.filterByDecreasedKey(3, 5), [5, 5]);
+	});
+
+	test('filterSortedByKey', () => {
+		const array = [1, 2, 5, 5, 7, 8];
+
+		assert.deepStrictEqual(arrays.filterSortedByKey(array, i => i, 3, 5), [5, 5]);
+		assert.deepStrictEqual(arrays.filterSortedByKey(array, i => i, 5, 5), [5, 5]);
+		assert.deepStrictEqual(arrays.filterSortedByKey(array, i => i, 6, 6), null);
+		assert.deepStrictEqual(arrays.filterSortedByKey(array, i => i, 8, 8), [8]);
+	});
 });

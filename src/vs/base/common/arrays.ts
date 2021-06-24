@@ -588,3 +588,47 @@ export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): numb
 
 	return maxIdx;
 }
+
+/**
+ * Returns an array of all elements `e` with `startKey <= keySelector(e) <= endKey`.
+ * `data` must be sorted in ascending order.
+*/
+export function filterSortedByKey<T>(data: readonly T[], keySelector: (value: T) => number, startKey: number, endKey = startKey): T[] | null {
+	const startIdx = findFirstInSorted(data, x => startKey <= keySelector(x));
+	const endIdx = findFirstInSorted(data, x => endKey < keySelector(x));
+	if (startIdx === endIdx) {
+		return null;
+	}
+	return data.slice(startIdx, endIdx);
+}
+
+/**
+ * This class helps to filter an array by a key when the key decrements for each filter query.
+*/
+export class DecreasingKeyFilter<T> {
+	public static ofSortedDataAsc<T>(data: T[], keySelector: (value: T) => number): DecreasingKeyFilter<T> {
+		return new DecreasingKeyFilter(data, keySelector);
+	}
+
+	private lastIndex = this.data.length - 1;
+
+	constructor(private readonly data: T[], private readonly keySelector: (value: T) => number) {
+	}
+
+	filterByDecreasedKey(startKey: number, endKey = startKey): T[] | null {
+		// This could also be done with binary search
+		let endIdx = this.lastIndex;
+		while (endIdx >= 0 && this.keySelector(this.data[endIdx]) > endKey) {
+			endIdx--;
+		}
+		let startIdx = endIdx;
+		while (startIdx >= 0 && this.keySelector(this.data[startIdx]) >= startKey) {
+			startIdx--;
+		}
+		if (endIdx === startIdx) {
+			return null;
+		}
+		this.lastIndex = startIdx;
+		return this.data.slice(startIdx + 1, endIdx + 1);
+	}
+}

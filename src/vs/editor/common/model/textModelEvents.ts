@@ -255,8 +255,13 @@ export class ModelRawLinesInserted {
 	 * The text that was inserted
 	 */
 	public readonly detail: string[];
+	/**
+	 * The injected text on the line.
+	 */
+	public readonly injectedText: LineInjectedText[] | null;
 
-	constructor(fromLineNumber: number, toLineNumber: number, detail: string[]) {
+	constructor(fromLineNumber: number, toLineNumber: number, detail: string[], injectedText: LineInjectedText[] | null) {
+		this.injectedText = injectedText;
 		this.fromLineNumber = fromLineNumber;
 		this.toLineNumber = toLineNumber;
 		this.detail = detail;

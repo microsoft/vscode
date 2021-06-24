@@ -266,8 +266,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				for (const change of changes) {
 					switch (change.changeType) {
 						case textModelEvents.RawContentChangedType.LinesInserted: {
+							let injectedText: textModelEvents.LineInjectedText[] | null = null;
+							if (change.injectedText) {
+								injectedText = change.injectedText.filter(element => (!element.ownerId || element.ownerId === this._editorId));
+							}
 							for (const line of change.detail) {
-								lineBreaksComputer.addRequest(line, null, null);
+								lineBreaksComputer.addRequest(line, injectedText, null);
 							}
 							break;
 						}

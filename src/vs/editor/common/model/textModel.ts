@@ -39,6 +39,7 @@ import { TextChange } from 'vs/editor/common/model/textChange';
 import { Constants } from 'vs/base/common/uint';
 import { PieceTreeTextBuffer } from 'vs/editor/common/model/pieceTreeTextBuffer/pieceTreeTextBuffer';
 import { listenStream } from 'vs/base/common/stream';
+import { DecreasingKeyFilter, filterSortedByKey } from 'vs/base/common/arrays';
 
 function createTextBufferBuilder() {
 	return new PieceTreeTextBufferBuilder();
@@ -1471,25 +1472,18 @@ export class TextModel extends Disposable implements model.ITextModel {
 				));
 				const injectedText = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 
-				let injectedTextIndex = injectedText.length - 1;
-				let prevLineNumberWithInjectedText = (injectedTextIndex >= 0 ? injectedText[injectedTextIndex].lineNumber : 0);
+				const injectedTextFilter = new DecreasingKeyFilter(injectedText, t => t.lineNumber);
+
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
-					let lineInjectedText: LineInjectedText[] | null = null;
-					if (currentEditLineNumber === prevLineNumberWithInjectedText) {
-						// There is some injected text on this line
-						lineInjectedText = [];
-						while (currentEditLineNumber === prevLineNumberWithInjectedText && injectedTextIndex >= 0) {
-							lineInjectedText.push(injectedText[injectedTextIndex]);
-							injectedTextIndex--;
-							prevLineNumberWithInjectedText = (injectedTextIndex >= 0 ? injectedText[injectedTextIndex].lineNumber : 0);
-						}
-						lineInjectedText.reverse();
-					}
-
-					rawContentChanges.push(new ModelRawLineChanged(editLineNumber, this.getLineContent(currentEditLineNumber), lineInjectedText));
+					rawContentChanges.push(
+						new ModelRawLineChanged(
+							editLineNumber,
+							this.getLineContent(currentEditLineNumber),
+							injectedTextFilter.filterByDecreasedKey(currentEditLineNumber)
+						));
 				}
 
 				if (editingLinesCnt < deletingLinesCnt) {
@@ -1508,7 +1502,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 						let lineNumber = fromLineNumber + i;
 						newLines[lineNumber - fromLineNumber] = this.getLineContent(lineNumber);
 					}
-					rawContentChanges.push(new ModelRawLinesInserted(spliceLineNumber + 1, startLineNumber + insertingLinesCnt, newLines));
+
+					rawContentChanges.push(
+						new ModelRawLinesInserted(
+							spliceLineNumber + 1,
+							startLineNumber + insertingLinesCnt,
+							newLines,
+							filterSortedByKey(injectedText, i => i.lineNumber, fromLineNumber, fromLineNumber + cnt)
+						)
+					);
 				}
 
 				lineCount += changeLineCountDelta;
