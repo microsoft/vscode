@@ -79,8 +79,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	getFindState(): FindReplaceState {
-		const editor = this._getActiveTerminalEditor();
-		return editor?.findState!;
+		this._getActiveTerminalEditor()?.findState;
 	}
 
 	async focusFindWidget(): Promise<void> {
