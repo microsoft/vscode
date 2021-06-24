@@ -872,17 +872,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let label: string;
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
+		let extraClasses: string[];
 
 		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
 			label = resourceOrEditor.getName();
 			description = resourceOrEditor.getDescription();
 			isDirty = resourceOrEditor.isDirty() && !resourceOrEditor.isSaving();
+			extraClasses = resourceOrEditor.getLabelExtraClasses();
 		} else {
 			resource = URI.isUri(resourceOrEditor) ? resourceOrEditor : resourceOrEditor.resource;
 			label = basenameOrAuthority(resource);
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 			isDirty = this.workingCopyService.isDirty(resource) && !configuration.shortAutoSaveDelay;
+			extraClasses = [];
 		}
 
 		const labelAndDescription = description ? `${label} ${description}` : label;
@@ -891,7 +894,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} dirty", labelAndDescription) : labelAndDescription,
 			description,
-			iconClasses: getIconClasses(this.modelService, this.modeService, resource),
+			iconClasses: getIconClasses(this.modelService, this.modeService, resource).concat(extraClasses),
 			buttons: (() => {
 				const openSideBySideDirection = configuration.openSideBySideDirection;
 				const buttons: IQuickInputButton[] = [];
