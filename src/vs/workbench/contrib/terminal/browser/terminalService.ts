@@ -563,6 +563,16 @@ export class TerminalService implements ITerminalService {
 		return this.instances[terminalIndex];
 	}
 
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		if (URI.isUri(resource)) {
+			const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
+			if (instanceId) {
+				return this.getInstanceFromId(instanceId);
+			}
+		}
+		return undefined;
+	}
+
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
@@ -617,6 +627,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
+		if (URI.isUri(source)) {
+			source = this.getInstanceFromResource(source);
+		}
+
 		if (source) {
 			this._terminalEditorService.detachInstance(source);
 		} else {

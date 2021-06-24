@@ -31,7 +31,6 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
 import { Direction, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TerminalLocation, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -258,18 +257,9 @@ export function registerTerminalActions() {
 				category
 			});
 		}
-		async run(accessor: ServicesAccessor, resource: URI | undefined) {
-			console.log('resource', resource);
-			const terminalService = accessor.get(ITerminalService);
-			let instance: ITerminalInstance | undefined;
-			if (URI.isUri(resource)) {
-				// TODO: Expose getInstanceFromUri on TerminalService
-				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
-				if (instanceId) {
-					instance = terminalService.getInstanceFromId(instanceId);
-				}
-			}
-			await terminalService.moveToTerminalView(instance);
+		async run(accessor: ServicesAccessor, resource: unknown) {
+			const castedResource = URI.isUri(resource) ? resource : undefined;
+			await accessor.get(ITerminalService).moveToTerminalView(castedResource);
 		}
 	});
 
