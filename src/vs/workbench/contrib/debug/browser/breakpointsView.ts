@@ -6,8 +6,8 @@
 import * as resources from 'vs/base/common/resources';
 import * as dom from 'vs/base/browser/dom';
 import { Action, IAction } from 'vs/base/common/actions';
-import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, IBaseBreakpoint, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_INPUT_FOCUSED } from 'vs/workbench/contrib/debug/common/debug';
-import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IDebugService, IBreakpoint, CONTEXT_BREAKPOINTS_FOCUSED, State, DEBUG_SCHEME, IFunctionBreakpoint, IExceptionBreakpoint, IEnablement, IDebugModel, IDataBreakpoint, BREAKPOINTS_VIEW_ID, CONTEXT_BREAKPOINT_ITEM_TYPE, CONTEXT_BREAKPOINT_SUPPORTS_CONDITION, CONTEXT_BREAKPOINTS_EXIST, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_IN_DEBUG_MODE, IBaseBreakpoint, IBreakpointEditorContribution, BREAKPOINT_EDITOR_CONTRIBUTION_ID, CONTEXT_BREAKPOINT_INPUT_FOCUSED, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { ExceptionBreakpoint, FunctionBreakpoint, Breakpoint, DataBreakpoint, InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -60,7 +60,7 @@ export function getExpandedBodySize(model: IDebugModel, countLimit: number): num
 	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
 	return Math.min(countLimit, length) * 22;
 }
-type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint;
+type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
 
 interface InputBoxData {
 	breakpoint: IFunctionBreakpoint | IExceptionBreakpoint;
@@ -120,7 +120,8 @@ export class BreakpointsView extends ViewPane {
 			new ExceptionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService),
 			this.instantiationService.createInstance(FunctionBreakpointsRenderer, this.menu, this.breakpointSupportsCondition, this.breakpointItemType),
 			this.instantiationService.createInstance(DataBreakpointsRenderer),
-			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService, this.labelService)
+			new FunctionBreakpointInputRenderer(this, this.debugService, this.contextViewService, this.themeService, this.labelService),
+			this.instantiationService.createInstance(InstructionBreakpointsRenderer),
 		], {
 			identityProvider: { getId: (element: IEnablement) => element.getId() },
 			multipleSelectionSupport: false,
@@ -142,6 +143,8 @@ export class BreakpointsView extends ViewPane {
 				await this.debugService.removeFunctionBreakpoints(element.getId());
 			} else if (element instanceof DataBreakpoint) {
 				await this.debugService.removeDataBreakpoints(element.getId());
+			} else if (element instanceof InstructionBreakpoint) {
+				await this.debugService.removeInstructionBreakpoints(element.instructionReference);
 			}
 		});
 
@@ -326,6 +329,9 @@ class BreakpointsDelegate implements IListVirtualDelegate<BreakpointItem> {
 		if (element instanceof DataBreakpoint) {
 			return DataBreakpointsRenderer.ID;
 		}
+		if (element instanceof InstructionBreakpoint) {
+			return InstructionBreakpointsRenderer.ID;
+		}
 
 		return '';
 	}
@@ -360,6 +366,10 @@ interface IFunctionBreakpointTemplateData extends IBaseBreakpointWithIconTemplat
 
 interface IDataBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
 	accessType: HTMLElement;
+}
+
+interface IInstructionBreakpointTemplateData extends IBaseBreakpointWithIconTemplateData {
+	address: HTMLElement;
 }
 
 interface IFunctionBreakpointInputTemplateData {
@@ -673,6 +683,71 @@ class DataBreakpointsRenderer implements IListRenderer<DataBreakpoint, IDataBrea
 	}
 }
 
+class InstructionBreakpointsRenderer implements IListRenderer<IInstructionBreakpoint, IInstructionBreakpointTemplateData> {
+
+	constructor(
+		@IDebugService private readonly debugService: IDebugService,
+		@ILabelService private readonly labelService: ILabelService
+	) {
+		// noop
+	}
+
+	static readonly ID = 'instructionBreakpoints';
+
+	get templateId() {
+		return InstructionBreakpointsRenderer.ID;
+	}
+
+	renderTemplate(container: HTMLElement): IInstructionBreakpointTemplateData {
+		const data: IInstructionBreakpointTemplateData = Object.create(null);
+		data.breakpoint = dom.append(container, $('.breakpoint'));
+
+		data.icon = $('.icon');
+		data.checkbox = createCheckbox();
+		data.toDispose = [];
+		data.elementDisposable = [];
+		data.toDispose.push(dom.addStandardDisposableListener(data.checkbox, 'change', (e) => {
+			this.debugService.enableOrDisableBreakpoints(!data.context.enabled, data.context);
+		}));
+
+		dom.append(data.breakpoint, data.icon);
+		dom.append(data.breakpoint, data.checkbox);
+
+		data.name = dom.append(data.breakpoint, $('span.name'));
+
+		data.address = dom.append(data.breakpoint, $('span.file-path'));
+		data.actionBar = new ActionBar(data.breakpoint);
+		data.toDispose.push(data.actionBar);
+
+		return data;
+	}
+
+	renderElement(breakpoint: IInstructionBreakpoint, index: number, data: IInstructionBreakpointTemplateData): void {
+		data.context = breakpoint;
+		data.breakpoint.classList.toggle('disabled', !this.debugService.getModel().areBreakpointsActivated());
+
+		data.name.textContent = breakpoint.instructionReference;
+		data.checkbox.checked = breakpoint.enabled;
+
+		const { message, icon } = getBreakpointMessageAndIcon(this.debugService.state, this.debugService.getModel().areBreakpointsActivated(), breakpoint, this.labelService);
+		data.icon.className = ThemeIcon.asClassName(icon);
+		data.breakpoint.title = breakpoint.message || message || '';
+
+		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
+		if (debugActive && !breakpoint.verified) {
+			data.breakpoint.classList.add('disabled');
+		}
+	}
+
+	disposeElement(_element: IInstructionBreakpoint, _index: number, templateData: IInstructionBreakpointTemplateData): void {
+		dispose(templateData.elementDisposable);
+	}
+
+	disposeTemplate(templateData: IInstructionBreakpointTemplateData): void {
+		dispose(templateData.toDispose);
+	}
+}
+
 class FunctionBreakpointInputRenderer implements IListRenderer<IFunctionBreakpoint, IFunctionBreakpointInputTemplateData> {
 
 	constructor(
@@ -927,7 +1002,7 @@ export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolea
 	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
-export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: IBreakpoint | IFunctionBreakpoint | IDataBreakpoint, labelService?: ILabelService): { message?: string, icon: ThemeIcon } {
+export function getBreakpointMessageAndIcon(state: State, breakpointsActivated: boolean, breakpoint: BreakpointItem, labelService?: ILabelService): { message?: string, icon: ThemeIcon } {
 	const debugActive = state === State.Running || state === State.Stopped;
 
 	const breakpointIcon = breakpoint instanceof DataBreakpoint ? icons.dataBreakpoint : breakpoint instanceof FunctionBreakpoint ? icons.functionBreakpoint : breakpoint.logMessage ? icons.logBreakpoint : icons.breakpoint;

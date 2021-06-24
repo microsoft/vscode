@@ -927,7 +927,7 @@ export class InstructionBreakpoint extends BaseBreakpoint implements IInstructio
 
 	override toJSON(): any {
 		const result = super.toJSON();
-		result.address = this.instructionReference;
+		result.instructionReference = this.instructionReference;
 		result.offset = this.offset;
 		return result;
 	}

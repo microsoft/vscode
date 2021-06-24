@@ -17,7 +17,7 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -25,6 +25,8 @@ import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Color } from 'vs/base/common/color';
+import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -43,6 +45,7 @@ export class DisassemblyView extends EditorPane {
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _privousDebuggingState: State;
+	disassemblyViewFocus: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -50,6 +53,7 @@ export class DisassemblyView extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super(DISASSEMBLY_VIEW_ID, telemetryService, themeService, storageService);
@@ -65,6 +69,7 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._privousDebuggingState = _debugService.state;
+		this.disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	get fontInfo() { return this._fontInfo; }
@@ -137,9 +142,10 @@ export class DisassemblyView extends EditorPane {
 		}));
 
 		this._register(this._debugService.getViewModel().onDidFocusStackFrame((stackFrame) => {
-			if (this._disassembledInstructions) {
+			if (this._disassembledInstructions && this._currentInstructionAddress !== stackFrame.stackFrame?.instructionPointerReference) {
 				this._currentInstructionAddress = stackFrame.stackFrame?.instructionPointerReference;
 				if (this._currentInstructionAddress) {
+					console.log(`DisassemblyView: ${this._currentInstructionAddress}`);
 					const index = this.getIndexFromAddress(this._currentInstructionAddress);
 					if (index >= 0) {
 						// If the row is out of the viewport, reveal it
@@ -162,9 +168,41 @@ export class DisassemblyView extends EditorPane {
 						this.reloadDisassembly();
 					}
 				}
+
+				this._onDidChangeStackFrame.fire();
+			}
+		}));
+
+		// refresh breakpoints view
+		this._register(this._debugService.getModel().onDidChangeBreakpoints(bpEvent => {
+			if (bpEvent && this._disassembledInstructions) {
+				// draw viewable BP
+				let changed = false;
+				bpEvent.added?.forEach((bp) => {
+					if (bp instanceof InstructionBreakpoint) {
+						const index = this.getIndexFromAddress(bp.instructionReference);
+						if (index >= 0) {
+							this._disassembledInstructions!.row(index).isBreakpointSet = true;
+							changed = true;
+						}
+					}
+				});
+
+				bpEvent.removed?.forEach((bp) => {
+					if (bp instanceof InstructionBreakpoint) {
+						const index = this.getIndexFromAddress(bp.instructionReference);
+						if (index >= 0) {
+							this._disassembledInstructions!.row(index).isBreakpointSet = false;
+							changed = true;
+						}
+					}
+				});
+
+				if (changed) {
+					this._onDidChangeStackFrame.fire();
+				}
 			}
 
-			this._onDidChangeStackFrame.fire();
 		}));
 
 		this._register(this._debugService.onDidChangeState(e => {
@@ -184,13 +222,21 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	private async scrollUp_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
-		return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+			const address: string | undefined = this._disassembledInstructions?.row(0).instruction.address;
+			return this.loadDisassembledInstructions(address, -instructionCount, instructionCount - 1);
+		}
+
+		return false;
 	}
 
 	private async scrollDown_LoadDisassembledInstructions(instructionCount: number): Promise<boolean> {
-		const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
-		return this.loadDisassembledInstructions(address, 1, instructionCount);
+		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+			const address: string | undefined = this._disassembledInstructions?.row(this._disassembledInstructions?.length - 1).instruction.address;
+			return this.loadDisassembledInstructions(address, 1, instructionCount);
+		}
+
+		return false;
 	}
 
 	private async loadDisassembledInstructions(address: string | undefined, instructionOffset: number, instructionCount: number): Promise<boolean> {
@@ -200,9 +246,12 @@ export class DisassemblyView extends EditorPane {
 			if (frame?.instructionPointerReference) {
 				address = frame.instructionPointerReference;
 				this._currentInstructionAddress = address;
+			} else {
+				return false;
 			}
 		}
 
+		console.log(`DisassemblyView: loadDisassembledInstructions ${address}, ${instructionOffset}, ${instructionCount}`);
 		const session = this._debugService.getViewModel().focusedSession;
 		const resultEntries = await session?.disassemble(address!, 0, instructionOffset, instructionCount);
 		if (session && resultEntries && this._disassembledInstructions) {
@@ -332,6 +381,14 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			} else {
 				templateData.icon.classList.remove(this._debugStackframe);
 			}
+
+			templateData.icon.classList.remove(this._breakpointHintIcon);
+
+			if (element.isBreakpointSet) {
+				templateData.icon.classList.add(this._breakpointIcon);
+			} else {
+				templateData.icon.classList.remove(this._breakpointIcon);
+			}
 		};
 
 		rerenderDebugStackframe();
@@ -340,13 +397,6 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 		// TODO: see getBreakpointMessageAndIcon in vs\workbench\contrib\debug\browser\breakpointEditorContribution.ts
 		//       for more types of breakpoint icons
 		if (element.allowBreakpoint) {
-			if (element.isBreakpointSet) {
-				templateData.icon.classList.add(this._breakpointIcon);
-			} else {
-				templateData.icon.classList.remove(this._breakpointIcon);
-			}
-
-
 			templateData.disposables.push(addStandardDisposableListener(templateData.container, 'mouseover', () => {
 				templateData.icon.classList.add(this._breakpointHintIcon);
 			}));
@@ -356,17 +406,13 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 			}));
 
 			templateData.disposables.push(addStandardDisposableListener(templateData.container, 'click', () => {
+				// click show hint while waiting for BP to resolve.
+				templateData.icon.classList.add(this._breakpointHintIcon);
 				if (element.isBreakpointSet) {
-					this._debugService.removeInstructionBreakpoints(element.instruction.address).then(() => {
-						element.isBreakpointSet = false;
-						templateData.icon.classList.remove(this._breakpointIcon);
-					});
+					this._debugService.removeInstructionBreakpoints(element.instruction.address);
 
 				} else if (element.allowBreakpoint && !element.isBreakpointSet) {
-					this._debugService.addInstructionBreakpoint(element.instruction.address, 0).then(() => {
-						element.isBreakpointSet = true;
-						templateData.icon.classList.add(this._breakpointIcon);
-					});
+					this._debugService.addInstructionBreakpoint(element.instruction.address, 0);
 				}
 			}));
 		}

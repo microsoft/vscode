@@ -82,6 +82,7 @@ export const CONTEXT_EXCEPTION_WIDGET_VISIBLE = new RawContextKey<boolean>('exce
 export const CONTEXT_MULTI_SESSION_REPL = new RawContextKey<boolean>('multiSessionRepl', false, { type: 'boolean', description: nls.localize('multiSessionRepl', "True when there is more than 1 debug console.") });
 export const CONTEXT_MULTI_SESSION_DEBUG = new RawContextKey<boolean>('multiSessionDebug', false, { type: 'boolean', description: nls.localize('multiSessionDebug', "True when there is more than 1 active debug session.") });
 export const CONTEXT_DISASSEMBLE_REQUEST_SUPPORTED = new RawContextKey<boolean>('disassembleRequestSupported', false, { type: 'boolean', description: nls.localize('disassembleRequestSupported', "True when the focused sessions supports disassemble request.") });
+export const CONTEXT_DISASSEMBLE_VIEW_FOCUS = new RawContextKey<boolean>('disassembleViewFocus', false, { type: 'boolean', description: nls.localize('disassembleViewFocus', "True when the Disassembly View is in focused.") });
 
 export const EDITOR_CONTRIBUTION_ID = 'editor.contrib.debug';
 export const BREAKPOINT_EDITOR_CONTRIBUTION_ID = 'editor.contrib.breakpoint';
@@ -270,11 +271,11 @@ export interface IDebugSession extends ITreeElement {
 	disassemble(memoryReference: string, offset: number, instructionOffset: number, instructionCount: number): Promise<DebugProtocol.DisassembledInstruction[] | undefined>;
 
 	restartFrame(frameId: number, threadId: number): Promise<void>;
-	next(threadId: number): Promise<void>;
-	stepIn(threadId: number, targetId?: number): Promise<void>;
+	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	stepInTargets(frameId: number): Promise<{ id: number, label: string }[] | undefined>;
-	stepOut(threadId: number): Promise<void>;
-	stepBack(threadId: number): Promise<void>;
+	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
+	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void>;
 	continue(threadId: number): Promise<void>;
 	reverseContinue(threadId: number): Promise<void>;
 	pause(threadId: number): Promise<void>;

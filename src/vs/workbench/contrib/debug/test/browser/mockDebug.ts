@@ -362,16 +362,16 @@ export class MockSession implements IDebugSession {
 	restartFrame(frameId: number, threadId: number): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	next(threadId: number): Promise<void> {
+	next(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepIn(threadId: number, targetId?: number): Promise<void> {
+	stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepOut(threadId: number): Promise<void> {
+	stepOut(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
-	stepBack(threadId: number): Promise<void> {
+	stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
 	continue(threadId: number): Promise<void> {

@@ -10,7 +10,7 @@ import severity from 'vs/base/common/severity';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debug';
+import { IDebugSession, IConfig, IThread, IRawModelUpdate, IDebugService, IRawStoppedDetails, State, LoadedSourceEvent, IFunctionBreakpoint, IExceptionBreakpoint, IBreakpoint, IExceptionInfo, AdapterEndEvent, IDebugger, VIEWLET_ID, IDebugConfiguration, IReplElement, IStackFrame, IExpression, IReplElementSource, IDataBreakpoint, IDebugSessionOptions, IInstructionBreakpoint, CONTEXT_DISASSEMBLE_VIEW_FOCUS } from 'vs/workbench/contrib/debug/common/debug';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
 import { mixin } from 'vs/base/common/objects';
 import { Thread, ExpressionContainer, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
@@ -36,6 +36,7 @@ import { filterExceptionsFromTelemetry } from 'vs/workbench/contrib/debug/common
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class DebugSession implements IDebugSession {
 
@@ -51,6 +52,7 @@ export class DebugSession implements IDebugSession {
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
 	private stoppedDetails: IRawStoppedDetails[] = [];
+	private _disassemblyViewFocus: IContextKey<boolean>;
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -83,7 +85,8 @@ export class DebugSession implements IDebugSession {
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService
+		@ICustomEndpointTelemetryService private readonly customEndpointTelemetryService: ICustomEndpointTelemetryService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		this._options = options || {};
 		if (this.hasSeparateRepl()) {
@@ -105,6 +108,8 @@ export class DebugSession implements IDebugSession {
 		if (compoundRoot) {
 			toDispose.push(compoundRoot.onDidSessionStop(() => this.terminate()));
 		}
+
+		this._disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	getId(): string {
@@ -558,12 +563,20 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'next'));
 		}
 
+		if (this._disassemblyViewFocus.get()) {
+			granularity = 'instruction';
+		}
+
 		await this.raw.next({ threadId, granularity });
 	}
 
 	async stepIn(threadId: number, targetId?: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepIn'));
+		}
+
+		if (this._disassemblyViewFocus.get()) {
+			granularity = 'instruction';
 		}
 
 		await this.raw.stepIn({ threadId, targetId, granularity });
@@ -574,12 +587,20 @@ export class DebugSession implements IDebugSession {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepOut'));
 		}
 
+		if (this._disassemblyViewFocus.get()) {
+			granularity = 'instruction';
+		}
+
 		await this.raw.stepOut({ threadId, granularity });
 	}
 
 	async stepBack(threadId: number, granularity?: DebugProtocol.SteppingGranularity): Promise<void> {
 		if (!this.raw) {
 			throw new Error(localize('noDebugAdapter', "No debugger available, can not send '{0}'", 'stepBack'));
+		}
+
+		if (this._disassemblyViewFocus.get()) {
+			granularity = 'instruction';
 		}
 
 		await this.raw.stepBack({ threadId, granularity });
@@ -859,7 +880,8 @@ export class DebugSession implements IDebugSession {
 				// Second retrieves the rest of the call stack. For performance reasons #25605
 				const promises = this.model.fetchCallStack(<Thread>thread);
 				const focus = async () => {
-					if (!event.body.preserveFocusHint && thread.getCallStack().length) {
+					// Don't switch view when DisassemblyView is in focus.
+					if (!event.body.preserveFocusHint && !this._disassemblyViewFocus.get() && thread.getCallStack().length) {
 						await this.debugService.focusStackFrame(undefined, thread);
 						if (thread.stoppedDetails) {
 							if (this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {

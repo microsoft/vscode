@@ -54,6 +54,7 @@ class ToggleBreakpointAction extends EditorAction2 {
 	}
 
 	async runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor, ...args: any[]): Promise<void> {
+		// TODO: add disassembly F9
 		if (editor.hasModel()) {
 			const debugService = accessor.get(IDebugService);
 			const modelUri = editor.getModel().uri;
