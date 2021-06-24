@@ -31,7 +31,7 @@ import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISelectOptionItem } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
-import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
@@ -43,7 +43,6 @@ import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -572,18 +571,8 @@ class TerminalThemeIconStyle extends Themable {
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
 				css += (
 					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon,` +
-					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
 					`{background-image: ${dom.asCSSUrl(uri)};}`
 				);
-			}
-			if (ThemeIcon.isThemeIcon(icon)) {
-				const codicon = iconRegistry.get(icon.id);
-
-				css += (
-					`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
-					`{content: '${(codicon?.definition as IconDefinition).fontCharacter}' !important;}`
-				);
-
 			}
 		}
 
@@ -598,7 +587,6 @@ class TerminalThemeIconStyle extends Themable {
 				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
 				css += (
 					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon),` +
-					`.monaco-workbench .terminal-tab.${colorClass}::before` +
 					`{ color: ${color} !important; }`
 				);
 			}
