@@ -52,11 +52,7 @@ export interface ITerminalInstanceService {
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
 
-	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance;
-
-	onEditorInstanceCreated: Event<ITerminalInstance>;
-	//TODO: adopt in group service
-	onGroupInstanceCreated: Event<ITerminalInstance>;
+	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation): ITerminalInstance;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {

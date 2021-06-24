@@ -94,7 +94,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}
 
 		if ('pid' in instance) {
-			instance = this._terminalInstanceService.createInstance({ config: { attachPersistentProcess: instance } }, TerminalLocation.Editor);
+			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
 		}
 
 		const input = new TerminalEditorInput(instance, this._terminalInstanceService);
