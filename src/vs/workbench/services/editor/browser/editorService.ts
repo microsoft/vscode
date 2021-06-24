@@ -736,9 +736,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				if (editorOverride) {
-					targetGroupEditors.push(
-						{ editor: editorOverride.editor, options: editorOverride.options }
-					);
+					targetGroupEditors.push(editorOverride);
 				} else if (isEditorInputWithOptions(editor)) {
 					targetGroupEditors.push(editor);
 				}
