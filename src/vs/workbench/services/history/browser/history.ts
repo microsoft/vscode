@@ -145,10 +145,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this._register(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this._register(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
-		this._register(this.storageService.onWillSaveState(() => this.saveState()));
+		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+
 		this._register(this.fileService.onDidFilesChange(event => this.onDidFilesChange(event)));
 		this._register(this.fileService.onDidRunOperation(event => this.onDidFilesChange(event)));
-		this._register(this.editorService.onDidMostRecentlyActiveEditorsChange(() => this.handleEditorEventInRecentEditorsStack()));
+
+		this._register(this.storageService.onWillSaveState(() => this.saveState()));
 
 		// if the service is created late enough that an editor is already opened
 		// make sure to trigger the onActiveEditorChanged() to track the editor
@@ -203,7 +205,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Dispose old listeners
 		this.activeEditorListeners.clear();
 
-		// Propagate to history
+		// Handle editor change
 		this.handleActiveEditorChange(activeEditorPane);
 
 		// Apply listener for selection changes if this is a text editor
@@ -920,7 +922,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		this.addToHistory(input);
 	}
 
-	private addToHistory(input: IEditorInput | IResourceEditorInput): void {
+	private addToHistory(input: IEditorInput | IResourceEditorInput, insertFirst = true): void {
 		this.ensureHistoryLoaded(this.history);
 
 		const historyInput = this.preferResourceEditorInput(input);
@@ -928,8 +930,12 @@ export class HistoryService extends Disposable implements IHistoryService {
 			return;
 		}
 
-		// Add to beginning
-		this.history.unshift(historyInput);
+		// Insert based on preference
+		if (insertFirst) {
+			this.history.unshift(historyInput);
+		} else {
+			this.history.push(historyInput);
+		}
 
 		// Respect max entries setting
 		if (this.history.length > HistoryService.MAX_HISTORY_ITEMS) {
@@ -1000,16 +1006,76 @@ export class HistoryService extends Disposable implements IHistoryService {
 	getHistory(): readonly (IEditorInput | IResourceEditorInput)[] {
 		this.ensureHistoryLoaded(this.history);
 
-		return this.history.slice(0);
+		return this.history;
 	}
 
 	private ensureHistoryLoaded(history: Array<IEditorInput | IResourceEditorInput> | undefined): asserts history {
 		if (!this.history) {
-			this.history = this.loadHistory();
+
+			// Until history is loaded, it is just empty
+			this.history = [];
+
+			// We want to seed history from opened editors
+			// too as well as previous stored state, so we
+			// need to wait for the editor groups being ready
+			(async () => {
+				await this.editorGroupService.whenReady;
+
+				this.loadHistory();
+			})();
 		}
 	}
 
-	private loadHistory(): Array<IEditorInput | IResourceEditorInput> {
+	private loadHistory(): void {
+
+		// Init as empty before adding - since we are about to
+		// populate the history from opened editors, we capture
+		// the right order here.
+		this.history = [];
+
+		// All stored editors from previous session
+		const storedEditorHistory = this.loadHistoryFromStorage();
+
+		// All restored editors from previous session
+		// in reverse editor from least to most recently
+		// used.
+		const openedEditorsLru = [...this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)].reverse();
+
+		// We want to merge the opened editors from the last
+		// session with the stored editors from the last
+		// session. Because not all editors can be serialised
+		// we want to make sure to include all opened editors
+		// too.
+		// Opened editors should always be first in the history
+
+		const handledEditors = new Set<string /* resource + editorId */>();
+
+		// Add all opened editors first
+		for (const { editor } of openedEditorsLru) {
+			if (!this.includeInHistory(editor)) {
+				continue;
+			}
+
+			// Add into history
+			this.addToHistory(editor);
+
+			// Remember as added
+			if (editor.resource) {
+				handledEditors.add(`${editor.resource.toString()}/${editor.editorId}`);
+			}
+		}
+
+		// Add remaining from storage if not there already
+		// We check on resource and `editorId` (from `override`)
+		// to figure out if the editor has been already added.
+		for (const editor of storedEditorHistory) {
+			if (!handledEditors.has(`${editor.resource.toString()}/${editor.options?.override}`)) {
+				this.addToHistory(editor, false /* at the end */);
+			}
+		}
+	}
+
+	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
 		let entries: ISerializedEditorHistoryEntry[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
