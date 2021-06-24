@@ -811,12 +811,12 @@ suite('Notebook API tests', function () {
 
 	});
 
-	test('#102411 - untitled notebook creation failed', async function () {
-		await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
-		assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
+	// test('#102411 - untitled notebook creation failed', async function () {
+	// 	await vscode.commands.executeCommand('workbench.action.files.newUntitledFile', { viewType: 'notebookCoreTest' });
+	// 	assert.notStrictEqual(vscode.window.activeNotebookEditor, undefined, 'untitled notebook editor is not undefined');
 
-		await closeAllEditors();
-	});
+	// 	await closeAllEditors();
+	// });
 
 	test('#102423 - copy/paste shares the same text buffer', async function () {
 		const resource = await createRandomNotebookFile();
