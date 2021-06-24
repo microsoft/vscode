@@ -137,6 +137,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this.multiSessionRepl.set(this.isMultiSessionView);
+		this.registerListeners();
 	}
 
 	private registerListeners(): void {
@@ -541,9 +543,6 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 	protected override renderBody(parent: HTMLElement): void {
 		super.renderBody(parent);
 		this.container = dom.append(parent, $('.repl'));
-		// Only depend on debug service in renderBody not in constructor to no have cyclic dependency
-		this.multiSessionRepl.set(this.isMultiSessionView);
-		this.registerListeners();
 		this.treeContainer = dom.append(this.container, $(`.repl-tree.${MOUSE_CURSOR_TEXT_CSS_CLASS_NAME}`));
 		this.createReplInput(this.container);
 		this.createReplTree();
