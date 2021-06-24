@@ -582,7 +582,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		let options: IEditorOptions | undefined;
 
 		// Typed Editor Support
-		if (editor instanceof EditorInput) {
+		if (isEditorInput(editor)) {
 			options = optionsOrGroup as IEditorOptions;
 
 			candidateGroup = group;
@@ -591,7 +591,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Untyped Text Editor Support
 		else {
-			const textInput = editor as IUntypedEditorInput;
+			const textInput = editor;
 			candidateGroup = optionsOrGroup as OpenInEditorGroup;
 			options = textInput.options;
 			resolvedGroup = this.findTargetGroup(textInput, options, candidateGroup);
@@ -615,8 +615,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// into the same side group and not cause a group to be created each time.
 			options.activation = EditorActivation.ACTIVATE;
 
-			if (!(editor instanceof EditorInput)) {
-				(editor as IUntypedEditorInput).options = options;
+			if (!isEditorInput(editor)) {
+				editor.options = options;
 			}
 		}
 		return [resolvedGroup, options];
@@ -771,6 +771,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					targetGroupEditors.push(editorOverride);
 				} else if (isEditorInputWithOptions(editor)) {
 					targetGroupEditors.push(editor);
+				} else {
+					targetGroupEditors.push({ editor: this.createEditorInput(editor), options: editor.options });
 				}
 			}
 		}
