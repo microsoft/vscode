@@ -78,10 +78,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override focus() {
-		if (!this._editorInput?.terminalInstance) {
-			return;
-		}
-		this._editorInput.terminalInstance.focus();
+		this._editorInput?.terminalInstance?.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -90,9 +87,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	layout(dimension: Dimension): void {
-		if (this._editorInput?.terminalInstance) {
-			this._editorInput.terminalInstance.layout(dimension);
-		}
+		this._editorInput?.terminalInstance?.layout(dimension);
 		this._lastDimension = dimension;
 	}
 
@@ -108,28 +103,28 @@ export class TerminalEditor extends EditorPane {
 		this._findWidgetVisible.set(true);
 		const activeInstance = this._terminalEditorService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.reveal(activeInstance.selection);
+			this._findWidget.reveal(activeInstance.selection);
 		} else {
-			this._findWidget!.reveal();
+			this._findWidget.reveal();
 		}
 	}
 
 	hideFindWidget() {
 		this._findWidgetVisible.reset();
 		this.focus();
-		this._findWidget!.hide();
+		this._findWidget.hide();
 	}
 
 	showFindWidget() {
 		const activeInstance = this._terminalEditorService.activeInstance;
 		if (activeInstance && activeInstance.hasSelection() && activeInstance.selection!.indexOf('\n') === -1) {
-			this._findWidget!.show(activeInstance.selection);
+			this._findWidget.show(activeInstance.selection);
 		} else {
-			this._findWidget!.show();
+			this._findWidget.show();
 		}
 	}
 
 	getFindWidget(): TerminalFindWidget {
-		return this._findWidget!;
+		return this._findWidget;
 	}
 }
