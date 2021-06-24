@@ -70,12 +70,10 @@ export abstract class SimpleFindWidget extends Widget {
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this._register(this._findInput.onInput((e) => {
-			if (checkImeCompletionState && !this._findInput.isImeSessionInProgress) {
+			if (!checkImeCompletionState || !this._findInput.isImeSessionInProgress) {
 				this.foundMatch = this._onInputChanged();
-
 				this.updateButtons(this.foundMatch);
 				this.focusFindBox();
-
 				this._delayedUpdateHistory();
 			}
 		}));
