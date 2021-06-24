@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
@@ -29,7 +30,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
-		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 		this._register(toDisposable(() => {
@@ -97,7 +99,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
 		}
 
-		const input = new TerminalEditorInput(instance, this._terminalInstanceService);
+		const input = new TerminalEditorInput(instance, this._themeService, this._terminalInstanceService);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [

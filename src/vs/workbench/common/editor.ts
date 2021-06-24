@@ -503,6 +503,11 @@ export interface IEditorInput extends IDisposable {
 	getName(): string;
 
 	/**
+	 * Returns the extra classes to apply to the label of this input.
+	 */
+	getLabelExtraClasses(): string[];
+
+	/**
 	 * Returns the display description of this input.
 	 */
 	getDescription(verbosity?: Verbosity): string | undefined;

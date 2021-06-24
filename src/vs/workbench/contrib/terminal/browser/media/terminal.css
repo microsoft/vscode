@@ -29,6 +29,11 @@
 	outline: 0 !important;
 }
 
+.monaco-workbench .terminal-tab::before {
+	font-family: 'codicon' !important;
+	font-size: 16px !important;
+}
+
 .monaco-workbench .editor-instance .terminal-wrapper,
 .monaco-workbench .pane-body.integrated-terminal .terminal-wrapper {
 	display: none;

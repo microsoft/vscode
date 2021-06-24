@@ -79,14 +79,10 @@ export interface IGettingStartedWalkthroughDescriptor {
 	| { type: 'steps' }
 }
 
-enum IGettingStartedNewMenuEntryDescriptorCategory {
+export enum IGettingStartedNewMenuEntryDescriptorCategory {
 	'file',
 	'notebook',
-	'window',
-	'terminal',
 	'folder',
-	'configuration',
-	'other',
 }
 
 
@@ -165,7 +161,7 @@ export interface IGettingStartedService {
 	progressStep(id: string): void;
 	deprogressStep(id: string): void;
 
-	selectNewEntry(): Promise<void>;
+	selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]): Promise<void>;
 
 	installedExtensionsRegistered: Promise<void>;
 }
@@ -237,19 +233,6 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				title: localize('newUntitledTitle', "Text File"),
 				action: { runCommand: 'workbench.action.files.newUntitledFile' },
 				category: IGettingStartedNewMenuEntryDescriptorCategory.file,
-				from: CoreNewEntryDisplayName,
-			},
-			{
-				title: localize('newWindowTitle', "Local Window"),
-				action: { runCommand: 'workbench.action.newWindow' },
-				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
-				from: CoreNewEntryDisplayName,
-			},
-			{
-				title: localize('newDuplicateWindowTitle', "Duplicate Window"),
-				description: localize('newDuplicateWindowDescription', "Open a new window with the same contents as this window"),
-				action: { runCommand: 'workbench.action.duplicateWorkspaceInNewWindow' },
-				category: IGettingStartedNewMenuEntryDescriptorCategory.window,
 				from: CoreNewEntryDisplayName,
 			},
 			{
@@ -381,22 +364,37 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 	}
 
-	public async selectNewEntry() {
+	public async selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]) {
 		const disposables = new DisposableStore();
 		const qp = this.quickInputService.createQuickPick();
 		qp.title = localize('createNew', "Create New...");
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
+		if (this.newMenuItems
+			.filter(entry => categories.includes(entry.category)).length === 1) {
+			const selection = this.newMenuItems
+				.filter(entry => categories.includes(entry.category))[0];
+
+			if (selection) {
+				if (selection.action.runCommand) {
+					await this.commandService.executeCommand(selection.action.runCommand);
+				} else if (selection.action.invokeFunction) {
+					await this.instantiationService.invokeFunction<unknown>(selection.action.invokeFunction);
+				}
+			}
+		}
+
 		const refreshQp = () => {
 			const items: (((IQuickPickItem & IGettingStartedNewMenuEntryDescriptor) | IQuickPickSeparator))[] = [];
 			let lastSeparator: IGettingStartedNewMenuEntryDescriptorCategory | undefined;
 			this.newMenuItems
+				.filter(entry => categories.length === 0 || categories.includes(entry.category))
 				.filter(entry => this.contextService.contextMatchesRules(entry.when))
 				.forEach((entry) => {
 					const command = entry.action.runCommand;
 					const keybinding = this.keybindingService.lookupKeybinding(command || '', this.contextService);
-					if (lastSeparator !== entry.category) {
+					if (lastSeparator !== entry.category && categories.length !== 1) {
 						items.push({
 							type: 'separator',
 							label: displayCategory[entry.category]
@@ -409,18 +407,13 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 						type: 'item',
 						keybinding,
 						buttons: command ? [
-							keybinding ?
-								{
-									iconClass: 'codicon codicon-edit',
-									tooltip: localize('change keybinding', "Modify Keybinding")
-								} :
-								{
-									iconClass: 'codicon codicon-plus',
-									tooltip: localize('create keybinding', "Create Keybinding")
-								}
+							{
+								iconClass: 'codicon codicon-gear',
+								tooltip: localize('change keybinding', "Configure Keybinding")
+							}
 						] : [],
 						detail: entry.description,
-						description: '',
+						description: entry.from,
 					});
 				});
 			qp.items = items;
@@ -497,7 +490,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 				action: { runCommand: entry.command },
 				description: entry.description,
 				title: entry.title,
-				category: IGettingStartedNewMenuEntryDescriptorCategory[entry.category ?? 'other'],
+				category: IGettingStartedNewMenuEntryDescriptorCategory[entry.category],
 				when: ContextKeyExpr.deserialize(entry.when) ?? ContextKeyExpr.true(),
 				from: extension.displayName ?? extension.name,
 			});
@@ -932,12 +925,8 @@ registerAction2(class extends Action2 {
 });
 
 const displayCategory: Record<IGettingStartedNewMenuEntryDescriptorCategory, string> = {
-	[IGettingStartedNewMenuEntryDescriptorCategory.configuration]: localize('configuration', "Configuration"),
 	[IGettingStartedNewMenuEntryDescriptorCategory.file]: localize('file', "File"),
 	[IGettingStartedNewMenuEntryDescriptorCategory.folder]: localize('folder', "Folder"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.window]: localize('window', "Window"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.terminal]: localize('terminal', "Terminal"),
-	[IGettingStartedNewMenuEntryDescriptorCategory.other]: localize('other', "Other"),
 	[IGettingStartedNewMenuEntryDescriptorCategory.notebook]: localize('notebook', "Notebook"),
 };
 

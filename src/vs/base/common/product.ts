@@ -68,6 +68,7 @@ export interface IProductConfiguration {
 	readonly extensionsGallery?: {
 		readonly serviceUrl: string;
 		readonly itemUrl: string;
+		readonly resourceUrlTemplate?: string;
 		readonly controlUrl: string;
 		readonly recommendationsUrl: string;
 	};
@@ -125,6 +126,7 @@ export interface IProductConfiguration {
 	readonly portable?: string;
 
 	readonly extensionKind?: { readonly [extensionId: string]: ('ui' | 'workspace' | 'web')[]; };
+	readonly extensionPointExtensionKind?: { readonly [extensionPointId: string]: ('ui' | 'workspace' | 'web')[]; };
 	readonly extensionSyncedKeys?: { readonly [extensionId: string]: string[]; };
 	readonly extensionAllowedProposedApi?: readonly string[];
 	readonly extensionUntrustedWorkspaceSupport?: { readonly [extensionId: string]: ExtensionUntrustedWorkspaceSupport };

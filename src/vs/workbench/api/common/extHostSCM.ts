@@ -18,6 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 type ProviderHandle = number;
 type GroupHandle = number;
@@ -660,7 +661,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 
 		_commands.registerArgumentProcessor({
 			processArgument: arg => {
-				if (arg && arg.$mid === 3) {
+				if (arg && arg.$mid === MarshalledId.ScmResource) {
 					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
 
 					if (!sourceControl) {
@@ -674,7 +675,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 					}
 
 					return group.getResourceState(arg.handle);
-				} else if (arg && arg.$mid === 4) {
+				} else if (arg && arg.$mid === MarshalledId.ScmResourceGroup) {
 					const sourceControl = this._sourceControls.get(arg.sourceControlHandle);
 
 					if (!sourceControl) {
@@ -682,7 +683,7 @@ export class ExtHostSCM implements ExtHostSCMShape {
 					}
 
 					return sourceControl.getResourceGroup(arg.groupHandle);
-				} else if (arg && arg.$mid === 5) {
+				} else if (arg && arg.$mid === MarshalledId.ScmProvider) {
 					const sourceControl = this._sourceControls.get(arg.handle);
 
 					if (!sourceControl) {

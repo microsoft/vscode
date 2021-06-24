@@ -32,6 +32,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -51,6 +52,7 @@ export class InteractiveEditor extends EditorPane {
 	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
+	#keybindingService: IKeybindingService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -65,6 +67,7 @@ export class InteractiveEditor extends EditorPane {
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
+		@IKeybindingService keybindingService: IKeybindingService,
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -78,6 +81,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
+		this.#keybindingService = keybindingService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -123,7 +127,12 @@ export class InteractiveEditor extends EditorPane {
 			},
 			cellEditorContributions: []
 		});
-		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), getSimpleCodeEditorWidgetOptions());
+		this.#codeEditorWidget = this.#instantiationService.createInstance(CodeEditorWidget, this.#inputEditorContainer, getSimpleEditorOptions(), {
+			...getSimpleCodeEditorWidgetOptions(),
+			...{
+				isSimpleWidget: false
+			}
+		});
 
 		if (this.#dimension) {
 			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
@@ -139,15 +148,14 @@ export class InteractiveEditor extends EditorPane {
 			throw new Error('?');
 		}
 
-		this.#widgetDisposableStore.add(model);
-
 		this.#notebookWidget.value?.setParentContextKeyService(this.#contextKeyService);
 		await this.#notebookWidget.value!.setModel(model.notebook, undefined);
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, true);
+		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, false);
+		this.#widgetDisposableStore.add(editorModel);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
@@ -233,6 +241,8 @@ export class InteractiveEditor extends EditorPane {
 
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
+			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
+			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -242,7 +252,7 @@ export class InteractiveEditor extends EditorPane {
 				},
 				renderOptions: {
 					after: {
-						contentText: nls.localize('interactiveInputPlaceHolder', "Type code here and press ctrl+enter to run"),
+						contentText: text,
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
 				}
@@ -250,6 +260,10 @@ export class InteractiveEditor extends EditorPane {
 		}
 
 		this.#codeEditorWidget.setDecorations('interactive-decoration', DECORATION_KEY, decorations);
+	}
+
+	override focus() {
+		this.#codeEditorWidget.focus();
 	}
 
 	override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -105,8 +105,8 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				};
 			},
 			save: async (uri: URI) => {
-				// return this._proxy.$saveNotebook(viewType, uri, token);
-				return true;
+				// trigger backup always
+				return false;
 			},
 			saveAs: async (uri: URI, target: URI, token: CancellationToken) => {
 				// return this._proxy.$saveNotebookAs(viewType, uri, target, token);
@@ -199,8 +199,6 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 	InteractiveEditorSerializer
 );
 
-let counter = 1;
-
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
@@ -223,6 +221,11 @@ registerAction2(class extends Action2 {
 							type: 'number',
 							default: -1
 						}
+					},
+					{
+						name: 'resource',
+						description: 'Interactive resource Uri',
+						isOptional: true
 					}
 				]
 			}
@@ -230,16 +233,44 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number): Promise<{ notebookUri: URI, inputUri: URI; }> {
-		const notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-		const inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
-
+	async run(accessor: ServicesAccessor, column?: number, resource?: URI): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		const group = viewColumnToEditorGroup(editorGroupService, column);
+
+		if (resource && resource.scheme === Schemas.vscodeInteractive) {
+			const resourceUri = URI.revive(resource);
+			const editors = editorService.findEditors(resourceUri).filter(id => id.editor instanceof InteractiveEditorInput && id.editor.resource?.toString() === resourceUri.toString());
+			if (editors.length) {
+				const editorInput = editors[0].editor as InteractiveEditorInput;
+				const currentGroup = editors[0].groupId;
+				await editorService.openEditor(editorInput, undefined, currentGroup);
+				return {
+					notebookUri: editorInput.resource!,
+					inputUri: editorInput.inputResource
+				};
+			}
+		}
+
+		const existingNotebookDocument = new Set<string>();
+		editorService.getEditors(EditorsOrder.SEQUENTIAL).forEach(editor => {
+			if (editor.editor.resource) {
+				existingNotebookDocument.add(editor.editor.resource.toString());
+			}
+		});
+
+		let notebookUri: URI | undefined = undefined;
+		let inputUri: URI | undefined = undefined;
+		let counter = 1;
+		do {
+			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+
+			counter++;
+		} while (existingNotebookDocument.has(notebookUri.toString()));
+
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		await editorService.openEditor(editorInput, undefined, group);
-		counter++;
 
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };

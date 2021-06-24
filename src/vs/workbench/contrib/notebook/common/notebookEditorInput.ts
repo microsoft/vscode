@@ -209,7 +209,14 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		this._sideLoadedListener.dispose();
 
 		if (!this._editorModelReference) {
-			this._editorModelReference = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			const ref = await this._notebookModelResolverService.resolve(this.resource, this.viewType);
+			if (this._editorModelReference) {
+				// Re-entrant, double resolve happened. Dispose the addition references and proceed
+				// with the truth.
+				ref.dispose();
+				return (<IReference<IResolvedNotebookEditorModel>>this._editorModelReference).object;
+			}
+			this._editorModelReference = ref;
 			if (this.isDisposed()) {
 				this._editorModelReference.dispose();
 				this._editorModelReference = null;

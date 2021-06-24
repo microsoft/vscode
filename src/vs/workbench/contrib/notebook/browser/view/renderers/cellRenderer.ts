@@ -14,6 +14,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import * as Codicons from 'vs/base/common/codicons';
 import { Color } from 'vs/base/common/color';
 import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -502,7 +503,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 			ui: true,
 			cell: element,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.deleteToolbar.context = toolbarContext;
@@ -1047,7 +1048,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 			cell: element,
 			cellTemplate: templateData,
 			notebookEditor: this.notebookEditor,
-			$mid: 12
+			$mid: MarshalledId.NotebookCellActionContext
 		};
 		templateData.toolbar.context = toolbarContext;
 		templateData.runToolbar.context = toolbarContext;

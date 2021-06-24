@@ -382,6 +382,7 @@ export class TunnelModel extends Disposable {
 	private _environmentTunnelsSet: boolean = false;
 	public readonly configPortsAttributes: PortsAttributes;
 	private restoreListener: IDisposable | undefined;
+	private knownPortsRestoreValue: string | undefined;
 
 	private portAttributesProviders: PortAttributesProvider[] = [];
 
@@ -498,7 +499,7 @@ export class TunnelModel extends Disposable {
 	async restoreForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
 			const tunnelRestoreValue = await this.tunnelRestoreValue;
-			if (tunnelRestoreValue) {
+			if (tunnelRestoreValue && (tunnelRestoreValue !== this.knownPortsRestoreValue)) {
 				const tunnels = <Tunnel[] | undefined>JSON.parse(tunnelRestoreValue) ?? [];
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
 				for (let tunnel of tunnels) {
@@ -523,7 +524,11 @@ export class TunnelModel extends Disposable {
 
 	private async storeForwarded() {
 		if (this.configurationService.getValue('remote.restoreForwardedPorts')) {
-			this.storageService.store(await this.getStorageKey(), JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.userForwarded)), StorageScope.GLOBAL, StorageTarget.USER);
+			const valueToStore = JSON.stringify(Array.from(this.forwarded.values()).filter(value => value.userForwarded));
+			if (valueToStore !== this.knownPortsRestoreValue) {
+				this.knownPortsRestoreValue = valueToStore;
+				this.storageService.store(await this.getStorageKey(), this.knownPortsRestoreValue, StorageScope.GLOBAL, StorageTarget.USER);
+			}
 		}
 	}
 

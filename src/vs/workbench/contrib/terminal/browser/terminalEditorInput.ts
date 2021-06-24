@@ -6,10 +6,12 @@
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IEditorInput } from 'vs/workbench/common/editor';
+import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalEditorInput extends EditorInput {
 
@@ -27,10 +29,9 @@ export class TerminalEditorInput extends EditorInput {
 
 	override copy(): IEditorInput {
 		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
-		return new TerminalEditorInput(instance, this._terminalInstanceService);
+		return new TerminalEditorInput(instance, this._themeService, this._terminalInstanceService);
 	}
 
-	private readonly _terminalInstance: ITerminalInstance;
 	/**
 	 * Returns the terminal instance for this input if it has not yet been detached from the input.
 	 */
@@ -43,11 +44,11 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	constructor(
-		terminalInstance: ITerminalInstance,
+		private readonly _terminalInstance: ITerminalInstance,
+		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
-		this._terminalInstance = terminalInstance;
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));
 		this._register(this._terminalInstance.onIconChanged(() => this._onDidChangeLabel.fire()));
 		this._register(this._terminalInstance.statusList.onDidChangePrimaryStatus(() => this._onDidChangeLabel.fire()));
@@ -61,6 +62,22 @@ export class TerminalEditorInput extends EditorInput {
 
 	override getName() {
 		return this._terminalInstance.title;
+	}
+
+	override getLabelExtraClasses(): string[] {
+		const extraClasses: string[] = ['terminal-tab'];
+		const colorClass = getColorClass(this._terminalInstance);
+		if (colorClass) {
+			extraClasses.push(colorClass);
+		}
+		const uriClasses = getUriClasses(this._terminalInstance, this._themeService.getColorTheme().type);
+		if (uriClasses) {
+			extraClasses.push(...uriClasses);
+		}
+		if (ThemeIcon.isThemeIcon(this._terminalInstance.icon)) {
+			extraClasses.push(`codicon-${this._terminalInstance.icon.id}`);
+		}
+		return extraClasses;
 	}
 
 	/**

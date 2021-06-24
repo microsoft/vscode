@@ -16,6 +16,9 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
+import { GroupIdentifier, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IResourceEditorInput, isResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 
 suite('HistoryService', function () {
 
@@ -71,6 +74,19 @@ suite('HistoryService', function () {
 	});
 
 	test('getHistory', async () => {
+
+		class TestFileEditorInputWithUntyped extends TestFileEditorInput {
+
+			override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput {
+				return {
+					resource: this.resource,
+					options: {
+						override: 'testOverride'
+					}
+				};
+			}
+		}
+
 		const [part, historyService] = await createServices();
 
 		let history = historyService.getHistory();
@@ -82,13 +98,27 @@ suite('HistoryService', function () {
 		const input2 = new TestFileEditorInput(URI.parse('foo://bar2'), TEST_EDITOR_INPUT_ID);
 		await part.activeGroup.openEditor(input2, { pinned: true });
 
+		const input3 = new TestFileEditorInputWithUntyped(URI.parse('foo://bar3'), TEST_EDITOR_INPUT_ID);
+		await part.activeGroup.openEditor(input3, { pinned: true });
+
+		const input4 = new TestFileEditorInputWithUntyped(URI.file('bar4'), TEST_EDITOR_INPUT_ID);
+		await part.activeGroup.openEditor(input4, { pinned: true });
+
 		history = historyService.getHistory();
-		assert.strictEqual(history.length, 2);
+		assert.strictEqual(history.length, 4);
+
+		// first entry is untyped because it implements `toUntyped` and has a supported scheme
+		assert.strictEqual(isResourceEditorInput(history[0]) && !(history[0] instanceof EditorInput), true);
+		assert.strictEqual((history[0] as IResourceEditorInput).options?.override, 'testOverride');
+		// second entry is not untyped even though it implements `toUntyped` but has unsupported scheme
+		assert.strictEqual(history[1] instanceof EditorInput, true);
+		assert.strictEqual(history[2] instanceof EditorInput, true);
+		assert.strictEqual(history[3] instanceof EditorInput, true);
 
 		historyService.removeFromHistory(input2);
 		history = historyService.getHistory();
-		assert.strictEqual(history.length, 1);
-		assert.strictEqual(history[0], input1);
+		assert.strictEqual(history.length, 3);
+		assert.strictEqual(history[0].resource?.toString(), input4.resource.toString());
 	});
 
 	test('getLastActiveFile', async () => {

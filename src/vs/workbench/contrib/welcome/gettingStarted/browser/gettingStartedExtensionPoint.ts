@@ -219,11 +219,11 @@ export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				category: {
 					type: 'string',
 					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['window', 'file', 'folder', 'notebook', 'terminal', 'configuration'],
+					enum: ['file', 'folder', 'notebook'],
 				},
 				description: {
 					type: 'string',
-					description: localize('startEntries.description', "Description of item.")
+					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action significantly nuanced in a way the title can not capture.")
 				},
 				when: {
 					type: 'string',

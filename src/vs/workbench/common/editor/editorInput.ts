@@ -8,8 +8,9 @@ import { URI } from 'vs/base/common/uri';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, EditorResourceAccessor, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, UntypedEditorContext, EditorResourceAccessor } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
+
 /**
  * Editor inputs are lightweight objects that can be passed to the workbench API to open inside the editor part.
  * Each editor input is mapped to an editor that is capable of opening it through the Platform facade.
@@ -52,6 +53,10 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 	getName(): string {
 		return `Editor ${this.typeId}`;
+	}
+
+	getLabelExtraClasses(): string[] {
+		return [];
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
@@ -111,11 +116,24 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 	}
 
 	matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
-		if (otherInput instanceof EditorInput) {
+
+		// Typed inputs: via  === check
+		if (isEditorInput(otherInput)) {
 			return this === otherInput;
-		} else {
-			return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput)) && this.editorId !== undefined && this.editorId === (otherInput as IUntypedEditorInput).options?.override;
 		}
+
+		// Untyped inputs: go into properties
+		const otherInputEditorId = otherInput.options?.override;
+
+		if (this.editorId === undefined) {
+			return false; // untyped inputs can only match for editors that have adopted `editorId`
+		}
+
+		if (this.editorId !== otherInputEditorId) {
+			return false; // untyped input uses another `editorId`
+		}
+
+		return isEqual(this.resource, EditorResourceAccessor.getCanonicalUri(otherInput));
 	}
 
 	/**
@@ -145,4 +163,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 
 		super.dispose();
 	}
+}
+
+export function isEditorInput(editor: unknown): editor is IEditorInput {
+	return editor instanceof EditorInput;
 }

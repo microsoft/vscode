@@ -53,13 +53,23 @@ type GettingStartedStartEntryContent = BuiltinGettingStartedStartEntry[];
 
 export const startEntries: GettingStartedStartEntryContent = [
 	{
-		id: 'welcome.showNewEntries',
-		title: localize('gettingStarted.newFile.title', "New..."),
-		description: localize('gettingStarted.newFile.description', "Start with something new!"),
+		id: 'welcome.showNewFileEntries',
+		title: localize('gettingStarted.newFile.title', "New File..."),
+		description: localize('gettingStarted.newFile.description', "Open a new untitled file, notebook, or custom editor."),
 		icon: Codicon.newFile,
 		content: {
 			type: 'startEntry',
-			command: 'welcome.showNewEntries',
+			command: 'welcome.showNewFileEntries',
+		}
+	},
+	{
+		id: 'welcome.showNewFolderEntries',
+		title: localize('gettingStarted.newFolder.title', "New Folder..."),
+		description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
+		icon: Codicon.newFolder,
+		content: {
+			type: 'startEntry',
+			command: 'welcome.showNewFolderEntries',
 		}
 	},
 	{
@@ -95,17 +105,6 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'workbench.action.files.openFolder',
 		}
 	},
-	// {
-	// 	id: 'topLevelCloneRepo',
-	// 	title: localize('gettingStarted.cloneRepo.title', "Clone Git Repository..."),
-	// 	description: localize('gettingStarted.cloneRepo.description', "Clone a git repository"),
-	// 	icon: Codicon.repoClone,
-	// 	when: '!git.missing',
-	// 	content: {
-	// 		type: 'startEntry',
-	// 		command: 'git.clone',
-	// 	}
-	// },
 	{
 		id: 'topLevelCommandPalette',
 		title: localize('gettingStarted.topLevelCommandPalette.title', "Run a Command..."),

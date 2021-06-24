@@ -22,6 +22,7 @@
 			"ES2016.Array.Include",
 			"ES2017.String",
 			"ES2018.Promise",
+			"ES2020.Promise",
 			"DOM",
 			"DOM.Iterable",
 			"WebWorker.ImportScripts"

@@ -207,6 +207,11 @@ export interface IEditorService {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean;
 
 	/**
+	 * Find out if the provided editor is visible in any editor group.
+	 */
+	isVisible(editor: IEditorInput): boolean;
+
+	/**
 	 * This method will return an entry for each editor that reports
 	 * a `resource` that matches the provided one in the group or
 	 * across all groups.
@@ -216,9 +221,9 @@ export interface IEditorService {
 	 * editor, use the `IResourceEditorInputIdentifier` as input.
 	 */
 	findEditors(resource: URI): readonly IEditorIdentifier[];
-	findEditors(resource: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
+	findEditors(editor: IResourceEditorInputIdentifier): readonly IEditorIdentifier[];
 	findEditors(resource: URI, group: IEditorGroup | GroupIdentifier): readonly IEditorInput[];
-	findEditors(resource: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
+	findEditors(editor: IResourceEditorInputIdentifier, group: IEditorGroup | GroupIdentifier): IEditorInput | undefined;
 
 	/**
 	 * Converts a lightweight input to a workbench editor input.

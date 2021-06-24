@@ -299,7 +299,7 @@ export class CellDragAndDropController extends Disposable {
 		dragHandle.setAttribute('draggable', 'true');
 
 		templateData.disposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_END, () => {
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
 				return;
 			}
 
@@ -313,7 +313,7 @@ export class CellDragAndDropController extends Disposable {
 				return;
 			}
 
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
 				return;
 			}
 
@@ -330,7 +330,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
 			return;
 		}
 
@@ -339,7 +339,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled) {
+		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.viewModel?.options.isReadOnly) {
 			return;
 		}
 

@@ -35,6 +35,7 @@ import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from 'vs/base/browser/ui/mouseCursor
 import { ActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
 import { Codicon } from 'vs/base/common/codicons';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 export class CommentNode extends Disposable {
 	private _domNode: HTMLElement;
@@ -170,7 +171,7 @@ export class CommentNode extends Disposable {
 		this.toolbar.context = {
 			thread: this.commentThread,
 			commentUniqueId: this.comment.uniqueIdInThread,
-			$mid: 9
+			$mid: MarshalledId.CommentNode
 		};
 
 		this.registerActionBarListeners(this._actionsToolbarContainer);
@@ -433,7 +434,7 @@ export class CommentNode extends Disposable {
 				thread: this.commentThread,
 				commentUniqueId: this.comment.uniqueIdInThread,
 				text: text,
-				$mid: 10
+				$mid: MarshalledId.CommentThreadNode
 			});
 
 			this.removeCommentEditor();
