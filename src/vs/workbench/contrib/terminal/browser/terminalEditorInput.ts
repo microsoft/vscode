@@ -31,7 +31,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	override copy(): IEditorInput {
 		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
-		return new TerminalEditorInput(instance, this._themeService, this._terminalInstanceService, this._instantiationService, this._contextKeyService);
+		return this._instantiationService.createInstance(TerminalEditorInput, instance);
 	}
 
 	/**
