@@ -250,7 +250,6 @@ steps:
       set -e
       yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
     displayName: Prepare snap package
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
 
   # needed for code signing
   - task: UseDotNet@2
@@ -319,4 +318,3 @@ steps:
     inputs:
       artifactName: "snap-$(VSCODE_ARCH)"
       targetPath: .build/linux/snap-tarball
-    condition: and(succeeded(), ne(variables['VSCODE_PUBLISH'], 'false'))
