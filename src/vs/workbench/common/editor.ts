@@ -505,7 +505,7 @@ export interface IEditorInput extends IDisposable {
 	/**
 	 * Returns the extra classes to apply to the label of this input.
 	 */
-	getLabelExtraClasses(): string[] | undefined;
+	getLabelExtraClasses(): string[];
 
 	/**
 	 * Returns the display description of this input.

@@ -299,7 +299,7 @@ export class NoTabsTitleControl extends TitleControl {
 				{
 					title,
 					italic: !isEditorPinned,
-					extraClasses: coalesce((['no-tabs', 'title-label'] as (string | undefined)[]).concat(editor.getLabelExtraClasses())),
+					extraClasses: ['no-tabs', 'title-label'].concat(editor.getLabelExtraClasses()),
 					fileDecorations: {
 						colors: Boolean(options.decorations?.colors),
 						badges: Boolean(options.decorations?.badges)

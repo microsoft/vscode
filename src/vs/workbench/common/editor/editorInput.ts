@@ -55,8 +55,8 @@ export abstract class EditorInput extends Disposable implements IEditorInput {
 		return `Editor ${this.typeId}`;
 	}
 
-	getLabelExtraClasses(): string[] | undefined {
-		return undefined;
+	getLabelExtraClasses(): string[] {
+		return [];
 	}
 
 	getDescription(verbosity?: Verbosity): string | undefined {
