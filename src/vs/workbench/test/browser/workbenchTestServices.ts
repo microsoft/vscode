@@ -128,9 +128,9 @@ import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 
 import { TestWorkspaceTrustManagementService, TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
 import { ILocalTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalProfile, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalShellType } from 'vs/platform/terminal/common/terminal';
 import { IProcessDetails, ISetTerminalLayoutInfoArgs } from 'vs/platform/terminal/common/terminalProcess';
-import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isArray } from 'vs/base/common/types';
-import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IShellLaunchConfigResolveOptions, ITerminalProfileResolverService, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
 import { FILE_EDITOR_INPUT_ID } from 'vs/workbench/contrib/files/common/files';
 import { IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -1599,6 +1599,8 @@ export class TestWorkspacesService implements IWorkspacesService {
 }
 
 export class TestTerminalInstanceService implements ITerminalInstanceService {
+	onEditorInstanceCreated = Event.None;
+	onGroupInstanceCreated = Event.None;
 	declare readonly _serviceBrand: undefined;
 
 	async getXtermConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
@@ -1606,6 +1608,7 @@ export class TestTerminalInstanceService implements ITerminalInstanceService {
 	async getXtermUnicode11Constructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	async getXtermWebglConstructor(): Promise<any> { throw new Error('Method not implemented.'); }
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string> { throw new Error('Method not implemented.'); }
+	createInstance(options: ICreateTerminalOptions, target?: TerminalLocation): ITerminalInstance { throw new Error('Method not implemented.'); }
 }
 
 export class TestTerminalProfileResolverService implements ITerminalProfileResolverService {

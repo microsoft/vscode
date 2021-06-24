@@ -11,6 +11,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
+import { ITerminalEditorService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -28,6 +29,7 @@ export class TerminalEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
+		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService
 	) {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -41,10 +43,26 @@ export class TerminalEditor extends EditorPane {
 			this.layout(this._lastDimension);
 		}
 		this._editorInput.terminalInstance?.setVisible(true);
+		if (this._editorInput.terminalInstance) {
+			// since the editor does not monitor focus changes, for ex. between the terminal
+			// panel and the editors, this is needed so that the active instance gets set
+			// when focus changes between them.
+			this._register(this._editorInput.terminalInstance.onFocused(() => this._setActiveInstance()));
+		}
+	}
+
+	private _setActiveInstance(): void {
+		if (!this._editorInput?.terminalInstance) {
+			return;
+		}
+		this._terminalEditorService.setActiveInstance(this._editorInput.terminalInstance);
 	}
 
 	override focus() {
-		this._editorInput?.terminalInstance?.focus();
+		if (!this._editorInput?.terminalInstance) {
+			return;
+		}
+		this._editorInput.terminalInstance.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention

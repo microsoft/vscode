@@ -5,10 +5,12 @@
 
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 
 export class TerminalEditorInput extends EditorInput {
@@ -25,6 +27,11 @@ export class TerminalEditorInput extends EditorInput {
 		return TerminalEditor.ID;
 	}
 
+	override copy(): IEditorInput {
+		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		return new TerminalEditorInput(instance, this._themeService, this._terminalInstanceService);
+	}
+
 	/**
 	 * Returns the terminal instance for this input if it has not yet been detached from the input.
 	 */
@@ -38,7 +45,8 @@ export class TerminalEditorInput extends EditorInput {
 
 	constructor(
 		private readonly _terminalInstance: ITerminalInstance,
-		@IThemeService private readonly _themeService: IThemeService
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService
 	) {
 		super();
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));
