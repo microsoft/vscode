@@ -99,7 +99,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		let override = typeof options?.override === 'string' ? options.override : undefined;
 
 		if (options?.override === EditorOverride.PICK) {
-			const picked = await this.doPickEditorOverride(editor, group);
+			const picked = await this.doPickEditorOverride(editor);
 			// If the picker was cancelled we will stop resolving the override
 			if (!picked) {
 				return OverrideStatus.ABORT;
@@ -414,7 +414,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				label: localize('editorOverride.configureDefault', 'Configure Default'),
 				run: async () => {
 					// Show the picker and tell it to update the setting to whatever the user selected
-					const picked = await this.doPickEditorOverride(untypedInput, group, true);
+					const picked = await this.doPickEditorOverride(untypedInput, true);
 					if (!picked) {
 						return;
 					}
@@ -445,8 +445,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		});
 	}
 
-	private mapEditorsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
-		const currentEditor = firstOrDefault(group.findEditors(resource));
+	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker?: boolean) {
+		const currentEditor = firstOrDefault(this.editorGroupService.activeGroup.findEditors(resource));
 		// If untitled, we want all registered editors
 		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
@@ -499,7 +499,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		return quickPickEntries;
 	}
 
-	private async doPickEditorOverride(editor: IUntypedEditorInput, group: IEditorGroup, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
+	private async doPickEditorOverride(editor: IUntypedEditorInput, showDefaultPicker?: boolean): Promise<IEditorOptions | undefined> {
 
 		type EditorOverridePick = {
 			readonly item: IQuickPickItem;
@@ -514,7 +514,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}
 
 		// Text editor has the lowest priority because we
-		const editorOverridePicks = this.mapEditorsToQuickPickEntry(resource, group, showDefaultPicker);
+		const editorOverridePicks = this.mapEditorsToQuickPickEntry(resource, showDefaultPicker);
 
 		// Create editor override picker
 		const editorOverridePicker = this.quickInputService.createQuickPick<IQuickPickItem>();
@@ -574,7 +574,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 			// If the user selected to configure default we trigger this picker again and tell it to show the default picker
 			if (picked.item.id === EditorOverrideService.configureDefaultID) {
-				return this.doPickEditorOverride(editor, group, true);
+				return this.doPickEditorOverride(editor, true);
 			}
 
 			// Figure out options
