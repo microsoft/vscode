@@ -1947,17 +1947,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		quickPick.hide();
 		document.body.removeChild(styleElement);
 	}
-
-	static getInstanceIdFromUri(resource: URI): number | undefined {
-		if (resource.scheme !== Schemas.vscodeTerminal) {
-			return undefined;
-		}
-		const basename = path.basename(resource.path);
-		if (basename === '') {
-			return undefined;
-		}
-		return parseInt(basename);
-	}
 }
 
 class TerminalInstanceDragAndDropController extends Disposable implements IDragAndDropObserverCallbacks {

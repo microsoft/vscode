@@ -11,6 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
+import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -174,7 +175,7 @@ export class TerminalService implements ITerminalService {
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
+				const instanceId = this._getInstanceIdFromUri(resource);
 				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
@@ -565,12 +566,23 @@ export class TerminalService implements ITerminalService {
 
 	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
 		if (URI.isUri(resource)) {
-			const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
+			const instanceId = this._getInstanceIdFromUri(resource);
 			if (instanceId) {
 				return this.getInstanceFromId(instanceId);
 			}
 		}
 		return undefined;
+	}
+
+	private _getInstanceIdFromUri(resource: URI): number | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+		const base = basename(resource.path);
+		if (base === '') {
+			return undefined;
+		}
+		return parseInt(base);
 	}
 
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
@@ -686,7 +698,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
-			const instanceId = TerminalInstance.getInstanceIdFromUri(e.uri);
+			const instanceId = this._getInstanceIdFromUri(e.uri);
 			if (instanceId === undefined) {
 				return;
 			}
