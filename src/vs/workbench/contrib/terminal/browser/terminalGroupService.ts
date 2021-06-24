@@ -12,13 +12,13 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export class TerminalGroupService extends Disposable implements ITerminalGroupService {
+export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
 
 	groups: ITerminalGroup[] = [];

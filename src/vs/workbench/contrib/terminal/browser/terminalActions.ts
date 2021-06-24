@@ -890,11 +890,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
-				accessor.get(ITerminalEditorService).focusFindWidget();
-			} else {
-				accessor.get(ITerminalGroupService).focusFindWidget();
-			}
+			accessor.get(ITerminalService).getFindHost().focusFindWidget();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -914,13 +910,10 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
-				accessor.get(ITerminalEditorService).hideFindWidget();
-			} else {
-				accessor.get(ITerminalGroupService).hideFindWidget();
-			}
+			accessor.get(ITerminalService).getFindHost().hideFindWidget();
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -1338,11 +1331,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
-				accessor.get(ITerminalEditorService).findNext();
-			} else {
-				accessor.get(ITerminalGroupService).findNext();
-			}
+			accessor.get(ITerminalService).getFindHost().findNext();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1369,11 +1358,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
-				accessor.get(ITerminalEditorService).findPrevious();
-			} else {
-				accessor.get(ITerminalGroupService).findPrevious();
-			}
+			accessor.get(ITerminalService).getFindHost().findPrevious();
 		}
 	});
 	registerAction2(class extends Action2 {

@@ -8,14 +8,14 @@ import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/l
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalFindHost, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class TerminalEditorService extends Disposable implements ITerminalEditorService {
+export class TerminalEditorService extends Disposable implements ITerminalEditorService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
 
 	instances: ITerminalInstance[] = [];
@@ -79,7 +79,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	}
 
 	getFindState(): FindReplaceState {
-		this._getActiveTerminalEditor()?.findState;
+		const editor = this._getActiveTerminalEditor();
+		return editor!.findState!;
 	}
 
 	async focusFindWidget(): Promise<void> {

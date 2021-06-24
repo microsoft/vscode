@@ -114,14 +114,7 @@ export interface ICreateTerminalOptions {
 	target?: TerminalLocation;
 }
 
-export interface ITerminalService {
-	readonly activeInstance: ITerminalInstance | undefined;
-
-	readonly onDidDisposeInstance: Event<ITerminalInstance>;
-	readonly onDidChangeActiveInstance: Event<ITerminalInstance | undefined>;
-	readonly onDidChangeInstances: Event<void>;
-
-	setActiveInstance(instance: ITerminalInstance): void;
+export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all terminal instances, including editor and terminal view (group) instances. */
@@ -208,13 +201,15 @@ export interface ITerminalService {
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+
+	getFindHost(): ITerminalFindHost;
 }
 
 /**
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService extends ITerminalInstanceHost {
+export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal editor_ instances. */
@@ -230,7 +225,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
  * within the terminal panel, not in an editor.
  */
-export interface ITerminalGroupService extends ITerminalInstanceHost {
+export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
@@ -286,7 +281,9 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+}
 
+export interface ITerminalFindHost {
 	focusFindWidget(): void;
 	hideFindWidget(): void;
 	getFindState(): FindReplaceState;
