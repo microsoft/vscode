@@ -9,8 +9,9 @@ import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshalling';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
-import { identifyTest, InternalTestItem, ITestIdWithSrc } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItemContext } from 'vs/workbench/contrib/testing/common/testCollection';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -170,6 +171,19 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 		public readonly test: InternalTestItem,
 		public readonly parent: TestItemTreeElement | null = null,
 	) { }
+
+	public toJSON() {
+		const context: ITestItemContext = {
+			$mid: MarshalledId.TestItemContext,
+			tests: [this.test],
+		};
+
+		for (let p = this.parent; p; p = p.parent) {
+			context.tests.unshift(p.test);
+		}
+
+		return context;
+	}
 }
 
 export class TestTreeErrorMessage {

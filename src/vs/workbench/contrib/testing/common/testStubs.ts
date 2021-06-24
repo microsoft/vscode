@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { TestItemImpl, TestItemStatus, TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { TestItemImpl, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import { MainThreadTestCollection } from 'vs/workbench/contrib/testing/common/mainThreadTestCollection';
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 
 export * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 export { TestItemImpl, TestResultState } from 'vs/workbench/api/common/extHostTypes';
-
-
 
 /**
  * Gets a main thread test collection initialized with the given set of
@@ -28,18 +26,16 @@ export const testStubs = {
 	nested: (idPrefix = 'id-') => {
 		const collection = new TestSingleUseCollection('ctrlId');
 		collection.root.label = 'root';
-		collection.root.status = TestItemStatus.Pending;
+		collection.root.canResolveChildren = true;
 		collection.resolveHandler = item => {
 			if (item === collection.root) {
 				const a = new TestItemImpl(idPrefix + 'a', 'a', URI.file('/'), undefined, collection.root);
-				a.status = TestItemStatus.Pending;
+				a.canResolveChildren = true;
 				new TestItemImpl(idPrefix + 'b', 'b', URI.file('/'), undefined, collection.root);
 			} else if (item.id === idPrefix + 'a') {
 				new TestItemImpl(idPrefix + 'aa', 'aa', URI.file('/'), undefined, item);
 				new TestItemImpl(idPrefix + 'ab', 'ab', URI.file('/'), undefined, item);
 			}
-
-			item.status = TestItemStatus.Resolved;
 		};
 
 		return collection;

@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -27,7 +28,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 
@@ -76,7 +78,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		if (cachedEditor) {
 			return cachedEditor;
 		}
-		const input = new TerminalEditorInput(instance);
+		const input = this._instantiationService.createInstance(TerminalEditorInput, instance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [

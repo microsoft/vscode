@@ -266,7 +266,7 @@ interface IExtensionManifest {
 	extensionKind?: ExtensionKind | ExtensionKind[];
 }
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest: IExtensionManifest): boolean {
 	if (typeof manifest.extensionKind !== 'undefined') {

@@ -364,6 +364,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _altCommand: string | undefined;
 	private _class: string | undefined;
 	private readonly _elementDisposables: IDisposable[] = [];
+
 	constructor(
 		action: IAction,
 		private readonly _actions: IAction[],
@@ -568,8 +569,10 @@ class TerminalThemeIconStyle extends Themable {
 			}
 			const iconClasses = getUriClasses(instance, colorTheme.type);
 			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
-				css += `.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon {`;
-				css += `background-image: ${dom.asCSSUrl(uri)};}`;
+				css += (
+					`.monaco-workbench .${iconClasses[0]} .monaco-highlighted-label .codicon, .monaco-action-bar .terminal-uri-icon.single-terminal-tab.action-label:not(.alt-command) .codicon,` +
+					`{background-image: ${dom.asCSSUrl(uri)};}`
+				);
 			}
 		}
 
@@ -582,7 +585,10 @@ class TerminalThemeIconStyle extends Themable {
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
 				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
-				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+				css += (
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon),` +
+					`{ color: ${color} !important; }`
+				);
 			}
 		}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IEditorInput, IResourceDiffEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { URI } from 'vs/base/common/uri';
 import { isEqual } from 'vs/base/common/resources';
@@ -20,25 +20,6 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 		readonly modified: IResolvedNotebookEditorModel,
 	) {
 		super();
-	}
-
-	async load(): Promise<NotebookDiffEditorModel> {
-		await this.original.load();
-		await this.modified.load();
-
-		return this;
-	}
-
-	async resolveOriginalFromDisk() {
-		await this.original.load({ forceReadFromFile: true });
-	}
-
-	async resolveModifiedFromDisk() {
-		await this.modified.load({ forceReadFromFile: true });
-	}
-
-	override dispose(): void {
-		super.dispose();
 	}
 }
 
@@ -110,7 +91,7 @@ export class NotebookDiffEditorInput extends DiffEditorInput {
 		return new NotebookDiffEditorModel(this._originalTextModel, this._modifiedTextModel);
 	}
 
-	override asResourceEditorInput(group: GroupIdentifier): IResourceDiffEditorInput {
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IResourceDiffEditorInput {
 		return {
 			originalInput: { resource: this.originalInput.resource },
 			modifiedInput: { resource: this.resource },

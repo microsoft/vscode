@@ -1231,6 +1231,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 				exitCodeMessage = nls.localize('terminated.exitCodeOnly', "The terminal process terminated with exit code: {0}.", this._exitCode);
 				break;
 			case 'object':
+				if (exitCodeOrError.message.toString().includes('Could not find pty with id')) {
+					break;
+				}
 				this._exitCode = exitCodeOrError.code;
 				exitCodeMessage = nls.localize('launchFailed.errorMessage', "The terminal process failed to launch: {0}.", exitCodeOrError.message);
 				break;
@@ -1913,7 +1916,10 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			});
 			const color = colorTheme.getColor(colorKey);
 			if (color) {
-				css += `.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon) { color: ${color} !important; }`;
+				css += (
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon),` +
+					`{ color: ${color} !important; }`
+				);
 			}
 		}
 		items.push({ type: 'separator' });
@@ -1940,17 +1946,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		quickPick.hide();
 		document.body.removeChild(styleElement);
-	}
-
-	static getInstanceIdFromUri(resource: URI): number | undefined {
-		if (resource.scheme !== Schemas.vscodeTerminal) {
-			return undefined;
-		}
-		const basename = path.basename(resource.path);
-		if (basename === '') {
-			return undefined;
-		}
-		return parseInt(basename);
 	}
 }
 

@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
@@ -518,4 +520,13 @@ export function setupTerminalMenus(): void {
 			}
 		]
 	);
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.MoveToTerminalPanel,
+			title: terminalStrings.moveToTerminalPanel
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '2_files'
+	});
 }

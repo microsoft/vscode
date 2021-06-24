@@ -252,13 +252,14 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.MoveToTerminalPanel,
-				title: { value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"), original: 'Move Terminal into Panel' },
+				title: terminalStrings.moveToTerminalPanel,
 				f1: true,
 				category
 			});
 		}
-		async run(accessor: ServicesAccessor) {
-			await accessor.get(ITerminalService).moveToTerminalView();
+		async run(accessor: ServicesAccessor, resource: unknown) {
+			const castedResource = URI.isUri(resource) ? resource : undefined;
+			await accessor.get(ITerminalService).moveToTerminalView(castedResource);
 		}
 	});
 

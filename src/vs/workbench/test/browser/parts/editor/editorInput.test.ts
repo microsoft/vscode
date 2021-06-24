@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { URI } from 'vs/base/common/uri';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { TestEditorInput } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('EditorInput', () => {
 
@@ -31,5 +33,21 @@ suite('EditorInput', () => {
 
 		input.dispose();
 		assert.strictEqual(counter, 1);
+	});
+
+	test('untyped matches', () => {
+		const testInputID = 'untypedMatches';
+		const testInputResource = URI.file('/fake');
+		const testInput = new TestEditorInput(testInputResource, testInputID);
+		const testUntypedInput = { resource: testInputResource, options: { override: testInputID } };
+		const tetUntypedInputWrongResource = { resource: URI.file('/incorrectFake'), options: { override: testInputID } };
+		const testUntypedInputWrongId = { resource: testInputResource, options: { override: 'wrongId' } };
+		const testUntypedInputWrong = { resource: URI.file('/incorrectFake'), options: { override: 'wrongId' } };
+
+		assert(testInput.matches(testUntypedInput));
+		assert.ok(!testInput.matches(tetUntypedInputWrongResource));
+		assert.ok(!testInput.matches(testUntypedInputWrongId));
+		assert.ok(!testInput.matches(testUntypedInputWrong));
+
 	});
 });

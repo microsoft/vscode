@@ -576,3 +576,9 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
 	width: inherit;
 }
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .codicon,
+.settings-editor > .settings-body .settings-toc-container .monaco-list-row.focused .codicon,
+.settings-editor > .settings-body .settings-tree-container .monaco-list-row.focused .setting-item-contents .setting-toolbar-container > .monaco-toolbar .codicon {
+	color: inherit !important;
+}

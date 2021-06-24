@@ -12,7 +12,7 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { $, addDisposableListener, append, clearNode, Dimension, reset } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { hiddenEntriesConfigurationKey, IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
 import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
@@ -65,7 +65,6 @@ import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThem
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
 
-const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const inWelcomeContext = new RawContextKey('inWelcome', false);
 
@@ -292,8 +291,8 @@ export class GettingStartedPage extends EditorPane {
 				this.commandService.executeCommand('workbench.action.openRecent');
 				break;
 			}
-			case 'configureVisibility': {
-				await this.configureCategoryVisibility();
+			case 'seeAllWalkthroughs': {
+				await this.openWalkthroughSelector();
 				break;
 			}
 			case 'openFolder': {
@@ -377,19 +376,15 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
-	private async configureCategoryVisibility() {
-		const hiddenCategories = this.getHiddenCategories();
+	private async openWalkthroughSelector() {
 		const allCategories = this.gettingStartedCategories.filter(x => x.content.type === 'steps');
-		const visibleCategories = await this.quickInputService.pick(allCategories.map(x => ({
-			picked: !hiddenCategories.has(x.id),
+		const selection = await this.quickInputService.pick(allCategories.map(x => ({
 			id: x.id,
 			label: x.title,
 			detail: x.description,
-		})), { canPickMany: true, title: localize('pickWalkthroughs', "Select Walkthroughs to Show") });
-		if (visibleCategories) {
-			const visibleIDs = new Set(visibleCategories.map(c => c.id));
-			this.setHiddenCategories(allCategories.map(c => c.id).filter(id => !visibleIDs.has(id)));
-			this.buildCategoriesSlide();
+		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open a Walkthrough") });
+		if (selection) {
+			this.scrollToCategory(selection.id);
 		}
 	}
 
@@ -762,7 +757,7 @@ export class GettingStartedPage extends EditorPane {
 				reset(leftColumn, startList.getDomElement());
 				reset(rightColumn, recentList.getDomElement());
 				reset(footer, $('p.showOnStartup', {}, showOnStartupCheckbox, $('label.caption', { for: 'showOnStartup' }, localize('welcomePage.showOnStartup', "Show welcome page on startup"))),
-					$('p.configureVisibility', {}, $('button.button-link', { 'x-dispatch': 'configureVisibility' }, localize('configureVisibility', "Show Hidden Walkthroughs"))));
+					$('p.openAWalkthrough', {}, $('button.button-link', { 'x-dispatch': 'seeAllWalkthroughs' }, localize('openAWalkthrough', "Open a Walkthrough"))));
 				recentList.setLimit(10);
 			}
 			setTimeout(() => this.categoriesPageScrollbar?.scanDomNode(), 50);
@@ -864,6 +859,7 @@ export class GettingStartedPage extends EditorPane {
 						'x-dispatch': 'showMoreRecents',
 						title: localize('show more recents', "Show All Recent Folders {0}", this.getKeybindingLabel('workbench.action.openRecent'))
 					}, 'More...')),
+			undefined,
 			renderRecent);
 
 		recentlyOpenedList.onDidChange(() => this.registerDispatchListeners());
@@ -901,7 +897,9 @@ export class GettingStartedPage extends EditorPane {
 			10,
 			undefined,
 			undefined,
-			renderStartEntry);
+			undefined,
+			renderStartEntry,
+		);
 
 		startList.setEntries(this.gettingStartedCategories);
 		startList.onDidChange(() => this.registerDispatchListeners());
@@ -936,25 +934,25 @@ export class GettingStartedPage extends EditorPane {
 
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
+		const limit = Math.min(this.gettingStartedCategories.filter(c => c.priority > 0).length, 5);
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
 			localize('gettingStarted', "Getting Started"),
 			'getting-started',
-			10,
+			limit,
 			undefined,
 			undefined,
+			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('seeMore', "See More")),
 			renderGetttingStaredWalkthrough);
 
 		gettingStartedList.onDidChange(() => {
+			const hidden = this.getHiddenCategories();
+			const someWalkthroughsHidden = hidden.size || gettingStartedList.itemCount < this.gettingStartedCategories.filter(x => x.content.type === 'steps').length;
+			this.container.classList.toggle('someWalkthroughsHidden', !!someWalkthroughsHidden);
 			this.registerDispatchListeners();
 			this.updateCategoryProgress();
 		});
 		gettingStartedList.setEntries(this.gettingStartedCategories);
 
-
-		const domEl = gettingStartedList.getDomElement();
-		const filterEl = $('button.button-link', { 'tabindex': '0', 'x-dispatch': 'configureVisibility' }, $('.filter-icon.codicon.codicon-filter'));
-		gettingStartedList.register(addDisposableListener(filterEl, 'click', () => this.runDispatchCommand('configureVisibility', '')));
-		domEl.querySelector('h2')?.appendChild(filterEl);
 		return gettingStartedList;
 	}
 
@@ -1304,6 +1302,7 @@ class GettingStartedIndexList<T> extends Disposable {
 		private limit: number,
 		private empty: HTMLElement | undefined,
 		private more: HTMLElement | undefined,
+		private footer: HTMLElement | undefined,
 		private renderElement: (item: T) => HTMLElement | undefined,
 	) {
 		super();
@@ -1369,6 +1368,8 @@ class GettingStartedIndexList<T> extends Disposable {
 
 		if (this.itemCount === 0 && this.empty) {
 			this.list.appendChild(this.empty);
+		} else if (this.footer) {
+			this.list.appendChild(this.footer);
 		}
 
 		this._onDidChangeEntries.fire();

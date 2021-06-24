@@ -65,7 +65,6 @@ export interface IListViewOptions<T> extends IListViewOptionsUpdate {
 	readonly accessibilityProvider?: IListViewAccessibilityProvider<T>;
 	readonly transformOptimization?: boolean;
 	readonly alwaysConsumeMouseWheel?: boolean;
-	readonly useActiveIcons?: boolean;
 }
 
 const DefaultOptions = {
@@ -73,7 +72,6 @@ const DefaultOptions = {
 	verticalScrollMode: ScrollbarVisibility.Auto,
 	setRowLineHeight: true,
 	setRowHeight: true,
-	useActiveIcons: true,
 	supportDynamicHeights: false,
 	dnd: {
 		getDragElements<T>(e: T) { return [e]; },
@@ -325,11 +323,6 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const transformOptimization = getOrDefault(options, o => o.transformOptimization, DefaultOptions.transformOptimization);
 		if (transformOptimization) {
 			this.rowsContainer.style.transform = 'translate3d(0px, 0px, 0px)';
-		}
-
-		const activeIcons = getOrDefault(options, o => o.useActiveIcons, DefaultOptions.useActiveIcons);
-		if (activeIcons) {
-			this.rowsContainer.setAttribute('useActiveIcons', 'true');
 		}
 
 		this.disposables.add(Gesture.addTarget(this.rowsContainer));
@@ -966,7 +959,7 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 		const elements = this.dnd.getDragElements(element);
 
 		event.dataTransfer.effectAllowed = 'copyMove';
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([uri]));
+		event.dataTransfer.setData(DataTransfers.TEXT, uri);
 
 		if (event.dataTransfer.setDragImage) {
 			let label: string | undefined;

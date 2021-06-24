@@ -24,9 +24,14 @@
 }
 
 /* Override monaco's styles for terminal editors */
-.monaco-workbench .editor-instance textarea:focus {
+.monaco-workbench .editor-instance .xterm textarea:focus {
 	opacity: 0 !important;
 	outline: 0 !important;
+}
+
+.monaco-workbench .terminal-tab::before {
+	font-family: 'codicon' !important;
+	font-size: 16px !important;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper,
@@ -262,8 +267,7 @@
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container.has-text .tabs-list .terminal-tabs-entry .monaco-icon-label::after {
-	padding-right: 0;
-	padding-left: 0;
+	margin-right: 0;
 }
 
 .monaco-workbench .pane-body.integrated-terminal .tabs-container:not(.has-text) .terminal-tabs-entry .codicon {

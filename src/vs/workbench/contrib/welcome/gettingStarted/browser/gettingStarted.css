@@ -475,15 +475,16 @@
 	margin: 0;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .filter-icon {
-	cursor: pointer;
-	padding-left: 6px;
-	top: 2px;
+.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started .see-all-walkthroughs {
 	display: none;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started:hover .filter-icon, .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started:active .filter-icon, .monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started:focus-within .filter-icon {
+.monaco-workbench .part.editor>.content .gettingStartedContainer.someWalkthroughsHidden .index-list.getting-started .see-all-walkthroughs {
 	display: inline;
+}
+
+.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started div {
+	text-align: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-detail-right img {
@@ -627,7 +628,7 @@
 	background: transparent;
 }
 
-.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .configureVisibility>button, .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .openAWalkthrough>button, .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .showOnStartup {
 	text-align: center;
 }
 

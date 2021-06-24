@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, IEditorOptions, EditorActivation, EditorOverride, IResourceEditorInputIdentifier, ITextEditorOptions, ITextResourceEditorInput, isResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { SideBySideEditor, IEditorInput, IEditorPane, GroupIdentifier, IFileEditorInput, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorInputFactoryRegistry, EditorExtensions, IEditorInputWithOptions, isEditorInputWithOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditorPane, ITextDiffEditorPane, IRevertOptions, SaveReason, EditorsOrder, isTextEditorPane, IWorkbenchEditorConfiguration, EditorResourceAccessor, IVisibleEditorPane, IEditorInputWithOptionsAndGroup, EditorInputCapabilities, isResourceDiffEditorInput, IUntypedEditorInput, DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
-import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { EditorInput, isEditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -288,7 +288,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				};
 
 				// Construct a replacement with our extra options mixed in
-				if (moveResult.editor instanceof EditorInput) {
+				if (isEditorInput(moveResult.editor)) {
 					replacements.push({
 						editor,
 						replacement: moveResult.editor,
@@ -303,7 +303,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 						replacement: {
 							...moveResult.editor,
 							options: {
-								...(moveResult.editor as IUntypedEditorInput).options,
+								...moveResult.editor.options,
 								...optionOverrides
 							}
 						}
@@ -812,9 +812,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					diffMode = true;
 				}
 
-				const resourceEditor = editor as IResourceEditorInput;
-				if (URI.isUri(resourceEditor.resource)) {
-					resources.set(resourceEditor.resource, true);
+				if (isResourceEditorInput(editor)) {
+					resources.set(editor.resource, true);
 				}
 			}
 		}
@@ -832,8 +831,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	isOpened(editor: IResourceEditorInputIdentifier): boolean {
 		return this.editorsObserver.hasEditor({
 			resource: this.uriIdentityService.asCanonicalUri(editor.resource),
-			typeId: editor.typeId
+			typeId: editor.typeId,
+			editorId: editor.editorId
 		});
+	}
+
+	//#endregion
+
+	//#region isOpened()
+
+	isVisible(editor: IEditorInput): boolean {
+		for (const group of this.editorGroupService.groups) {
+			if (group.activeEditor?.matches(editor)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	//#endregion

@@ -3976,6 +3976,31 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents a structured label for completion items.
+	 */
+	export interface CompletionItemLabel {
+
+		/**
+		 * The label of this completion item. By default
+		 * this is also the text that is inserted when selecting
+		 * this completion.
+		 */
+		label: string;
+
+		/**
+		 * An optional string which is rendered less prominent and directly after {@link CompletionItemLabel.label name},
+		 * without any spacing. Should be used for function signatures or type annotations.
+		 */
+		detail?: string;
+
+		/**
+		 * An optional string which is rendered less prominent and after {@link CompletionItemLabel.detail}. Should be used
+		 * for fully qualified names or file path.
+		 */
+		description?: string;
+	}
+
+	/**
 	 * Completion item kinds.
 	 */
 	export enum CompletionItemKind {
@@ -4041,7 +4066,7 @@ declare module 'vscode' {
 		 * this is also the text that is inserted when selecting
 		 * this completion.
 		 */
-		label: string;
+		label: string | CompletionItemLabel;
 
 		/**
 		 * The kind of this completion item. Based on the kind
@@ -4165,7 +4190,7 @@ declare module 'vscode' {
 		 * @param label The label of the completion.
 		 * @param kind The {@link CompletionItemKind kind} of the completion.
 		 */
-		constructor(label: string, kind?: CompletionItemKind);
+		constructor(label: string | CompletionItemLabel, kind?: CompletionItemKind);
 	}
 
 	/**

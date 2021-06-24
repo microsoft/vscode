@@ -422,9 +422,12 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 			return;
 		}
 
+		const oldActiveGroup = this.activeInstance;
 		this._activeInstanceIndex = index;
-		this._onInstancesChanged.fire();
-		this._onDidChangeActiveInstance.fire(this.activeInstance);
+		if (oldActiveGroup !== this.activeInstance) {
+			this._onInstancesChanged.fire();
+			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		}
 	}
 
 	attachToElement(element: HTMLElement): void {

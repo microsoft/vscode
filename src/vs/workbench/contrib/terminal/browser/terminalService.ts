@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
 import { debounce, throttle } from 'vs/base/common/decorators';
@@ -10,6 +11,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { equals } from 'vs/base/common/objects';
+import { basename } from 'vs/base/common/path';
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
@@ -24,12 +26,16 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
+import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
@@ -170,8 +176,7 @@ export class TerminalService implements ITerminalService {
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				const instanceId = TerminalInstance.getInstanceIdFromUri(resource);
-				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
+				let instance = this.getInstanceFromResource(resource);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {
@@ -255,6 +260,9 @@ export class TerminalService implements ITerminalService {
 		// this long.
 		this._profilesReadyBarrier = new AutoOpenBarrier(5000);
 		this._refreshAvailableProfiles();
+
+		// Create async as the class depends on `this`
+		timeout(0).then(() => this._instantiationService.createInstance(TerminalEditorStyle, document.head));
 	}
 
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
@@ -556,6 +564,27 @@ export class TerminalService implements ITerminalService {
 		return this.instances[terminalIndex];
 	}
 
+	getInstanceFromResource(resource: URI | undefined): ITerminalInstance | undefined {
+		if (URI.isUri(resource)) {
+			const instanceId = this._getInstanceIdFromUri(resource);
+			if (instanceId) {
+				return this.getInstanceFromId(instanceId);
+			}
+		}
+		return undefined;
+	}
+
+	private _getInstanceIdFromUri(resource: URI): number | undefined {
+		if (resource.scheme !== Schemas.vscodeTerminal) {
+			return undefined;
+		}
+		const base = basename(resource.path);
+		if (base === '') {
+			return undefined;
+		}
+		return parseInt(base);
+	}
+
 	isAttachedToTerminal(remoteTerm: IRemoteTerminalAttachTarget): boolean {
 		return this.instances.some(term => term.processId === remoteTerm.pid);
 	}
@@ -579,6 +608,16 @@ export class TerminalService implements ITerminalService {
 			return null;
 		}
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
+
+		// Use the URI from the base instance if it exists, this will correctly split local terminals
+		if (typeof shellLaunchConfig.cwd !== 'object' && typeof instanceToSplit.shellLaunchConfig.cwd === 'object') {
+			shellLaunchConfig.cwd = URI.from({
+				scheme: instanceToSplit.shellLaunchConfig.cwd.scheme,
+				path: shellLaunchConfig.cwd || instanceToSplit.shellLaunchConfig.cwd.path
+			});
+			this._evaluateLocalCwd(shellLaunchConfig);
+		}
+
 		const instance = group.split(shellLaunchConfig);
 
 		this._initInstanceListeners(instance);
@@ -600,6 +639,10 @@ export class TerminalService implements ITerminalService {
 	}
 
 	async moveToTerminalView(source?: ITerminalInstance, target?: ITerminalInstance, side?: 'before' | 'after'): Promise<void> {
+		if (URI.isUri(source)) {
+			source = this.getInstanceFromResource(source);
+		}
+
 		if (source) {
 			this._terminalEditorService.detachInstance(source);
 		} else {
@@ -655,7 +698,7 @@ export class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onMaximumDimensionsChanged(() => this._onInstanceMaximumDimensionsChanged.fire(instance)));
 		instance.addDisposable(instance.onFocus(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		instance.addDisposable(instance.onRequestAddInstanceToGroup(e => {
-			const instanceId = TerminalInstance.getInstanceIdFromUri(e.uri);
+			const instanceId = this._getInstanceIdFromUri(e.uri);
 			if (instanceId === undefined) {
 				return;
 			}
@@ -983,7 +1026,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
-		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config);
+		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
 		if (options?.cwd) {
 			shellLaunchConfig.cwd = options.cwd;
@@ -1002,17 +1045,7 @@ export class TerminalService implements ITerminalService {
 			return instance;
 		}
 
-		// Add welcome message and title annotation for local terminals launched within remote or
-		// virtual workspaces
-		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
-			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
-			} else if (this._remoteAgentService.getConnection()) {
-				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
-				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
-			}
-		}
+		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
 		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
@@ -1033,6 +1066,20 @@ export class TerminalService implements ITerminalService {
 			this._terminalGroupService.setActiveInstanceByIndex(0);
 		}
 		return instance;
+	}
+
+	private _evaluateLocalCwd(shellLaunchConfig: IShellLaunchConfig) {
+		// Add welcome message and title annotation for local terminals launched within remote or
+		// virtual workspaces
+		if (typeof shellLaunchConfig.cwd !== 'string' && shellLaunchConfig.cwd?.scheme === Schemas.file) {
+			if (VirtualWorkspaceContext.getValue(this._contextKeyService)) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalVirtualWorkspace', "⚠ : This shell is open to a {0}local{1} folder, NOT to the virtual folder", '\x1b[3m', '\x1b[23m'), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			} else if (this._remoteAgentService.getConnection()) {
+				shellLaunchConfig.initialText = formatMessageForTerminal(nls.localize('localTerminalRemote', "⚠ : This shell is running on your {0}local{1} machine, NOT on the connected remote machine", '\x1b[3m', '\x1b[23m'), true);
+				shellLaunchConfig.description = nls.localize('localTerminalDescription', "Local");
+			}
+		}
 	}
 
 	protected _showBackgroundTerminal(instance: ITerminalInstance): void {
@@ -1101,4 +1148,92 @@ export class TerminalService implements ITerminalService {
 
 interface IProfileQuickPickItem extends IQuickPickItem {
 	profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string });
+}
+
+class TerminalEditorStyle extends Themable {
+	private _styleElement: HTMLElement;
+
+	constructor(
+		container: HTMLElement,
+		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IThemeService private readonly _themeService: IThemeService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
+	) {
+		super(_themeService);
+		this._registerListeners();
+		this._styleElement = document.createElement('style');
+		container.appendChild(this._styleElement);
+		this._register(toDisposable(() => container.removeChild(this._styleElement)));
+		this.updateStyles();
+	}
+
+	private _registerListeners(): void {
+		this._register(this._terminalService.onInstanceIconChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onInstanceColorChanged(() => this.updateStyles()));
+		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
+		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
+	}
+
+	override updateStyles(): void {
+		super.updateStyles();
+		const colorTheme = this._themeService.getColorTheme();
+
+		// TODO: add a rule collector to avoid duplication
+		let css = '';
+
+		// Add icons
+		for (const instance of this._terminalService.instances) {
+			const icon = instance.icon;
+			if (!icon) {
+				continue;
+			}
+			let uri = undefined;
+			if (icon instanceof URI) {
+				uri = icon;
+			} else if (icon instanceof Object && 'light' in icon && 'dark' in icon) {
+				uri = colorTheme.type === ColorScheme.LIGHT ? icon.light : icon.dark;
+			}
+			const iconClasses = getUriClasses(instance, colorTheme.type);
+			if (uri instanceof URI && iconClasses && iconClasses.length > 1) {
+				css += (
+					`.monaco-workbench .terminal-tab.${iconClasses[0]}::before` +
+					`{background-image: ${dom.asCSSUrl(uri)};}`
+				);
+			}
+			if (ThemeIcon.isThemeIcon(icon)) {
+				const codicon = iconRegistry.get(icon.id);
+				if (codicon) {
+					let def: Codicon | IconDefinition = codicon;
+					while ('definition' in def) {
+						def = def.definition;
+					}
+					css += (
+						`.monaco-workbench .terminal-tab.codicon-${icon.id}::before` +
+						`{content: '${def.fontCharacter}' !important;}`
+					);
+				}
+			}
+		}
+
+		// Add colors
+		const iconForegroundColor = colorTheme.getColor(iconForeground);
+		if (iconForegroundColor) {
+			css += `.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
+		}
+		for (const instance of this._terminalService.instances) {
+			const colorClass = getColorClass(instance);
+			if (!colorClass || !instance.color) {
+				continue;
+			}
+			const color = colorTheme.getColor(instance.color);
+			if (color) {
+				css += (
+					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
+					`{ color: ${color} !important; }`
+				);
+			}
+		}
+
+		this._styleElement.textContent = css;
+	}
 }

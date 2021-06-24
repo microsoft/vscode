@@ -382,7 +382,13 @@ suite('WorkingCopyBackupTracker (browser)', function () {
 
 		for (const editor of accessor.editorService.editors) {
 			assert.ok(editor instanceof TestUntitledTextEditorInput);
-			assert.strictEqual(editor.resolved, true);
+
+			// assert that we only call `resolve` on inactive editors
+			if (accessor.editorService.isVisible(editor)) {
+				assert.strictEqual(editor.resolved, false);
+			} else {
+				assert.strictEqual(editor.resolved, true);
+			}
 		}
 
 		dispose(disposables);

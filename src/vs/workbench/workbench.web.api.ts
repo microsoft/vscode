@@ -344,23 +344,11 @@ interface IWorkbenchConstructionOptions {
 	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
-	 * Filter for built-in extensions.
-	 */
-	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
-
-	/**
 	 * [TEMPORARY]: This will be removed soon.
 	 * Enable inlined extensions.
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * Allows the workbench to skip checking whether an extension was built for the web
-	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
-	 * asset URI.
-	 */
-	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
