@@ -175,8 +175,7 @@ export class TerminalService implements ITerminalService {
 				singlePerResource: true
 			},
 			(resource, options, group) => {
-				const instanceId = this._getInstanceIdFromUri(resource);
-				let instance = instanceId === undefined ? undefined : this.getInstanceFromId(instanceId);
+				let instance = this.getInstanceFromResource(resource);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);
 					if (sourceGroup) {
