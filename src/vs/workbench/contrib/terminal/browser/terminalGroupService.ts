@@ -316,6 +316,17 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._onDidChangeInstances.fire();
 	}
 
+	moveGroupToEnd(source: ITerminalInstance): void {
+		const sourceGroup = this.getGroupForInstance(source);
+		if (!sourceGroup) {
+			return;
+		}
+		const sourceGroupIndex = this.groups.indexOf(sourceGroup);
+		this.groups.splice(sourceGroupIndex, 1);
+		this.groups.push(sourceGroup);
+		this._onDidChangeInstances.fire();
+	}
+
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after') {
 		const sourceGroup = this.getGroupForInstance(source);
 		const targetGroup = this.getGroupForInstance(target);

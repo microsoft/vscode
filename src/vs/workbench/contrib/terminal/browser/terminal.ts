@@ -247,6 +247,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	 * @param target The target instance to move the source instance to.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	moveGroupToEnd(source: ITerminalInstance): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
