@@ -15,6 +15,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Promises } from 'vs/base/common/async';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorsOrder, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 /**
  * The working copy backup tracker deals with:
@@ -270,7 +271,12 @@ export abstract class WorkingCopyBackupTracker extends Disposable {
 		if (nonOpenedEditorsForBackups.size > 0) {
 			await this.editorService.openEditors([...nonOpenedEditorsForBackups].map(nonOpenedEditorForBackup => ({
 				editor: nonOpenedEditorForBackup,
-				options: { pinned: true, preserveFocus: true, inactive: true }
+				options: {
+					pinned: true,
+					preserveFocus: true,
+					inactive: true,
+					override: EditorOverride.DISABLED // very important to disable overrides because the editor input we got is proper
+				}
 			})));
 
 			for (const nonOpenedEditorForBackup of nonOpenedEditorsForBackups) {

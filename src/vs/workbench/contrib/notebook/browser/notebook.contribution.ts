@@ -151,21 +151,21 @@ class NotebookDiffEditorSerializer implements IEditorInputSerializer {
 	}
 
 }
+type SerializedNotebookEditorData = { resource: URI, viewType: string };
 class NotebookEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
 	serialize(input: EditorInput): string {
 		assertType(input instanceof NotebookEditorInput);
-		return JSON.stringify({
+		const data: SerializedNotebookEditorData = {
 			resource: input.resource,
-			name: input.getName(),
-			viewType: input.viewType,
-		});
+			viewType: input.viewType
+		};
+		return JSON.stringify(data);
 	}
 	deserialize(instantiationService: IInstantiationService, raw: string) {
-		type Data = { resource: URI, viewType: string, group: number; };
-		const data = <Data>parse(raw);
+		const data = <SerializedNotebookEditorData>parse(raw);
 		if (!data) {
 			return undefined;
 		}

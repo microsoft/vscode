@@ -3297,11 +3297,6 @@ export enum TestMessageSeverity {
 	Hint = 3
 }
 
-export enum TestItemStatus {
-	Pending = 0,
-	Resolved = 1,
-}
-
 const testItemPropAccessor = <K extends keyof vscode.TestItem<never>>(
 	api: IExtHostTestItemApi,
 	key: K,
@@ -3351,7 +3346,8 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 	public debuggable!: boolean;
 	public label!: string;
 	public error!: string | vscode.MarkdownString;
-	public status!: vscode.TestItemStatus;
+	public busy!: boolean;
+	public canResolveChildren!: boolean;
 
 	constructor(id: string, label: string, uri: vscode.Uri | undefined, public data: T, parent: vscode.TestItem | undefined) {
 		const api = getPrivateApiFor(this);
@@ -3382,7 +3378,8 @@ export class TestItemImpl<T = any> implements vscode.TestItem<T> {
 			description: testItemPropAccessor(api, 'description', undefined, strictEqualComparator),
 			runnable: testItemPropAccessor(api, 'runnable', true, strictEqualComparator),
 			debuggable: testItemPropAccessor(api, 'debuggable', false, strictEqualComparator),
-			status: testItemPropAccessor(api, 'status', TestItemStatus.Resolved, strictEqualComparator),
+			canResolveChildren: testItemPropAccessor(api, 'canResolveChildren', false, strictEqualComparator),
+			busy: testItemPropAccessor(api, 'busy', false, strictEqualComparator),
 			error: testItemPropAccessor(api, 'error', undefined, strictEqualComparator),
 		});
 

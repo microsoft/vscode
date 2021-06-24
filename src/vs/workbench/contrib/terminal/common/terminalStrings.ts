@@ -32,6 +32,10 @@ export const terminalStrings = {
 		original: 'Move Terminal into Editor Group',
 		short: 'Move into Editor Group'
 	},
+	moveToTerminalPanel: {
+		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
+		original: 'Move Terminal into Panel'
+	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
 		original: 'Split Terminal',

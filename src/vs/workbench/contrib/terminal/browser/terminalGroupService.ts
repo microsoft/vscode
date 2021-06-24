@@ -141,13 +141,14 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (index >= this.groups.length) {
 			return;
 		}
-
+		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
-
-		this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
-		this._onDidChangeActiveGroup.fire(this.activeGroup);
+		if (oldActiveGroup !== this.activeGroup) {
+			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
+			this._onDidChangeActiveGroup.fire(this.activeGroup);
+			this._onDidChangeActiveInstance.fire(this.activeInstance);
+		}
 	}
-
 
 	private _getInstanceLocation(index: number): IInstanceLocation | undefined {
 		let currentGroupIndex = 0;

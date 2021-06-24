@@ -159,6 +159,7 @@ suite('EditorGroupModel', () => {
 			super();
 		}
 		override get typeId() { return 'testFileEditorInputForGroups'; }
+		override get editorId() { return this.id; }
 		override async resolve(): Promise<IEditorModel | null> { return null; }
 		setPreferredName(name: string): void { }
 		setPreferredDescription(description: string): void { }
@@ -173,6 +174,9 @@ suite('EditorGroupModel', () => {
 		isResolved(): boolean { return false; }
 
 		override matches(other: TestFileEditorInput): boolean {
+			if (super.matches(other)) {
+				return true;
+			}
 			return other && this.id === other.id && other instanceof TestFileEditorInput;
 		}
 	}
@@ -275,6 +279,21 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(clone.isSticky(input3), false);
 
 		toDispose.dispose();
+	});
+
+	test('isActive - untyped', () => {
+		const group = createEditorGroupModel();
+		const input = new TestFileEditorInput('testInput', URI.file('fake'));
+		const input2 = new TestFileEditorInput('testInput2', URI.file('fake2'));
+		const untypedInput = { resource: URI.file('/fake'), options: { override: 'testInput' } };
+		const untypedNonActiveInput = { resource: URI.file('/fake2'), options: { override: 'testInput2' } };
+
+		group.openEditor(input, { pinned: true, active: true });
+		group.openEditor(input2, { active: false });
+
+		assert.ok(group.isActive(input));
+		assert.ok(group.isActive(untypedInput));
+		assert.ok(!group.isActive(untypedNonActiveInput));
 	});
 
 	test('contains()', function () {

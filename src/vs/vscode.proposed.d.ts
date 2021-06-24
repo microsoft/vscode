@@ -1872,6 +1872,9 @@ declare module 'vscode' {
 	 * Interface to discover and execute tests.
 	 */
 	export interface TestController<T = any> {
+
+		//todo@API expose `readonly id: string` that createTestController asked me for
+
 		/**
 		 * Root test item. Tests in the workspace should be added as children of
 		 * the root. The extension controls when to add these, although the
@@ -1884,6 +1887,8 @@ declare module 'vscode' {
 		 * as files change. See  {@link resolveChildrenHandler} for details around
 		 * for the lifecycle of watches.
 		 */
+		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
+		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
 		readonly root: TestItem;
 
 		/**
@@ -1907,28 +1912,20 @@ declare module 'vscode' {
 
 		/**
 		 * A function provided by the extension that the editor may call to request
-		 * children of a test item, if the {@link TestItem.status} is `Pending`.
+		 * children of a test item, if the {@link TestItem.canExpand} is `true`.
+		 * When called, the item should discover children and call
+		 * {@link TestController.createTestItem} as children are discovered.
 		 *
-		 * When called, the item should discover tests and call {@link TestItem.addChild}.
-		 * The items should set its {@link TestItem.status} to `Resolved` when
-		 * discovery is finished.
+		 * The item in the explorer will automatically be marked as "busy" until
+		 * the function returns or the returned thenable resolves.
 		 *
-		 * The item should continue watching for changes to the children and
-		 * firing updates until the `token` is cancelled. The process of watching
-		 * the tests may involve creating a file watcher, for example. After the
-		 * token is cancelled and watching stops, the TestItem should set its
-		 * {@link TestItem.status} back to `Pending`.
-		 *
-		 * The editor will only call this method when it's interested in refreshing
-		 * the children of the item, and will not call it again while there's an
-		 * existing, uncancelled discovery for an item.
+		 * The controller may wish to set up listeners or watchers to update the
+		 * children as files and documents change.
 		 *
 		 * @param item An unresolved test item for which
 		 * children are being requested
-		 * @param token Cancellation for the request. Cancellation will be
-		 * requested if the test changes before the previous call completes.
 		 */
-		resolveChildrenHandler?: (item: TestItem<T>, token: CancellationToken) => void;
+		resolveChildrenHandler?: (item: TestItem<T>) => Thenable<void> | void;
 
 		/**
 		 * Starts a test run. When called, the controller should call
@@ -2025,6 +2022,7 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
+		//todo@API is this "update" state or set final state? should this be called setTestResult?
 		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
 		/**
@@ -2056,21 +2054,6 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Indicates the the activity state of the {@link TestItem}.
-	 */
-	export enum TestItemStatus {
-		/**
-		 * All children of the test item, if any, have been discovered.
-		 */
-		Resolved = 1,
-
-		/**
-		 * The test item may have children who have not been discovered yet.
-		 */
-		Pending = 0,
-	}
-
-	/**
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
@@ -2090,26 +2073,33 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
+		//todo@API use array over es6-map
 		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
 		 * The parent of this item, if any. Assigned automatically when calling
 		 * {@link TestItem.addChild}.
 		 */
+		//todo@API jsdoc outdated (likely in many places)
+		//todo@API is this needed? with TestController#root this is never undefined but `root` is questionable (see above)
 		readonly parent?: TestItem<any>;
 
 		/**
-		 * Indicates the state of the test item's children. The editor will show
-		 * TestItems in the `Pending` state and with a `resolveHandler` as being
-		 * expandable, and will call the `resolveHandler` to request items.
+		 * Indicates whether this test item may have children discovered by resolving.
+		 * If so, it will be shown as expandable in the Test Explorer  view, and
+		 * expanding the item will cause {@link TestController.resolveChildrenHandler}
+		 * to be invoked with the item.
 		 *
-		 * A TestItem in the `Resolved` state is assumed to have discovered and be
-		 * watching for changes in its children if applicable. TestItems are in the
-		 * `Resolved` state when initially created; if the editor should call
-		 * the `resolveHandler` to discover children, set the state to `Pending`
-		 * after creating the item.
+		 * Default to false.
 		 */
-		status: TestItemStatus;
+		canResolveChildren: boolean;
+
+		/**
+		 * Controls whether the item is shown as "busy" in the Test Explorer view.
+		 * This is useful for showing status while discovering children. Defaults
+		 * to false.
+		 */
+		busy: boolean;
 
 		/**
 		 * Display name describing the test case.
@@ -2150,6 +2140,8 @@ declare module 'vscode' {
 		 * Custom extension data on the item. This data will never be serialized
 		 * or shared outside the extenion who created the item.
 		 */
+		// todo@API remove? this brings in a ton of generics, into every single type... extension own test items, they create and dispose them,
+		// and therefore can have a WeakMap<TestItem, T> or Map<id, T> to the side.
 		data: T;
 
 		/**
@@ -2160,11 +2152,11 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
+		// todo@API boolean property instead? stale: boolean
 		invalidate(): void;
 
 		/**
-		 * Removes the test and its children from the tree. Any tokens passed to
-		 * child `resolveHandler` methods will be cancelled.
+		 * Removes the test and its children from the tree.
 		 */
 		dispose(): void;
 	}

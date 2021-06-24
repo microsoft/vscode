@@ -15,7 +15,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
+import { IGettingStartedNewMenuEntryDescriptorCategory, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { GettingStartedInput } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedInput';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -189,8 +189,8 @@ registerAction2(class extends Action2 {
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
-			id: 'welcome.showNewEntries',
-			title: localize('welcome.new', "Create New..."),
+			id: 'welcome.showNewFileEntries',
+			title: localize('welcome.newFile', "New File..."),
 			category,
 			f1: true,
 			keybinding: {
@@ -207,7 +207,55 @@ registerAction2(class extends Action2 {
 
 	run(accessor: ServicesAccessor) {
 		const gettingStartedService = accessor.get(IGettingStartedService);
-		gettingStartedService.selectNewEntry();
+		gettingStartedService.selectNewEntry([
+			IGettingStartedNewMenuEntryDescriptorCategory.file,
+			IGettingStartedNewMenuEntryDescriptorCategory.notebook]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showNewFolderEntries',
+			title: localize('welcome.newFolder', "New Folder..."),
+			category,
+			f1: true,
+			keybinding: {
+				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_F,
+				weight: KeybindingWeight.WorkbenchContrib,
+			},
+			menu: {
+				id: MenuId.MenubarFileMenu,
+				group: '1_new',
+				order: 5
+			}
+		});
+	}
+
+	run(accessor: ServicesAccessor) {
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		gettingStartedService.selectNewEntry([IGettingStartedNewMenuEntryDescriptorCategory.folder]);
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'welcome.showNewEntries',
+			title: localize('welcome.new', "New..."),
+			category,
+			f1: true,
+		});
+	}
+
+	run(accessor: ServicesAccessor, args?: ('file' | 'folder' | 'notebook')[]) {
+		const gettingStartedService = accessor.get(IGettingStartedService);
+		const filters: IGettingStartedNewMenuEntryDescriptorCategory[] = [];
+		(args ?? []).forEach(arg => {
+			if (IGettingStartedNewMenuEntryDescriptorCategory[arg]) { filters.push(IGettingStartedNewMenuEntryDescriptorCategory[arg]); }
+		});
+
+		gettingStartedService.selectNewEntry(filters);
 	}
 });
 
