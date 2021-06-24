@@ -336,23 +336,23 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 
-		return this.toWebExtensionFromLocation(extensionLocation);
+		return this.toWebExtensionFromLocation(extensionLocation, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined);
 	}
 
-	private async toWebExtensionFromLocation(extensionLocation: URI): Promise<IWebExtension> {
+	private async toWebExtensionFromLocation(extensionLocation: URI, readmeUri?: URI, changelogUri?: URI): Promise<IWebExtension> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
-		const readmeTextUri: URI = joinPath(extensionLocation, 'readme.txt');
-		const readmeMarkdownUri: URI = joinPath(extensionLocation, 'readme.md');
-		const changelogTextUri: URI = joinPath(extensionLocation, 'changelog.txt');
-		const changelogMarkdownUri: URI = joinPath(extensionLocation, 'changelog.md');
 
-		const packageJSONResult = await this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None);
-		if (!isSuccess(packageJSONResult)) {
+		const [packageJSONResult, packageNLSResult] = await Promise.allSettled([
+			this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
+		]);
+
+		if (packageJSONResult.status === 'rejected' || !isSuccess(packageJSONResult.value)) {
 			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'`);
 		}
 
-		const content = await asText(packageJSONResult);
+		const content = await asText(packageJSONResult.value);
 		if (!content) {
 			throw new Error(`Error while fetching package.json for extension '${extensionLocation.toString()}'. Server returned no content`);
 		}
@@ -362,24 +362,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			throw new Error(localize('not a web extension', "Cannot add '{0}' because this extension is not a web extension.", manifest.displayName || manifest.name));
 		}
 
-		const [packageNLSResult, readmeTextResult, readmeMarkdownResult, changelogTextResult, changelogMarkdownResult] = await Promise.allSettled([
-			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: readmeTextUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: readmeMarkdownUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: changelogTextUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: changelogMarkdownUri.toString() }, CancellationToken.None)
-		]);
-
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
 			version: manifest.version,
 			location: extensionLocation,
-			readmeUri: (readmeTextResult.status === 'fulfilled' && isSuccess(readmeTextResult.value)) ? readmeTextUri
-				: (readmeMarkdownResult.status === 'fulfilled' && isSuccess(readmeMarkdownResult.value)) ? readmeMarkdownUri
-					: undefined,
-			changelogUri: (changelogTextResult.status === 'fulfilled' && isSuccess(changelogTextResult.value)) ? changelogTextUri
-				: (changelogMarkdownResult.status === 'fulfilled' && isSuccess(changelogMarkdownResult.value)) ? changelogMarkdownUri
-					: undefined,
+			readmeUri,
+			changelogUri,
 			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined
 		};
 	}
