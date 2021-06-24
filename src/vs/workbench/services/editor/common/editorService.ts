@@ -15,8 +15,15 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IResourceEditorReplacement {
-	readonly editor: IUntypedEditorInput;
-	readonly replacement: IUntypedEditorInput;
+	editor: IUntypedEditorInput;
+	replacement: IUntypedEditorInput;
+	options?: IEditorOptions;
+
+	/**
+	 * Skips asking the user for confirmation and doesn't
+	 * save the document. Only use this if you really need to!
+	*/
+	forceReplaceDirty?: boolean;
 }
 
 export const ACTIVE_GROUP = -1;

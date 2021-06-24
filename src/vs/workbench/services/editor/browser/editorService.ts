@@ -970,34 +970,23 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 
 		for (const replaceEditorArg of editors) {
-			if (replaceEditorArg.editor instanceof EditorInput) {
-				const replacementArg = replaceEditorArg as IEditorReplacement;
-				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
-					const override = await this.editorOverrideService.resolveEditorInput({ resource: replacementArg.replacement.resource, options: replacementArg.options }, targetGroup);
-					if (override === OverrideStatus.ABORT) {
-						continue;
-					} else if (override !== OverrideStatus.NONE) {
-						replacementArg.options = override?.options ?? replacementArg.options;
-						replacementArg.replacement = override?.editor ?? replacementArg.replacement;
-					}
+			const replacementArg = replaceEditorArg;
+			if (replacementArg.options?.override !== EditorOverride.DISABLED) {
+				const override = await this.doResolveEditorInput(replacementArg.replacement, isEditorInput(replacementArg.replacement) ? replacementArg.options : targetGroup);
+				if (override === OverrideStatus.ABORT) {
+					continue;
+				} else if (override !== OverrideStatus.NONE) {
+					replacementArg.options = override?.options ?? replacementArg.options;
+					replacementArg.replacement = override?.editor ?? replacementArg.replacement;
 				}
-				typedEditors.push({
-					editor: replacementArg.editor,
-					replacement: replacementArg.replacement,
-					forceReplaceDirty: replacementArg.forceReplaceDirty,
-					options: replacementArg.options
-				});
-			} else {
-				const replacementArg = replaceEditorArg as IResourceEditorReplacement;
-
-				typedEditors.push({
-					editor: this.createEditorInput(replacementArg.editor),
-					replacement: this.createEditorInput(replacementArg.replacement),
-					options: replacementArg.replacement.options
-				});
 			}
+			typedEditors.push({
+				editor: isEditorInput(replacementArg.editor) ? replacementArg.editor : this.createEditorInput(replacementArg.editor),
+				replacement: isEditorInput(replacementArg.replacement) ? replacementArg.replacement : this.createEditorInput(replacementArg.replacement),
+				forceReplaceDirty: replacementArg.forceReplaceDirty,
+				options: replacementArg.options
+			});
 		}
-
 		if (targetGroup) {
 			return targetGroup.replaceEditors(typedEditors);
 		}
