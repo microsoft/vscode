@@ -34,7 +34,7 @@ import { Promises, timeout } from 'vs/base/common/async';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { indexOfPath } from 'vs/base/common/extpath';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
-import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus, ReturnedOverride } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -512,13 +512,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
-		const result = this.doResolveEditorOpenRequest(editor, optionsOrGroup, group);
+		const result = this.resolveGroupAndOptions(editor, optionsOrGroup, group);
 		if (result) {
 			const [resolvedGroup, resolvedOptions] = result;
 
 			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				const overrideResult = await this.editorOverrideService.resolveEditorOverride(editor, resolvedGroup);
+				const overrideResult = await this.doResolveEditorInput(editor, optionsOrGroup);
 				if (overrideResult === OverrideStatus.ABORT) {
 					return;
 				} else if (overrideResult !== OverrideStatus.NONE) {
@@ -537,7 +537,45 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	private doResolveEditorOpenRequest(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, IEditorOptions | undefined] | undefined {
+	private async doResolveEditorInput(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
+		let untypedEditor;
+		let group;
+		let conflictingDefaults = false;
+		// Retrieve an untyped editor regardless of if it's typed
+		if (isEditorInput(editor)) {
+			const result = this.resolveGroupAndOptions(editor, optionsOrGroup);
+			if (!result) {
+				return OverrideStatus.NONE;
+			}
+			const [resolvedGroup, resolvedOptions] = result;
+			group = resolvedGroup;
+			untypedEditor = editor.toUntyped(resolvedGroup.id, UntypedEditorContext.Default);
+			if (!untypedEditor) {
+				return OverrideStatus.NONE;
+			}
+			untypedEditor.options = resolvedOptions;
+		} else {
+			untypedEditor = editor;
+		}
+		// Populate the override id if the untyped editor doesn't have one
+		if (typeof untypedEditor.options?.override !== 'string') {
+			const populatedInfo = await this.editorOverrideService.populateEditorId(editor);
+			if (!populatedInfo) {
+				return OverrideStatus.ABORT;
+			}
+			conflictingDefaults = populatedInfo.conflictingDefault;
+		}
+		if (!group) {
+			const result = this.resolveGroupAndOptions(editor, optionsOrGroup);
+			if (!result) {
+				return OverrideStatus.NONE;
+			}
+			group = result[0];
+		}
+		return this.editorOverrideService.resolveEditorInput(editor, group, conflictingDefaults);
+	}
+
+	private resolveGroupAndOptions(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, group?: OpenInEditorGroup): [IEditorGroup, IEditorOptions | undefined] | undefined {
 		let resolvedGroup: IEditorGroup | undefined;
 		let candidateGroup: OpenInEditorGroup | undefined;
 
@@ -721,7 +759,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					if (isEditorInputWithOptions(editor)) {
 						editorToOverride.options = { ...editorToOverride.options, ...editor.options };
 					}
-					const overrideResult = await this.editorOverrideService.resolveEditorOverride(editorToOverride, group);
+					const overrideResult = await this.editorOverrideService.resolveEditorInput(editorToOverride, group);
 					if (overrideResult === OverrideStatus.ABORT) {
 						continue;
 					} else {
@@ -933,7 +971,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (replaceEditorArg.editor instanceof EditorInput) {
 				const replacementArg = replaceEditorArg as IEditorReplacement;
 				if (replacementArg.options?.override !== EditorOverride.DISABLED && targetGroup) {
-					const override = await this.editorOverrideService.resolveEditorOverride({ resource: replacementArg.replacement.resource, options: replacementArg.options }, targetGroup);
+					const override = await this.editorOverrideService.resolveEditorInput({ resource: replacementArg.replacement.resource, options: replacementArg.options }, targetGroup);
 					if (override === OverrideStatus.ABORT) {
 						continue;
 					} else if (override !== OverrideStatus.NONE) {

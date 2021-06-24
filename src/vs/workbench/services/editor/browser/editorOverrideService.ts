@@ -80,9 +80,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		}));
 	}
 
-	async resolveEditorOverride(editor: IUntypedEditorInput, group: IEditorGroup): Promise<ReturnedOverride> {
+	async populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined> {
 		let resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
-		let options = editor.options;
 		// If it was an override before we await for the extensions to activate and then proceed with overriding or else they won't be registered
 		if (this.cache && resource && this.resourceMatchesCache(resource)) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
@@ -92,25 +91,41 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			resource = URI.from({ scheme: Schemas.untitled });
 		}
 
-		if (options?.override === EditorOverride.DISABLED) {
+		if (editor.options?.override === EditorOverride.DISABLED) {
 			throw new Error(`Calling resolve editor override when override is explicitly disabled!`);
 		}
 
-		let override = typeof options?.override === 'string' ? options.override : undefined;
-
-		if (options?.override === EditorOverride.PICK) {
+		if (editor.options?.override === EditorOverride.PICK) {
 			const picked = await this.doPickEditorOverride(editor);
 			// If the picker was cancelled we will stop resolving the override
 			if (!picked) {
-				return OverrideStatus.ABORT;
+				return undefined;
 			}
-			// Deconstruct the return picked options and overrides if the user selected something
-			override = picked.override as string | undefined;
-			options = picked;
+			// Populate the options with the new ones
+			editor.options = picked;
+			return { conflictingDefault: false };
 		}
 
-		// Resolved the override as much as possible, now find a given editor
-		const { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, override);
+		const { editor: selectedEditor, conflictingDefault } = this.getEditor(resource, editor.options?.override);
+		editor.options = { ...editor.options, override: selectedEditor?.editorInfo.id };
+		return { conflictingDefault };
+	}
+
+	async resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride> {
+		let resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		let options = editor.options;
+
+
+		if (resource === undefined) {
+			resource = URI.from({ scheme: Schemas.untitled });
+		}
+
+		if (!options?.override || typeof options.override !== 'string') {
+			await this.populateEditorId(editor);
+		}
+
+		// Resolved the override as much as possible, now find a given editor (cast here is ok because we resolve down to a string above)
+		const { editor: selectedEditor } = this.getEditor(resource, editor.options?.override as string | undefined);
 		if (!selectedEditor) {
 			return OverrideStatus.NONE;
 		}
@@ -419,7 +434,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 						return;
 					}
 					untypedInput.options = picked;
-					const replacementEditor = await this.resolveEditorOverride(untypedInput, group);
+					const replacementEditor = await this.resolveEditorInput(untypedInput, group);
 					if (replacementEditor === OverrideStatus.ABORT || replacementEditor === OverrideStatus.NONE) {
 						return;
 					}

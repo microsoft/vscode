@@ -140,13 +140,21 @@ export interface IEditorOverrideService {
 	): IDisposable;
 
 	/**
+	 * Populates the override field of the untyped editor input
+	 * @param editor The editor input
+	 * @returns If one is populated whether or not there was a conflicting default, else undefined
+	 */
+	populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined>
+
+	/**
 	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
+	 * @param conflictingDefault Whether or not to show the conflicting default prompt
 	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IUntypedEditorInput, group: IEditorGroup): Promise<ReturnedOverride>;
+	resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride>;
 
 	/**
 	 * Given a resource returns all the editor ids that match that resource
