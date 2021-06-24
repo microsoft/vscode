@@ -370,6 +370,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 
 	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
 		templateData.disposables.forEach(disposable => disposable.dispose());
+		templateData.disposables = [];
 	}
 
 	disposeTemplate(templateData: IBreakpointColumnTemplateData): void { }
