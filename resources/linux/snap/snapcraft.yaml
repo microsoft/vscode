@@ -27,7 +27,13 @@ parts:
       - gnome
     plugin: dump
     source: .
+    override-stage: |
+      # The resquash test is run as non-root, so when the snap is unsquashed,
+      # chrome-sandbox will not have the setuid bit set. This step avoids the checksum mismatch.
+      snapcraftctl stage
+      chmod 0755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
     override-build: |
+      # Sets the setuid bits for chrome-sandbox.
       snapcraftctl build
       chmod 4755 $SNAPCRAFT_PART_INSTALL/usr/share/@@NAME@@/chrome-sandbox
     stage-packages:
