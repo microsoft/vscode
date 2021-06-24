@@ -1872,6 +1872,9 @@ declare module 'vscode' {
 	 * Interface to discover and execute tests.
 	 */
 	export interface TestController<T = any> {
+
+		//todo@API expose `readonly id: string` that createTestController asked me for
+
 		/**
 		 * Root test item. Tests in the workspace should be added as children of
 		 * the root. The extension controls when to add these, although the
@@ -1884,6 +1887,8 @@ declare module 'vscode' {
 		 * as files change. See  {@link resolveChildrenHandler} for details around
 		 * for the lifecycle of watches.
 		 */
+		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
+		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
 		readonly root: TestItem;
 
 		/**
@@ -2017,6 +2022,7 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
+		//todo@API is this "update" state or set final state? should this be called setTestResult?
 		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
 
 		/**
@@ -2067,12 +2073,15 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
+		//todo@API use array over es6-map
 		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
 		 * The parent of this item, if any. Assigned automatically when calling
 		 * {@link TestItem.addChild}.
 		 */
+		//todo@API jsdoc outdated (likely in many places)
+		//todo@API is this needed? with TestController#root this is never undefined but `root` is questionable (see above)
 		readonly parent?: TestItem<any>;
 
 		/**
@@ -2131,6 +2140,8 @@ declare module 'vscode' {
 		 * Custom extension data on the item. This data will never be serialized
 		 * or shared outside the extenion who created the item.
 		 */
+		// todo@API remove? this brings in a ton of generics, into every single type... extension own test items, they create and dispose them,
+		// and therefore can have a WeakMap<TestItem, T> or Map<id, T> to the side.
 		data: T;
 
 		/**
@@ -2141,6 +2152,7 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
+		// todo@API boolean property instead? stale: boolean
 		invalidate(): void;
 
 		/**
