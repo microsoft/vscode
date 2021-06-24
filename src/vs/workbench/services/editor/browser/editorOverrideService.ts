@@ -240,6 +240,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	public getEditorIds(resource: URI): string[] {
 		const editors = this.findMatchingEditors(resource);
+		// This function is used to populate the reopen with.. context key and we do
+		// not want to show the reopen with if there's an exclusive provider so we return no id's in that case
+		if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
+			return [];
+		}
 		return editors.map(editor => editor.editorInfo.id);
 	}
 
