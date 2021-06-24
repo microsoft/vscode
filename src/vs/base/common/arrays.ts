@@ -601,34 +601,3 @@ export function filterSortedByKey<T>(data: readonly T[], keySelector: (value: T)
 	}
 	return data.slice(startIdx, endIdx);
 }
-
-/**
- * This class helps to filter an array by a key when the key decrements for each filter query.
-*/
-export class DecreasingKeyFilter<T> {
-	public static ofSortedDataAsc<T>(data: T[], keySelector: (value: T) => number): DecreasingKeyFilter<T> {
-		return new DecreasingKeyFilter(data, keySelector);
-	}
-
-	private lastIndex = this.data.length - 1;
-
-	constructor(private readonly data: T[], private readonly keySelector: (value: T) => number) {
-	}
-
-	filterByDecreasedKey(startKey: number, endKey = startKey): T[] | null {
-		// This could also be done with binary search
-		let endIdx = this.lastIndex;
-		while (endIdx >= 0 && this.keySelector(this.data[endIdx]) > endKey) {
-			endIdx--;
-		}
-		let startIdx = endIdx;
-		while (startIdx >= 0 && this.keySelector(this.data[startIdx]) >= startKey) {
-			startIdx--;
-		}
-		if (endIdx === startIdx) {
-			return null;
-		}
-		this.lastIndex = startIdx;
-		return this.data.slice(startIdx + 1, endIdx + 1);
-	}
-}

@@ -1461,6 +1461,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 				const currentEditStartLineNumber = newLineCount - lineCount - changeLineCountDelta + startLineNumber;
 				const firstEditLineNumber = currentEditStartLineNumber;
 				const lastEditLineNumber = currentEditStartLineNumber + editingLinesCnt;
+				const lastInsertedLineNumber = currentEditStartLineNumber + insertingLinesCnt - editingLinesCnt;
 
 				// We use `cacheVersionId` 0 because we only increment the model version id once at the end of handling all the changes
 				// and we wouldn't want the interval tree to cache ranges incorrectly
@@ -1470,9 +1471,15 @@ export class TextModel extends Disposable implements model.ITextModel {
 					0,
 					0
 				));
-				const injectedText = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
+				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 
-				const injectedTextFilter = new DecreasingKeyFilter(injectedText, t => t.lineNumber);
+				const decorationsWithInjectedTextInInsertedRange = this._ensureNodesHaveRanges(this._decorationsTree.getInjectedTextInInterval(
+					this.getOffsetAt(new Position(lastEditLineNumber, 1)),
+					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
+					0,
+					0
+				));
+				const injectedTextInInsertedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInInsertedRange);
 
 				for (let j = editingLinesCnt; j >= 0; j--) {
 					const editLineNumber = startLineNumber + j;
@@ -1482,7 +1489,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 						new ModelRawLineChanged(
 							editLineNumber,
 							this.getLineContent(currentEditLineNumber),
-							injectedTextFilter.filterByDecreasedKey(currentEditLineNumber)
+							filterSortedByKey(injectedTextInEditedRange, i => i.lineNumber, currentEditLineNumber)
 						));
 				}
 
@@ -1497,10 +1504,12 @@ export class TextModel extends Disposable implements model.ITextModel {
 					const spliceLineNumber = startLineNumber + editingLinesCnt;
 					const cnt = insertingLinesCnt - editingLinesCnt;
 					const fromLineNumber = newLineCount - lineCount - cnt + spliceLineNumber + 1;
+					let injectedTexts: (LineInjectedText[] | null)[] = [];
 					let newLines: string[] = [];
 					for (let i = 0; i < cnt; i++) {
 						let lineNumber = fromLineNumber + i;
-						newLines[lineNumber - fromLineNumber] = this.getLineContent(lineNumber);
+						newLines[i] = this.getLineContent(lineNumber);
+						injectedTexts[i] = filterSortedByKey(injectedTextInInsertedRange, i => i.lineNumber, lineNumber);
 					}
 
 					rawContentChanges.push(
@@ -1508,7 +1517,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 							spliceLineNumber + 1,
 							startLineNumber + insertingLinesCnt,
 							newLines,
-							filterSortedByKey(injectedText, i => i.lineNumber, fromLineNumber, fromLineNumber + cnt)
+							injectedTexts
 						)
 					);
 				}
