@@ -149,7 +149,7 @@ export class TerminalViewPane extends ViewPane {
 					// TODO@Tyriar - this call seems unnecessary
 					this.layoutBody(this._bodyDimensions.height, this._bodyDimensions.width);
 				}
-				this._terminalService.showPanel(true);
+				this._terminalGroupService.showPanel(true);
 			} else {
 				this._terminalGroupService.activeGroup?.setVisible(false);
 			}

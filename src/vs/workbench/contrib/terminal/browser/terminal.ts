@@ -176,11 +176,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	refreshActiveGroup(): void;
 
-	showPanel(focus?: boolean): Promise<void>;
-	hidePanel(): void;
-	focusTabs(): void;
-	showTabs(): void;
-
 	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
@@ -266,6 +261,11 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 	setActiveInstanceByIndex(terminalIndex: number): void;
 
 	setContainer(container: HTMLElement): void;
+
+	showPanel(focus?: boolean): Promise<void>;
+	hidePanel(): void;
+	focusTabs(): void;
+	showTabs(): void;
 }
 
 /**

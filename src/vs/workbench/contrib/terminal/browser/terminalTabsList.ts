@@ -471,7 +471,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		} else {
 			callback(instance);
 		}
-		this._terminalService.focusTabs();
+		this._terminalGroupService.focusTabs();
 		this._listService.lastFocusedList?.focusNext();
 	}
 }

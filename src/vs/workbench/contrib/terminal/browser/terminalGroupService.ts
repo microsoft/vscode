@@ -8,15 +8,17 @@ import { timeout } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
-import { IViewsService } from 'vs/workbench/common/views';
+import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
@@ -55,7 +57,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IViewsService private readonly _viewsService: IViewsService
+		@IViewsService private readonly _viewsService: IViewsService,
+		@IWorkbenchLayoutService private _layoutService: IWorkbenchLayoutService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 
@@ -67,6 +72,22 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this._findState = new FindReplaceState();
 
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+	}
+
+	hidePanel(): void {
+		// Hide the panel if the terminal is in the panel and it has no sibling views
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID);
+		if (location === ViewContainerLocation.Panel) {
+			const panel = this._viewDescriptorService.getViewContainerByViewId(TERMINAL_VIEW_ID);
+			if (panel && this._viewDescriptorService.getViewContainerModel(panel).activeViewDescriptors.length === 1) {
+				this._layoutService.setPanelHidden(true);
+				KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE.bindTo(this._contextKeyService).set(false);
+			}
+		}
+	}
+
+	showTabs() {
+		this._configurationService.updateValue(TerminalSettingId.TabsEnabled, true);
 	}
 
 	get activeGroup(): ITerminalGroup | undefined {
@@ -102,6 +123,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	setContainer(container: HTMLElement) {
 		this._container = container;
 		this.groups.forEach(group => group.attachToElement(container));
+	}
+
+	async focusTabs(): Promise<void> {
+		if (this.instances.length === 0) {
+			return;
+		}
+		await this.showPanel(true);
+		const pane = this._viewsService.getActiveViewWithId<TerminalViewPane>(TERMINAL_VIEW_ID);
+		pane?.terminalTabbedView?.focusTabs();
 	}
 
 	createGroup(slcOrInstance?: IShellLaunchConfig | ITerminalInstance): ITerminalGroup {

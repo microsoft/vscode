@@ -120,7 +120,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -187,7 +187,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(instance);
 				}
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 
@@ -274,8 +274,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.showTabs();
+			accessor.get(ITerminalGroupService).showTabs();
 		}
 	});
 
@@ -301,7 +300,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).activeGroup?.focusPreviousPane();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -326,7 +325,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).activeGroup?.focusNextPane();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -424,7 +423,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			terminalService.setActiveInstance(instance);
-			return terminalService.showPanel(true);
+			return accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -443,7 +442,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusTabs();
+			accessor.get(ITerminalGroupService).focusTabs();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -466,7 +465,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).setActiveGroupToNext();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -489,7 +488,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).setActiveGroupToPrevious();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -520,7 +519,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return terminalService.showPanel();
+			return accessor.get(ITerminalGroupService).showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -553,7 +552,7 @@ export function registerTerminalActions() {
 			const instance = terminalService.getActiveOrCreateInstance();
 			const path = await accessor.get(ITerminalInstanceService).preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
-			return terminalService.showPanel();
+			return accessor.get(ITerminalGroupService).showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -971,7 +970,7 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
-				terminalService.showPanel(true);
+				accessor.get(ITerminalGroupService).showPanel(true);
 			}
 		}
 	});
@@ -1190,7 +1189,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			return terminalService.showPanel(true);
+			return accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1452,7 +1451,7 @@ export function registerTerminalActions() {
 					commandService.executeCommand('workbench.action.splitEditor');
 				} else {
 					terminalService.splitInstance(t, profile, cwd);
-					return terminalService.showPanel(true);
+					return accessor.get(ITerminalGroupService).showPanel(true);
 				}
 			});
 		}
@@ -1485,7 +1484,7 @@ export function registerTerminalActions() {
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
 						terminalService.splitInstance(instance, { cwd });
-						await terminalService.showPanel(true);
+						await accessor.get(ITerminalGroupService).showPanel(true);
 					});
 				}
 			}
@@ -1563,7 +1562,7 @@ export function registerTerminalActions() {
 				} else {
 					const cwd = await getCwdForSplit(terminalService.configHelper, t);
 					terminalService.splitInstance(t, { cwd });
-					await terminalService.showPanel(true);
+					await accessor.get(ITerminalGroupService).showPanel(true);
 				}
 			});
 		}
@@ -1646,7 +1645,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1668,7 +1667,7 @@ export function registerTerminalActions() {
 				}
 				t.dispose(true);
 				if (terminalService.instances.length > 0) {
-					await terminalService.showPanel(true);
+					await accessor.get(ITerminalGroupService).showPanel(true);
 				}
 			});
 		}
@@ -1703,7 +1702,7 @@ export function registerTerminalActions() {
 				terminalService.safeDisposeTerminal(instance);
 			}
 			if (terminalService.instances.length > 0) {
-				terminalService.focusTabs();
+				accessor.get(ITerminalGroupService).focusTabs();
 				focusNext(accessor);
 			}
 		}
@@ -1873,7 +1872,7 @@ export function registerTerminalActions() {
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
 				accessor.get(ITerminalGroupService).setActiveGroupByIndex(Number(indexMatches[1]) - 1);
-				return terminalService.showPanel(true);
+				return accessor.get(ITerminalGroupService).showPanel(true);
 			}
 
 			const quickSelectProfiles = terminalService.availableProfiles;

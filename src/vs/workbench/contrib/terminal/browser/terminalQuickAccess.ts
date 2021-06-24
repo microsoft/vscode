@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IPickerQuickAccessItem, PickerQuickAccessProvider, TriggerAction } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -21,7 +21,6 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 	static PREFIX = 'term ';
 
 	constructor(
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 		@ICommandService private readonly _commandService: ICommandService,
@@ -124,7 +123,7 @@ export class TerminalQuickAccessProvider extends PickerQuickAccessProvider<IPick
 						this._terminalEditorService.openEditor(terminal);
 						this._terminalEditorService.setActiveInstance(terminal);
 					} else {
-						this._terminalService.showPanel(!event.inBackground);
+						this._terminalGroupService.showPanel(!event.inBackground);
 						this._terminalGroupService.setActiveInstance(terminal);
 					}
 				}
