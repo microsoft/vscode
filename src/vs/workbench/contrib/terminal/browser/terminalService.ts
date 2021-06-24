@@ -26,6 +26,7 @@ import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPi
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
+import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
@@ -1215,6 +1216,10 @@ class TerminalEditorStyle extends Themable {
 		}
 
 		// Add colors
+		const iconForegroundColor = colorTheme.getColor(iconForeground);
+		if (iconForegroundColor) {
+			css += `.monaco-workbench .show-file-icons .file-icon.terminal-tab::before { color: ${iconForegroundColor}; }`;
+		}
 		for (const instance of this._terminalService.instances) {
 			const colorClass = getColorClass(instance);
 			if (!colorClass || !instance.color) {
@@ -1223,7 +1228,7 @@ class TerminalEditorStyle extends Themable {
 			const color = colorTheme.getColor(instance.color);
 			if (color) {
 				css += (
-					`.monaco-workbench .terminal-tab.${colorClass}::before` +
+					`.monaco-workbench .show-file-icons .file-icon.terminal-tab.${colorClass}::before` +
 					`{ color: ${color} !important; }`
 				);
 			}
