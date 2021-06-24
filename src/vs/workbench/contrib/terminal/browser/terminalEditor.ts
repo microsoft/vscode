@@ -44,13 +44,13 @@ export class TerminalEditor extends EditorPane {
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
-		@IInstantiationService _instantiationService: IInstantiationService,
-		@IContextKeyService _contextKeyService: IContextKeyService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
-		this._findWidget = _instantiationService.createInstance(TerminalFindWidget, this._findState);
-		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(_contextKeyService);
+		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
+		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
