@@ -431,7 +431,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	private mapEditorsToQuickPickEntry(resource: URI, group: IEditorGroup, showDefaultPicker?: boolean) {
 		const currentEditor = firstOrDefault(group.findEditors(resource));
 		// If untitled, we want all registered editors
-		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors : this.findMatchingEditors(resource);
+		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors.filter(e => e.editorInfo.priority !== RegisteredEditorPriority.exclusive) : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
 		registeredEditors = distinct(registeredEditors, c => c.editorInfo.id);
 		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;
