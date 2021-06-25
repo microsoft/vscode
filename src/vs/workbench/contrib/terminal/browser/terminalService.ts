@@ -889,7 +889,6 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
-					// TODO: This doesn't work for editor terminals
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
 					instance = this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });

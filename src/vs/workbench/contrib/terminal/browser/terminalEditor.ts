@@ -117,15 +117,9 @@ export class TerminalEditor extends EditorPane {
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
-			// TODO: Pass target arg to split command
 			case TerminalCommandId.CreateWithProfileButton: {
-				// if (this._tabButtons) {
-				// 	this._tabButtons.dispose();
-				// }
 				const actions = this._getTabActionBarArgs(this._terminalService.availableProfiles);
-
 				const button = this._instantiationService.createInstance(DropdownWithPrimaryActionViewItem, actions.primaryAction, actions.dropdownAction, actions.dropdownMenuActions, actions.className, this._contextMenuService);
-				// this._updateTabActionBar(this._terminalService.availableProfiles);
 				return button;
 			}
 		}

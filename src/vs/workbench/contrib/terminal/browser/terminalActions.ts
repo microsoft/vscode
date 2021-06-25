@@ -185,8 +185,6 @@ export function registerTerminalActions() {
 				if (options) {
 					instance = terminalService.createTerminal(options);
 				} else {
-					// TODO: Support target
-					// TODO: Fix alt+click
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
 
