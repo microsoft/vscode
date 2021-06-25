@@ -30,7 +30,7 @@ import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventS
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, IRemoteTerminalService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TerminalLocation, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -120,7 +120,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -187,7 +187,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(instance);
 				}
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 
@@ -274,8 +274,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			terminalService.showTabs();
+			accessor.get(ITerminalGroupService).showTabs();
 		}
 	});
 
@@ -301,7 +300,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).activeGroup?.focusPreviousPane();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -326,7 +325,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).activeGroup?.focusNextPane();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -424,7 +423,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			terminalService.setActiveInstance(instance);
-			return terminalService.showPanel(true);
+			return accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -443,7 +442,7 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusTabs();
+			accessor.get(ITerminalGroupService).focusTabs();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -466,7 +465,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).setActiveGroupToNext();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -489,7 +488,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			accessor.get(ITerminalGroupService).setActiveGroupToPrevious();
-			await accessor.get(ITerminalService).showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -520,7 +519,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return terminalService.showPanel();
+			return accessor.get(ITerminalGroupService).showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -553,7 +552,7 @@ export function registerTerminalActions() {
 			const instance = terminalService.getActiveOrCreateInstance();
 			const path = await accessor.get(ITerminalInstanceService).preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
-			return terminalService.showPanel();
+			return accessor.get(ITerminalGroupService).showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -890,7 +889,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).focusFindWidget();
+			accessor.get(ITerminalService).getFindHost().focusFindWidget();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -910,9 +909,10 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).hideFindWidget();
+			accessor.get(ITerminalService).getFindHost().hideFindWidget();
 		}
 	});
+
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
@@ -945,6 +945,7 @@ export function registerTerminalActions() {
 			const remoteAgentService = accessor.get(IRemoteAgentService);
 			const notificationService = accessor.get(INotificationService);
 			const offProcTerminalService = remoteAgentService.getConnection() ? accessor.get(IRemoteTerminalService) : accessor.get(ILocalTerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 
 			const terms = await offProcTerminalService.listProcesses();
 
@@ -970,7 +971,7 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
-				terminalService.showPanel(true);
+				terminalGroupService.showPanel(true);
 			}
 		}
 	});
@@ -1189,7 +1190,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			return terminalService.showPanel(true);
+			return accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1245,8 +1246,13 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
-			state.change({ isRegex: !state.isRegex }, false);
+			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
+				const state = accessor.get(ITerminalEditorService).getFindState();
+				state.change({ matchCase: !state.matchCase }, false);
+			} else {
+				const state = accessor.get(ITerminalGroupService).getFindState();
+				state.change({ matchCase: !state.matchCase }, false);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1266,8 +1272,13 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
-			state.change({ wholeWord: !state.wholeWord }, false);
+			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
+				const state = accessor.get(ITerminalEditorService).getFindState();
+				state.change({ wholeWord: !state.wholeWord }, false);
+			} else {
+				const state = accessor.get(ITerminalGroupService).getFindState();
+				state.change({ wholeWord: !state.wholeWord }, false);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1287,8 +1298,13 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			const state = accessor.get(ITerminalService).getFindState();
-			state.change({ matchCase: !state.matchCase }, false);
+			if (accessor.get(ITerminalService).activeInstance?.target === TerminalLocation.Editor) {
+				const state = accessor.get(ITerminalEditorService).getFindState();
+				state.change({ matchCase: !state.matchCase }, false);
+			} else {
+				const state = accessor.get(ITerminalGroupService).getFindState();
+				state.change({ matchCase: !state.matchCase }, false);
+			}
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1315,7 +1331,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).findNext();
+			accessor.get(ITerminalService).getFindHost().findNext();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1342,7 +1358,7 @@ export function registerTerminalActions() {
 			});
 		}
 		run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalService).findPrevious();
+			accessor.get(ITerminalService).getFindHost().findPrevious();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1426,13 +1442,18 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
+			const commandService = accessor.get(ICommandService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
 				if (cwd === undefined) {
 					return undefined;
 				}
-				terminalService.splitInstance(t, profile, cwd);
-				return terminalService.showPanel(true);
+				if (t.target === TerminalLocation.Editor) {
+					commandService.executeCommand('workbench.action.splitEditor');
+				} else {
+					terminalService.splitInstance(t, profile, cwd);
+					return accessor.get(ITerminalGroupService).showPanel(true);
+				}
 			});
 		}
 	});
@@ -1464,7 +1485,7 @@ export function registerTerminalActions() {
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
 						terminalService.splitInstance(instance, { cwd });
-						await terminalService.showPanel(true);
+						await accessor.get(ITerminalGroupService).showPanel(true);
 					});
 				}
 			}
@@ -1489,7 +1510,7 @@ export function registerTerminalActions() {
 			super({
 				id: TerminalCommandId.UnsplitInstance,
 				title: terminalStrings.unsplit,
-				f1: true,
+				f1: false,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
@@ -1535,10 +1556,15 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const commandService = accessor.get(ICommandService);
 			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t);
-				terminalService.splitInstance(t, { cwd });
-				await terminalService.showPanel(true);
+				if (t.target === TerminalLocation.Editor) {
+					commandService.executeCommand('workbench.action.splitEditor');
+				} else {
+					const cwd = await getCwdForSplit(terminalService.configHelper, t);
+					terminalService.splitInstance(t, { cwd });
+					await accessor.get(ITerminalGroupService).showPanel(true);
+				}
 			});
 		}
 	});
@@ -1620,7 +1646,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await terminalService.showPanel(true);
+			await accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1637,9 +1663,12 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			await terminalService.doWithActiveInstance(async t => {
+				if (t.target === TerminalLocation.Editor) {
+					return;
+				}
 				t.dispose(true);
 				if (terminalService.instances.length > 0) {
-					await terminalService.showPanel(true);
+					await accessor.get(ITerminalGroupService).showPanel(true);
 				}
 			});
 		}
@@ -1674,7 +1703,7 @@ export function registerTerminalActions() {
 				terminalService.safeDisposeTerminal(instance);
 			}
 			if (terminalService.instances.length > 0) {
-				terminalService.focusTabs();
+				accessor.get(ITerminalGroupService).focusTabs();
 				focusNext(accessor);
 			}
 		}
@@ -1844,7 +1873,7 @@ export function registerTerminalActions() {
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
 				accessor.get(ITerminalGroupService).setActiveGroupByIndex(Number(indexMatches[1]) - 1);
-				return terminalService.showPanel(true);
+				return accessor.get(ITerminalGroupService).showPanel(true);
 			}
 
 			const quickSelectProfiles = terminalService.availableProfiles;

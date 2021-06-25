@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
@@ -53,7 +53,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
@@ -160,7 +161,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const terminalInstance = this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
-			this._terminalService.showPanel(!preserveFocus);
+			this._terminalGroupService.showPanel(!preserveFocus);
 		}
 	}
 
@@ -168,7 +169,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const rendererId = this._getTerminalId(id);
 		const instance = this._terminalService.activeInstance;
 		if (instance && instance.instanceId === rendererId) {
-			this._terminalService.hidePanel();
+			this._terminalGroupService.hidePanel();
 		}
 	}
 

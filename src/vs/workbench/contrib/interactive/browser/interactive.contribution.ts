@@ -13,7 +13,7 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -34,6 +34,11 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { Schemas } from 'vs/base/common/network';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -199,17 +204,14 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 	InteractiveEditorSerializer
 );
 
+registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
+
 registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'interactive.open',
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
-			menu: [
-				{
-					id: MenuId.CommandPalette,
-					when: ContextKeyExpr.equals('config.interactive.experiments.enable', true)
-				}
-			],
+			f1: false,
 			category: 'Interactive',
 			description: {
 				description: localize('notebookActions.executeNotebook', "Run All"),
@@ -226,6 +228,11 @@ registerAction2(class extends Action2 {
 						name: 'resource',
 						description: 'Interactive resource Uri',
 						isOptional: true
+					},
+					{
+						name: 'controllerId',
+						description: 'Notebook controller Id',
+						isOptional: true
 					}
 				]
 			}
@@ -233,9 +240,11 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number, resource?: URI): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, column?: number, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const kernelService = accessor.get(INotebookKernelService);
 		const group = viewColumnToEditorGroup(editorGroupService, column);
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
@@ -269,14 +278,21 @@ registerAction2(class extends Action2 {
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
-		await editorService.openEditor(editorInput, undefined, group);
+		if (id) {
+			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
+			const preferredKernel = allKernels.find(kernel => kernel.id === id);
+			if (preferredKernel) {
+				kernelService.selectKernelForNotebook(preferredKernel, { uri: notebookUri, viewType: 'interactive' });
+			}
+		}
 
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
+		historyService.clearHistory(notebookUri);
+		await editorService.openEditor(editorInput, undefined, group);
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
 	}
 });
-
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -300,6 +316,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const editorService = accessor.get(IEditorService);
 		const bulkEditService = accessor.get(IBulkEditService);
+		const historyService = accessor.get(IInteractiveHistoryService);
 		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
 
 		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
@@ -311,8 +328,9 @@ registerAction2(class extends Action2 {
 			if (notebookDocument && textModel) {
 				const index = notebookDocument.length;
 				const value = textModel.getValue();
-
+				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
+
 				await bulkEditService.apply([
 					new ResourceNotebookCellEdit(notebookDocument.uri,
 						{
@@ -337,3 +355,80 @@ registerAction2(class extends Action2 {
 		}
 	}
 });
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.history.previous',
+			title: { value: localize('interactive.history.previous', "Previous value in history"), original: 'Previous value in history' },
+			category: 'Interactive',
+			f1: false,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('bottom'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+				),
+				primary: KeyCode.UpArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+
+			if (notebookDocument && textModel) {
+				const previousValue = historyService.getPreviousValue(notebookDocument.uri);
+				if (previousValue) {
+					textModel.setValue(previousValue);
+				}
+			}
+		}
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'interactive.history.next',
+			title: { value: localize('interactive.history.next', "Next value in history"), original: 'Next value in history' },
+			category: 'Interactive',
+			f1: false,
+			keybinding: {
+				when: ContextKeyExpr.and(
+					ContextKeyExpr.equals('resourceScheme', Schemas.vscodeInteractive),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('top'),
+					INTERACTIVE_INPUT_CURSOR_BOUNDARY.notEqualsTo('none'),
+				),
+				primary: KeyCode.DownArrow,
+				weight: KeybindingWeight.WorkbenchContrib
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const historyService = accessor.get(IInteractiveHistoryService);
+		const editorControl = editorService.activeEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined, codeEditor: CodeEditorWidget; } | undefined;
+
+		if (editorControl && editorControl.notebookEditor && editorControl.codeEditor) {
+			const notebookDocument = editorControl.notebookEditor.textModel;
+			const textModel = editorControl.codeEditor.getModel();
+
+			if (notebookDocument && textModel) {
+				const previousValue = historyService.getNextValue(notebookDocument.uri);
+				if (previousValue) {
+					textModel.setValue(previousValue);
+				}
+			}
+		}
+	}
+});
+

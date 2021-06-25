@@ -19,6 +19,7 @@ import { ICompleteTerminalConfiguration } from 'vs/workbench/contrib/terminal/co
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { IEditableData } from 'vs/workbench/common/views';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -50,6 +51,8 @@ export interface ITerminalInstanceService {
 	 * @returns An escaped version of the path to be execuded in the terminal.
 	 */
 	preparePathForTerminalAsync(path: string, executable: string | undefined, title: string, shellType: TerminalShellType, isRemote: boolean): Promise<string>;
+
+	createInstance(launchConfig: IShellLaunchConfig, target?: TerminalLocation): ITerminalInstance;
 }
 
 export interface IBrowserTerminalConfigHelper extends ITerminalConfigHelper {
@@ -173,16 +176,6 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	refreshActiveGroup(): void;
 
-	showPanel(focus?: boolean): Promise<void>;
-	hidePanel(): void;
-	focusFindWidget(): Promise<void>;
-	hideFindWidget(): void;
-	getFindState(): FindReplaceState;
-	findNext(): void;
-	findPrevious(): void;
-	focusTabs(): void;
-	showTabs(): void;
-
 	registerProcessSupport(isSupported: boolean): void;
 	/**
 	 * Registers a link provider that enables integrators to add links to the terminal.
@@ -203,20 +196,22 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getEditableData(instance: ITerminalInstance): IEditableData | undefined;
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
+
+	getFindHost(): ITerminalFindHost;
 }
 
 /**
  * This service is responsible for integrating with the editor service and managing terminal
  * editors.
  */
-export interface ITerminalEditorService extends ITerminalInstanceHost {
+export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal editor_ instances. */
 	readonly instances: readonly ITerminalInstance[];
 
 	openEditor(instance: ITerminalInstance): Promise<void>;
-	getOrCreateEditorInput(instance: ITerminalInstance, shouldOpenEditor?: boolean): TerminalEditorInput;
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
 }
@@ -225,7 +220,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
  * This service is responsible for managing terminal groups, that is the terminals that are hosted
  * within the terminal panel, not in an editor.
  */
-export interface ITerminalGroupService extends ITerminalInstanceHost {
+export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalFindHost {
 	readonly _serviceBrand: undefined;
 
 	/** Gets all _terminal view_ instances, ie. instances contained within terminal groups. */
@@ -252,6 +247,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 * @param target The target instance to move the source instance to.
 	 */
 	moveGroup(source: ITerminalInstance, target: ITerminalInstance): void;
+	moveGroupToEnd(source: ITerminalInstance): void;
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;
@@ -266,6 +262,11 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	setActiveInstanceByIndex(terminalIndex: number): void;
 
 	setContainer(container: HTMLElement): void;
+
+	showPanel(focus?: boolean): Promise<void>;
+	hidePanel(): void;
+	focusTabs(): void;
+	showTabs(): void;
 }
 
 /**
@@ -281,6 +282,14 @@ export interface ITerminalInstanceHost {
 	readonly onDidChangeInstances: Event<void>;
 
 	setActiveInstance(instance: ITerminalInstance): void;
+}
+
+export interface ITerminalFindHost {
+	focusFindWidget(): void;
+	hideFindWidget(): void;
+	getFindState(): FindReplaceState;
+	findNext(): void;
+	findPrevious(): void;
 }
 
 export interface IRemoteTerminalService extends IOffProcessTerminalService {

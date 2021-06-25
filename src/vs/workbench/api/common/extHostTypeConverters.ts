@@ -1634,9 +1634,9 @@ export namespace TestMessage {
 }
 
 export namespace TestItem {
-	export type Raw<T = unknown> = vscode.TestItem<T>;
+	export type Raw<T = unknown> = vscode.TestItem;
 
-	export function from(item: vscode.TestItem<unknown>): ITestItem {
+	export function from(item: vscode.TestItem): ITestItem {
 		return {
 			extId: item.id,
 			label: item.label,
@@ -1662,23 +1662,23 @@ export namespace TestItem {
 		};
 	}
 
-	export function toPlain(item: ITestItem): Omit<vscode.TestItem<never>, 'children' | 'invalidate' | 'discoverChildren'> {
+	export function toPlain(item: ITestItem): Omit<vscode.TestItem, 'children' | 'invalidate' | 'discoverChildren'> {
 		return {
 			id: item.extId,
 			label: item.label,
 			uri: URI.revive(item.uri),
 			range: Range.to(item.range || undefined),
 			dispose: () => undefined,
+			invalidateResults: () => undefined,
 			canResolveChildren: false,
 			busy: false,
-			data: undefined as never,
 			debuggable: item.debuggable,
 			description: item.description || undefined,
 			runnable: item.runnable,
 		};
 	}
 
-	export function to(item: ITestItem, parent?: vscode.TestItem<void>): types.TestItemImpl<void> {
+	export function to(item: ITestItem, parent?: vscode.TestItem): types.TestItemImpl {
 		const testItem = new types.TestItemImpl(item.extId, item.label, URI.revive(item.uri), undefined, parent);
 		testItem.range = Range.to(item.range || undefined);
 		testItem.debuggable = item.debuggable;
@@ -1687,8 +1687,8 @@ export namespace TestItem {
 		return testItem;
 	}
 
-	export function toItemFromContext(context: ITestItemContext): types.TestItemImpl<void> {
-		let node: types.TestItemImpl<void> | undefined;
+	export function toItemFromContext(context: ITestItemContext): types.TestItemImpl {
+		let node: types.TestItemImpl | undefined;
 		for (const test of context.tests) {
 			node = to(test.item, node);
 		}

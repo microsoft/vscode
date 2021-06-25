@@ -5,13 +5,17 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ITerminalEditorService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { ITerminalEditorService, ITerminalFindHost, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
+import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class TerminalEditorService extends Disposable implements ITerminalEditorService {
+export class TerminalEditorService extends Disposable implements ITerminalEditorService, ITerminalFindHost {
 	declare _serviceBrand: undefined;
 
 	instances: ITerminalInstance[] = [];
@@ -29,10 +33,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 
 	constructor(
 		@IEditorService private readonly _editorService: IEditorService,
+		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
-
 		this._register(toDisposable(() => {
 			for (const d of this._instanceDisposables.values()) {
 				dispose(d);
@@ -42,6 +46,54 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			const activeEditor = this._editorService.activeEditor;
 			this._setActiveInstance(activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined);
 		}));
+		this._register(this._editorService.onDidVisibleEditorsChange(() => {
+			// add any terminal editors created via the editor service split command
+			const knownIds = this.instances.map(i => i.instanceId);
+			const terminalEditors = this._getActiveTerminalEditors();
+			const unknownEditor = terminalEditors.find(input => !knownIds.includes((input as any).terminalInstance.instanceId));
+			if (unknownEditor instanceof TerminalEditorInput && unknownEditor.terminalInstance) {
+				this._editorInputs.set(unknownEditor.terminalInstance.instanceId, unknownEditor);
+				this.instances.push(unknownEditor.terminalInstance);
+			}
+		}));
+	}
+
+	private _getActiveTerminalEditors(): IEditorInput[] {
+		return this._editorService.visibleEditors.filter(e => e instanceof TerminalEditorInput && e.terminalInstance?.instanceId);
+	}
+
+	private _getActiveTerminalEditor(): TerminalEditor | undefined {
+		return this._editorService.activeEditorPane instanceof TerminalEditor ? this._editorService.activeEditorPane : undefined;
+	}
+
+	findPrevious(): void {
+		const editor = this._getActiveTerminalEditor();
+		editor?.showFindWidget();
+		editor?.getFindWidget().find(true);
+	}
+
+	findNext(): void {
+		const editor = this._getActiveTerminalEditor();
+		editor?.showFindWidget();
+		editor?.getFindWidget().find(false);
+	}
+
+	getFindState(): FindReplaceState {
+		const editor = this._getActiveTerminalEditor();
+		return editor!.findState!;
+	}
+
+	async focusFindWidget(): Promise<void> {
+		const instance = this.activeInstance;
+		if (instance) {
+			await instance.focusWhenReady(true);
+		}
+
+		this._getActiveTerminalEditor()?.focusFindWidget();
+	}
+
+	hideFindWidget(): void {
+		this._getActiveTerminalEditor()?.hideFindWidget();
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -73,11 +125,21 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		});
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance): TerminalEditorInput {
-		const cachedEditor = this._editorInputs.get(instance.instanceId);
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput {
+		let cachedEditor;
+		if ('id' in instance) {
+			cachedEditor = this._editorInputs.get(instance.id);
+		} else if ('instanceId' in instance) {
+			cachedEditor = this._editorInputs.get(instance.instanceId);
+		}
 		if (cachedEditor) {
 			return cachedEditor;
 		}
+
+		if ('pid' in instance) {
+			instance = this._terminalInstanceService.createInstance({ attachPersistentProcess: instance }, TerminalLocation.Editor);
+		}
+
 		const input = this._instantiationService.createInstance(TerminalEditorInput, instance);
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);

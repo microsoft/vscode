@@ -33,6 +33,8 @@ import { PLAINTEXT_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/modesRegis
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -53,6 +55,7 @@ export class InteractiveEditor extends EditorPane {
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
+	#historyService: IInteractiveHistoryService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -68,6 +71,7 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -82,6 +86,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
 		this.#keybindingService = keybindingService;
+		this.#historyService = historyService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -184,6 +189,38 @@ export class InteractiveEditor extends EditorPane {
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeModelContent(() => {
 			if (this.isVisible()) {
 				this.#updateInputDecoration();
+			}
+		}));
+
+		const cursorAtBoundaryContext = INTERACTIVE_INPUT_CURSOR_BOUNDARY.bindTo(this.#contextKeyService);
+		cursorAtBoundaryContext.set('none');
+
+		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
+			const viewModel = this.#codeEditorWidget._getViewModel()!;
+			const lastLineNumber = viewModel.getLineCount();
+			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
+			const firstLine = viewPosition.lineNumber === 1 && viewPosition.column === 1;
+			const lastLine = viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol;
+
+			if (firstLine) {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('both');
+				} else {
+					cursorAtBoundaryContext.set('top');
+				}
+			} else {
+				if (lastLine) {
+					cursorAtBoundaryContext.set('bottom');
+				} else {
+					cursorAtBoundaryContext.set('none');
+				}
+			}
+		}));
+
+		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
+			if (this.input?.resource) {
+				this.#historyService.replaceLast(this.input.resource, editorModel.getValue());
 			}
 		}));
 

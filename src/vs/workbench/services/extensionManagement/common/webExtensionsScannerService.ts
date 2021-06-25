@@ -124,7 +124,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 							const webExtension = await this.toWebExtensionFromLocation(location);
 							result.push(await this.toExtension(webExtension, true));
 						} catch (error) {
-							this.logService.info(`Error while fetching the the static extension ${location.toString()}.`, getErrorMessage(error));
+							this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
 						}
 					}));
 				}
@@ -134,7 +134,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					try {
 						result.push(...await this.getCustomBuiltinExtensionsFromGallery(extensionIds));
 					} catch (error) {
-						this.logService.info('Ignoring following static extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
+						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
 				}
 			})(),
@@ -145,7 +145,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async getCustomBuiltinExtensionsFromGallery(extensionIds: string[]): Promise<IExtension[]> {
 		if (!this.galleryService.isEnabled()) {
-			this.logService.info('Ignoring fetching static extensions from gallery as it is disabled.');
+			this.logService.info('Ignoring fetching additional builtin extensions from gallery as it is disabled.');
 			return [];
 		}
 
@@ -173,10 +173,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					if (this.canAddExtension(gallery)) {
 						webExtensions.push(await this.toWebExtensionFromGallery(gallery));
 					} else {
-						this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because it is not a web extension`);
+						this.logService.info(`Ignoring additional builtin gallery extension ${gallery.identifier.id} because it is not a web extension`);
 					}
 				} catch (error) {
-					this.logService.info(`Ignoring static gallery extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
+					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}
 			}));
 		}
@@ -188,7 +188,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				try {
 					result.push(await this.toExtension(webExtension, true));
 				} catch (error) {
-					this.logService.info(`Ignoring static gallery extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
+					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
 				}
 			}));
 		}
@@ -196,7 +196,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		try {
 			await this.writeWebExtensions(this.customBuiltinExtensionsCacheResource, webExtensions);
 		} catch (error) {
-			this.logService.info(`Ignoring the error while adding static gallery extensions`, getErrorMessage(error));
+			this.logService.info(`Ignoring the error while adding additional builtin gallery extensions`, getErrorMessage(error));
 		}
 
 		return result;
@@ -336,23 +336,23 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 
-		return this.toWebExtensionFromLocation(extensionLocation);
+		return this.toWebExtensionFromLocation(extensionLocation, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined);
 	}
 
-	private async toWebExtensionFromLocation(extensionLocation: URI): Promise<IWebExtension> {
+	private async toWebExtensionFromLocation(extensionLocation: URI, readmeUri?: URI, changelogUri?: URI): Promise<IWebExtension> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
-		const readmeTextUri: URI = joinPath(extensionLocation, 'readme.txt');
-		const readmeMarkdownUri: URI = joinPath(extensionLocation, 'readme.md');
-		const changelogTextUri: URI = joinPath(extensionLocation, 'changelog.txt');
-		const changelogMarkdownUri: URI = joinPath(extensionLocation, 'changelog.md');
 
-		const packageJSONResult = await this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None);
-		if (!isSuccess(packageJSONResult)) {
+		const [packageJSONResult, packageNLSResult] = await Promise.allSettled([
+			this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
+		]);
+
+		if (packageJSONResult.status === 'rejected' || !isSuccess(packageJSONResult.value)) {
 			throw new Error(`Cannot find the package.json from the location '${extensionLocation.toString()}'`);
 		}
 
-		const content = await asText(packageJSONResult);
+		const content = await asText(packageJSONResult.value);
 		if (!content) {
 			throw new Error(`Error while fetching package.json for extension '${extensionLocation.toString()}'. Server returned no content`);
 		}
@@ -362,24 +362,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			throw new Error(localize('not a web extension', "Cannot add '{0}' because this extension is not a web extension.", manifest.displayName || manifest.name));
 		}
 
-		const [packageNLSResult, readmeTextResult, readmeMarkdownResult, changelogTextResult, changelogMarkdownResult] = await Promise.allSettled([
-			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: readmeTextUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: readmeMarkdownUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: changelogTextUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: changelogMarkdownUri.toString() }, CancellationToken.None)
-		]);
-
 		return {
 			identifier: { id: getGalleryExtensionId(manifest.publisher, manifest.name) },
 			version: manifest.version,
 			location: extensionLocation,
-			readmeUri: (readmeTextResult.status === 'fulfilled' && isSuccess(readmeTextResult.value)) ? readmeTextUri
-				: (readmeMarkdownResult.status === 'fulfilled' && isSuccess(readmeMarkdownResult.value)) ? readmeMarkdownUri
-					: undefined,
-			changelogUri: (changelogTextResult.status === 'fulfilled' && isSuccess(changelogTextResult.value)) ? changelogTextUri
-				: (changelogMarkdownResult.status === 'fulfilled' && isSuccess(changelogMarkdownResult.value)) ? changelogMarkdownUri
-					: undefined,
+			readmeUri,
+			changelogUri,
 			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined
 		};
 	}

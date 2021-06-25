@@ -255,6 +255,11 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	public getEditorIds(resource: URI): string[] {
 		const editors = this.findMatchingEditors(resource);
+		// This function is used to populate the reopen with.. context key and we do
+		// not want to show the reopen with if there's an exclusive provider so we return no id's in that case
+		if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
+			return [];
+		}
 		return editors.map(editor => editor.editorInfo.id);
 	}
 
@@ -463,7 +468,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 	private mapEditorsToQuickPickEntry(resource: URI, showDefaultPicker?: boolean) {
 		const currentEditor = firstOrDefault(this.editorGroupService.activeGroup.findEditors(resource));
 		// If untitled, we want all registered editors
-		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors : this.findMatchingEditors(resource);
+		let registeredEditors = resource.scheme === Schemas.untitled ? this._registeredEditors.filter(e => e.editorInfo.priority !== RegisteredEditorPriority.exclusive) : this.findMatchingEditors(resource);
 		// We don't want duplicate Id entries
 		registeredEditors = distinct(registeredEditors, c => c.editorInfo.id);
 		const defaultSetting = this.getAssociationsForResource(resource)[0]?.viewType;

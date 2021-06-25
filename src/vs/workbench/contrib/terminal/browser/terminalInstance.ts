@@ -1153,11 +1153,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this._isDisposed) {
 			return;
 		}
+		const hadIcon = !!this.shellLaunchConfig.icon;
 		await this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows, this._accessibilityService.isScreenReaderOptimized()).then(error => {
 			if (error) {
 				this._onProcessExit(error);
 			}
 		});
+		if (!hadIcon && this.shellLaunchConfig.icon) {
+			this._onIconChanged.fire(this);
+		}
 	}
 
 	private _onProcessData(ev: IProcessDataEvent): void {
@@ -2026,12 +2030,13 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
-			const uri = URI.parse(JSON.parse(terminalResources)[0]);
-			if (uri.scheme === Schemas.vscodeTerminal) {
-				const side = this._getDropSide(e);
-				this._onDropTerminal.fire({ uri, side });
-				return;
-			}
+			const uri = URI.from({
+				scheme: Schemas.vscodeTerminal,
+				path: URI.parse(JSON.parse(terminalResources)[0]).path
+			});
+			const side = this._getDropSide(e);
+			this._onDropTerminal.fire({ uri, side });
+			return;
 		}
 
 		// Check if files were dragged from the tree explorer

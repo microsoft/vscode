@@ -198,7 +198,7 @@ stages:
             steps:
               - template: linux/product-build-linux.yml
 
-        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
+        - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true), ne(variables['VSCODE_PUBLISH'], 'false')) }}:
           - job: LinuxSnap
             dependsOn:
               - Linux
