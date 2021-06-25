@@ -271,8 +271,13 @@
           "scope": "resource"
         },
         "typescript.inlayHints.includeInlayParameterNameHints": {
-          "type": "boolean",
-          "default": false,
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "default": "none",
           "description": "%configuration.inlayHints.includeInlayParameterNameHints%",
           "scope": "resource"
         },
@@ -288,16 +293,10 @@
           "description": "%configuration.inlayHints.includeInlayVariableTypeHints%",
           "scope": "resource"
         },
-        "typescript.inlayHints.includeInlayNonLiteralParameterNameHints": {
+        "typescript.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.includeInlayNonLiteralParameterNameHints%",
-          "scope": "resource"
-        },
-        "typescript.inlayHints.includeInlayDuplicatedParameterNameHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayDuplicatedParameterNameHints%",
+          "description": "%configuration.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "typescript.inlayHints.includeInlayPropertyDeclarationTypeHints": {
@@ -319,8 +318,13 @@
           "scope": "resource"
         },
         "javascript.inlayHints.includeInlayParameterNameHints": {
-          "type": "boolean",
-          "default": false,
+          "type": "string",
+          "enum": [
+            "none",
+            "literals",
+            "all"
+          ],
+          "default": "none",
           "description": "%configuration.inlayHints.includeInlayParameterNameHints%",
           "scope": "resource"
         },
@@ -336,16 +340,10 @@
           "description": "%configuration.inlayHints.includeInlayVariableTypeHints%",
           "scope": "resource"
         },
-        "javascript.inlayHints.includeInlayNonLiteralParameterNameHints": {
+        "javascript.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName": {
           "type": "boolean",
           "default": false,
-          "description": "%configuration.inlayHints.includeInlayNonLiteralParameterNameHints%",
-          "scope": "resource"
-        },
-        "javascript.inlayHints.includeInlayDuplicatedParameterNameHints": {
-          "type": "boolean",
-          "default": false,
-          "description": "%configuration.inlayHints.includeInlayDuplicatedParameterNameHints%",
+          "description": "%configuration.inlayHints.includeInlayParameterNameHintsWhenArgumentMatchesName%",
           "scope": "resource"
         },
         "javascript.inlayHints.includeInlayPropertyDeclarationTypeHints": {

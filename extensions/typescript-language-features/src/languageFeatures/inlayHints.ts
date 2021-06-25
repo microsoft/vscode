@@ -18,7 +18,7 @@ namespace ExperimentalProto {
 		ProvideInlineHints = 'ProvideInlayHints'
 	}
 
-	export interface ProvideInlayHintsArgs extends Proto.FileRequestArgs {
+	export interface InlayHintsArgs extends Proto.FileRequestArgs {
 		/**
 		 * Start position of the span.
 		 */
@@ -29,15 +29,15 @@ namespace ExperimentalProto {
 		length: number;
 	}
 
-	export interface ProvideInlineHintsRequest extends Proto.Request {
+	export interface InlineHintsRequest extends Proto.Request {
 		command: CommandTypes.ProvideInlineHints;
-		arguments: ProvideInlayHintsArgs;
+		arguments: InlayHintsArgs;
 	}
 
 	export enum InlayHintKind {
-		Other = 0,
-		Type = 1,
-		Parameter = 2,
+		Type = 'Type',
+		Parameter = 'Parameter',
+		Enum = 'Enum'
 	}
 
 	interface InlayHintItem {
@@ -48,7 +48,7 @@ namespace ExperimentalProto {
 		whitespaceAfter?: boolean;
 	}
 
-	export interface ProvideInlayHintsResponse extends Proto.Response {
+	export interface InlayHintsResponse extends Proto.Response {
 		body?: InlayHintItem[];
 	}
 
@@ -62,7 +62,22 @@ namespace ExperimentalProto {
 	}
 
 	export interface ExtendedTsServerRequests {
-		'provideInlayHints': [ProvideInlayHintsArgs, ProvideInlayHintsResponse];
+		'provideInlayHints': [InlayHintsArgs, InlayHintsResponse];
+	}
+
+	export namespace InlayHintKind {
+		export function fromProtocolInlayHintKind(kind: InlayHintKind): vscode.InlayHintKind {
+			switch (kind) {
+				case InlayHintKind.Parameter:
+					return vscode.InlayHintKind.Parameter;
+				case InlayHintKind.Type:
+					return vscode.InlayHintKind.Type;
+				case InlayHintKind.Enum:
+					return vscode.InlayHintKind.Other;
+				default:
+					return vscode.InlayHintKind.Other;
+			}
+		}
 	}
 }
 
@@ -95,7 +110,11 @@ class TypeScriptInlayHintsProvider implements vscode.InlayHintsProvider {
 		}
 
 		return response.body.map(hint => {
-			const result = new vscode.InlayHint(hint.text, Position.fromLocation(hint.position), hint.kind);
+			const result = new vscode.InlayHint(
+				hint.text,
+				Position.fromLocation(hint.position),
+				hint.kind && ExperimentalProto.InlayHintKind.fromProtocolInlayHintKind(hint.kind)
+			);
 			result.whitespaceBefore = hint.whitespaceBefore;
 			result.whitespaceAfter = hint.whitespaceAfter;
 			return result;
