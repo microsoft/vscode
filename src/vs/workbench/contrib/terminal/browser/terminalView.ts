@@ -24,7 +24,7 @@ import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND 
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ITerminalProfileResolverService, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -43,6 +43,7 @@ import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -178,7 +179,26 @@ export class TerminalViewPane extends ViewPane {
 
 	override getActionViewItem(action: Action): IActionViewItem | undefined {
 		switch (action.id) {
-			// TODO: Pass target arg to split command
+			case TerminalCommandId.Split: {
+				// Split needs to be special cased to force splitting within the panel, not the editor
+				const panelOnlySplitAction: IAction = {
+					id: action.id,
+					checked: action.checked,
+					class: action.class,
+					enabled: action.enabled,
+					label: action.label,
+					dispose: action.dispose.bind(action),
+					tooltip: action.tooltip,
+					run: () => {
+						const instance = this._terminalGroupService.activeInstance;
+						if (instance) {
+							return this._terminalService.splitInstance(instance);
+						}
+						return;
+					}
+				};
+				return new ActionViewItem(action, panelOnlySplitAction, { icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+			}
 			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
@@ -199,6 +219,10 @@ export class TerminalViewPane extends ViewPane {
 			}
 		}
 		return super.getActionViewItem(action);
+	}
+
+	private _getKeybindingLabel(action: IAction): string | undefined {
+		return withNullAsUndefined(this._keybindingService.lookupKeybinding(action.id)?.getLabel());
 	}
 
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
