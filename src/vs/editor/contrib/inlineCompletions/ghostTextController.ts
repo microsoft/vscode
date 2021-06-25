@@ -120,7 +120,7 @@ class GhostTextContextKeys {
 */
 export class ActiveGhostTextController extends Disposable {
 	private readonly contextKeys = new GhostTextContextKeys(this.contextKeyService);
-	public readonly model = this.instantiationService.createInstance(GhostTextModel, this.editor);
+	public readonly model = this._register(this.instantiationService.createInstance(GhostTextModel, this.editor));
 	public readonly widget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, this.model));
 
 	constructor(
