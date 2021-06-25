@@ -644,6 +644,11 @@ export interface IEditorGroup {
 	focus(): void;
 }
 
+export function isEditorGroup(obj: unknown): obj is IEditorGroup {
+	const group = obj as IEditorGroup | undefined;
+
+	return !!group && typeof group.id === 'number' && Array.isArray(group.editors);
+}
 
 //#region Editor Group Helpers
 

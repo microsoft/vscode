@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -522,7 +522,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Resolve override unless disabled
 		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
 		if (options?.override !== EditorOverride.DISABLED) {
-			const overrideResult = await this.doResolveEditorOverride(editor, optionsOrPreferredGroup);
+			const overrideResult = await this.doResolveEditorOverride(editor, (typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup)) ? optionsOrPreferredGroup : undefined);
 			if (overrideResult === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
@@ -546,21 +546,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return group.openEditor(typedEditor, options);
 	}
 
-	private async doResolveEditorOverride(editor: IEditorInput, options?: IEditorOptions): Promise<ReturnedOverride>;
-	private async doResolveEditorOverride(editor: IUntypedEditorInput, preferredGroup?: OpenInEditorGroup): Promise<ReturnedOverride>;
-	private async doResolveEditorOverride(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride>;
-	private async doResolveEditorOverride(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
+	private async doResolveEditorOverride(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup?: OpenInEditorGroup): Promise<ReturnedOverride> {
 
 		// Typed: convert to untyped to be able to resolve the override
 		let untypedEditor: IUntypedEditorInput | undefined = undefined;
-		if (isEditorInput(editor)) {
-			untypedEditor = editor.toUntyped(undefined, UntypedEditorContext.Default);
+		if (isEditorInputWithOptions(editor)) {
+			untypedEditor = editor.editor.toUntyped(undefined, UntypedEditorContext.Default);
 			if (!untypedEditor) {
 				return OverrideStatus.NONE; // unsupported untyped editor
 			}
 
 			// Preserve original options
-			untypedEditor.options = optionsOrPreferredGroup as IEditorOptions ?? untypedEditor?.options;
+			untypedEditor.options = editor.options ?? untypedEditor?.options;
 		}
 
 		// Untyped: take as is
@@ -581,7 +578,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Find the target group for the editor
-		const [group, activation] = this.findTargetGroup(untypedEditor, optionsOrPreferredGroup);
+		const [group, activation] = this.findTargetGroup(untypedEditor, preferredGroup);
 
 		// Adjust options based on group activation if any
 		if (activation) {
@@ -1017,7 +1014,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve the override if not disabled
 			if (override !== EditorOverride.DISABLED) {
-				const resolvedEditorOverride = await this.doResolveEditorOverride(replacement.replacement, isEditorReplacement(replacement) ? replacement.options : targetGroup);
+				const resolvedEditorOverride = await this.doResolveEditorOverride(isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement, targetGroup);
 				if (resolvedEditorOverride === OverrideStatus.ABORT) {
 					continue; // skip editor if override is aborted
 				}
