@@ -87,7 +87,7 @@ export class TerminalViewPane extends ViewPane {
 			}
 			this._onDidChangeViewWelcomeState.fire();
 		});
-		this._terminalService.onInstanceCreated(() => {
+		this._terminalService.onDidCreateInstance(() => {
 			if (!this._isWelcomeShowing) {
 				return;
 			}

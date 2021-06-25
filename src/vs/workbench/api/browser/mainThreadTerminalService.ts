@@ -59,7 +59,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
-		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
+		this._toDispose.add(_terminalService.onDidCreateInstance((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
@@ -387,7 +387,7 @@ class TerminalDataEventTracker extends Disposable {
 		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
 		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
-		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
 		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
 	}
 

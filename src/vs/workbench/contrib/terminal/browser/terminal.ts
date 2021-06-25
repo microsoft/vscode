@@ -113,7 +113,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	initializeTerminals(): Promise<void>;
 	onActiveGroupChanged: Event<ITerminalGroup | undefined>;
 	onGroupDisposed: Event<ITerminalGroup>;
-	onInstanceCreated: Event<ITerminalInstance>;
+	onDidCreateInstance: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
 	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceMaximumDimensionsChanged: Event<ITerminalInstance>;

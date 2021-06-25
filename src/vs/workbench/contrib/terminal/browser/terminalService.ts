@@ -92,8 +92,8 @@ export class TerminalService implements ITerminalService {
 
 	private readonly _onActiveGroupChanged = new Emitter<ITerminalGroup | undefined>();
 	get onActiveGroupChanged(): Event<ITerminalGroup | undefined> { return this._onActiveGroupChanged.event; }
-	private readonly _onInstanceCreated = new Emitter<ITerminalInstance>();
-	get onInstanceCreated(): Event<ITerminalInstance> { return this._onInstanceCreated.event; }
+	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
 	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
@@ -195,12 +195,12 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
-		terminalInstanceService.onDidCreateInstance(this._onInstanceCreated.fire, this._onInstanceCreated);
+		terminalInstanceService.onDidCreateInstance(this._onDidCreateInstance.fire, this._onDidCreateInstance);
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
-		this.onInstanceCreated(() => this._refreshAvailableProfiles());
+		this.onDidCreateInstance(() => this._refreshAvailableProfiles());
 		this.onInstanceLinksReady(instance => this._setInstanceLinkProviders(instance));
 
 		// Hide the panel if there are no more instances, provided that VS Code is not shutting
@@ -992,7 +992,7 @@ export class TerminalService implements ITerminalService {
 			this._configHelper,
 			shellLaunchConfig
 		);
-		this._onInstanceCreated.fire(instance);
+		this._onDidCreateInstance.fire(instance);
 		return instance;
 	}
 
