@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { SIDE_GROUP, IUntypedEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -257,7 +257,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private handleMovedFile(source: URI, target: URI): void {
 		for (const group of this.editorGroupService.groups) {
-			let replacements: (IResourceEditorReplacement | IEditorReplacement)[] = [];
+			let replacements: (IUntypedEditorReplacement | IEditorReplacement)[] = [];
 
 			for (const editor of group.editors) {
 				const resource = editor.resource;
@@ -300,7 +300,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 					});
 				} else {
 					replacements.push({
-						editor: { resource: editor.resource },
+						editor,
 						replacement: {
 							...moveResult.editor,
 							options: {
@@ -993,9 +993,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	async replaceEditors(replacements: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(replacements: IUntypedEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 	async replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(replacements: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
+	async replaceEditors(replacements: Array<IEditorReplacement | IUntypedEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 
 		// Convert all replacements to typed editors unless already
@@ -1022,9 +1022,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				// We have an override to use!
 				if (isEditorInputWithOptions(resolvedEditorOverride)) {
 					typedReplacement = {
-						editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor) /* this should not be needed (https://github.com/microsoft/vscode/issues/127134) */,
+						editor: replacement.editor,
 						replacement: resolvedEditorOverride.editor,
-						options: resolvedEditorOverride.options ?? isEditorReplacement(replacement) ? (replacement as IEditorReplacement).options : replacement.editor.options,
+						options: resolvedEditorOverride.options ?? isEditorReplacement(replacement) ? (replacement as IEditorReplacement).options : replacement.replacement.options,
 						forceReplaceDirty: replacement.forceReplaceDirty
 					};
 				}
@@ -1033,9 +1033,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Override is disabled or did not apply
 			if (!typedReplacement) {
 				typedReplacement = {
-					editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor) /* this should not be needed (https://github.com/microsoft/vscode/issues/127134) */,
+					editor: replacement.editor,
 					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.createEditorInput(replacement.replacement),
-					options: isEditorReplacement(replacement) ? replacement.options : replacement.editor.options,
+					options: isEditorReplacement(replacement) ? replacement.options : replacement.replacement.options,
 					forceReplaceDirty: replacement.forceReplaceDirty
 				};
 			}
