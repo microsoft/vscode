@@ -35,6 +35,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -56,6 +57,7 @@ export class InteractiveEditor extends EditorPane {
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
 	#historyService: IInteractiveHistoryService;
+	#interactiveDocumentService: IInteractiveDocumentService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -71,7 +73,8 @@ export class InteractiveEditor extends EditorPane {
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IInteractiveHistoryService historyService: IInteractiveHistoryService
+		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
+		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -87,6 +90,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#modeService = modeService;
 		this.#keybindingService = keybindingService;
 		this.#historyService = historyService;
+		this.#interactiveDocumentService = interactiveDocumentService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -159,7 +163,13 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 
-		const editorModel = this.#modelService.getModel(input.inputResource) || this.#modelService.createModel('', null, input.inputResource, false);
+		let editorModel = this.#modelService.getModel(input.inputResource);
+
+		if (!editorModel) {
+			this.#interactiveDocumentService.willCreateInteractiveDocument(input.resource!, input.inputResource, this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
+			editorModel = this.#modelService.createModel('', null, input.inputResource, false);
+		}
+
 		this.#widgetDisposableStore.add(editorModel);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
@@ -220,7 +230,7 @@ export class InteractiveEditor extends EditorPane {
 
 		this.#widgetDisposableStore.add(editorModel.onDidChangeContent(() => {
 			if (this.input?.resource) {
-				this.#historyService.replaceLast(this.input.resource, editorModel.getValue());
+				this.#historyService.replaceLast(this.input.resource, editorModel!.getValue());
 			}
 		}));
 

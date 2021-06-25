@@ -39,6 +39,7 @@ import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbe
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -205,6 +206,7 @@ Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).
 );
 
 registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
+registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
 
 registerAction2(class extends Action2 {
 	constructor() {
