@@ -5,7 +5,7 @@
 
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { timeout } from 'vs/base/common/async';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,21 +40,23 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
-	get onDidChangeActiveGroup(): Event<ITerminalGroup | undefined> { return this._onDidChangeActiveGroup.event; }
+	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
 	private readonly _onDidDisposeGroup = new Emitter<ITerminalGroup>();
-	get onDidDisposeGroup(): Event<ITerminalGroup> { return this._onDidDisposeGroup.event; }
+	readonly onDidDisposeGroup = this._onDidDisposeGroup.event;
 	private readonly _onDidChangeGroups = new Emitter<void>();
-	get onDidChangeGroups(): Event<void> { return this._onDidChangeGroups.event; }
+	readonly onDidChangeGroups = this._onDidChangeGroups.event;
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
-	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
+	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
+	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
+	readonly onDidFocusInstance = this._onDidFocusInstance.event;
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
+	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
-	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
+	readonly onDidChangeInstances = this._onDidChangeInstances.event;
 
 	private readonly _onPanelOrientationChanged = new Emitter<Orientation>();
-	get onPanelOrientationChanged(): Event<Orientation> { return this._onPanelOrientationChanged.event; }
+	readonly onPanelOrientationChanged = this._onPanelOrientationChanged.event;
 
 	constructor(
 		@IContextKeyService private _contextKeyService: IContextKeyService,
@@ -145,6 +147,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		group.onPanelOrientationChanged((orientation) => this._onPanelOrientationChanged.fire(orientation));
 		this.groups.push(group);
 		group.addDisposable(group.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance));
+		group.addDisposable(group.onDidFocusInstance(this._onDidFocusInstance.fire, this._onDidFocusInstance));
 		group.addDisposable(group.onDidChangeActiveInstance(this._onDidChangeActiveInstance.fire, this._onDidChangeActiveInstance));
 		group.addDisposable(group.onInstancesChanged(this._onDidChangeInstances.fire, this._onDidChangeInstances));
 		group.addDisposable(group.onDisposed(this._onDidDisposeGroup.fire, this._onDidDisposeGroup));

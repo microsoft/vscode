@@ -96,6 +96,8 @@ export class TerminalService implements ITerminalService {
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
 	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
+	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
+	get onDidFocusInstance(): Event<ITerminalInstance> { return this._onDidFocusInstance.event; }
 	private readonly _onInstanceProcessIdReady = new Emitter<ITerminalInstance>();
 	get onInstanceProcessIdReady(): Event<ITerminalInstance> { return this._onInstanceProcessIdReady.event; }
 	private readonly _onInstanceLinksReady = new Emitter<ITerminalInstance>();
@@ -264,23 +266,29 @@ export class TerminalService implements ITerminalService {
 	private _forwardInstanceHostEvents(host: ITerminalInstanceHost) {
 		host.onDidChangeInstances(this._onDidChangeInstances.fire, this._onDidChangeInstances);
 		host.onDidDisposeInstance(this._onDidDisposeInstance.fire, this._onDidDisposeInstance);
+		host.onDidChangeActiveInstance(instance => this._evaluateActiveInstance(host, instance));
+		host.onDidFocusInstance(instance => {
+			this._onDidFocusInstance.fire(instance);
+			this._evaluateActiveInstance(host, instance);
+		});
+		this._hostActiveTerminals.set(host, undefined);
+	}
+
+	private _evaluateActiveInstance(host: ITerminalInstanceHost, instance: ITerminalInstance | undefined) {
 		// Track the latest active terminal for each host so that when one becomes undefined, the
 		// TerminalService's active terminal is set to the last active terminal from the other host.
 		// This means if the last terminal editor is closed such that it becomes undefined, the last
 		// active group's terminal will be used as the active terminal if available.
-		this._hostActiveTerminals.set(host, undefined);
-		host.onDidChangeActiveInstance(instance => {
-			this._hostActiveTerminals.set(host, instance);
-			if (instance === undefined) {
-				for (const active of this._hostActiveTerminals.values()) {
-					if (active) {
-						instance = active;
-					}
+		this._hostActiveTerminals.set(host, instance);
+		if (instance === undefined) {
+			for (const active of this._hostActiveTerminals.values()) {
+				if (active) {
+					instance = active;
 				}
 			}
-			this._activeInstance = instance;
-			this._onDidChangeActiveInstance.fire(instance);
-		});
+		}
+		this._activeInstance = instance;
+		this._onDidChangeActiveInstance.fire(instance);
 	}
 
 	setActiveInstance(value: ITerminalInstance) {
@@ -1024,7 +1032,6 @@ export class TerminalService implements ITerminalService {
 	}
 
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
-		console.log(options);
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
 		if (options?.cwd) {

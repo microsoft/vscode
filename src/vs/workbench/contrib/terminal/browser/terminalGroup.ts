@@ -244,6 +244,8 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 	private readonly _onDidDisposeInstance: Emitter<ITerminalInstance> = this._register(new Emitter<ITerminalInstance>());
 	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
+	private readonly _onDidFocusInstance: Emitter<ITerminalInstance> = this._register(new Emitter<ITerminalInstance>());
+	readonly onDidFocusInstance = this._onDidFocusInstance.event;
 	private readonly _onDisposed: Emitter<ITerminalGroup> = this._register(new Emitter<ITerminalGroup>());
 	readonly onDisposed = this._onDisposed.event;
 	private readonly _onInstancesChanged: Emitter<void> = this._register(new Emitter<void>());
@@ -333,7 +335,10 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 				this._onDidDisposeInstance.fire(instance);
 				this._handleOnDidDisposeInstance(instance);
 			}),
-			instance.onFocused(instance => this._setActiveInstance(instance))
+			instance.onFocused(instance => {
+				this._setActiveInstance(instance);
+				this._onDidFocusInstance.fire(instance);
+			})
 		]);
 	}
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Emitter, Event } from 'vs/base/common/event';
+import { Emitter } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -26,11 +26,13 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	private _instanceDisposables: Map</*instanceId*/number, IDisposable[]> = new Map();
 
 	private readonly _onDidDisposeInstance = new Emitter<ITerminalInstance>();
-	get onDidDisposeInstance(): Event<ITerminalInstance> { return this._onDidDisposeInstance.event; }
+	readonly onDidDisposeInstance = this._onDidDisposeInstance.event;
+	private readonly _onDidFocusInstance = new Emitter<ITerminalInstance>();
+	readonly onDidFocusInstance = this._onDidFocusInstance.event;
 	private readonly _onDidChangeActiveInstance = new Emitter<ITerminalInstance | undefined>();
-	get onDidChangeActiveInstance(): Event<ITerminalInstance | undefined> { return this._onDidChangeActiveInstance.event; }
+	readonly onDidChangeActiveInstance = this._onDidChangeActiveInstance.event;
 	private readonly _onDidChangeInstances = new Emitter<void>();
-	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
+	readonly onDidChangeInstances = this._onDidChangeInstances.event;
 
 	constructor(
 		@ICommandService private readonly _commandService: ICommandService,
@@ -46,7 +48,10 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		}));
 		this._register(this._editorService.onDidActiveEditorChange(() => {
 			const activeEditor = this._editorService.activeEditor;
-			this._setActiveInstance(activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined);
+			const instance = activeEditor instanceof TerminalEditorInput ? activeEditor?.terminalInstance : undefined;
+			if (instance) {
+				this._setActiveInstance(instance);
+			}
 		}));
 		this._register(this._editorService.onDidVisibleEditorsChange(() => {
 			// add any terminal editors created via the editor service split command
@@ -146,7 +151,8 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		instance.target = TerminalLocation.Editor;
 		this._editorInputs.set(instance.instanceId, input);
 		this._instanceDisposables.set(instance.instanceId, [
-			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance)
+			instance.onDisposed(this._onDidDisposeInstance.fire, this._onDidDisposeInstance),
+			instance.onFocus(this._onDidFocusInstance.fire, this._onDidFocusInstance)
 		]);
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
