@@ -200,8 +200,38 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				parentOfWorkspaceItem: relatedToCurrentWorkspace
 			};
 		});
-		entries.push({ uri: this.currentWorkspaceUri, entryType: TrustedUriItemType.Add, parentOfWorkspaceItem: false });
-		return entries;
+
+		// Sort entries
+		const sortedEntries = entries.sort((a, b) => {
+			if (a.uri.scheme !== b.uri.scheme) {
+				if (a.uri.scheme === Schemas.file) {
+					return -1;
+				}
+
+				if (b.uri.scheme === Schemas.file) {
+					return 1;
+				}
+			}
+
+			const aIsWorkspace = a.uri.path.endsWith('.code-workspace');
+			const bIsWorkspace = b.uri.path.endsWith('.code-workspace');
+
+			if (aIsWorkspace !== bIsWorkspace) {
+				if (aIsWorkspace) {
+					return 1;
+				}
+
+				if (bIsWorkspace) {
+					return -1;
+				}
+			}
+
+			return a.uri.fsPath.localeCompare(b.uri.fsPath);
+		});
+
+		sortedEntries.push({ uri: this.currentWorkspaceUri, entryType: TrustedUriItemType.Add, parentOfWorkspaceItem: false });
+
+		return sortedEntries;
 	}
 
 	layout(): void {
@@ -215,9 +245,9 @@ class WorkspaceTrustedUrisTable extends Disposable {
 
 	acceptEdit(item: ITrustedUriItem, uri: URI) {
 		const trustedFolders = this.workspaceTrustManagementService.getTrustedUris();
-		const index = this.getIndexOfTrustedUriEntry(item);
+		const index = trustedFolders.findIndex(u => this.uriService.extUri.isEqual(u, item.uri));
 
-		if (index >= trustedFolders.length) {
+		if (index >= trustedFolders.length || index === -1) {
 			trustedFolders.push(uri);
 		} else {
 			trustedFolders[index] = uri;
