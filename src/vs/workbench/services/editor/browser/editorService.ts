@@ -124,8 +124,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			editorInput => ({ editor: this.createEditorInput(editorInput) }),
-			untitledInput => ({ editor: this.createEditorInput(untitledInput) }),
+			editor => ({ editor: this.createEditorInput(editor) }),
+			untitledEditor => ({ editor: this.createEditorInput(untitledEditor) }),
 			diffEditor => ({ editor: this.createEditorInput(diffEditor) })
 		));
 	}
@@ -1010,7 +1010,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 
 				// We have an override to use!
-				if (resolvedEditorOverride && resolvedEditorOverride !== OverrideStatus.NONE) {
+				if (isEditorInputWithOptions(resolvedEditorOverride)) {
 					typedReplacement = {
 						editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor) /* this should not be needed (https://github.com/microsoft/vscode/issues/127134) */,
 						replacement: resolvedEditorOverride.editor,
@@ -1023,7 +1023,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Override is disabled or did not apply
 			if (!typedReplacement) {
 				typedReplacement = {
-					editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor),
+					editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor) /* this should not be needed (https://github.com/microsoft/vscode/issues/127134) */,
 					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.createEditorInput(replacement.replacement),
 					options: isEditorReplacement(replacement) ? replacement.options : replacement.editor.options,
 					forceReplaceDirty: replacement.forceReplaceDirty
