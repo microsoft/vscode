@@ -8,7 +8,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, ISideBySideEditorInput, isResourceDiffEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { IEditorInput, EditorInputCapabilities, GroupIdentifier, ISaveOptions, IRevertOptions, EditorExtensions, IEditorInputFactoryRegistry, IEditorInputSerializer, ISideBySideEditorInput, isResourceDiffEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 /**
@@ -141,12 +141,6 @@ export class SideBySideEditorInput extends EditorInput implements ISideBySideEdi
 		}
 
 		return false;
-	}
-
-	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
-		const originalInput = { resource: this.secondary.resource };
-		const modifiedInput = { resource: this.primary.resource };
-		return { originalInput, modifiedInput };
 	}
 }
 
