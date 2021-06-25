@@ -611,30 +611,6 @@ export class ExplorerView extends ViewPane {
 		});
 	}
 
-	focusNeighbourIfItemFocused(item: ExplorerItem): void {
-		const focus = this.tree.getFocus();
-		if (focus.length !== 1) {
-			return;
-		}
-		const compressedController = this.renderer.getCompressedNavigationController(focus[0]) || this.renderer.getCompressedNavigationController(item);
-		const indexOfItem = compressedController?.items.indexOf(item) || -1;
-		const itemsCompressedTogether = compressedController && (compressedController.items.indexOf(focus[0]) >= 0) && (indexOfItem >= 0);
-
-		if (focus[0] === item || itemsCompressedTogether) {
-			if (itemsCompressedTogether && indexOfItem > 0 && item.parent) {
-				// In case of compact items just focus the parent if it is part of the compact item. So the focus stays
-				this.tree.setFocus([item.parent]);
-			} else {
-				this.tree.focusNext();
-				const newFocus = this.tree.getFocus();
-				if (newFocus.length === 1 && newFocus[0] === item) {
-					// There was no next item to focus, focus the previous one
-					this.tree.focusPrevious();
-				}
-			}
-		}
-	}
-
 	override getOptimalWidth(): number {
 		const parentNode = this.tree.getHTMLElement();
 		const childNodes = ([] as HTMLElement[]).slice.call(parentNode.querySelectorAll('.explorer-item .label-name')); // select all file labels

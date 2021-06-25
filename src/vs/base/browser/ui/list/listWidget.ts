@@ -109,6 +109,7 @@ class TraitRenderer<T> implements IListRenderer<T, ITraitTemplateData>
 
 class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
+	private length = 0;
 	private indexes: number[] = [];
 	private sortedIndexes: number[] = [];
 
@@ -125,16 +126,26 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 	constructor(private _trait: string) { }
 
 	splice(start: number, deleteCount: number, elements: boolean[]): void {
+		deleteCount = Math.max(0, Math.min(deleteCount, this.length - start));
+
 		const diff = elements.length - deleteCount;
 		const end = start + deleteCount;
-		const indexes = [
+		const sortedIndexes = [
 			...this.sortedIndexes.filter(i => i < start),
 			...elements.map((hasTrait, i) => hasTrait ? i + start : -1).filter(i => i !== -1),
 			...this.sortedIndexes.filter(i => i >= end).map(i => i + diff)
 		];
 
+		const length = this.length + diff;
+
+		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0) {
+			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
+			sortedIndexes.push(Math.min(first, length - 1));
+		}
+
 		this.renderer.splice(start, deleteCount, elements.length);
-		this._set(indexes, indexes);
+		this._set(sortedIndexes, sortedIndexes);
+		this.length = length;
 	}
 
 	renderIndex(index: number, container: HTMLElement): void {
@@ -1470,6 +1481,11 @@ export class List<T> implements ISpliceable<T>, IThemable, IDisposable {
 
 	getAnchor(): number | undefined {
 		return firstOrDefault(this.anchor.get(), undefined);
+	}
+
+	getAnchorElement(): T | undefined {
+		const anchor = this.getAnchor();
+		return typeof anchor === 'undefined' ? undefined : this.element(anchor);
 	}
 
 	setFocus(indexes: number[], browserEvent?: UIEvent): void {
