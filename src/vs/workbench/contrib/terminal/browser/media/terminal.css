@@ -32,6 +32,7 @@
 .monaco-workbench .terminal-tab::before {
 	font-family: 'codicon' !important;
 	font-size: 16px !important;
+	background-image: none !important;
 }
 
 .monaco-workbench .editor-instance .terminal-wrapper,
