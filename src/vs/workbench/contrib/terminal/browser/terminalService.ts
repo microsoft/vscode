@@ -173,7 +173,7 @@ export class TerminalService implements ITerminalService {
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},
-			(resource, options, group) => {
+			({ resource, options }) => {
 				let instance = this.getInstanceFromResource(resource);
 				if (instance) {
 					const sourceGroup = this._terminalGroupService.getGroupForInstance(instance);

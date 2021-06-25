@@ -17,7 +17,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -1043,15 +1043,6 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// Otherwise go with passed in context
 	return !!editorContext ? [editorContext] : [];
-}
-
-function isEditorGroup(thing: unknown): thing is IEditorGroup {
-	const group = thing as IEditorGroup | undefined;
-	if (!group) {
-		return false;
-	}
-
-	return typeof group.id === 'number' && Array.isArray(group.editors);
 }
 
 export function setup(): void {

@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, isUntitledResourceEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -225,7 +225,7 @@ suite('EditorService', () => {
 		const replaceInput = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		// Replace editors
@@ -255,7 +255,7 @@ suite('EditorService', () => {
 				return WorkspaceTrustUriResponse.Cancel;
 			};
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 4);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input1.resource.toString()), true);
@@ -266,13 +266,13 @@ suite('EditorService', () => {
 			// Trust: open in new window
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.OpenInNewWindow;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 
 			// Trust: allow
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Open;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 3);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
@@ -296,7 +296,7 @@ suite('EditorService', () => {
 			// Trust: cancel
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Cancel;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }]);
 			assert.strictEqual(part.activeGroup.count, 3);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
@@ -444,7 +444,9 @@ suite('EditorService', () => {
 		assert(input instanceof UntitledTextEditorInput);
 
 		// Untyped Input (untitled with contents)
-		input = service.createEditorInput({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		let untypedInput: any = { contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } };
+		input = service.createEditorInput(untypedInput);
+		assert.ok(isUntitledResourceEditorInput(untypedInput));
 		assert(input instanceof UntitledTextEditorInput);
 		let model = await input.resolve() as UntitledTextEditorModel;
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
@@ -461,7 +463,9 @@ suite('EditorService', () => {
 		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
-		input = service.createEditorInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		untypedInput = { resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } };
+		assert.ok(isUntitledResourceEditorInput(untypedInput));
+		input = service.createEditorInput(untypedInput);
 		assert(input instanceof UntitledTextEditorInput);
 		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
@@ -1108,15 +1112,16 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
-		const input1 = new TestFileEditorInput(URI.parse('file://test/path/resource1.txt'), TEST_EDITOR_INPUT_ID);
-		const input2 = new TestFileEditorInput(URI.parse('file://test/path/resource2.md'), TEST_EDITOR_INPUT_ID);
+		const input1 = { resource: URI.parse('file://test/path/resource1.txt') };
+		const input2 = { resource: URI.parse('file://test/path/resource1.md') };
 		// Open editor input 1 and it shouln't trigger override as the glob doesn't match
 		await service.openEditor(input1);
 		assert.strictEqual(overrideCount, 0);
@@ -1124,7 +1129,7 @@ suite('EditorService', () => {
 		await service.openEditor(input2);
 		assert.strictEqual(overrideCount, 1);
 		// Because we specify an override we shouldn't see it triggered even if it matches
-		await service.openEditor(input2, { override: 'default' });
+		await service.openEditor({ ...input2, options: { override: 'default' } });
 		assert.strictEqual(overrideCount, 1);
 
 		registrationDisposable.dispose();
@@ -1143,10 +1148,11 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
@@ -1174,10 +1180,11 @@ suite('EditorService', () => {
 				priority: RegisteredEditorPriority.builtin
 			},
 			{},
-			(resource) => {
+			(editorInput) => {
 				overrideCount++;
-				return ({ editor: service.createEditorInput({ resource }) });
+				return ({ editor: service.createEditorInput(editorInput) });
 			},
+			undefined,
 			diffEditor => ({ editor: service.createEditorInput(diffEditor) })
 		);
 		assert.strictEqual(overrideCount, 0);
@@ -1200,7 +1207,7 @@ suite('EditorService', () => {
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		// Try using find editors for opened editors
@@ -1261,7 +1268,7 @@ suite('EditorService', () => {
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		const sideEditor = await service.openEditor(input, { pinned: true }, SIDE_GROUP);
 
 		// Try using find editors for opened editors

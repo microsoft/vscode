@@ -21,6 +21,7 @@ import { IPathData } from 'vs/platform/windows/common/windows';
 import { coalesce } from 'vs/base/common/arrays';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
+import { Schemas } from 'vs/base/common/network';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -310,6 +311,12 @@ export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor i
 	const candidate = editor as IResourceDiffEditorInput;
 
 	return candidate.originalInput !== undefined && candidate.modifiedInput !== undefined;
+}
+
+export function isUntitledResourceEditorInput(editor: IUntypedEditorInput): editor is IUntitledTextResourceEditorInput {
+	const candidate = editor as IUntitledTextResourceEditorInput;
+
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled;
 }
 
 export const enum Verbosity {
@@ -725,12 +732,8 @@ export interface IEditorInputWithOptions {
 	options?: IEditorOptions;
 }
 
-export interface IEditorInputWithOptionsAndGroup extends IEditorInputWithOptions {
-	group?: IEditorGroup;
-}
-
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
-	const editorInputWithOptions = obj as IEditorInputWithOptions;
+	const editorInputWithOptions = obj as IEditorInputWithOptions | undefined;
 
 	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
 }
