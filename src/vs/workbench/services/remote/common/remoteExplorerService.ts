@@ -601,7 +601,7 @@ export class TunnelModel extends Disposable {
 				existingTunnel.name = newName;
 				this._onForwardPort.fire();
 			}
-			if (attributes?.protocol && (attributes.protocol !== existingTunnel.protocol)) {
+			if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
 				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
 			}
@@ -739,15 +739,17 @@ export class TunnelModel extends Disposable {
 		}
 		for (const forwarded of tunnels) {
 			const attributes = allAttributes.get(forwarded.remotePort);
+			if ((attributes?.protocol || (forwarded.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== forwarded.protocol)) {
+				await this.forward({ host: forwarded.remoteHost, port: forwarded.remotePort }, forwarded.localPort, forwarded.name, forwarded.source, undefined, undefined, undefined, attributes);
+			}
+
 			if (!attributes) {
 				continue;
 			}
 			if (attributes.label && attributes.label !== forwarded.name) {
 				await this.name(forwarded.remoteHost, forwarded.remotePort, attributes.label);
 			}
-			if (attributes.protocol && attributes.protocol !== forwarded.protocol) {
-				await this.forward({ host: forwarded.remoteHost, port: forwarded.remotePort }, forwarded.localPort, forwarded.name, forwarded.source, undefined, undefined, undefined, attributes);
-			}
+
 		}
 	}
 
