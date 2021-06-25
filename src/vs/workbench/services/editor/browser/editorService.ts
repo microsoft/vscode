@@ -535,6 +535,9 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Override is disabled or did not apply
 		if (!typedEditor) {
 			typedEditor = isEditorInput(editor) ? editor : this.createEditorInput(editor);
+			if ((typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup))) {
+				preferredGroup = optionsOrPreferredGroup;
+			}
 		}
 
 		// If group still isn't defined because of a disabled override we resolve it
