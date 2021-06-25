@@ -162,9 +162,6 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			if (!instance) {
 				return;
 			}
-			if (e.editorOptions.pinned) {
-				return;
-			}
 			this._terminalGroupService.setActiveInstance(instance);
 			if (!e.editorOptions.preserveFocus) {
 				await instance.focusWhenReady();
