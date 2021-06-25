@@ -23,7 +23,7 @@ import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IMenuService, MenuId, MenuRegistry, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { createAndFillInContextMenuActions, createAndFillInActionBarActions, createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy, TunnelEditId, mapHasAddressLocalhostOrAllInterfaces, Attributes } from 'vs/workbench/services/remote/common/remoteExplorerService';
+import { IRemoteExplorerService, TunnelModel, makeAddress, TunnelType, ITunnelItem, Tunnel, TUNNEL_VIEW_ID, parseAddress, CandidatePort, TunnelPrivacy, TunnelEditId, mapHasAddressLocalhostOrAllInterfaces, Attributes, TunnelSource } from 'vs/workbench/services/remote/common/remoteExplorerService';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -92,7 +92,7 @@ export class TunnelViewModel implements ITunnelViewModel {
 		processTooltip: '',
 		originTooltip: '',
 		privacyTooltip: '',
-		source: '',
+		source: { source: TunnelSource.User, description: '' },
 		protocol: TunnelProtocol.Http
 	};
 
@@ -281,7 +281,7 @@ class OriginColumn implements ITableColumn<ITunnelItem, ActionBarCell> {
 			return emptyCell(row);
 		}
 
-		const label = row.source;
+		const label = row.source.description;
 		const tooltip = `${row instanceof TunnelItem ? row.originTooltip : ''}. ${row instanceof TunnelItem ? row.tooltipPostfix : ''}`;
 		return { label, menuId: MenuId.TunnelOriginInline, tunnel: row, editId: TunnelEditId.None, tooltip };
 	}
@@ -542,8 +542,7 @@ class TunnelItem implements ITunnelItem {
 		return new TunnelItem(type,
 			tunnel.remoteHost,
 			tunnel.remotePort,
-			tunnel.source ?? (tunnel.userForwarded ? nls.localize('tunnel.user', "User Forwarded") :
-				(type === TunnelType.Detected ? nls.localize('tunnel.staticallyForwarded', "Statically Forwarded") : nls.localize('tunnel.automatic', "Auto Forwarded"))),
+			tunnel.source,
 			!!tunnel.hasRunningProcess,
 			tunnel.protocol,
 			tunnel.localUri,
@@ -561,7 +560,7 @@ class TunnelItem implements ITunnelItem {
 		public tunnelType: TunnelType,
 		public remoteHost: string,
 		public remotePort: number,
-		public source: string,
+		public source: { source: TunnelSource, description: string },
 		public hasRunningProcess: boolean,
 		public protocol: TunnelProtocol,
 		public localUri?: URI,
@@ -656,7 +655,7 @@ class TunnelItem implements ITunnelItem {
 	}
 
 	get originTooltip(): string {
-		return this.source;
+		return this.source.description;
 	}
 
 	get privacyTooltip(): string {
@@ -1352,7 +1351,8 @@ namespace ChangeLocalPortAction {
 								remote: { host: context.remoteHost, port: context.remotePort },
 								local: numberValue,
 								name: context.name,
-								elevateIfNeeded: true
+								elevateIfNeeded: true,
+								source: context.source
 							});
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
@@ -1381,7 +1381,8 @@ namespace MakePortPublicAction {
 					local: arg.localPort,
 					name: arg.name,
 					elevateIfNeeded: true,
-					isPublic: true
+					isPublic: true,
+					source: arg.source
 				});
 			}
 		};
@@ -1402,7 +1403,8 @@ namespace MakePortPrivateAction {
 					local: arg.localPort,
 					name: arg.name,
 					elevateIfNeeded: true,
-					isPublic: false
+					isPublic: false,
+					source: arg.source
 				});
 			}
 		};
