@@ -153,6 +153,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
+	createInstance(profile: ITerminalProfile): ITerminalInstance;
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
@@ -197,7 +198,9 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
-	getFindHost(): ITerminalFindHost;
+	getDefaultInstanceHost(): ITerminalInstanceHost;
+	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost;
+	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 }
 
 /**
@@ -214,6 +217,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 }
 
 /**

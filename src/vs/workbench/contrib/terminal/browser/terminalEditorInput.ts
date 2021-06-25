@@ -19,6 +19,7 @@ export class TerminalEditorInput extends EditorInput {
 	static readonly ID = 'workbench.editors.terminal';
 
 	private _isDetached = false;
+	private _copyInstance?: ITerminalInstance;
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
@@ -29,8 +30,17 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override copy(): IEditorInput {
-		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		const instance = this._copyInstance || this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		this._copyInstance = undefined;
 		return this._instantiationService.createInstance(TerminalEditorInput, instance);
+	}
+
+	/**
+	 * Sets what instance to use for the next call to IEditorInput.copy, this is used to define what
+	 * terminal instance is used when the editor's split command is run.
+	 */
+	setCopyInstance(instance: ITerminalInstance) {
+		this._copyInstance = instance;
 	}
 
 	/**
@@ -48,7 +58,7 @@ export class TerminalEditorInput extends EditorInput {
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));

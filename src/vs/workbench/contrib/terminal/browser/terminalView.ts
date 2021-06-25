@@ -14,17 +14,17 @@ import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollec
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { ITerminalProfileResolverService, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
-import { SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
+import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
 import { selectBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -43,6 +43,7 @@ import { URI } from 'vs/base/common/uri';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { withNullAsUndefined } from 'vs/base/common/types';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -178,6 +179,26 @@ export class TerminalViewPane extends ViewPane {
 
 	override getActionViewItem(action: Action): IActionViewItem | undefined {
 		switch (action.id) {
+			case TerminalCommandId.Split: {
+				// Split needs to be special cased to force splitting within the panel, not the editor
+				const panelOnlySplitAction: IAction = {
+					id: action.id,
+					checked: action.checked,
+					class: action.class,
+					enabled: action.enabled,
+					label: action.label,
+					dispose: action.dispose.bind(action),
+					tooltip: action.tooltip,
+					run: () => {
+						const instance = this._terminalGroupService.activeInstance;
+						if (instance) {
+							return this._terminalService.splitInstance(instance);
+						}
+						return;
+					}
+				};
+				return new ActionViewItem(action, panelOnlySplitAction, { icon: true, label: false, keybinding: this._getKeybindingLabel(action) });
+			}
 			case TerminalCommandId.SwitchTerminal: {
 				return this._instantiationService.createInstance(SwitchTerminalActionViewItem, action);
 			}
@@ -200,6 +221,10 @@ export class TerminalViewPane extends ViewPane {
 		return super.getActionViewItem(action);
 	}
 
+	private _getKeybindingLabel(action: IAction): string | undefined {
+		return withNullAsUndefined(this._keybindingService.lookupKeybinding(action.id)?.getLabel());
+	}
+
 	private _updateTabActionBar(profiles: ITerminalProfile[]): void {
 		const actions = this._getTabActionBarArgs(profiles);
 		this._tabButtons?.update(actions.dropdownAction, actions.dropdownMenuActions);
@@ -218,12 +243,19 @@ export class TerminalViewPane extends ViewPane {
 		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
+			const options: IMenuActionOptions = {
+				arg: {
+					config: p,
+					target: TerminalLocation.TerminalView
+				} as ICreateTerminalOptions,
+				shouldForwardArgs: true
+			};
 			if (isDefault) {
-				dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-				submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+				dropdownActions.unshift(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, this._contextKeyService, this._commandService));
+				submenuActions.unshift(new MenuItemAction({ id: TerminalCommandId.Split, title: nls.localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options, this._contextKeyService, this._commandService));
 			} else {
-				dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
-				submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg: p, shouldForwardArgs: true }, this._contextKeyService, this._commandService));
+				dropdownActions.push(new MenuItemAction({ id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, this._contextKeyService, this._commandService));
+				submenuActions.push(new MenuItemAction({ id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options, this._contextKeyService, this._commandService));
 			}
 		}
 
@@ -258,7 +290,10 @@ export class TerminalViewPane extends ViewPane {
 				title: terminalStrings.split.value,
 				icon: Codicon.splitHorizontal
 			},
-			undefined);
+			{
+				shouldForwardArgs: true,
+				arg: { target: TerminalLocation.TerminalView } as ICreateTerminalOptions,
+			});
 
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
@@ -410,7 +445,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		if (event.altKey && this._menuItemAction.alt) {
-			this._commandService.executeCommand(this._menuItemAction.alt.id);
+			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.TerminalView } as ICreateTerminalOptions);
 		} else {
 			this._openContextMenu();
 		}

@@ -6,16 +6,18 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { IEditorInput } from 'vs/workbench/common/editor';
-import { ITerminalEditorService, ITerminalFindHost, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalEditorService, ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { SerializedTerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorSerializer';
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class TerminalEditorService extends Disposable implements ITerminalEditorService, ITerminalFindHost {
+export class TerminalEditorService extends Disposable implements ITerminalEditorService {
 	declare _serviceBrand: undefined;
 
 	instances: ITerminalInstance[] = [];
@@ -32,6 +34,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 	get onDidChangeInstances(): Event<void> { return this._onDidChangeInstances.event; }
 
 	constructor(
+		@ICommandService private readonly _commandService: ICommandService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
@@ -125,7 +128,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		});
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput {
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
 		let cachedEditor;
 		if ('id' in instance) {
 			cachedEditor = this._editorInputs.get(instance.id);
@@ -149,6 +152,14 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		this.instances.push(instance);
 		this._onDidChangeInstances.fire();
 		return input;
+	}
+
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
+		const input = this.getOrCreateEditorInput(instanceToSplit);
+		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
+		input.setCopyInstance(instance);
+		this._commandService.executeCommand('workbench.action.splitEditor');
+		return instance;
 	}
 
 	detachActiveEditorInstance(): ITerminalInstance {

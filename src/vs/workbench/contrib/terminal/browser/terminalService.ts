@@ -597,10 +597,6 @@ export class TerminalService implements ITerminalService {
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
-		const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
-		if (!group) {
-			return null;
-		}
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
 
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
@@ -612,11 +608,27 @@ export class TerminalService implements ITerminalService {
 			this._evaluateLocalCwd(shellLaunchConfig);
 		}
 
-		const instance = group.split(shellLaunchConfig);
+		// Handle editor terminals
+		let instance: ITerminalInstance;
+		switch (instanceToSplit.target) {
+			case TerminalLocation.Editor:
+				instance = this._terminalEditorService.splitInstance(instanceToSplit, shellLaunchConfig);
+				break;
+			case TerminalLocation.TerminalView:
+			default:
+				const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
+				if (!group) {
+					return null;
+				}
+				instance = group.split(shellLaunchConfig);
+				break;
+		}
 
 		this._initInstanceListeners(instance);
 
-		this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		if (instanceToSplit.target !== TerminalLocation.Editor) {
+			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		}
 		return instance;
 	}
 
@@ -865,7 +877,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			const activeInstance = this.activeInstance;
+			const activeInstance = this.getDefaultInstanceHost().activeInstance;
 			let instance;
 
 			if ('id' in value.profile) {
@@ -910,8 +922,25 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
-	getFindHost(): ITerminalFindHost {
-		return this.activeInstance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+	getDefaultInstanceHost(): ITerminalInstanceHost {
+		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
+			return this._terminalEditorService;
+		}
+		return this._terminalGroupService;
+	}
+
+	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost {
+		if (target) {
+			if (target === TerminalLocation.Editor) {
+				return this._terminalEditorService;
+			}
+			return this._terminalGroupService;
+		}
+		return this;
+	}
+
+	getFindHost(instance: ITerminalInstance | undefined = this.activeInstance): ITerminalFindHost {
+		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
 	async createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void> {
