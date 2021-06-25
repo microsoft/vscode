@@ -38,6 +38,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInteractiveHistoryService, InteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -227,6 +228,11 @@ registerAction2(class extends Action2 {
 						name: 'resource',
 						description: 'Interactive resource Uri',
 						isOptional: true
+					},
+					{
+						name: 'controllerId',
+						description: 'Notebook controller Id',
+						isOptional: true
 					}
 				]
 			}
@@ -234,10 +240,11 @@ registerAction2(class extends Action2 {
 		});
 	}
 
-	async run(accessor: ServicesAccessor, column?: number, resource?: URI): Promise<{ notebookUri: URI, inputUri: URI; }> {
+	async run(accessor: ServicesAccessor, column?: number, resource?: URI, id?: string): Promise<{ notebookUri: URI, inputUri: URI; }> {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const historyService = accessor.get(IInteractiveHistoryService);
+		const kernelService = accessor.get(INotebookKernelService);
 		const group = viewColumnToEditorGroup(editorGroupService, column);
 
 		if (resource && resource.scheme === Schemas.vscodeInteractive) {
@@ -273,7 +280,20 @@ registerAction2(class extends Action2 {
 
 		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
 		historyService.clearHistory(notebookUri);
-		await editorService.openEditor(editorInput, undefined, group);
+		const interactiveEditorPane = await editorService.openEditor(editorInput, undefined, group);
+		const notebookEditor = (interactiveEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined })?.notebookEditor;
+
+		if (notebookEditor) {
+			// should be true
+			if (id && notebookEditor.activeKernel?.id !== id && notebookEditor.textModel) {
+				// we should select the kernel
+				const allKernels = kernelService.getMatchingKernel(notebookEditor.textModel).all;
+				const preferredKernel = allKernels.find(kernel => kernel.id === id);
+				if (preferredKernel) {
+					kernelService.selectKernelForNotebook(preferredKernel, notebookEditor.textModel);
+				}
+			}
+		}
 
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
