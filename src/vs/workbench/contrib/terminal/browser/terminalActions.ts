@@ -142,12 +142,17 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrProfile: unknown | ITerminalProfile, profile?: ITerminalProfile) {
+		async run(accessor: ServicesAccessor, eventOrOptions: unknown | ICreateTerminalOptions | ITerminalProfile | undefined, profile?: ITerminalProfile) {
 			let event: MouseEvent | undefined;
-			if (eventOrProfile && typeof eventOrProfile === 'object' && 'profileName' in eventOrProfile) {
-				profile = eventOrProfile as ITerminalProfile;
-			} else {
-				event = eventOrProfile as MouseEvent;
+			let options: ICreateTerminalOptions = { config: profile };
+			if (eventOrOptions && typeof eventOrOptions === 'object' && eventOrOptions !== null) {
+				if ('profileName' in eventOrOptions) {
+					options.config = eventOrOptions as ITerminalProfile;
+				} else if ('target' in eventOrOptions || 'config' in eventOrOptions || 'cwd' in eventOrOptions) {
+					options = eventOrOptions as ICreateTerminalOptions;
+				} else {
+					event = eventOrOptions as MouseEvent | undefined;
+				}
 			}
 			const terminalService = accessor.get(ITerminalService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
@@ -157,7 +162,8 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					terminalService.splitInstance(activeInstance, profile, cwd);
+					// TODO: Support split in editor
+					terminalService.splitInstance(activeInstance, options.config, cwd);
 					return;
 				}
 			}
@@ -178,9 +184,10 @@ export function registerTerminalActions() {
 					cwd = workspace.uri;
 				}
 
-				if (profile) {
-					instance = terminalService.createTerminal({ config: profile, cwd });
+				if ('config' in options) {
+					instance = terminalService.createTerminal(options);
 				} else {
+					// TODO: Fix
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
 

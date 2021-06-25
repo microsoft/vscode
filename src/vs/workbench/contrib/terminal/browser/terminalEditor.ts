@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -44,6 +44,8 @@ export class TerminalEditor extends EditorPane {
 
 	private _lastDimension?: Dimension;
 
+	private readonly _dropdownMenu: IMenu;
+
 	private _findWidget: TerminalFindWidget;
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _findState: FindReplaceState;
@@ -60,6 +62,7 @@ export class TerminalEditor extends EditorPane {
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 	) {
@@ -67,6 +70,7 @@ export class TerminalEditor extends EditorPane {
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
+		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -156,6 +160,7 @@ export class TerminalEditor extends EditorPane {
 		}
 
 		// TODO: Pass in target
+		// TODO: Fix contributed
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
 			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, false)));
 			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, true)));
@@ -166,14 +171,14 @@ export class TerminalEditor extends EditorPane {
 			dropdownActions.push(new Separator());
 		}
 
-		// for (const [, configureActions] of this._dropdownMenu.getActions()) {
-		// 	for (const action of configureActions) {
-		// 		// make sure the action is a MenuItemAction
-		// 		if ('alt' in action) {
-		// 			dropdownActions.push(action);
-		// 		}
-		// 	}
-		// }
+		for (const [, configureActions] of this._dropdownMenu.getActions()) {
+			for (const action of configureActions) {
+				// make sure the action is a MenuItemAction
+				if ('alt' in action) {
+					dropdownActions.push(action);
+				}
+			}
+		}
 
 		const primaryAction = this._instantiationService.createInstance(
 			MenuItemAction,
