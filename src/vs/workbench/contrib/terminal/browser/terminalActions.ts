@@ -1667,16 +1667,15 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			const terminalService = accessor.get(ITerminalService);
-			await terminalService.doWithActiveInstance(async t => {
-				if (t.target === TerminalLocation.Editor) {
-					return;
-				}
-				t.dispose(true);
-				if (terminalService.instances.length > 0) {
-					await accessor.get(ITerminalGroupService).showPanel(true);
-				}
-			});
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const instance = terminalGroupService.activeInstance;
+			if (!instance) {
+				return;
+			}
+			instance.dispose(true);
+			if (terminalGroupService.instances.length > 0) {
+				await terminalGroupService.showPanel(true);
+			}
 		}
 	});
 
