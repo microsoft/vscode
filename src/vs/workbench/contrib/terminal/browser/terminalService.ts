@@ -151,6 +151,7 @@ export class TerminalService implements ITerminalService {
 		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -160,6 +161,8 @@ export class TerminalService implements ITerminalService {
 		this._terminalShellTypeContextKey = KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE.bindTo(this._contextKeyService);
 		this._terminalAltBufferActiveContextKey = KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE.bindTo(this._contextKeyService);
 		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
+
+		terminalInstanceService.onDidCreateInstance(instance => this._onInstanceCreated.fire(instance));
 
 		editorOverrideService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,
