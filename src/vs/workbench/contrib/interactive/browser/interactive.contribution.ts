@@ -278,23 +278,17 @@ registerAction2(class extends Action2 {
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
 
-		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
-		historyService.clearHistory(notebookUri);
-		const interactiveEditorPane = await editorService.openEditor(editorInput, undefined, group);
-		const notebookEditor = (interactiveEditorPane?.getControl() as { notebookEditor: NotebookEditorWidget | undefined })?.notebookEditor;
-
-		if (notebookEditor) {
-			// should be true
-			if (id && notebookEditor.activeKernel?.id !== id && notebookEditor.textModel) {
-				// we should select the kernel
-				const allKernels = kernelService.getMatchingKernel(notebookEditor.textModel).all;
-				const preferredKernel = allKernels.find(kernel => kernel.id === id);
-				if (preferredKernel) {
-					kernelService.selectKernelForNotebook(preferredKernel, notebookEditor.textModel);
-				}
+		if (id) {
+			const allKernels = kernelService.getMatchingKernel({ uri: notebookUri, viewType: 'interactive' }).all;
+			const preferredKernel = allKernels.find(kernel => kernel.id === id);
+			if (preferredKernel) {
+				kernelService.selectKernelForNotebook(preferredKernel, { uri: notebookUri, viewType: 'interactive' });
 			}
 		}
 
+		const editorInput = InteractiveEditorInput.create(accessor.get(IInstantiationService), notebookUri, inputUri);
+		historyService.clearHistory(notebookUri);
+		await editorService.openEditor(editorInput, undefined, group);
 		// Extensions must retain references to these URIs to manipulate the interactive editor
 		return { notebookUri, inputUri };
 	}
