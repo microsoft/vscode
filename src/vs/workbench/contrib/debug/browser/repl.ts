@@ -436,9 +436,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 				node.children.forEach(child => {
-					text += child.element.toString().trimRight() + lineDelimiter;
-					if (!child.collapsed && child.children.length) {
-						traverseAndAppend(child);
+					if (child.visible) {
+						text += child.element.toString().trimRight() + lineDelimiter;
+						if (!child.collapsed && child.children.length) {
+							traverseAndAppend(child);
+						}
 					}
 				});
 			};
