@@ -980,17 +980,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	private readonly editorInputCache = new ResourceMap<CachedEditorInput>();
 
-	createEditorInput(input: IEditorInputWithOptions | IEditorInput | IUntypedEditorInput): EditorInput {
+	createEditorInput(input: IEditorInput | IUntypedEditorInput): EditorInput {
 
 		// Typed Editor Input Support (EditorInput)
 		if (input instanceof EditorInput) {
 			return input;
-		}
-
-		// Typed Editor Input Support (IEditorInputWithOptions)
-		const editorInputWithOptions = input as IEditorInputWithOptions;
-		if (editorInputWithOptions.editor instanceof EditorInput) {
-			return editorInputWithOptions.editor;
 		}
 
 		// Diff Editor Support

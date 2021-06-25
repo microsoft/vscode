@@ -410,7 +410,6 @@ suite('EditorService', () => {
 
 		// Typed Input
 		assert.strictEqual(service.createEditorInput(input), input);
-		assert.strictEqual(service.createEditorInput({ editor: input }), input);
 
 		// Untyped Input (file, encoding)
 		input = service.createEditorInput({ resource: toResource.call(this, '/index.html'), encoding: 'utf16le', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
