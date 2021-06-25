@@ -30,7 +30,7 @@ import { EditorGroupColumn, SaveReason } from 'vs/workbench/common/editor';
 import * as notebooks from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
+import { CoverageDetails, DetailType, ICoveredCount, IFileCoverage, ISerializedTestResults, ITestItem, ITestItemContext, ITestMessage, SerializedTestResultItem } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
@@ -1724,6 +1724,45 @@ export namespace TestResults {
 		return {
 			completedAt: serialized.completedAt,
 			results: roots.map(r => convertTestResultItem(r, byInternalId)),
+		};
+	}
+}
+
+export namespace TestCoverage {
+	function fromCoveredCount(count: vscode.CoveredCount): ICoveredCount {
+		return { covered: count.covered, total: count.covered };
+	}
+
+	function fromLocation(location: vscode.Range | vscode.Position) {
+		return 'line' in location ? Position.from(location) : Range.from(location);
+	}
+
+	export function fromDetailed(coverage: vscode.DetailedCoverage): CoverageDetails {
+		if ('branches' in coverage) {
+			return {
+				count: coverage.executionCount,
+				location: fromLocation(coverage.location),
+				type: DetailType.Statement,
+				branches: coverage.branches.length
+					? coverage.branches.map(b => ({ count: b.executionCount, location: b.location && fromLocation(b.location) }))
+					: undefined,
+			};
+		} else {
+			return {
+				type: DetailType.Function,
+				count: coverage.executionCount,
+				location: fromLocation(coverage.location),
+			};
+		}
+	}
+
+	export function fromFile(coverage: vscode.FileCoverage): IFileCoverage {
+		return {
+			uri: coverage.uri,
+			statement: fromCoveredCount(coverage.statementCoverage),
+			branch: coverage.branchCoverage && fromCoveredCount(coverage.branchCoverage),
+			function: coverage.functionCoverage && fromCoveredCount(coverage.functionCoverage),
+			details: coverage.detailedCoverage?.map(fromDetailed),
 		};
 	}
 }

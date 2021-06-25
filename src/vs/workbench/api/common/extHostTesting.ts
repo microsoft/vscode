@@ -21,7 +21,7 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import * as Convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { TestItemImpl } from 'vs/workbench/api/common/extHostTypes';
 import { SingleUseTestCollection, TestPosition } from 'vs/workbench/contrib/testing/common/ownedTestCollection';
-import { AbstractIncrementalTestCollection, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestIdWithSrc, ITestItem, RunTestForControllerRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, CoverageDetails, IFileCoverage, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, ISerializedTestResults, ITestIdWithSrc, ITestItem, RunTestForControllerRequest, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
 import type * as vscode from 'vscode';
 
 export class ExtHostTesting implements ExtHostTestingShape {
@@ -119,6 +119,20 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			tests: testListToProviders(req.tests),
 			debug: req.debug
 		}, token);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]> {
+		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.provideFileCoverage(token) ?? Promise.resolve([]);
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
+		return Iterable.find(this.runTracker.trackers, t => t.id === runId)?.getCoverage(taskId)?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
 	}
 
 	/**
@@ -224,7 +238,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 }
 
 class TestRunTracker extends Disposable {
-	private readonly task = new Set<TestRunImpl>();
+	private readonly tasks = new Map</* task ID */string, { run: TestRunImpl, coverage: TestRunCoverageBearer }>();
 	private readonly sharedTestIds = new Set<string>();
 	private readonly cts: CancellationTokenSource;
 	private readonly endEmitter = this._register(new Emitter<void>());
@@ -239,7 +253,7 @@ class TestRunTracker extends Disposable {
 	 * Gets whether there are any tests running.
 	 */
 	public get isRunning() {
-		return this.task.size > 0;
+		return this.tasks.size > 0;
 	}
 
 	/**
@@ -253,21 +267,27 @@ class TestRunTracker extends Disposable {
 		super();
 		this.cts = this._register(new CancellationTokenSource(parentToken));
 		this._register(this.cts.token.onCancellationRequested(() => {
-			for (const task of this.task) {
-				task.end();
+			for (const { run } of this.tasks.values()) {
+				run.end();
 			}
 		}));
 	}
 
+	public getCoverage(taskId: string) {
+		return this.tasks.get(taskId)?.coverage;
+	}
+
 	public createRun(name: string | undefined) {
-		const run = new TestRunImpl(name, this.cts.token, this.dto, this.sharedTestIds, this.proxy, () => {
-			this.task.delete(run);
+		const taskId = generateUuid();
+		const coverage = new TestRunCoverageBearer(this.proxy, this.dto.id, taskId);
+		const run = new TestRunImpl(name, this.cts.token, taskId, coverage, this.dto, this.sharedTestIds, this.proxy, () => {
+			this.tasks.delete(run.taskId);
 			if (!this.isRunning) {
 				this.dispose();
 			}
 		});
 
-		this.task.add(run);
+		this.tasks.set(run.taskId, { run, coverage });
 		return run;
 	}
 
@@ -397,17 +417,88 @@ export class TestRunDto {
 	}
 }
 
+class TestRunCoverageBearer {
+	private _coverageProvider?: vscode.TestCoverageProvider;
+	private fileCoverage?: Promise<vscode.FileCoverage[] | null | undefined>;
+
+	public set coverageProvider(provider: vscode.TestCoverageProvider | undefined) {
+		if (this._coverageProvider) {
+			throw new Error('The TestCoverageProvider cannot be replaced after being provided');
+		}
+
+		if (!provider) {
+			return;
+		}
+
+		this._coverageProvider = provider;
+		this.proxy.$signalCoverageAvailable(this.runId, this.taskId);
+	}
+
+	public get coverageProvider() {
+		return this._coverageProvider;
+	}
+
+	constructor(
+		private readonly proxy: MainThreadTestingShape,
+		private readonly runId: string,
+		private readonly taskId: string,
+	) {
+	}
+
+	public async provideFileCoverage(token: CancellationToken): Promise<IFileCoverage[]> {
+		if (!this._coverageProvider) {
+			return [];
+		}
+
+		if (!this.fileCoverage) {
+			this.fileCoverage = (async () => this._coverageProvider!.provideFileCoverage(token))();
+		}
+
+		try {
+			const coverage = await this.fileCoverage;
+			return coverage?.map(Convert.TestCoverage.fromFile) ?? [];
+		} catch (e) {
+			this.fileCoverage = undefined;
+			throw e;
+		}
+	}
+
+	public async resolveFileCoverage(index: number, token: CancellationToken): Promise<CoverageDetails[]> {
+		const fileCoverage = await this.fileCoverage;
+		let file = fileCoverage?.[index];
+		if (!this._coverageProvider || !fileCoverage || !file) {
+			return [];
+		}
+
+		if (!file.detailedCoverage) {
+			file = fileCoverage[index] = await this._coverageProvider.resolveFileCoverage?.(file, token) ?? file;
+		}
+
+		return file.detailedCoverage?.map(Convert.TestCoverage.fromDetailed) ?? [];
+	}
+}
+
 class TestRunImpl implements vscode.TestRun {
 	readonly #proxy: MainThreadTestingShape;
 	readonly #req: TestRunDto;
 	readonly #sharedIds: Set<string>;
 	readonly #onEnd: () => void;
+	readonly #coverage: TestRunCoverageBearer;
 	#ended = false;
-	public readonly taskId = generateUuid();
+
+	public set coverageProvider(provider: vscode.TestCoverageProvider | undefined) {
+		this.#coverage.coverageProvider = provider;
+	}
+
+	public get coverageProvider() {
+		return this.#coverage.coverageProvider;
+	}
 
 	constructor(
 		public readonly name: string | undefined,
 		public readonly token: CancellationToken,
+		public readonly taskId: string,
+		coverage: TestRunCoverageBearer,
 		dto: TestRunDto,
 		sharedTestIds: Set<string>,
 		proxy: MainThreadTestingShape,
@@ -416,6 +507,7 @@ class TestRunImpl implements vscode.TestRun {
 		this.#onEnd = onEnd;
 		this.#proxy = proxy;
 		this.#req = dto;
+		this.#coverage = coverage;
 		this.#sharedIds = sharedTestIds;
 		proxy.$startedTestRunTask(dto.id, { id: this.taskId, name, running: true });
 	}
