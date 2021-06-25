@@ -29,7 +29,6 @@ import { ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/co
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
-import { IPromptChoiceWithMenu } from 'vs/platform/notification/common/notification';
 import { Link } from 'vs/platform/opener/browser/link';
 import product from 'vs/platform/product/common/product';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -840,71 +839,67 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}
 	}
 
-	private createButton(parent: HTMLElement, action: Action, enabled?: boolean): void {
+	private createButtonRow(parent: HTMLElement, actions: Action | Action[], enabled?: boolean): void {
 		const buttonRow = append(parent, $('.workspace-trust-buttons-row'));
 		const buttonContainer = append(buttonRow, $('.workspace-trust-buttons'));
 		const buttonBar = this.rerenderDisposables.add(new ButtonBar(buttonContainer));
 
-		const button =
-			action instanceof ChoiceAction && action.menu?.length ?
-				buttonBar.addButtonWithDropdown({
-					title: true,
-					actions: action.menu ?? [],
-					contextMenuProvider: this.contextMenuService
-				}) :
-				buttonBar.addButton();
+		if (actions instanceof Action) {
+			actions = [actions];
+		}
 
-		button.label = action.label;
-		button.enabled = enabled !== undefined ? enabled : action.enabled;
+		for (const action of actions) {
+			const button =
+				action instanceof ChoiceAction && action.menu?.length ?
+					buttonBar.addButtonWithDropdown({
+						title: true,
+						actions: action.menu ?? [],
+						contextMenuProvider: this.contextMenuService
+					}) :
+					buttonBar.addButton();
 
-		this.rerenderDisposables.add(button.onDidClick(e => {
-			if (e) {
-				EventHelper.stop(e, true);
-			}
+			button.label = action.label;
+			button.enabled = enabled !== undefined ? enabled : action.enabled;
 
-			action.run();
-		}));
+			this.rerenderDisposables.add(button.onDidClick(e => {
+				if (e) {
+					EventHelper.stop(e, true);
+				}
 
-		this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
+				action.run();
+			}));
+
+			this.rerenderDisposables.add(attachButtonStyler(button, this.themeService));
+		}
 	}
 
 	private addTrustButtonToElement(parent: HTMLElement): void {
-		const trustUris = async (uris?: URI[]) => {
-			if (!uris) {
+		const trustActions = [
+			new Action('workspace.trust.button.action.grant', localize('trustButton', "Trust"), undefined, true, async () => {
 				await this.workspaceTrustManagementService.setWorkspaceTrust(true);
-			} else {
-				await this.workspaceTrustManagementService.setUrisTrust(uris, true);
-			}
-		};
-
-		const trustChoiceWithMenu: IPromptChoiceWithMenu = {
-			isSecondary: false,
-			label: localize('trustButton', "Trust"),
-			menu: [],
-			run: () => {
-				trustUris();
-			}
-		};
+			})
+		];
 
 		const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace());
 		if (isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file) {
 			const { parentPath } = splitName(workspaceIdentifier.uri.fsPath);
+			const { name } = splitName(parentPath);
+
+			const trustMessageElement = append(parent, $('.trust-message-box'));
+			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);
+
 			if (parentPath) {
-				trustChoiceWithMenu.menu.push({
-					label: localize('trustParentButton', "Trust All in Parent Folder"),
-					run: () => {
-						trustUris([URI.file(parentPath)]);
-					}
-				});
+				trustActions.push(new Action('workspace.trust.button.action.grantParent', localize('trustParentButton', "Trust Parent"), undefined, true, async () => {
+					await this.workspaceTrustManagementService.setUrisTrust([URI.file(parentPath)], true);
+				}));
 			}
 		}
 
-		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
-		this.createButton(parent, new ChoiceAction('workspace.trust.button.action', trustChoiceWithMenu), !isWorkspaceTrusted);
+		this.createButtonRow(parent, trustActions);
 	}
 
 	private addDontTrustButtonToElement(parent: HTMLElement): void {
-		this.createButton(parent, new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
+		this.createButtonRow(parent, new Action('workspace.trust.button.action.deny', localize('dontTrustButton', "Don't Trust"), undefined, true, async () => {
 			await this.workspaceTrustManagementService.setWorkspaceTrust(false);
 		}));
 	}
