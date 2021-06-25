@@ -555,6 +555,9 @@ class SessionsRenderer implements ICompressibleTreeRenderer<IDebugSession, Fuzzy
 
 		data.actionBar.clear();
 		data.actionBar.push(primary, { icon: true, label: false });
+		// We need to set our internal context on the action bar, since our commands depend on that one
+		// While the external context our extensions rely on
+		data.actionBar.context = getContext(session);
 		data.stateLabel.style.display = '';
 
 		if (stoppedDetails) {
