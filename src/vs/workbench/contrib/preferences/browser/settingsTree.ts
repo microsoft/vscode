@@ -1265,19 +1265,54 @@ export class SettingBoolObjectRenderer extends AbstractSettingRenderer implement
 
 	private onDidChangeObject(template: ISettingBoolObjectItemTemplate, e: ISettingListChangeEvent<IBoolObjectDataItem>): void {
 		if (template.context) {
+			const defaultValue: Record<string, boolean> = typeof template.context.defaultValue === 'object'
+				? template.context.defaultValue ?? {}
+				: {};
+
+			const scopeValue: Record<string, boolean> = typeof template.context.scopeValue === 'object'
+				? template.context.scopeValue ?? {}
+				: {};
+
 			const newValue: Record<string, boolean> = {};
 			const newItems: IBoolObjectDataItem[] = [];
 
 			template.objectWidget.items.forEach((item, idx) => {
 				// Item was updated
-				if (e.targetIndex === idx && e.item) {
+				if (isDefined(e.item) && e.targetIndex === idx) {
 					newValue[e.item.key] = e.item.value;
 					newItems.push(e.item);
 				}
 				// All remaining items, but skip the one that we just updated
-				else {
+				else if (isUndefinedOrNull(e.item) || e.item.key !== item.key) {
 					newValue[item.key] = item.value;
 					newItems.push(item);
+				}
+			});
+
+			// Item was deleted
+			if (isUndefinedOrNull(e.item)) {
+				delete newValue[e.originalItem.key];
+
+				const itemToDelete = newItems.findIndex(item => item.key === e.originalItem.key);
+				const defaultItemValue = defaultValue[e.originalItem.key];
+
+				// Item does not have a default
+				if (isUndefinedOrNull(defaultValue[e.originalItem.key]) && itemToDelete > -1) {
+					newItems.splice(itemToDelete, 1);
+				} else if (itemToDelete > -1) {
+					newItems[itemToDelete].value = defaultItemValue;
+				}
+			}
+			// New item was added
+			else if (template.objectWidget.isItemNew(e.originalItem) && e.item.key !== '') {
+				newValue[e.item.key] = e.item.value;
+				newItems.push(e.item);
+			}
+
+			Object.entries(newValue).forEach(([key, value]) => {
+				// value from the scope has changed back to the default
+				if (scopeValue[key] !== value && defaultValue[key] === value) {
+					delete newValue[key];
 				}
 			});
 

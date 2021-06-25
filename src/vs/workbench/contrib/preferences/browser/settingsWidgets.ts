@@ -27,7 +27,6 @@ import { editorWidgetBorder, focusBorder, foreground, inputBackground, inputBord
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { settingsDiscardIcon, settingsEditIcon, settingsRemoveIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
-import { settingKeyToDisplayFormat } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 
 const $ = DOM.$;
 export const settingsHeaderForeground = registerColor('settings.headerForeground', { light: '#444444', dark: '#e7e7e7', hc: '#ffffff' }, localize('headerForeground', "The foreground color for a section header or active title."));
@@ -1247,13 +1246,8 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		rowElement.appendChild(element);
 
 		const valueElement = DOM.append(rowElement, $('.setting-list-object-value'));
-		const valueTitleElement = DOM.append(valueElement, $('.value-title'));
-		const { label } = settingKeyToDisplayFormat(changedItem.key);
-		valueTitleElement.textContent = label;
-		const valueDescriptionElement = DOM.append(valueElement, $('.value-description'));
-		if (item.description) {
-			valueDescriptionElement.textContent = item.description;
-		}
+		valueElement.textContent = changedItem.key;
+		valueElement.setAttribute('title', changedItem.description ?? '');
 		this._register(DOM.addDisposableListener(valueElement, DOM.EventType.MOUSE_DOWN, e => {
 			const targetElement = <HTMLElement>e.target;
 			if (targetElement.tagName.toLowerCase() !== 'a') {

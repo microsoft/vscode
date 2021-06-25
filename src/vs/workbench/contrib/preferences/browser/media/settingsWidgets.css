@@ -38,10 +38,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value {
 	cursor: pointer;
 }
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-list-object-value .value-description {
-	white-space: normal;
-	padding-bottom: 8px;
-}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
 	margin-left: 0;
