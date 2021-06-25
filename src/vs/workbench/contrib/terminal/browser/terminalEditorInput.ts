@@ -35,6 +35,10 @@ export class TerminalEditorInput extends EditorInput {
 		return this._instantiationService.createInstance(TerminalEditorInput, instance);
 	}
 
+	/**
+	 * Sets what instance to use for the next call to IEditorInput.copy, this is used to define what
+	 * terminal instance is used when the editor's split command is run.
+	 */
 	setCopyInstance(instance: ITerminalInstance) {
 		this._copyInstance = instance;
 	}
