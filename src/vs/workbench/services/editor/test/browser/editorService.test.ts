@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, isUntitledResourceEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
@@ -445,7 +445,9 @@ suite('EditorService', () => {
 		assert(input instanceof UntitledTextEditorInput);
 
 		// Untyped Input (untitled with contents)
-		input = service.createEditorInput({ contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		let untypedInput: any = { contents: 'Hello Untitled', options: { selection: { startLineNumber: 1, startColumn: 1 } } };
+		input = service.createEditorInput(untypedInput);
+		assert.ok(isUntitledResourceEditorInput(untypedInput));
 		assert(input instanceof UntitledTextEditorInput);
 		let model = await input.resolve() as UntitledTextEditorModel;
 		assert.strictEqual(model.textEditorModel?.getValue(), 'Hello Untitled');
@@ -462,7 +464,9 @@ suite('EditorService', () => {
 		assert.ok((input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
 		// Untyped Input (untitled with untitled resource)
-		input = service.createEditorInput({ resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } });
+		untypedInput = { resource: URI.parse('untitled://Untitled-1'), forceUntitled: true, options: { selection: { startLineNumber: 1, startColumn: 1 } } };
+		assert.ok(isUntitledResourceEditorInput(untypedInput));
+		input = service.createEditorInput(untypedInput);
 		assert(input instanceof UntitledTextEditorInput);
 		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 

@@ -123,8 +123,8 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					(editorInput, group) => {
-						return { editor: CustomEditorInput.create(this.instantiationService, editorInput.resource, contributedEditor.id, group.id) };
+					({ resource }, group) => {
+						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
 					},
 					undefined,
 					(diffEditorInput, group) => {
