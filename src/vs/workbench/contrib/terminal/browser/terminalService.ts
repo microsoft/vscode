@@ -880,7 +880,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		if (type === 'createInstance') {
-			const activeInstance = this.activeInstance;
+			const activeInstance = this.getDefaultInstanceHost().activeInstance;
 			let instance;
 
 			if ('id' in value.profile) {
@@ -924,6 +924,13 @@ export class TerminalService implements ITerminalService {
 			await this._configurationService.updateValue(`terminal.integrated.defaultProfile.${platformKey}`, value.profile.profileName, ConfigurationTarget.USER);
 		}
 		return undefined;
+	}
+
+	getDefaultInstanceHost(): ITerminalInstanceHost {
+		if (this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
+			return this._terminalEditorService;
+		}
+		return this._terminalGroupService;
 	}
 
 	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost {

@@ -198,6 +198,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	setEditable(instance: ITerminalInstance, data: IEditableData | null): Promise<void>;
 	safeDisposeTerminal(instance: ITerminalInstance): Promise<void>;
 
+	getDefaultInstanceHost(): ITerminalInstanceHost;
 	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost;
 	getFindHost(): ITerminalFindHost;
 }

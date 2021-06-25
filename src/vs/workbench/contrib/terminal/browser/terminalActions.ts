@@ -161,7 +161,6 @@ export function registerTerminalActions() {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
-					// TODO: Support split in editor
 					terminalService.splitInstance(activeInstance, options?.config, cwd);
 					return;
 				}
