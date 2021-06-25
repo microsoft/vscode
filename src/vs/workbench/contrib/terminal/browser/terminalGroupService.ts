@@ -151,6 +151,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		if (group.terminalInstances.length > 0) {
 			this._onDidChangeInstances.fire();
 		}
+		if (this.instances.length === 1) {
+			// It's the first instance so it should be made active automatically, this must fire
+			// after onInstancesChanged so consumers can react to the instance being added first
+			this.setActiveInstanceByIndex(0);
+		}
 		this._onDidChangeGroups.fire();
 		return group;
 	}

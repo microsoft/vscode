@@ -1053,13 +1053,6 @@ export class TerminalService implements ITerminalService {
 			instance = group.terminalInstances[0];
 		}
 		this._initInstanceListeners(instance);
-		this._onDidChangeInstances.fire();
-
-		if (this.instances.length === 1) {
-			// It's the first instance so it should be made active automatically, this must fire
-			// after onInstancesChanged so consumers can react to the instance being added first
-			this._terminalGroupService.setActiveInstanceByIndex(0);
-		}
 		return instance;
 	}
 
