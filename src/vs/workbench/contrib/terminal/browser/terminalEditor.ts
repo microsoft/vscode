@@ -27,7 +27,6 @@ import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/termi
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminal/browser/terminalFindWidget';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
 import { ITerminalProfileResolverService, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
-import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
@@ -58,7 +57,7 @@ export class TerminalEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
+		// @ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -143,7 +142,6 @@ export class TerminalEditor extends EditorPane {
 		const submenuActions: IAction[] = [];
 
 		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
-		// TODO: Pass in args to create an editor terminal specifically
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
 			const arg: ICreateTerminalOptions = {
@@ -159,12 +157,11 @@ export class TerminalEditor extends EditorPane {
 			}
 		}
 
-		// TODO: Pass in target
-		// TODO: Fix contributed
-		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, false)));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, true)));
-		}
+		// TODO: Support contributed profiles with editor target
+		// for (const contributed of this._terminalContributionService.terminalProfiles) {
+		// 	dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, false)));
+		// 	submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, true)));
+		// }
 
 		if (dropdownActions.length > 0) {
 			dropdownActions.push(new SubmenuAction('split.profile', 'Split...', submenuActions));

@@ -144,10 +144,10 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, eventOrOptions: unknown | ICreateTerminalOptions | ITerminalProfile | undefined, profile?: ITerminalProfile) {
 			let event: MouseEvent | undefined;
-			let options: ICreateTerminalOptions = { config: profile };
+			let options: ICreateTerminalOptions | undefined = profile ? { config: profile } : undefined;
 			if (eventOrOptions && typeof eventOrOptions === 'object' && eventOrOptions !== null) {
 				if ('profileName' in eventOrOptions) {
-					options.config = eventOrOptions as ITerminalProfile;
+					options = { config: eventOrOptions as ITerminalProfile };
 				} else if ('target' in eventOrOptions || 'config' in eventOrOptions || 'cwd' in eventOrOptions) {
 					options = eventOrOptions as ICreateTerminalOptions;
 				} else {
@@ -155,6 +155,7 @@ export function registerTerminalActions() {
 				}
 			}
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -163,7 +164,7 @@ export function registerTerminalActions() {
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
 					// TODO: Support split in editor
-					terminalService.splitInstance(activeInstance, options.config, cwd);
+					terminalService.splitInstance(activeInstance, options?.config, cwd);
 					return;
 				}
 			}
@@ -184,10 +185,11 @@ export function registerTerminalActions() {
 					cwd = workspace.uri;
 				}
 
-				if ('config' in options) {
+				if (options) {
 					instance = terminalService.createTerminal(options);
 				} else {
-					// TODO: Fix
+					// TODO: Support target
+					// TODO: Fix alt+click
 					instance = await terminalService.showProfileQuickPick('createInstance', cwd);
 				}
 
@@ -195,7 +197,7 @@ export function registerTerminalActions() {
 					terminalService.setActiveInstance(instance);
 				}
 			}
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			await terminalGroupService.showPanel(true);
 		}
 	});
 

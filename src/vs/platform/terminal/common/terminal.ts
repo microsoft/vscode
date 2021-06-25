@@ -594,7 +594,7 @@ export interface IBaseUnresolvedTerminalProfile {
 	args?: string | string[] | undefined;
 	isAutoDetected?: boolean;
 	overrideName?: boolean;
-	icon?: ThemeIcon | URI | { light: URI, dark: URI };
+	icon?: string | ThemeIcon | URI | { light: URI, dark: URI };
 	color?: string;
 	env?: ITerminalEnvironment;
 }
