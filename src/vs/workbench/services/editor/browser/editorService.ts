@@ -511,13 +511,13 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 
 		// Find target group to open in
-		const [group, activation] = this.findTargetGroup(editor, optionsOrGroup, preferredGroup);
+		const [group, activation] = this.findTargetGroup(editor, optionsOrPreferredGroup, preferredGroup);
 
 		// Adjust options based on group activation if any
-		let options = isEditorInput(editor) ? (optionsOrGroup as IEditorOptions) : editor.options;
+		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
 		if (activation) {
 			options = { ...options, activation };
 		}
@@ -526,7 +526,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Resolve override unless disabled
 		if (options?.override !== EditorOverride.DISABLED) {
-			const overrideResult = await this.doResolveEditorOverride(editor, optionsOrGroup);
+			const overrideResult = await this.doResolveEditorOverride(editor, optionsOrPreferredGroup);
 			if (overrideResult === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
@@ -545,14 +545,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return group.openEditor(typedEditor, options);
 	}
 
-	private async doResolveEditorOverride(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
+	private async doResolveEditorOverride(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
 		let untypedEditor;
 		let group;
 		let conflictingDefaults = false;
 
 		// Retrieve an untyped editor regardless of if it's typed
 		if (isEditorInput(editor)) {
-			const [group, activation] = this.findTargetGroup(editor, optionsOrGroup);
+			const [group, activation] = this.findTargetGroup(editor, optionsOrPreferredGroup);
 			untypedEditor = editor.toUntyped(group.id, UntypedEditorContext.Default);
 			if (!untypedEditor) {
 				return OverrideStatus.NONE;
@@ -575,7 +575,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (!group) {
-			([group] = this.findTargetGroup(editor, optionsOrGroup));
+			([group] = this.findTargetGroup(editor, optionsOrPreferredGroup));
 		}
 
 		return this.editorOverrideService.resolveEditorInput(editor, group, conflictingDefaults);
