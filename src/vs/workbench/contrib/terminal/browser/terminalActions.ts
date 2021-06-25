@@ -114,7 +114,7 @@ export function registerTerminalActions() {
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
 			if (terminalService.isProcessSupportRegistered) {
-				const instance = terminalService.createTerminal();
+				const instance = terminalService.createTerminal({ target: terminalService.configHelper.config.defaultLocation });
 				if (!instance) {
 					return;
 				}
@@ -425,7 +425,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			const instance = terminalService.getActiveOrCreateInstance();
+			const instance = terminalService.activeInstance || terminalService.createTerminal({ target: TerminalLocation.TerminalView });
 			if (!instance) {
 				return;
 			}
@@ -1611,16 +1611,25 @@ export function registerTerminalActions() {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_BACKTICK,
 					mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_BACKTICK },
 					weight: KeybindingWeight.WorkbenchContrib
+				},
+				description: {
+					description: 'workbench.action.terminal.new',
+					args: [{
+						name: 'eventOrOptions',
+						schema: {
+							type: 'object'
+						}
+					}]
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor, event: unknown) {
+		async run(accessor: ServicesAccessor, eventOrOptions: MouseEvent | ICreateTerminalOptions | undefined) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
-			if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
@@ -1630,11 +1639,13 @@ export function registerTerminalActions() {
 			}
 
 			if (terminalService.isProcessSupportRegistered) {
+				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
+				eventOrOptions.target = eventOrOptions.target || terminalService.configHelper.config.defaultLocation;
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
 					// Allow terminal service to handle the path when there is only a
 					// single root
-					instance = terminalService.createTerminal();
+					instance = terminalService.createTerminal(eventOrOptions);
 				} else {
 					const options: IPickOptions<IQuickPickItem> = {
 						placeHolder: localize('workbench.action.terminal.newWorkspacePlaceholder', "Select current working directory for new terminal")
@@ -1644,11 +1655,8 @@ export function registerTerminalActions() {
 						// Don't create the instance if the workspace picker was canceled
 						return;
 					}
-					instance = terminalService.createTerminal(
-						{
-							cwd: workspace.uri
-						}
-					);
+					eventOrOptions.cwd = workspace.uri;
+					instance = terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
 			}

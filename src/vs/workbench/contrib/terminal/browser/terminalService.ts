@@ -1022,6 +1022,7 @@ export class TerminalService implements ITerminalService {
 	}
 
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance {
+		console.log(options);
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(options?.config || options);
 
 		if (options?.cwd) {
@@ -1044,7 +1045,7 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
-		if (options?.target === TerminalLocation.Editor || this.configHelper.config.defaultLocation === TerminalLocation.Editor) {
+		if (options?.target === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
