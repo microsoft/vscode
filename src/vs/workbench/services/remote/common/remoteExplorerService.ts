@@ -337,7 +337,7 @@ export class PortsAttributes extends Disposable {
 		}
 	}
 
-	public async addAttributes(port: number, attributes: Partial<Attributes>) {
+	public async addAttributes(port: number, attributes: Partial<Attributes>, target: ConfigurationTarget) {
 		let settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
 		const userValue: any = settingValue.userLocalValue;
 		let newUserValue: any;
@@ -354,7 +354,7 @@ export class PortsAttributes extends Disposable {
 			newUserValue[`${port}`][attribute] = (<any>attributes)[attribute];
 		}
 
-		return this.configurationService.updateValue(PortsAttributes.SETTING, newUserValue, ConfigurationTarget.USER_LOCAL);
+		return this.configurationService.updateValue(PortsAttributes.SETTING, newUserValue, target);
 	}
 }
 
