@@ -958,6 +958,7 @@ export interface IKeyboardNavigationEventFilter {
 }
 
 export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
+	readonly multipleSelectionSupport?: boolean;
 	readonly automaticKeyboardNavigation?: boolean;
 	readonly simpleKeyboardNavigation?: boolean;
 	readonly filterOnType?: boolean;
