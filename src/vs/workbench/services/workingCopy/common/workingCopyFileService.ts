@@ -5,8 +5,8 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { AsyncEmitter, IWaitUntil, Promises } from 'vs/base/common/async';
+import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';

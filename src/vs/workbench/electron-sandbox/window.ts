@@ -519,18 +519,20 @@ export class NativeWindow extends Disposable {
 					}
 				}
 
-				// Assume `uri` this is a workspace uri, let's see if we can handle it
-				await this.fileService.activateProvider(uri.scheme);
+				if (!options?.openExternal) {
+					// Assume `uri` this is a workspace uri, let's see if we can handle it
+					await this.fileService.activateProvider(uri.scheme);
 
-				if (this.fileService.canHandleResource(uri)) {
-					return {
-						resolved: URI.from({
-							scheme: this.productService.urlProtocol,
-							path: 'workspace',
-							query: uri.toString()
-						}),
-						dispose() { }
-					};
+					if (this.fileService.canHandleResource(uri)) {
+						return {
+							resolved: URI.from({
+								scheme: this.productService.urlProtocol,
+								path: 'workspace',
+								query: uri.toString()
+							}),
+							dispose() { }
+						};
+					}
 				}
 
 				return undefined;
