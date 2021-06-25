@@ -304,8 +304,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.focusPreviousPane();
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			terminalGroupService.activeGroup?.focusPreviousPane();
+			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -329,8 +330,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).activeGroup?.focusNextPane();
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			terminalGroupService.activeGroup?.focusNextPane();
+			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -469,8 +471,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).setActiveGroupToNext();
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			terminalGroupService.setActiveGroupToNext();
+			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -492,8 +495,9 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor) {
-			accessor.get(ITerminalGroupService).setActiveGroupToPrevious();
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			terminalGroupService.setActiveGroupToPrevious();
+			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -508,6 +512,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 
 			const instance = terminalService.getActiveOrCreateInstance();
@@ -524,7 +529,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true);
-			return accessor.get(ITerminalGroupService).showPanel();
+			return terminalGroupService.showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -539,6 +544,8 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalInstanceService = accessor.get(ITerminalInstanceService);
 			const codeEditorService = accessor.get(ICodeEditorService);
 			const notificationService = accessor.get(INotificationService);
 
@@ -555,9 +562,9 @@ export function registerTerminalActions() {
 
 			// TODO: Convert this to ctrl+c, ctrl+v for pwsh?
 			const instance = terminalService.getActiveOrCreateInstance();
-			const path = await accessor.get(ITerminalInstanceService).preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
+			const path = await terminalInstanceService.preparePathForTerminalAsync(uri.fsPath, instance.shellLaunchConfig.executable, instance.title, instance.shellType, instance.isRemote);
 			instance.sendText(path, true);
-			return accessor.get(ITerminalGroupService).showPanel();
+			return terminalGroupService.showPanel();
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1486,6 +1493,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const instances = getSelectedInstances(accessor);
 			if (instances) {
 				for (const t of instances) {
@@ -1493,7 +1501,7 @@ export function registerTerminalActions() {
 					terminalService.doWithActiveInstance(async instance => {
 						const cwd = await getCwdForSplit(terminalService.configHelper, instance);
 						terminalService.splitInstance(instance, { cwd });
-						await accessor.get(ITerminalGroupService).showPanel(true);
+						await terminalGroupService.showPanel(true);
 					});
 				}
 			}
@@ -1617,6 +1625,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, event: unknown) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
@@ -1652,7 +1661,7 @@ export function registerTerminalActions() {
 				}
 				terminalService.setActiveInstance(instance);
 			}
-			await accessor.get(ITerminalGroupService).showPanel(true);
+			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1864,6 +1873,7 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, item?: string) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
 			if (!item || !item.split) {
 				return Promise.resolve(null);
 			}
@@ -1877,8 +1887,8 @@ export function registerTerminalActions() {
 			}
 			const indexMatches = terminalIndexRe.exec(item);
 			if (indexMatches) {
-				accessor.get(ITerminalGroupService).setActiveGroupByIndex(Number(indexMatches[1]) - 1);
-				return accessor.get(ITerminalGroupService).showPanel(true);
+				terminalGroupService.setActiveGroupByIndex(Number(indexMatches[1]) - 1);
+				return terminalGroupService.showPanel(true);
 			}
 
 			const quickSelectProfiles = terminalService.availableProfiles;
