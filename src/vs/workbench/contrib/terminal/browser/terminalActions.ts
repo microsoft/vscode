@@ -929,8 +929,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.DetachProcess,
-				title: { value: localize('workbench.action.terminal.detachProcess', "Detach Process"), original: 'Detach Process' },
+				id: TerminalCommandId.DetachSession,
+				title: { value: localize('workbench.action.terminal.detachSession', "Detach Session"), original: 'Detach Session' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -944,8 +944,8 @@ export function registerTerminalActions() {
 	registerAction2(class extends Action2 {
 		constructor() {
 			super({
-				id: TerminalCommandId.AttachToRemoteTerminal,
-				title: { value: localize('workbench.action.terminal.attachToRemote', "Attach to Session"), original: 'Attach to Session' },
+				id: TerminalCommandId.AttachToSession,
+				title: { value: localize('workbench.action.terminal.attachToSession', "Attach to Session"), original: 'Attach to Session' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
