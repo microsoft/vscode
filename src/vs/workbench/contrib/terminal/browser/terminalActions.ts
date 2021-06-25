@@ -1450,25 +1450,31 @@ export function registerTerminalActions() {
 				}
 			});
 		}
-		async run(accessor: ServicesAccessor, profile?: ICreateTerminalOptions) {
+		async run(accessor: ServicesAccessor, optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const commandService = accessor.get(ICommandService);
 			const editorService = accessor.get(IEditorService);
+			let options: ICreateTerminalOptions | undefined;
+			if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
+				options = { config: optionsOrProfile as ITerminalProfile };
+			} else {
+				options = optionsOrProfile;
+			}
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
 				if (cwd === undefined) {
 					return undefined;
 				}
-				if ((profile?.target || t.target) === TerminalLocation.Editor) {
+				if ((options?.target || t.target) === TerminalLocation.Editor) {
 					const activeResource = editorService.activeEditor?.resource;
 					if (activeResource) {
 						const input = terminalEditorService.getOrCreateEditorInput(t);
-						input.setCopyConfig(profile?.config || {});
+						input.setCopyConfig(options?.config || {});
 						commandService.executeCommand('workbench.action.splitEditor');
 					}
 				} else {
-					terminalService.splitInstance(t, profile?.config, cwd);
+					terminalService.splitInstance(t, options?.config, cwd);
 					return accessor.get(ITerminalGroupService).showPanel(true);
 				}
 			});
