@@ -513,18 +513,14 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
 
-		// Find target group to open in
+		// Find target group to open in and activation
+		// strategy to use
 		const [group, activation] = this.findTargetGroup(editor, optionsOrPreferredGroup, preferredGroup);
-
-		// Adjust options based on group activation if any
-		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
-		if (activation) {
-			options = { ...options, activation };
-		}
 
 		let typedEditor: IEditorInput | undefined = undefined;
 
 		// Resolve override unless disabled
+		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
 		if (options?.override !== EditorOverride.DISABLED) {
 			const overrideResult = await this.doResolveEditorOverride(editor, optionsOrPreferredGroup);
 			if (overrideResult === OverrideStatus.ABORT) {
@@ -540,6 +536,11 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Override is disabled or did not apply
 		if (!typedEditor) {
 			typedEditor = isEditorInput(editor) ? editor : this.createEditorInput(editor);
+		}
+
+		// Adjust options based on group activation if any
+		if (activation) {
+			options = { ...options, activation };
 		}
 
 		return group.openEditor(typedEditor, options);
