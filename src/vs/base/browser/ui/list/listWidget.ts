@@ -138,7 +138,7 @@ class Trait<T> implements ISpliceable<boolean>, IDisposable {
 
 		const length = this.length + diff;
 
-		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0) {
+		if (this.sortedIndexes.length > 0 && sortedIndexes.length === 0 && length > 0) {
 			const first = this.sortedIndexes.find(index => index >= start) ?? length - 1;
 			sortedIndexes.push(Math.min(first, length - 1));
 		}
