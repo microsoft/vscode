@@ -26,6 +26,7 @@ export enum SettingValueType {
 	Null = 'null',
 	Enum = 'enum',
 	String = 'string',
+	MultilineString = 'multiline-string',
 	Integer = 'integer',
 	Number = 'number',
 	Boolean = 'boolean',

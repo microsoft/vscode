@@ -227,7 +227,11 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (this.setting.enum && (!this.setting.type || settingTypeEnumRenderable(this.setting.type))) {
 			this.valueType = SettingValueType.Enum;
 		} else if (this.setting.type === 'string') {
-			this.valueType = SettingValueType.String;
+			if (this.setting.editPresentation === 'multilineText') {
+				this.valueType = SettingValueType.MultilineString;
+			} else {
+				this.valueType = SettingValueType.String;
+			}
 		} else if (isExcludeSetting(this.setting)) {
 			this.valueType = SettingValueType.Exclude;
 		} else if (this.setting.type === 'integer') {

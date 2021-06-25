@@ -500,7 +500,7 @@ interface ISettingBoolItemTemplate extends ISettingItemTemplate<boolean> {
 }
 
 interface ISettingTextItemTemplate extends ISettingItemTemplate<string> {
-	inputBox?: InputBox;
+	inputBox: InputBox;
 	validationErrorMessageElement: HTMLElement;
 }
 
@@ -545,6 +545,7 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 
 const SETTINGS_UNTRUSTED_TEMPLATE_ID = 'settings.untrusted.template';
 const SETTINGS_TEXT_TEMPLATE_ID = 'settings.text.template';
+const SETTINGS_MULTILINE_TEXT_TEMPLATE_ID = 'settings.multilineText.template';
 const SETTINGS_NUMBER_TEMPLATE_ID = 'settings.number.template';
 const SETTINGS_ENUM_TEMPLATE_ID = 'settings.enum.template';
 const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
@@ -1425,19 +1426,48 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 	}
 }
 
-export class SettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	templateId = SETTINGS_TEXT_TEMPLATE_ID;
+abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	private _useMultiline: boolean = false;
+	private readonly MULTILINE_MAX_HEIGHT = 150;
+
+	protected set useMultiline(useMultiline: boolean) {
+		this._useMultiline = useMultiline;
+	}
 
 	renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(null, _container, 'text');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
+		const inputBoxOptions: IInputOptions = {
+			flexibleHeight: this._useMultiline,
+			flexibleWidth: false,
+			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
+		};
+		const inputBox = new InputBox(common.controlElement, this._contextViewService, inputBoxOptions);
+		common.toDispose.add(inputBox);
+		common.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
+			inputBackground: settingsTextInputBackground,
+			inputForeground: settingsTextInputForeground,
+			inputBorder: settingsTextInputBorder
+		}));
+		common.toDispose.add(
+			inputBox.onDidChange(e => {
+				if (template.onChange) {
+					template.onChange(e);
+				}
+			}));
+		common.toDispose.add(inputBox);
+		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		inputBox.inputElement.tabIndex = 0;
+
 		const template: ISettingTextItemTemplate = {
 			...common,
+			inputBox,
 			validationErrorMessageElement
 		};
 
 		this.addSettingElementFocusHandler(template);
+
 		return template;
 	}
 
@@ -1446,10 +1476,6 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 	}
 
 	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void): void {
-		if (!template.inputBox) {
-			template.inputBox = this.createInputBox(dataElement, template);
-		}
-
 		template.onChange = undefined;
 		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
@@ -1460,39 +1486,51 @@ export class SettingTextRenderer extends AbstractSettingRenderer implements ITre
 
 		renderValidations(dataElement, template, true);
 	}
+}
 
-	private createInputBox(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate): InputBox {
-		const useMultiline = dataElement.setting.editPresentation === 'multilineText';
-		const inputBoxOptions: IInputOptions = {
-			flexibleHeight: useMultiline,
-			flexibleWidth: false
-		};
-		const inputBox = new InputBox(template.controlElement, this._contextViewService, inputBoxOptions);
-		template.toDispose.add(inputBox);
-		template.toDispose.add(attachInputBoxStyler(inputBox, this._themeService, {
-			inputBackground: settingsTextInputBackground,
-			inputForeground: settingsTextInputForeground,
-			inputBorder: settingsTextInputBorder
+export class SettingTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	templateId = SETTINGS_TEXT_TEMPLATE_ID;
+
+	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+		super.useMultiline = false;
+		const template = super.renderTemplate(_container);
+
+		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
+		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
+		template.toDispose.add(DOM.addStandardDisposableListener(template.inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
+			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
+				e.preventDefault();
+			}
 		}));
+
+		return template;
+	}
+}
+
+export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
+	templateId = SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
+
+	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+		super.useMultiline = true;
+		return super.renderTemplate(_container);
+	}
+
+	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
+		super.renderValue(dataElement, template, onChange);
 		template.toDispose.add(
-			inputBox.onDidChange(e => {
-				if (template.onChange) {
-					template.onChange(e);
+			template.inputBox.onDidHeightChange(e => {
+				const height = template.containerElement.clientHeight;
+				// Don't fire event if height is reported as 0,
+				// which sometimes happens when clicking onto a new setting.
+				if (height) {
+					this._onDidChangeSettingHeight.fire({
+						element: dataElement,
+						height: template.containerElement.clientHeight
+					});
 				}
 			})
 		);
-		template.toDispose.add(
-			inputBox.onDidHeightChange(e => {
-				this._onDidChangeSettingHeight.fire({
-					element: dataElement,
-					height: e
-				});
-			})
-		);
-		template.toDispose.add(inputBox);
-		inputBox.inputElement.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
-		inputBox.inputElement.tabIndex = 0;
-		return inputBox;
+		template.inputBox.layout();
 	}
 }
 
@@ -1637,7 +1675,7 @@ export class SettingNumberRenderer extends AbstractSettingRenderer implements IT
 			? ((v: string) => v === '' ? null : numParseFn(v)) : numParseFn;
 
 		template.onChange = undefined;
-		template.inputBox!.value = dataElement.value;
+		template.inputBox.value = dataElement.value;
 		template.onChange = value => {
 			if (!renderValidations(dataElement, template, false)) {
 				onChange(nullNumParseFn(value));
@@ -1821,6 +1859,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingArrayRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingComplexRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingTextRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingMultilineTextRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
@@ -1898,7 +1937,7 @@ export class SettingTreeRenderers {
  * Validate and render any error message. Returns true if the value is invalid.
  */
 function renderValidations(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, calledOnStartup: boolean): boolean {
-	if (dataElement.setting.validator && template.inputBox) {
+	if (dataElement.setting.validator) {
 		const errMsg = dataElement.setting.validator(template.inputBox.value);
 		if (errMsg) {
 			template.containerElement.classList.add('invalid-input');
@@ -2052,6 +2091,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Integer || element.valueType === SettingValueType.Number || element.valueType === SettingValueType.NullableInteger || element.valueType === SettingValueType.NullableNumber) {
 				return SETTINGS_NUMBER_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.MultilineString) {
+				return SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
 			}
 
 			if (element.valueType === SettingValueType.String) {
