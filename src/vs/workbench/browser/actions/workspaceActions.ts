@@ -300,7 +300,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	group: '3_workspace',
 	command: {
 		id: DuplicateWorkspaceInNewWindowAction.ID,
-		title: localize('duplicateWorkspace', "Duplicate Current Window as Workspace")
+		title: localize('duplicateWorkspace', "Duplicate Workspace")
 	},
 	order: 3,
 	when: EmptyWorkspaceSupportContext
