@@ -181,12 +181,10 @@ export class ListSettingListModel<TDataItem extends object> {
 	private _editKey: EditKey | null = null;
 	private _selectedIdx: number | null = null;
 	private _newDataItem: TDataItem;
-	private _editOnly: boolean = false;
 
 	get items(): IListViewItem<TDataItem>[] {
 		const items = this._dataItems.map((item, i) => {
-			const editing = this._editOnly ||
-				(typeof this._editKey === 'number' && this._editKey === i);
+			const editing = typeof this._editKey === 'number' && this._editKey === i;
 			return {
 				...item,
 				editing,
@@ -205,20 +203,12 @@ export class ListSettingListModel<TDataItem extends object> {
 		return items;
 	}
 
-	get rendersEditOnly(): boolean {
-		return this._editOnly;
-	}
-
 	constructor(newItem: TDataItem) {
 		this._newDataItem = newItem;
 	}
 
 	setEditKey(key: EditKey): void {
 		this._editKey = key;
-	}
-
-	setEditOnly(editOnly: boolean): void {
-		this._editOnly = editOnly;
 	}
 
 	setValue(listData: TDataItem[]): void {
@@ -341,18 +331,16 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.container.classList.toggle('setting-list-hide-add-button', !this.isAddButtonVisible() || newMode);
 
 		const header = this.renderHeader();
-		let listHeight = 0;
+		const ITEM_HEIGHT = 24;
+		let listHeight = ITEM_HEIGHT * this.model.items.length;
 
 		if (header) {
+			listHeight += ITEM_HEIGHT;
 			this.listElement.appendChild(header);
-			listHeight += header.clientHeight;
 		}
 
 		this.rowElements = this.model.items.map((item, i) => this.renderDataOrEditItem(item, i, focused));
-		this.rowElements.forEach(rowElement => {
-			this.listElement.appendChild(rowElement);
-			listHeight += rowElement.clientHeight;
-		});
+		this.rowElements.forEach(rowElement => this.listElement.appendChild(rowElement));
 
 		this.listElement.style.height = listHeight + 'px';
 	}
@@ -397,7 +385,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		this.renderList();
 	}
 
-	private renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
+	protected renderDataOrEditItem(item: IListViewItem<TDataItem>, idx: number, listFocused: boolean): HTMLElement {
 		const rowElement = item.editing ?
 			this.renderEdit(item, idx) :
 			this.renderDataItem(item, idx, listFocused);
@@ -421,7 +409,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 		rowElement.title = this.getLocalizedRowTitle(item);
 		rowElement.setAttribute('aria-label', rowElement.title);
 
-		if (!this.model.rendersEditOnly && item.selected && listFocused) {
+		if (item.selected && listFocused) {
 			this.listDisposables.add(disposableTimeout(() => rowElement.focus()));
 		}
 
@@ -1194,7 +1182,6 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 		if (isDefined(options) && options.settingKey !== this.currentSettingKey) {
 			this.model.setEditKey('none');
 			this.model.select(null);
-			this.model.setEditOnly(true);
 			this.currentSettingKey = options.settingKey;
 		}
 
@@ -1226,6 +1213,12 @@ export class BoolObjectSettingWidget extends AbstractListSettingWidget<IBoolObje
 
 	protected override renderHeader() {
 		return undefined;
+	}
+
+	protected override renderDataOrEditItem(item: IListViewItem<IBoolObjectDataItem>, idx: number, listFocused: boolean): HTMLElement {
+		const rowElement = this.renderEdit(item, idx);
+		rowElement.setAttribute('role', 'listitem');
+		return rowElement;
 	}
 
 	protected renderItem(item: IBoolObjectDataItem): HTMLElement {

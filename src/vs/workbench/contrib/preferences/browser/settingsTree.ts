@@ -1265,14 +1265,8 @@ export class SettingBoolObjectRenderer extends AbstractSettingRenderer implement
 
 	private onDidChangeObject(template: ISettingBoolObjectItemTemplate, e: ISettingListChangeEvent<IBoolObjectDataItem>): void {
 		if (template.context) {
-			const defaultValue: Record<string, boolean> = typeof template.context.defaultValue === 'object'
-				? template.context.defaultValue ?? {}
-				: {};
-
-			const scopeValue: Record<string, boolean> = typeof template.context.scopeValue === 'object'
-				? template.context.scopeValue ?? {}
-				: {};
-
+			const defaultValue: Record<string, boolean> = template.context?.defaultValue ?? {};
+			const scopeValue: Record<string, boolean> = template.context?.scopeValue ?? {};
 			const newValue: Record<string, boolean> = {};
 			const newItems: IBoolObjectDataItem[] = [];
 
