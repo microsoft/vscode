@@ -18,7 +18,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { SIDE_GROUP, IResourceEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
@@ -518,7 +518,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Override handling: request override from override service
 			if (resolvedOptions?.override !== EditorOverride.DISABLED) {
-				const overrideResult = await this.doResolveEditorInput(editor, optionsOrGroup);
+				const overrideResult = await this.doResolveEditorOverride(editor, optionsOrGroup);
 				if (overrideResult === OverrideStatus.ABORT) {
 					return;
 				} else if (overrideResult !== OverrideStatus.NONE) {
@@ -537,7 +537,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return undefined;
 	}
 
-	private async doResolveEditorInput(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
+	private async doResolveEditorOverride(editor: IEditorInput | IUntypedEditorInput, optionsOrGroup?: IEditorOptions | OpenInEditorGroup): Promise<ReturnedOverride> {
 		let untypedEditor;
 		let group;
 		let conflictingDefaults = false;
@@ -963,32 +963,57 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region replaceEditors()
 
-	async replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	async replaceEditors(editors: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
-		const typedEditors: IEditorReplacement[] = [];
+	async replaceEditors(replacements: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	async replaceEditors(replacements: Array<IEditorReplacement | IResourceEditorReplacement>, group: IEditorGroup | GroupIdentifier): Promise<void> {
 		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 
-		for (const replaceEditorArg of editors) {
-			const replacementArg = replaceEditorArg;
-			if (replacementArg.options?.override !== EditorOverride.DISABLED) {
-				const override = await this.doResolveEditorInput(replacementArg.replacement, isEditorInput(replacementArg.replacement) ? replacementArg.options : targetGroup);
-				if (override === OverrideStatus.ABORT) {
-					continue;
-				} else if (override !== OverrideStatus.NONE) {
-					replacementArg.options = override?.options ?? replacementArg.options;
-					replacementArg.replacement = override?.editor ?? replacementArg.replacement;
+		// Convert all replacements to typed editors unless already
+		// typed and handle overrides properly.
+		const typedReplacements: IEditorReplacement[] = [];
+		for (const replacement of replacements) {
+			let typedReplacement: IEditorReplacement | undefined = undefined;
+
+			// Figure out the override rule based on options
+			let override: string | EditorOverride | undefined;
+			if (isEditorReplacement(replacement)) {
+				override = replacement.options?.override;
+			} else {
+				override = replacement.replacement.options?.override;
+			}
+
+			// Resolve the override if not disabled
+			if (override !== EditorOverride.DISABLED) {
+				const resolvedOverride = await this.doResolveEditorOverride(replacement.replacement, isEditorReplacement(replacement) ? replacement.options : targetGroup);
+				if (resolvedOverride === OverrideStatus.ABORT) {
+					continue; // skip editor if override is aborted
+				}
+
+				if (resolvedOverride && resolvedOverride !== OverrideStatus.NONE) {
+					typedReplacement = {
+						editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor) /* this should not be needed (https://github.com/microsoft/vscode/issues/127134) */,
+						replacement: resolvedOverride.editor,
+						options: resolvedOverride.options ?? isEditorReplacement(replacement) ? (replacement as IEditorReplacement).options : replacement.editor.options,
+						forceReplaceDirty: replacement.forceReplaceDirty
+					};
 				}
 			}
-			typedEditors.push({
-				editor: isEditorInput(replacementArg.editor) ? replacementArg.editor : this.createEditorInput(replacementArg.editor),
-				replacement: isEditorInput(replacementArg.replacement) ? replacementArg.replacement : this.createEditorInput(replacementArg.replacement),
-				forceReplaceDirty: replacementArg.forceReplaceDirty,
-				options: replacementArg.options
-			});
+
+			// Override is disabled or did not apply
+			if (!typedReplacement) {
+				typedReplacement = {
+					editor: isEditorReplacement(replacement) ? replacement.editor : this.createEditorInput(replacement.editor),
+					replacement: isEditorReplacement(replacement) ? replacement.replacement : this.createEditorInput(replacement.replacement),
+					options: isEditorReplacement(replacement) ? replacement.options : replacement.editor.options,
+					forceReplaceDirty: replacement.forceReplaceDirty
+				};
+			}
+
+			typedReplacements.push(typedReplacement);
 		}
+
 		if (targetGroup) {
-			return targetGroup.replaceEditors(typedEditors);
+			return targetGroup.replaceEditors(typedReplacements);
 		}
 	}
 

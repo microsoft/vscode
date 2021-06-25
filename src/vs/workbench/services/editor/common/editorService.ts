@@ -15,9 +15,8 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export interface IResourceEditorReplacement {
-	editor: IUntypedEditorInput;
-	replacement: IUntypedEditorInput;
-	options?: IEditorOptions;
+	readonly editor: IUntypedEditorInput;
+	readonly replacement: IUntypedEditorInput;
 
 	/**
 	 * Skips asking the user for confirmation and doesn't
@@ -194,14 +193,14 @@ export interface IEditorService {
 	/**
 	 * Replaces editors in an editor group with the provided replacement.
 	 *
-	 * @param editors the editors to replace
+	 * @param replacements the editors to replace
 	 * @param group the editor group
 	 *
 	 * @returns a promise that is resolved when the replaced active
 	 * editor (if any) has finished loading.
 	 */
-	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(replacements: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
+	replaceEditors(replacements: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): Promise<void>;
 
 	/**
 	 * Find out if the provided editor is opened in any editor group.
