@@ -711,7 +711,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
 	openEditors(editors: IUntypedEditorInput[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
+	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if
 		// we should proceed with opening the editors if we
@@ -725,18 +725,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Find target groups for editors to open
 		const mapGroupToEditors = new Map<IEditorGroup, Array<IEditorInputWithOptions | IUntypedEditorInput>>();
-		if (group === SIDE_GROUP) {
+		if (preferredGroup === SIDE_GROUP) {
 			mapGroupToEditors.set(this.findSideBySideGroup(), editors);
 		} else {
 			for (const editor of editors) {
-				const targetGroup = isEditorInputWithOptions(editor) ?
-					this.doFindTargetGroup(editor.editor, editor.options, group) :
-					this.doFindTargetGroup(editor, editor.options, group);
+				const group = isEditorInputWithOptions(editor) ?
+					this.doFindTargetGroup(editor.editor, editor.options, preferredGroup) :
+					this.doFindTargetGroup(editor, editor.options, preferredGroup);
 
-				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
+				let targetGroupEditors = mapGroupToEditors.get(group);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];
-					mapGroupToEditors.set(targetGroup, targetGroupEditors);
+					mapGroupToEditors.set(group, targetGroupEditors);
 				}
 
 				targetGroupEditors.push(editor);
@@ -800,8 +800,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Open in target groups
 		const result: Promise<IEditorPane | null>[] = [];
-		for (const [group, editorsWithOptions] of mapGroupToTypedEditors) {
-			result.push(group.openEditors(editorsWithOptions));
+		for (const [group, editors] of mapGroupToTypedEditors) {
+			result.push(group.openEditors(editors));
 		}
 
 		return coalesce(await Promises.settled(result));
