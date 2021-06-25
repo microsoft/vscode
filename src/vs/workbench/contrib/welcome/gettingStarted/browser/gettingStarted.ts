@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, badgeBackground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -61,6 +61,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
+import { ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -107,7 +108,7 @@ export class GettingStartedPage extends EditorPane {
 	private hasScrolledToFirstCategory = false;
 	private recentlyOpenedList?: GettingStartedIndexList<IRecentFolder | IRecentWorkspace>;
 	private startList?: GettingStartedIndexList<IGettingStartedCategory>;
-	private gettingStartedList?: GettingStartedIndexList<IGettingStartedCategory>;
+	private gettingStartedList?: GettingStartedIndexList<IGettingStartedCategoryWithProgress>;
 
 	private stepsSlide!: HTMLElement;
 	private categoriesSlide!: HTMLElement;
@@ -906,27 +907,47 @@ export class GettingStartedPage extends EditorPane {
 		return startList;
 	}
 
-	private buildGettingStartedWalkthroughsList(): GettingStartedIndexList<IGettingStartedCategory> {
+	private buildGettingStartedWalkthroughsList(): GettingStartedIndexList<IGettingStartedCategoryWithProgress> {
 
-		const renderGetttingStaredWalkthrough = (category: IGettingStartedCategory) => {
+		const renderGetttingStaredWalkthrough = (category: IGettingStartedCategoryWithProgress) => {
 			const hiddenCategories = this.getHiddenCategories();
 
 			if (category.content.type !== 'steps' || hiddenCategories.has(category.id)) {
 				return undefined;
 			}
 
-			return $('button.getting-started-category',
+			const newBadge = $('.new-badge', {});
+			if (category.content.accolades === 'newCategory') {
+				reset(newBadge, $('.new-category', {}, localize('new', "New")));
+			} else if (category.content.accolades === 'newContent') {
+				reset(newBadge, $('.new-items', {}, localize('newItems', "New Items")));
+			}
+
+			const featuredBadge = $('.featured-badge', {});
+			const descriptionContent = $('.description-content', {},);
+
+			if (category.content.accolades === 'featured') {
+				reset(featuredBadge, $('.featured', {}, $('span.featured-icon.codicon.codicon-star-empty')));
+				reset(descriptionContent, category.description);
+			}
+
+			return $('button.getting-started-category' + (category.content.accolades === 'featured' ? '.featured' : ''),
 				{
 					'x-dispatch': 'selectCategory:' + category.id,
 					'role': 'listitem',
 					'title': category.description
 				},
-				this.iconWidgetFor(category),
-				$('a.codicon.codicon-close.hide-category-button', {
-					'x-dispatch': 'hideCategory:' + category.id,
-					'title': localize('close', "Hide"),
-				}),
-				$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title),
+				featuredBadge,
+				$('.main-content', {},
+					this.iconWidgetFor(category),
+					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
+					newBadge,
+					$('a.codicon.codicon-close.hide-category-button', {
+						'x-dispatch': 'hideCategory:' + category.id,
+						'title': localize('close', "Hide"),
+					}),
+				),
+				descriptionContent,
 				$('.category-progress', { 'x-data-category-id': category.id, },
 					$('.progress-bar-outer', { 'role': 'progressbar' },
 						$('.progress-bar-inner'))));
@@ -934,11 +955,10 @@ export class GettingStartedPage extends EditorPane {
 
 		if (this.gettingStartedList) { this.gettingStartedList.dispose(); }
 
-		const limit = Math.min(this.gettingStartedCategories.filter(c => c.priority > 0).length, 5);
 		const gettingStartedList = this.gettingStartedList = new GettingStartedIndexList(
 			localize('gettingStarted', "Getting Started"),
 			'getting-started',
-			limit,
+			5,
 			undefined,
 			undefined,
 			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('seeMore', "See More")),
@@ -1018,7 +1038,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private iconWidgetFor(category: IGettingStartedCategory) {
-		return category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
+		const widget = category.icon.type === 'icon' ? $(ThemeIcon.asCSSSelector(category.icon.icon)) : $('img.category-icon', { src: category.icon.path });
+		widget.classList.add('icon-widget');
+		return widget;
 	}
 
 	private buildStepMarkdownDescription(container: HTMLElement, text: LinkedText[]) {
@@ -1473,5 +1495,17 @@ registerThemingParticipant((theme, collector) => {
 	const progressForeground = theme.getColor(welcomePageProgressForeground);
 	if (progressForeground) {
 		collector.addRule(`.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories .progress-bar-inner { background-color: ${progressForeground}; }`);
+	}
+
+	const newBadgeForeground = theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND);
+	if (newBadgeForeground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { color: ${newBadgeForeground}; }`);
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon { color: ${newBadgeForeground}; }`);
+	}
+
+	const newBadgeBackground = theme.getColor(badgeBackground);
+	if (newBadgeBackground) {
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { background-color: ${newBadgeBackground}; }`);
+		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
 	}
 });
