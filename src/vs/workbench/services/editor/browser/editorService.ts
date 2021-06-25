@@ -722,66 +722,84 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 		}
 
-		// Find target groups to open
-		const mapGroupToEditorsCandidates = new Map<IEditorGroup, Array<IEditorInputWithOptions | IUntypedEditorInput>>();
+		// Find target groups for editors to open
+		const mapGroupToEditors = new Map<IEditorGroup, Array<IEditorInputWithOptions | IUntypedEditorInput>>();
 		if (group === SIDE_GROUP) {
-			mapGroupToEditorsCandidates.set(this.findSideBySideGroup(), editors);
+			mapGroupToEditors.set(this.findSideBySideGroup(), editors);
 		} else {
 			for (const editor of editors) {
-				const targetGroup = isEditorInputWithOptions(editor) ? this.doFindTargetGroup(editor.editor, editor.options, group) : this.doFindTargetGroup(editor, editor.options, group);
+				const targetGroup = isEditorInputWithOptions(editor) ?
+					this.doFindTargetGroup(editor.editor, editor.options, group) :
+					this.doFindTargetGroup(editor, editor.options, group);
 
-				let targetGroupEditors = mapGroupToEditorsCandidates.get(targetGroup);
-				if (!targetGroupEditors) {
-					targetGroupEditors = [];
-					mapGroupToEditorsCandidates.set(targetGroup, targetGroupEditors);
-				}
-
-				targetGroupEditors.push(editor);
-			}
-		}
-
-		// Resolve overrides
-		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
-		for (const [group, editors] of mapGroupToEditorsCandidates) {
-			for (const editor of editors) {
-
-				const targetGroup = group;
 				let targetGroupEditors = mapGroupToEditors.get(targetGroup);
 				if (!targetGroupEditors) {
 					targetGroupEditors = [];
 					mapGroupToEditors.set(targetGroup, targetGroupEditors);
 				}
 
-				let editorOverride: IEditorInputWithOptions | undefined;
+				targetGroupEditors.push(editor);
+			}
+		}
+
+		// Resolve overrides and store per editor group
+		const mapGroupToTypedEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
+		for (const [group, editors] of mapGroupToEditors) {
+			for (const editor of editors) {
+
+				// Prepare array of typed editors for group
+				let typedEditorsForGroup = mapGroupToTypedEditors.get(group);
+				if (!typedEditorsForGroup) {
+					typedEditorsForGroup = [];
+					mapGroupToTypedEditors.set(group, typedEditorsForGroup);
+				}
+
+				let typedEditor: IEditorInputWithOptions | undefined = undefined;
+
+				// Resolve override unless disabled
 				if (editor.options?.override !== EditorOverride.DISABLED) {
-					const editorToOverride = isEditorInputWithOptions(editor) ? editor.editor.toUntyped(group.id, UntypedEditorContext.Default) : editor;
-					if (!editorToOverride) {
-						continue;
-					}
+
+					// For the override to work, we need an untyped editor
+					// and if a typed editor was passed in we need to
+					// convert first.
+					//
+					// This code will go away when we no longer support typed
+					// editors to be passed in.
+					let untypedEditor: IUntypedEditorInput | undefined;
 					if (isEditorInputWithOptions(editor)) {
-						editorToOverride.options = { ...editorToOverride.options, ...editor.options };
-					}
-					const overrideResult = await this.editorOverrideService.resolveEditorInput(editorToOverride, group);
-					if (overrideResult === OverrideStatus.ABORT) {
-						continue;
+						untypedEditor = editor.editor.toUntyped(group.id, UntypedEditorContext.Default);
+
+						if (untypedEditor) {
+							untypedEditor.options = { ...editor.options, ...untypedEditor.options };
+						}
 					} else {
-						editorOverride = overrideResult === OverrideStatus.NONE ? undefined : overrideResult;
+						untypedEditor = editor;
+					}
+
+					if (untypedEditor) {
+						const overrideResult = await this.editorOverrideService.resolveEditorInput(untypedEditor, group);
+						if (overrideResult === OverrideStatus.ABORT) {
+							continue; // skip editor if override is aborted
+						}
+
+						if (overrideResult !== OverrideStatus.NONE) {
+							typedEditor = overrideResult;
+						}
 					}
 				}
 
-				if (editorOverride) {
-					targetGroupEditors.push(editorOverride);
-				} else if (isEditorInputWithOptions(editor)) {
-					targetGroupEditors.push(editor);
-				} else {
-					targetGroupEditors.push({ editor: this.createEditorInput(editor), options: editor.options });
+				// Override is disabled or did not apply
+				if (!typedEditor) {
+					typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.createEditorInput(editor), options: editor.options };
 				}
+
+				typedEditorsForGroup.push(typedEditor);
 			}
 		}
 
 		// Open in target groups
 		const result: Promise<IEditorPane | null>[] = [];
-		for (const [group, editorsWithOptions] of mapGroupToEditors) {
+		for (const [group, editorsWithOptions] of mapGroupToTypedEditors) {
 			result.push(group.openEditors(editorsWithOptions));
 		}
 
