@@ -290,7 +290,10 @@ export class TerminalViewPane extends ViewPane {
 				title: terminalStrings.split.value,
 				icon: Codicon.splitHorizontal
 			},
-			undefined);
+			{
+				shouldForwardArgs: true,
+				arg: { target: TerminalLocation.TerminalView } as ICreateTerminalOptions,
+			});
 
 		const dropdownAction = new Action('refresh profiles', 'Launch Profile...', 'codicon-chevron-down', true);
 		return { primaryAction, dropdownAction, dropdownMenuActions: dropdownActions, className: 'terminal-tab-actions' };
@@ -442,7 +445,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	override async onClick(event: MouseEvent): Promise<void> {
 		if (event.altKey && this._menuItemAction.alt) {
-			this._commandService.executeCommand(this._menuItemAction.alt.id);
+			this._commandService.executeCommand(this._menuItemAction.alt.id, { target: TerminalLocation.TerminalView } as ICreateTerminalOptions);
 		} else {
 			this._openContextMenu();
 		}
