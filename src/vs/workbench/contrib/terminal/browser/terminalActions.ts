@@ -35,6 +35,7 @@ import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/brows
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TerminalLocation, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -1442,15 +1443,21 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor, profile?: ICreateTerminalOptions) {
 			const terminalService = accessor.get(ITerminalService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const commandService = accessor.get(ICommandService);
+			const editorService = accessor.get(IEditorService);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
 				if (cwd === undefined) {
 					return undefined;
 				}
-				if (t.target === TerminalLocation.Editor) {
-					// TODO: Support creating profiles
-					commandService.executeCommand('workbench.action.splitEditor');
+				if ((profile?.target || t.target) === TerminalLocation.Editor) {
+					const activeResource = editorService.activeEditor?.resource;
+					if (activeResource) {
+						const input = terminalEditorService.getOrCreateEditorInput(t);
+						input.setCopyConfig(profile?.config || {});
+						commandService.executeCommand('workbench.action.splitEditor');
+					}
 				} else {
 					terminalService.splitInstance(t, profile?.config, cwd);
 					return accessor.get(ITerminalGroupService).showPanel(true);

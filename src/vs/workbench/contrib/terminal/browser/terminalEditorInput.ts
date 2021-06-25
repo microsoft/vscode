@@ -13,12 +13,14 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.terminal';
 
 	private _isDetached = false;
+	private _copyConfig?: IShellLaunchConfig;
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
@@ -29,8 +31,13 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override copy(): IEditorInput {
-		const instance = this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		const instance = this._terminalInstanceService.createInstance(this._copyConfig || {}, TerminalLocation.Editor);
+		this._copyConfig = undefined;
 		return this._instantiationService.createInstance(TerminalEditorInput, instance);
+	}
+
+	setCopyConfig(shellLaunchConfig: IShellLaunchConfig) {
+		this._copyConfig = shellLaunchConfig;
 	}
 
 	/**
@@ -48,7 +55,7 @@ export class TerminalEditorInput extends EditorInput {
 		private readonly _terminalInstance: ITerminalInstance,
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITerminalInstanceService private readonly _terminalInstanceService: ITerminalInstanceService,
-		private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super();
 		this._register(this._terminalInstance.onTitleChanged(() => this._onDidChangeLabel.fire()));

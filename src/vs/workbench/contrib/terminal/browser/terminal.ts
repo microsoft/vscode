@@ -153,6 +153,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
+	createInstance(profile: ITerminalProfile): ITerminalInstance;
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance | undefined;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;

@@ -125,7 +125,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		});
 	}
 
-	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput {
+	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput, isFutureSplit: boolean = false): TerminalEditorInput {
 		let cachedEditor;
 		if ('id' in instance) {
 			cachedEditor = this._editorInputs.get(instance.id);
