@@ -142,22 +142,21 @@ export function registerTerminalActions() {
 				},
 			});
 		}
-		async run(accessor: ServicesAccessor, eventOrOptions: unknown | ICreateTerminalOptions | ITerminalProfile | undefined, profile?: ITerminalProfile) {
-			let event: MouseEvent | undefined;
-			let options: ICreateTerminalOptions | undefined = profile ? { config: profile } : undefined;
-			if (eventOrOptions && typeof eventOrOptions === 'object' && eventOrOptions !== null) {
-				if ('profileName' in eventOrOptions) {
-					options = { config: eventOrOptions as ITerminalProfile };
-				} else if ('target' in eventOrOptions || 'config' in eventOrOptions || 'cwd' in eventOrOptions) {
-					options = eventOrOptions as ICreateTerminalOptions;
-				} else {
-					event = eventOrOptions as MouseEvent | undefined;
-				}
-			}
+		async run(accessor: ServicesAccessor, eventOrOptionsOrProfile: MouseEvent | ICreateTerminalOptions | ITerminalProfile | undefined, profile?: ITerminalProfile) {
 			const terminalService = accessor.get(ITerminalService);
 			const terminalGroupService = accessor.get(ITerminalGroupService);
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
+
+			let event: MouseEvent | undefined;
+			let options: ICreateTerminalOptions | undefined;
+			if (eventOrOptionsOrProfile && typeof eventOrOptionsOrProfile === 'object' && 'altKey' in eventOrOptionsOrProfile) {
+				event = eventOrOptionsOrProfile as MouseEvent;
+				options = profile ? { config: profile } : undefined;
+			} else {
+				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
+			}
+
 			const folders = workspaceContextService.getWorkspace().folders;
 			if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
 				const activeInstance = terminalService.activeInstance;
@@ -1455,12 +1454,7 @@ export function registerTerminalActions() {
 			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const commandService = accessor.get(ICommandService);
 			const editorService = accessor.get(IEditorService);
-			let options: ICreateTerminalOptions | undefined;
-			if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
-				options = { config: optionsOrProfile as ITerminalProfile };
-			} else {
-				options = optionsOrProfile;
-			}
+			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
 			await terminalService.doWithActiveInstance(async t => {
 				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
 				if (cwd === undefined) {
@@ -1964,4 +1958,11 @@ export function validateTerminalName(name: string): { content: string, severity:
 	}
 
 	return null;
+}
+
+function convertOptionsOrProfileToOptions(optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile): ICreateTerminalOptions | undefined {
+	if (typeof optionsOrProfile === 'object' && 'profileName' in optionsOrProfile) {
+		return { config: optionsOrProfile as ITerminalProfile };
+	}
+	return optionsOrProfile;
 }
