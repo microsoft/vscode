@@ -11,7 +11,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { localize } from 'vs/nls';
 import { DropdownWithPrimaryActionViewItem } from 'vs/platform/actions/browser/dropdownWithPrimaryActionViewItem';
-import { IMenu, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -117,6 +117,7 @@ export class TerminalEditor extends EditorPane {
 
 	override getActionViewItem(action: IAction): IActionViewItem | undefined {
 		switch (action.id) {
+			// TODO: Pass target arg to split command
 			case TerminalCommandId.CreateWithProfileButton: {
 				// if (this._tabButtons) {
 				// 	this._tabButtons.dispose();
@@ -144,16 +145,19 @@ export class TerminalEditor extends EditorPane {
 		const defaultProfileName = this._terminalProfileResolverService.defaultProfileName;
 		for (const p of profiles) {
 			const isDefault = p.profileName === defaultProfileName;
-			const arg: ICreateTerminalOptions = {
-				config: p,
-				target: TerminalLocation.Editor
+			const options: IMenuActionOptions = {
+				arg: {
+					config: p,
+					target: TerminalLocation.Editor
+				} as ICreateTerminalOptions,
+				shouldForwardArgs: true
 			};
 			if (isDefault) {
-				dropdownActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg, shouldForwardArgs: true }));
-				submenuActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg, shouldForwardArgs: true }));
+				dropdownActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options));
+				submenuActions.unshift(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: localize('defaultTerminalProfile', "{0} (Default)", p.profileName), category: TerminalTabContextMenuGroup.Profile }, undefined, options));
 			} else {
-				dropdownActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg, shouldForwardArgs: true }));
-				submenuActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, { arg, shouldForwardArgs: true }));
+				dropdownActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.NewWithProfile, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options));
+				submenuActions.push(this._instantiationService.createInstance(MenuItemAction, { id: TerminalCommandId.Split, title: p.profileName.replace(/[\n\r\t]/g, ''), category: TerminalTabContextMenuGroup.Profile }, undefined, options));
 			}
 		}
 

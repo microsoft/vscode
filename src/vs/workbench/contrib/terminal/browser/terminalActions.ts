@@ -30,12 +30,11 @@ import { ILocalTerminalService, ITerminalProfile, TerminalSettingId, TitleEventS
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { FindInFilesCommand, IFindInFilesArgs } from 'vs/workbench/contrib/search/browser/searchActions';
-import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, KEYBINDING_CONTEXT_TERMINAL_A11Y_TREE_FOCUS, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FIND_FOCUSED, KEYBINDING_CONTEXT_TERMINAL_FIND_NOT_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_FOCUS, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TerminalCommandId, TerminalLocation, TERMINAL_ACTION_CATEGORY } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
@@ -148,17 +147,17 @@ export function registerTerminalActions() {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 
-			let event: MouseEvent | undefined;
+			let event: MouseEvent | PointerEvent | KeyboardEvent | undefined;
 			let options: ICreateTerminalOptions | undefined;
-			if (eventOrOptionsOrProfile && typeof eventOrOptionsOrProfile === 'object' && 'altKey' in eventOrOptionsOrProfile) {
-				event = eventOrOptionsOrProfile as MouseEvent;
+			if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
+				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
 			} else {
 				options = convertOptionsOrProfileToOptions(eventOrOptionsOrProfile);
 			}
 
 			const folders = workspaceContextService.getWorkspace().folders;
-			if (event instanceof MouseEvent && (event.altKey || event.ctrlKey)) {
+			if (event && (event.altKey || event.ctrlKey)) {
 				const activeInstance = terminalService.activeInstance;
 				if (activeInstance) {
 					const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance);
@@ -1450,28 +1449,48 @@ export function registerTerminalActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, optionsOrProfile?: ICreateTerminalOptions | ITerminalProfile) {
-			const terminalService = accessor.get(ITerminalService);
-			const terminalEditorService = accessor.get(ITerminalEditorService);
 			const commandService = accessor.get(ICommandService);
-			const editorService = accessor.get(IEditorService);
+			const terminalGroupService = accessor.get(ITerminalGroupService);
+			const terminalService = accessor.get(ITerminalService);
+			const workspaceContextService = accessor.get(IWorkspaceContextService);
+			const terminalEditorService = accessor.get(ITerminalEditorService);
+			// const editorService = accessor.get(IEditorService);
 			const options = convertOptionsOrProfileToOptions(optionsOrProfile);
-			await terminalService.doWithActiveInstance(async t => {
-				const cwd = await getCwdForSplit(terminalService.configHelper, t, accessor.get(IWorkspaceContextService).getWorkspace().folders, accessor.get(ICommandService));
-				if (cwd === undefined) {
-					return undefined;
-				}
-				if ((options?.target || t.target) === TerminalLocation.Editor) {
-					const activeResource = editorService.activeEditor?.resource;
-					if (activeResource) {
-						const input = terminalEditorService.getOrCreateEditorInput(t);
-						input.setCopyConfig(options?.config || {});
-						commandService.executeCommand('workbench.action.splitEditor');
-					}
+			// let activeInstance: ITerminalInstance;
+			let instanceHost: ITerminalInstanceHost;
+			if (options?.target) {
+				if (options.target === TerminalLocation.Editor) {
+					instanceHost = terminalEditorService;
 				} else {
-					terminalService.splitInstance(t, options?.config, cwd);
-					return accessor.get(ITerminalGroupService).showPanel(true);
+					instanceHost = terminalGroupService;
 				}
-			});
+			} else {
+				instanceHost = terminalService;
+			}
+			const activeInstance = instanceHost.activeInstance;
+			if (!activeInstance) {
+				return;
+			}
+			const cwd = await getCwdForSplit(terminalService.configHelper, activeInstance, workspaceContextService.getWorkspace().folders, commandService);
+			if (cwd === undefined) {
+				return undefined;
+			}
+			const instance = terminalService.splitInstance(activeInstance, options?.config, cwd);
+			if (instance?.target !== TerminalLocation.Editor) {
+				return terminalGroupService.showPanel(true);
+			}
+			// if ((options?.target || t.target) === TerminalLocation.Editor) {
+			// 	const activeResource = editorService.activeEditor?.resource;
+			// 	if (activeResource) {
+			// 		const input = terminalEditorService.getOrCreateEditorInput(t);
+			// 		const instance = terminalService.createInstance(options?.config || {});
+			// 		input.setCopyConfig(options?.config || {});
+			// 		commandService.executeCommand('workbench.action.splitEditor');
+			// 	}
+			// } else {
+			// 	terminalService.splitInstance(t, options?.config, cwd);
+			// 	return accessor.get(ITerminalGroupService).showPanel(true);
+			// }
 		}
 	});
 	registerAction2(class extends Action2 {

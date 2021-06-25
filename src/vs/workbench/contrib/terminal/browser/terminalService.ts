@@ -600,10 +600,6 @@ export class TerminalService implements ITerminalService {
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance | null;
 	splitInstance(instanceToSplit: ITerminalInstance, profile: ITerminalProfile, cwd?: string | URI): ITerminalInstance | null
 	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfigOrProfile: IShellLaunchConfig | ITerminalProfile = {}, cwd?: string | URI): ITerminalInstance | null {
-		const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
-		if (!group) {
-			return null;
-		}
 		const shellLaunchConfig = this._convertProfileToShellLaunchConfig(shellLaunchConfigOrProfile, cwd);
 
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
@@ -615,11 +611,27 @@ export class TerminalService implements ITerminalService {
 			this._evaluateLocalCwd(shellLaunchConfig);
 		}
 
-		const instance = group.split(shellLaunchConfig);
+		// Handle editor terminals
+		let instance: ITerminalInstance;
+		switch (instanceToSplit.target) {
+			case TerminalLocation.Editor:
+				instance = this._terminalEditorService.splitInstance(instanceToSplit, shellLaunchConfig);
+				break;
+			case TerminalLocation.TerminalView:
+			default:
+				const group = this._terminalGroupService.getGroupForInstance(instanceToSplit);
+				if (!group) {
+					return null;
+				}
+				instance = group.split(shellLaunchConfig);
+				break;
+		}
 
 		this._initInstanceListeners(instance);
 
-		this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		if (instanceToSplit.target !== TerminalLocation.Editor) {
+			this._terminalGroupService.groups.forEach((g, i) => g.setVisible(i === this._terminalGroupService.activeGroupIndex));
+		}
 		return instance;
 	}
 
@@ -877,6 +889,7 @@ export class TerminalService implements ITerminalService {
 			} else {
 				if (keyMods?.alt && activeInstance) {
 					// create split, only valid if there's an active instance
+					// TODO: This doesn't work for editor terminals
 					instance = this.splitInstance(activeInstance, value.profile, cwd);
 				} else {
 					instance = this.createTerminal({ target: this.configHelper.config.defaultLocation, config: value.profile, cwd });

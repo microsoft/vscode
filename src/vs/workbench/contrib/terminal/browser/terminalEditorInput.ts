@@ -13,14 +13,13 @@ import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEd
 import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalEditorInput extends EditorInput {
 
 	static readonly ID = 'workbench.editors.terminal';
 
 	private _isDetached = false;
-	private _copyConfig?: IShellLaunchConfig;
+	private _copyInstance?: ITerminalInstance;
 
 	override get typeId(): string {
 		return TerminalEditorInput.ID;
@@ -31,13 +30,13 @@ export class TerminalEditorInput extends EditorInput {
 	}
 
 	override copy(): IEditorInput {
-		const instance = this._terminalInstanceService.createInstance(this._copyConfig || {}, TerminalLocation.Editor);
-		this._copyConfig = undefined;
+		const instance = this._copyInstance || this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		this._copyInstance = undefined;
 		return this._instantiationService.createInstance(TerminalEditorInput, instance);
 	}
 
-	setCopyConfig(shellLaunchConfig: IShellLaunchConfig) {
-		this._copyConfig = shellLaunchConfig;
+	setCopyInstance(instance: ITerminalInstance) {
+		this._copyInstance = instance;
 	}
 
 	/**

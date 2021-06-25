@@ -215,6 +215,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost, ITerminal
 	getOrCreateEditorInput(instance: ITerminalInstance | SerializedTerminalEditorInput): TerminalEditorInput;
 	detachActiveEditorInstance(): ITerminalInstance;
 	detachInstance(instance: ITerminalInstance): void;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
 }
 
 /**
