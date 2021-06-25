@@ -12,6 +12,7 @@ import * as rimraf from 'rimraf';
 import { URI } from 'vscode-uri';
 import * as kill from 'tree-kill';
 import * as optimistLib from 'optimist';
+import { StdioOptions } from 'node:child_process';
 
 const optimist = optimistLib
 	.describe('workspacePath', 'path to the workspace to open in the test').string('workspacePath')
@@ -32,8 +33,7 @@ const height = 800;
 type BrowserType = 'chromium' | 'firefox' | 'webkit';
 
 async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWithStringQuery, server: cp.ChildProcess): Promise<void> {
-	const args = process.platform === 'linux' && browserType === 'chromium' ? ['--disable-setuid-sandbox'] : undefined; // setuid sandboxes requires root and is used in containers so we disable this to support our CI
-	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug), args });
+	const browser = await playwright[browserType].launch({ headless: !Boolean(optimist.argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
 	await page.setViewportSize({ width, height });
@@ -46,7 +46,7 @@ async function runTestsInBrowser(browserType: BrowserType, endpoint: url.UrlWith
 	const testFilesUri = url.format({ pathname: URI.file(path.resolve(optimist.argv.extensionTestsPath)).path, protocol, host, slashes: true });
 
 	const folderParam = testWorkspaceUri;
-	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"]]`;
+	const payloadParam = `[["extensionDevelopmentPath","${testExtensionUri}"],["extensionTestsPath","${testFilesUri}"],["enableProposedApi",""],["webviewExternalEndpointCommit","5319757634f77a050b49c10162939bfe60970c29"],["skipWelcome","true"]]`;
 
 	await page.goto(`${endpoint.href}&folder=${folderParam}&payload=${payloadParam}`);
 
@@ -113,15 +113,17 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 		console.log(`Storing log files into '${logsPath}'`);
 	}
 
+	const stdio: StdioOptions = optimist.argv.debug ? 'pipe' : ['ignore', 'pipe', 'ignore'];
+
 	let serverProcess = cp.spawn(
 		serverLocation,
 		serverArgs,
-		{ env }
+		{ env, stdio }
 	);
 
 	if (optimist.argv.debug) {
-		serverProcess?.stderr?.on('data', error => console.log(`Server stderr: ${error}`));
-		serverProcess?.stdout?.on('data', data => console.log(`Server stdout: ${data}`));
+		serverProcess.stderr!.on('data', error => console.log(`Server stderr: ${error}`));
+		serverProcess.stdout!.on('data', data => console.log(`Server stdout: ${data}`));
 	}
 
 	process.on('exit', () => serverProcess.kill());
@@ -129,7 +131,7 @@ async function launchServer(browserType: BrowserType): Promise<{ endpoint: url.U
 	process.on('SIGTERM', () => serverProcess.kill());
 
 	return new Promise(c => {
-		serverProcess?.stdout?.on('data', data => {
+		serverProcess.stdout!.on('data', data => {
 			const matches = data.toString('ascii').match(/Web UI available at (.+)/);
 			if (matches !== null) {
 				c({ endpoint: url.parse(matches[1]), server: serverProcess });

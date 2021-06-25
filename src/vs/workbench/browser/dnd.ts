@@ -17,7 +17,7 @@ import { Mimes } from 'vs/base/common/mime';
 import { isWindows } from 'vs/base/common/platform';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, GroupIdentifier, isEditorIdentifier, UntypedEditorContext } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable, IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
@@ -251,7 +251,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 	// Extract resources from URIs or Editors that
 	// can be handled by the file service
-	const fileSystemResources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
+	const resources = coalesce(resourcesOrEditors.map(resourceOrEditor => {
 		if (URI.isUri(resourceOrEditor)) {
 			return { resource: resourceOrEditor };
 		}
@@ -265,7 +265,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		}
 
 		return resourceOrEditor;
-	})).filter(({ resource }) => fileService.canHandleResource(resource));
+	}));
+	const fileSystemResources = resources.filter(({ resource }) => fileService.canHandleResource(resource));
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
@@ -286,6 +287,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
+	// Terminal URI
+	const terminalResources = resources.filter(({ resource }) => resource.scheme === Schemas.vscodeTerminal);
+	if (terminalResources.length) {
+		event.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify(terminalResources.map(({ resource }) => resource.toString())));
+	}
+
 	// Editors: enables cross window DND of editors
 	// into the editor area while presering UI state
 	const draggedEditors: IDraggedResourceEditorInput[] = [];
@@ -295,7 +302,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Extract resource editor from provided object or URI
 		let editor: IDraggedResourceEditorInput | undefined = undefined;
 		if (isEditorIdentifier(resourceOrEditor)) {
-			editor = resourceOrEditor.editor.asResourceEditorInput(resourceOrEditor.groupId);
+			editor = resourceOrEditor.editor.toUntyped(resourceOrEditor.groupId, UntypedEditorContext.Full /* include contents since we possibly are about to transfer to another window */);
 		} else if (URI.isUri(resourceOrEditor)) {
 			editor = { resource: resourceOrEditor };
 		} else if (!resourceOrEditor.isDirectory) {
@@ -309,7 +316,7 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// Fill in some properties if they are not there already by accessing
 		// some well known things from the text file universe.
 		// This is not ideal for custom editors, but those have a chance to
-		// provide everything from the `asResourceEditorInput` method.
+		// provide everything from the `toUntyped` method.
 		{
 			const resource = editor.resource;
 			if (resource) {

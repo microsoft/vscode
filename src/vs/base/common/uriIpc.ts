@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MarshalledObject } from 'vs/base/common/marshalling';
+import { MarshalledId, MarshalledObject } from 'vs/base/common/marshalling';
 
 export interface IURITransformer {
 	transformIncoming(uri: UriComponents): UriComponents;
@@ -118,7 +118,7 @@ function _transformIncomingURIs(obj: any, transformer: IURITransformer, revive: 
 
 	if (typeof obj === 'object') {
 
-		if ((<MarshalledObject>obj).$mid === 1) {
+		if ((<MarshalledObject>obj).$mid === MarshalledId.Uri) {
 			return revive ? URI.revive(transformer.transformIncoming(obj)) : transformer.transformIncoming(obj);
 		}
 

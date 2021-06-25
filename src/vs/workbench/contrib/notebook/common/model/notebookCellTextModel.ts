@@ -21,8 +21,8 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 	private _onDidChangeOutputs = new Emitter<NotebookCellOutputsSplice>();
 	onDidChangeOutputs: Event<NotebookCellOutputsSplice> = this._onDidChangeOutputs.event;
 
-	private _onDidChangeContent = new Emitter<'content' | 'language'>();
-	onDidChangeContent: Event<'content' | 'language'> = this._onDidChangeContent.event;
+	private _onDidChangeContent = new Emitter<'content' | 'language' | 'mime'>();
+	onDidChangeContent: Event<'content' | 'language' | 'mime'> = this._onDidChangeContent.event;
 
 	private _onDidChangeMetadata = new Emitter<void>();
 	onDidChangeMetadata: Event<void> = this._onDidChangeMetadata.event;
@@ -87,6 +87,19 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		this._hash = null;
 		this._onDidChangeLanguage.fire(newLanguage);
 		this._onDidChangeContent.fire('language');
+	}
+
+	public get mime(): string | undefined {
+		return this._mime;
+	}
+
+	public set mime(newMime: string | undefined) {
+		if (this._mime === newMime) {
+			return;
+		}
+		this._mime = newMime;
+		this._hash = null;
+		this._onDidChangeContent.fire('mime');
 	}
 
 	private _textBuffer!: model.IReadonlyTextBuffer;
@@ -161,6 +174,7 @@ export class NotebookCellTextModel extends Disposable implements ICell {
 		public handle: number,
 		private _source: string,
 		private _language: string,
+		private _mime: string | undefined,
 		public cellKind: CellKind,
 		outputs: IOutputDto[],
 		metadata: NotebookCellMetadata | undefined,
@@ -239,6 +253,7 @@ export function cloneNotebookCellTextModel(cell: NotebookCellTextModel) {
 	return {
 		source: cell.getValue(),
 		language: cell.language,
+		mime: cell.mime,
 		cellKind: cell.cellKind,
 		outputs: cell.outputs.map(output => ({
 			outputs: output.outputs,

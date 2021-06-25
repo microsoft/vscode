@@ -135,9 +135,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.multiSessionRepl.set(this.isMultiSessionView);
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}
 

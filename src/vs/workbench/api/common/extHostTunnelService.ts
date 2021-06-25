@@ -17,11 +17,12 @@ export interface TunnelDto {
 	remoteAddress: { port: number, host: string };
 	localAddress: { port: number, host: string } | string;
 	public: boolean;
+	protocol: string | undefined;
 }
 
 export namespace TunnelDto {
 	export function fromApiTunnel(tunnel: vscode.Tunnel): TunnelDto {
-		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public };
+		return { remoteAddress: tunnel.remoteAddress, localAddress: tunnel.localAddress, public: !!tunnel.public, protocol: tunnel.protocol };
 	}
 	export function fromServiceTunnel(tunnel: RemoteTunnel): TunnelDto {
 		return {
@@ -30,7 +31,8 @@ export namespace TunnelDto {
 				port: tunnel.tunnelRemotePort
 			},
 			localAddress: tunnel.localAddress,
-			public: tunnel.public
+			public: tunnel.public,
+			protocol: tunnel.protocol
 		};
 	}
 }

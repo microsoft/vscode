@@ -68,6 +68,11 @@ export class RemotePty extends Disposable implements ITerminalChildProcess {
 		return undefined;
 	}
 
+	async detach(): Promise<void> {
+		await this._startBarrier.wait();
+		return this._remoteTerminalChannel.detachFromProcess(this.id);
+	}
+
 	shutdown(immediate: boolean): void {
 		this._startBarrier.wait().then(_ => {
 			this._remoteTerminalChannel.shutdown(this._id, immediate);

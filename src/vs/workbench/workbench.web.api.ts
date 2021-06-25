@@ -30,6 +30,12 @@ interface IStaticExtension {
 	isBuiltin?: boolean;
 }
 
+/**
+ * The identifier of an extension in the format: `PUBLISHER.NAME`.
+ * For example: `vscode.csharp`
+ */
+type ExtensionId = string;
+
 interface ICommonTelemetryPropertiesResolver {
 	(): { [key: string]: any };
 }
@@ -72,6 +78,8 @@ interface ITunnelOptions {
 	label?: string;
 
 	public?: boolean;
+
+	protocol?: string;
 }
 
 export interface TunnelCreationOptions {
@@ -92,6 +100,11 @@ interface ITunnel {
 	localAddress: string;
 
 	public?: boolean;
+
+	/**
+	 * If protocol is not provided, it is assumed to be http, regardless of the localAddress
+	 */
+	protocol?: string;
 
 	/**
 	 * Implementers of Tunnel should fire onDidDispose when dispose is called.
@@ -318,13 +331,17 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * Add static extensions that cannot be uninstalled but only be disabled.
+	 * @deprecated. Use `additionalBuiltinExtensions` instead.
 	 */
 	readonly staticExtensions?: readonly IStaticExtension[];
 
 	/**
-	 * Filter for built-in extensions.
+	 * Additional builtin extensions that cannot be uninstalled but only be disabled.
+	 * It can be one of the following:
+	 * 	- `ExtensionId`: id of the extension that is available in Marketplace
+	 * 	- `UriComponents`: location of the extension where it is hosted.
 	 */
-	readonly builtinExtensionsFilter?: (extensionId: string) => boolean;
+	readonly additionalBuiltinExtensions?: readonly (ExtensionId | UriComponents)[];
 
 	/**
 	 * [TEMPORARY]: This will be removed soon.
@@ -332,13 +349,6 @@ interface IWorkbenchConstructionOptions {
 	 * Defaults to true.
 	 */
 	readonly _enableBuiltinExtensions?: boolean;
-
-	/**
-	 * Allows the workbench to skip checking whether an extension was built for the web
-	 * and assumes they are addressable via the `Microsoft.VisualStudio.Code.WebResources`
-	 * asset URI.
-	 */
-	readonly assumeGalleryExtensionsAreAddressable?: boolean;
 
 	/**
 	 * Support for URL callbacks.
@@ -438,7 +448,7 @@ interface IDevelopmentOptions {
 	/**
 	 * Add extensions under development.
 	 */
-	readonly extensions?: readonly IStaticExtension[];
+	readonly extensions?: readonly UriComponents[];
 
 	/**
 	 * Whether to enable the smoke test driver.

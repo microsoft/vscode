@@ -6,10 +6,9 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
 	ROOT=$(dirname $(dirname $(realpath "$0")))
 else
 	ROOT=$(dirname $(dirname $(readlink -f $0)))
-	# --disable-setuid-sandbox: setuid sandboxes requires root and is used in containers so we disable this
 	# --disable-dev-shm-usage --use-gl=swiftshader: when run on docker containers where size of /dev/shm
 	# partition < 64MB which causes OOM failure for chromium compositor that uses the partition for shared memory
-	LINUX_EXTRA_ARGS="--disable-setuid-sandbox --disable-dev-shm-usage --use-gl=swiftshader"
+	LINUX_EXTRA_ARGS="--disable-dev-shm-usage --use-gl=swiftshader"
 fi
 
 VSCODEUSERDATADIR=`mktemp -d 2>/dev/null`
@@ -33,7 +32,6 @@ else
 	yarn gulp 	compile-extension:vscode-api-tests \
 				compile-extension:vscode-colorize-tests \
 				compile-extension:vscode-custom-editor-tests \
-				compile-extension:vscode-notebook-tests \
 				compile-extension:markdown-language-features \
 				compile-extension:typescript-language-features \
 				compile-extension:emmet \
@@ -86,9 +84,6 @@ after_suite
 after_suite
 
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --enable-proposed-api=vscode.git --extensionDevelopmentPath=$ROOT/extensions/git --extensionTestsPath=$ROOT/extensions/git/out/test $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
-after_suite
-
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $ROOT/extensions/vscode-notebook-tests/test --enable-proposed-api=vscode.vscode-notebook-tests --extensionDevelopmentPath=$ROOT/extensions/vscode-notebook-tests --extensionTestsPath=$ROOT/extensions/vscode-notebook-tests/out/ $ALL_PLATFORMS_API_TESTS_EXTRA_ARGS
 after_suite
 
 # Tests in commonJS (CSS, HTML)

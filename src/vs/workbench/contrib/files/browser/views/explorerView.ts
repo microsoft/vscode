@@ -131,6 +131,11 @@ export function getContext(focus: ExplorerItem[], selection: ExplorerItem[], res
 	return [focusedStat];
 }
 
+export interface IExplorerViewContainerDelegate {
+	willOpenElement(event?: UIEvent): void;
+	didOpenElement(event?: UIEvent): void;
+}
+
 export class ExplorerView extends ViewPane {
 	static readonly TREE_VIEW_STATE_STORAGE_KEY: string = 'workbench.explorer.treeViewState';
 
@@ -164,6 +169,7 @@ export class ExplorerView extends ViewPane {
 
 	constructor(
 		options: IViewPaneOptions,
+		private readonly delegate: IExplorerViewContainerDelegate,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -439,7 +445,12 @@ export class ExplorerView extends ViewPane {
 					return;
 				}
 				this.telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
-				await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				try {
+					this.delegate.willOpenElement(e.browserEvent);
+					await this.editorService.openEditor({ resource: element.resource, options: { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned } }, e.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				} finally {
+					this.delegate.didOpenElement();
+				}
 			}
 		}));
 

@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event, Listener } from 'vs/base/common/event';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
@@ -787,6 +787,103 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
+/**
+ * The `ThrottledWorker` will accept units of work `T`
+ * to handle. The contract is:
+ * * there is a maximum of units the worker can handle at once (via `chunkSize`)
+ * * after having handled units, the worker needs to rest (via `throttleDelay`)
+ */
+export class ThrottledWorker<T> extends Disposable {
+
+	private readonly pendingWork: T[] = [];
+
+	private readonly throttler = this._register(new MutableDisposable<RunOnceScheduler>());
+	private disposed = false;
+
+	constructor(
+		private readonly maxWorkChunkSize: number,
+		private readonly maxPendingWork: number | undefined,
+		private readonly throttleDelay: number,
+		private readonly handler: (units: readonly T[]) => void
+	) {
+		super();
+	}
+
+	/**
+	 * The number of work units that are pending to be processed.
+	 */
+	get pending(): number { return this.pendingWork.length; }
+
+	/**
+	 * Add units to be worked on. Use `pending` to figure out
+	 * how many units are not yet processed after this method
+	 * was called.
+	 *
+	 * @returns whether the work was accepted or not. If the
+	 * worker is disposed, it will not accept any more work.
+	 * If the number of pending units would become larger
+	 * than `maxPendingWork`, more work will also not be accepted.
+	 */
+	work(units: readonly T[]): boolean {
+		if (this.disposed) {
+			return false; // work not accepted: disposed
+		}
+
+		// Check for reaching maximum of pending work
+		if (typeof this.maxPendingWork === 'number') {
+
+			// Throttled: simple check if pending + units exceeds max pending
+			if (this.throttler.value) {
+				if (this.pending + units.length > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+
+			// Unthrottled: same as throttled, but account for max chunk getting
+			// worked on directly without being pending
+			else {
+				if (this.pending + units.length - this.maxWorkChunkSize > this.maxPendingWork) {
+					return false; // work not accepted: too much pending work
+				}
+			}
+		}
+
+		// Add to pending units first
+		this.pendingWork.push(...units);
+
+		// If not throttled, start working directly
+		// Otherwise, when the throttle delay has
+		// past, pending work will be worked again.
+		if (!this.throttler.value) {
+			this.doWork();
+		}
+
+		return true; // work accepted
+	}
+
+	private doWork(): void {
+
+		// Extract chunk to handle and handle it
+		this.handler(this.pendingWork.splice(0, this.maxWorkChunkSize));
+
+		// If we have remaining work, schedule it after a delay
+		if (this.pendingWork.length > 0) {
+			this.throttler.value = new RunOnceScheduler(() => {
+				this.throttler.clear();
+
+				this.doWork();
+			}, this.throttleDelay);
+			this.throttler.value.schedule();
+		}
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this.disposed = true;
+	}
+}
+
 //#region -- run on idle tricks ------------
 
 export interface IdleDeadline {
@@ -1163,53 +1260,6 @@ export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
 //#region Promises
 
 export namespace Promises {
-
-	export interface IResolvedPromise<T> {
-		status: 'fulfilled';
-		value: T;
-	}
-
-	export interface IRejectedPromise {
-		status: 'rejected';
-		reason: Error;
-	}
-
-	/**
-	 * Interface of https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	interface PromiseWithAllSettled<T> {
-		allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]>;
-	}
-
-	/**
-	 * A polyfill of `Promise.allSettled`: returns after all promises have
-	 * resolved or rejected and provides access to each result or error
-	 * in the order of the original passed in promises array.
-	 * See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise/allSettled
-	 */
-	export async function allSettled<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		if (typeof (Promise as unknown as PromiseWithAllSettled<T>).allSettled === 'function') {
-			return allSettledNative(promises); // in some environments we can benefit from native implementation
-		}
-
-		return allSettledShim(promises);
-	}
-
-	async function allSettledNative<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return (Promise as unknown as PromiseWithAllSettled<T>).allSettled(promises);
-	}
-
-	async function allSettledShim<T>(promises: Promise<T>[]): Promise<readonly (IResolvedPromise<T> | IRejectedPromise)[]> {
-		return Promise.all(promises.map(promise => (promise.then(value => {
-			const fulfilled: IResolvedPromise<T> = { status: 'fulfilled', value };
-
-			return fulfilled;
-		}, error => {
-			const rejected: IRejectedPromise = { status: 'rejected', reason: error };
-
-			return rejected;
-		}))));
-	}
 
 	/**
 	 * A drop-in replacement for `Promise.all` with the only difference

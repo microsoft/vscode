@@ -203,7 +203,6 @@ export class Debugger implements IDebugger {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
 			attributes.required = attributes.required && attributes.required.length ? defaultRequired.concat(attributes.required) : defaultRequired;
-			attributes.additionalProperties = false;
 			attributes.type = 'object';
 			if (!attributes.properties) {
 				attributes.properties = {};

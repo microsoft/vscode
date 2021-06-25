@@ -4,10 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { Schemas } from 'vs/base/common/network';
 import { localize } from 'vs/nls';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyAndExpr, ContextKeyEqualsExpr, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IS_SPLIT_TERMINAL_CONTEXT_KEY, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION, TerminalCommandId, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
@@ -288,7 +290,25 @@ export function setupTerminalMenus(): void {
 					order: 2,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+						ContextKeyExpr.or(
+							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+						)
 					])
 				}
 			},
@@ -304,7 +324,25 @@ export function setupTerminalMenus(): void {
 					order: 3,
 					when: ContextKeyAndExpr.create([
 						ContextKeyEqualsExpr.create('view', TERMINAL_VIEW_ID),
-						ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`)
+						ContextKeyExpr.or(
+							ContextKeyExpr.not(`config.${TerminalSettingId.TabsEnabled}`),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminal'),
+								ContextKeyExpr.equals('terminalCount', 1)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleTerminalOrNarrow'),
+								ContextKeyExpr.or(
+									ContextKeyExpr.equals('terminalCount', 1),
+									ContextKeyExpr.has('isTerminalTabsNarrow')
+								)
+							),
+							ContextKeyExpr.and(
+								ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'singleGroup'),
+								ContextKeyExpr.equals('terminalGroupCount', 1)
+							),
+							ContextKeyExpr.equals(`config.${TerminalSettingId.TabsShowActions}`, 'always')
+						)
 					])
 				}
 			},
@@ -330,11 +368,23 @@ export function setupTerminalMenus(): void {
 			{
 				id: MenuId.TerminalInlineTabContext,
 				item: {
-					group: ContextMenuGroup.Create,
 					command: {
 						id: TerminalCommandId.Split,
 						title: terminalStrings.split.value
-					}
+					},
+					group: ContextMenuGroup.Create,
+					order: 1
+				}
+			},
+			{
+				id: MenuId.TerminalInlineTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveToEditor,
+						title: terminalStrings.moveToEditor.short
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
 				}
 			},
 			{
@@ -391,7 +441,19 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.SplitInstance,
 						title: terminalStrings.split.value,
 					},
-					group: ContextMenuGroup.Create
+					group: ContextMenuGroup.Create,
+					order: 1
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveToEditor,
+						title: terminalStrings.moveToEditor.short
+					},
+					group: ContextMenuGroup.Create,
+					order: 2
 				}
 			},
 			{
@@ -458,4 +520,13 @@ export function setupTerminalMenus(): void {
 			}
 		]
 	);
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.MoveToTerminalPanel,
+			title: terminalStrings.moveToTerminalPanel
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '2_files'
+	});
 }

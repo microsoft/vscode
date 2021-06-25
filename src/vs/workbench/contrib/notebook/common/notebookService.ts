@@ -21,10 +21,10 @@ export const INotebookService = createDecorator<INotebookService>('notebookServi
 export interface INotebookContentProvider {
 	options: TransientOptions;
 
-	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string>;
+	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
 }
 
 export interface INotebookSerializer {
@@ -70,7 +70,7 @@ export interface INotebookService {
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
-	getMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
+	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
 	getRenderers(): INotebookRendererInfo[];

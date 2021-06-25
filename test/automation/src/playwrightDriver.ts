@@ -81,7 +81,8 @@ function buildDriver(browser: playwright.Browser, page: playwright.Page): IDrive
 		getElementXY: (windowId, selector, xoffset?, yoffset?) => page.evaluate(`window.driver.getElementXY('${selector}', ${xoffset}, ${yoffset})`),
 		typeInEditor: (windowId, selector, text) => page.evaluate(`window.driver.typeInEditor('${selector}', '${text}')`),
 		getTerminalBuffer: (windowId, selector) => page.evaluate(`window.driver.getTerminalBuffer('${selector}')`),
-		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`)
+		writeInTerminal: (windowId, selector, text) => page.evaluate(`window.driver.writeInTerminal('${selector}', '${text}')`),
+		getLocalizedStrings: (windowId) => page.evaluate(`window.driver.getLocalizedStrings()`)
 	};
 	return driver;
 }
@@ -167,7 +168,7 @@ export function connect(browserType: 'chromium' | 'webkit' | 'firefox' = 'chromi
 		const context = await browser.newContext();
 		const page = await context.newPage();
 		await page.setViewportSize({ width, height });
-		const payloadParam = `[["enableProposedApi",""]]`;
+		const payloadParam = `[["enableProposedApi",""],["skipWelcome","true"]]`;
 		await page.goto(`${endpoint}&folder=vscode-remote://localhost:9888${URI.file(workspacePath!).path}&payload=${payloadParam}`);
 		const result = {
 			client: { dispose: () => browser.close() && teardown() },

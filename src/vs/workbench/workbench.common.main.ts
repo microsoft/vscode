@@ -124,9 +124,7 @@ import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IgnoredExtensionsManagementService, IIgnoredExtensionsManagementService } from 'vs/platform/userDataSync/common/ignoredExtensions';
 import { ExtensionsStorageSyncService, IExtensionsStorageSyncService } from 'vs/platform/userDataSync/common/extensionsStorageSync';
-import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
-registerSingleton(IUserConfigurationFileService, UserConfigurationFileService);
 registerSingleton(IIgnoredExtensionsManagementService, IgnoredExtensionsManagementService);
 registerSingleton(IGlobalExtensionEnablementService, GlobalExtensionEnablementService);
 registerSingleton(IExtensionsStorageSyncService, ExtensionsStorageSyncService);
@@ -164,6 +162,9 @@ import 'vs/workbench/contrib/performance/browser/performance.contribution';
 
 // Notebook
 import 'vs/workbench/contrib/notebook/browser/notebook.contribution';
+
+// Interactive
+import 'vs/workbench/contrib/interactive/browser/interactive.contribution';
 
 // Testing
 import 'vs/workbench/contrib/testing/browser/testing.contribution';

@@ -81,7 +81,6 @@ import { IKeyboardLayoutMainService, KeyboardLayoutMainService } from 'vs/platfo
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { isLaunchedFromCli } from 'vs/platform/environment/node/argvHelper';
 import { isEqualOrParent } from 'vs/base/common/extpath';
-import { RunOnceScheduler } from 'vs/base/common/async';
 import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { ExtensionUrlTrustService } from 'vs/platform/extensionManagement/node/extensionUrlTrustService';
 import { once } from 'vs/base/common/functional';
@@ -89,6 +88,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { IExternalTerminalMainService } from 'vs/platform/externalTerminal/common/externalTerminal';
 import { LinuxExternalTerminalService, MacExternalTerminalService, WindowsExternalTerminalService } from 'vs/platform/externalTerminal/node/externalTerminalService';
+import { UserConfigurationFileServiceId, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -588,6 +588,9 @@ export class CodeApplication extends Disposable {
 		const launchChannel = ProxyChannel.fromService(accessor.get(ILaunchMainService), { disableMarshalling: true });
 		this.mainProcessNodeIpcServer.registerChannel('launch', launchChannel);
 
+		// Configuration
+		mainProcessElectronServer.registerChannel(UserConfigurationFileServiceId, ProxyChannel.fromService(new UserConfigurationFileService(this.environmentMainService, this.fileService, this.logService)));
+
 		// Update
 		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
 		mainProcessElectronServer.registerChannel('update', updateChannel);
@@ -998,14 +1001,7 @@ export class CodeApplication extends Disposable {
 		// Start to fetch shell environment (if needed) after window has opened
 		// Since this operation can take a long time, we want to warm it up while
 		// the window is opening.
-		// We also print a warning if the resolution takes longer than 10s.
-		(async () => {
-			const slowResolveShellEnvWarning = this._register(new RunOnceScheduler(() => this.logService.warn('Resolving your shell environment is taking more than 10s. Please review your shell configuration. Learn more at https://go.microsoft.com/fwlink/?linkid=2149667.'), 10000));
-			slowResolveShellEnvWarning.schedule();
-
-			await resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
-			slowResolveShellEnvWarning.dispose();
-		})();
+		resolveShellEnv(this.logService, this.environmentMainService.args, process.env);
 
 		// If enable-crash-reporter argv is undefined then this is a fresh start,
 		// based on telemetry.enableCrashreporter settings, generate a UUID which

@@ -24,7 +24,7 @@ import { CellEditType, CellKind, CellUri, NotebookCellsChangeType } from 'vs/wor
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNotebookDocuments';
 import { NotebookCellOutput, NotebookCellOutputItem } from 'vs/workbench/api/common/extHostTypes';
-import { timeout } from 'vs/base/common/async';
+import { Barrier } from 'vs/base/common/async';
 
 suite('NotebookKernel', function () {
 
@@ -243,7 +243,7 @@ suite('NotebookKernel', function () {
 		assert.strictEqual(tokenCancelCount, 0);
 	});
 
-	test.skip('set outputs on cancel', async function () {
+	test('set outputs on cancel', async function () {
 
 		const kernel = extHostNotebookKernels.createNotebookController(nullExtensionDescription, 'foo', '*', 'Foo');
 		extHostNotebookKernels.$acceptNotebookAssociation(0, notebook.uri, true);
@@ -252,15 +252,18 @@ suite('NotebookKernel', function () {
 		const task = kernel.createNotebookCellExecution(cell1);
 		task.start();
 
+		const b = new Barrier();
+
 		task.token.onCancellationRequested(async () => {
 			await task.replaceOutput(new NotebookCellOutput([NotebookCellOutputItem.text('canceled')]));
 			task.end(true);
+			b.open(); // use barrier to signal that cancellation has happened
 		});
 
 		cellExecuteEdits.length = 0;
 		await extHostNotebookKernels.$cancelCells(0, notebook.uri, [0]);
 
-		await timeout(50);
+		await b.wait();
 
 		assert.strictEqual(cellExecuteEdits.length > 0, true);
 

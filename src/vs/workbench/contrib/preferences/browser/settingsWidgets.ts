@@ -679,7 +679,7 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			}
 		}));
 
-		const cancelButton = this._register(new Button(rowElement));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 
@@ -998,7 +998,7 @@ export class ObjectSettingWidget extends AbstractListSettingWidget<IObjectDataIt
 		this.listDisposables.add(attachButtonStyler(okButton, this.themeService));
 		this.listDisposables.add(okButton.onDidClick(() => this.handleItemChange(item, changedItem, idx)));
 
-		const cancelButton = this._register(new Button(rowElement));
+		const cancelButton = this._register(new Button(rowElement, { secondary: true }));
 		cancelButton.label = localize('cancelButton', "Cancel");
 		cancelButton.element.classList.add('setting-list-cancel-button');
 

@@ -370,7 +370,6 @@ export class SearchWidget extends Widget {
 	}
 
 	private onContextLinesChanged() {
-		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 		this._onDidToggleContext.fire();
 
 		if (this.contextLinesInput.value.includes('-')) {
@@ -388,7 +387,6 @@ export class SearchWidget extends Widget {
 			this.showContextCheckbox.checked = true;
 			this.contextLinesInput.value = '' + lines;
 		}
-		this.domNode.classList.toggle('show-context', this.showContextCheckbox.checked);
 	}
 
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {

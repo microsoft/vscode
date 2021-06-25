@@ -755,6 +755,10 @@ export class DefaultStyleController implements IStyleController {
 			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected { color: ${styles.listActiveSelectionForeground}; }`);
 		}
 
+		if (styles.listActiveSelectionIconForeground) {
+			content.push(`.monaco-list${suffix}:focus .monaco-list-row.selected .codicon { color: ${styles.listActiveSelectionIconForeground}; }`);
+		}
+
 		if (styles.listFocusAndSelectionBackground) {
 			content.push(`
 				.monaco-drag-image,
@@ -772,6 +776,10 @@ export class DefaultStyleController implements IStyleController {
 		if (styles.listInactiveFocusForeground) {
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused { color:  ${styles.listInactiveFocusForeground}; }`);
 			content.push(`.monaco-list${suffix} .monaco-list-row.focused:hover { color:  ${styles.listInactiveFocusForeground}; }`); // overwrite :hover style in this case!
+		}
+
+		if (styles.listInactiveSelectionIconForeground) {
+			content.push(`.monaco-list${suffix} .monaco-list-row.focused .codicon { color:  ${styles.listInactiveSelectionIconForeground}; }`);
 		}
 
 		if (styles.listInactiveFocusBackground) {
@@ -884,9 +892,11 @@ export interface IListStyles {
 	listFocusForeground?: Color;
 	listActiveSelectionBackground?: Color;
 	listActiveSelectionForeground?: Color;
+	listActiveSelectionIconForeground?: Color;
 	listFocusAndSelectionBackground?: Color;
 	listFocusAndSelectionForeground?: Color;
 	listInactiveSelectionBackground?: Color;
+	listInactiveSelectionIconForeground?: Color;
 	listInactiveSelectionForeground?: Color;
 	listInactiveFocusForeground?: Color;
 	listInactiveFocusBackground?: Color;
@@ -909,9 +919,11 @@ const defaultStyles: IListStyles = {
 	listFocusBackground: Color.fromHex('#7FB0D0'),
 	listActiveSelectionBackground: Color.fromHex('#0E639C'),
 	listActiveSelectionForeground: Color.fromHex('#FFFFFF'),
+	listActiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
 	listFocusAndSelectionBackground: Color.fromHex('#094771'),
 	listFocusAndSelectionForeground: Color.fromHex('#FFFFFF'),
 	listInactiveSelectionBackground: Color.fromHex('#3F3F46'),
+	listInactiveSelectionIconForeground: Color.fromHex('#FFFFFF'),
 	listHoverBackground: Color.fromHex('#2A2D2E'),
 	listDropBackground: Color.fromHex('#383B3D'),
 	treeIndentGuidesStroke: Color.fromHex('#a9a9a9'),

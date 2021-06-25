@@ -6,6 +6,7 @@
 import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 import * as paths from 'vs/base/common/path';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -406,7 +407,7 @@ export interface UriComponents {
 }
 
 interface UriState extends UriComponents {
-	$mid: number;
+	$mid: MarshalledId.Uri;
 	external: string;
 	fsPath: string;
 	_sep: 1 | undefined;
@@ -441,7 +442,7 @@ class Uri extends URI {
 
 	override toJSON(): UriComponents {
 		const res = <UriState>{
-			$mid: 1
+			$mid: MarshalledId.Uri
 		};
 		// cached state
 		if (this._fsPath) {

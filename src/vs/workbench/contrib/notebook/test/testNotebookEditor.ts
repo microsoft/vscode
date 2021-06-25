@@ -46,6 +46,7 @@ import { TestWorkspaceTrustRequestService } from 'vs/workbench/services/workspac
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/common/notebookOptions';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { OutputRenderer } from 'vs/workbench/contrib/notebook/browser/view/output/outputRenderer';
+import { Mimes } from 'vs/base/common/mime';
 
 export class TestCell extends NotebookCellTextModel {
 	constructor(
@@ -57,7 +58,7 @@ export class TestCell extends NotebookCellTextModel {
 		outputs: IOutputDto[],
 		modeService: IModeService,
 	) {
-		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
+		super(CellUri.generate(URI.parse('test:///fake/notebook'), handle), handle, source, language, Mimes.text, cellKind, outputs, undefined, undefined, { transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }, modeService);
 	}
 }
 
@@ -182,7 +183,7 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	const model = new NotebookEditorTestModel(notebook);
 	const notebookOptions = new NotebookOptions(instantiationService.get(IConfigurationService));
 	const viewContext = new ViewContext(notebookOptions, new NotebookEventDispatcher());
-	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null);
+	const viewModel: NotebookViewModel = instantiationService.createInstance(NotebookViewModel, viewType, model.notebook, viewContext, null, { isReadOnly: false });
 
 	const cellList = createNotebookCellList(instantiationService, viewContext);
 	cellList.attachViewModel(viewModel);
