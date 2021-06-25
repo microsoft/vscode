@@ -339,22 +339,22 @@ export class PortsAttributes extends Disposable {
 
 	public async addAttributes(port: number, attributes: Partial<Attributes>, target: ConfigurationTarget) {
 		let settingValue = this.configurationService.inspect(PortsAttributes.SETTING);
-		const userValue: any = settingValue.userLocalValue;
-		let newUserValue: any;
-		if (!userValue || !isObject(userValue)) {
-			newUserValue = {};
+		const remoteValue: any = settingValue.userRemoteValue;
+		let newRemoteValue: any;
+		if (!remoteValue || !isObject(remoteValue)) {
+			newRemoteValue = {};
 		} else {
-			newUserValue = deepClone(userValue);
+			newRemoteValue = deepClone(remoteValue);
 		}
 
-		if (!newUserValue[`${port}`]) {
-			newUserValue[`${port}`] = {};
+		if (!newRemoteValue[`${port}`]) {
+			newRemoteValue[`${port}`] = {};
 		}
 		for (const attribute in attributes) {
-			newUserValue[`${port}`][attribute] = (<any>attributes)[attribute];
+			newRemoteValue[`${port}`][attribute] = (<any>attributes)[attribute];
 		}
 
-		return this.configurationService.updateValue(PortsAttributes.SETTING, newUserValue, target);
+		return this.configurationService.updateValue(PortsAttributes.SETTING, newRemoteValue, target);
 	}
 }
 
