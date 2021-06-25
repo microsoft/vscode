@@ -942,8 +942,8 @@ export class TerminalService implements ITerminalService {
 		return this;
 	}
 
-	getFindHost(): ITerminalFindHost {
-		return this.activeInstance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
+	getFindHost(instance: ITerminalInstance | undefined = this.activeInstance): ITerminalFindHost {
+		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
 	async createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void> {

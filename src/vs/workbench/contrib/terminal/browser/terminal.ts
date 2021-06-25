@@ -200,7 +200,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getDefaultInstanceHost(): ITerminalInstanceHost;
 	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost;
-	getFindHost(): ITerminalFindHost;
+	getFindHost(instance?: ITerminalInstance): ITerminalFindHost;
 }
 
 /**
