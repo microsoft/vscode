@@ -926,6 +926,16 @@ export class TerminalService implements ITerminalService {
 		return undefined;
 	}
 
+	getInstanceHost(target: TerminalLocation | undefined): ITerminalInstanceHost {
+		if (target) {
+			if (target === TerminalLocation.Editor) {
+				return this._terminalEditorService;
+			}
+			return this._terminalGroupService;
+		}
+		return this;
+	}
+
 	getFindHost(): ITerminalFindHost {
 		return this.activeInstance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
