@@ -225,7 +225,7 @@ suite('EditorService', () => {
 		const replaceInput = new TestFileEditorInput(URI.parse('my://resource3-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		// Replace editors
@@ -255,7 +255,7 @@ suite('EditorService', () => {
 				return WorkspaceTrustUriResponse.Cancel;
 			};
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 			assert.strictEqual(trustEditorUris.length, 4);
 			assert.strictEqual(trustEditorUris.some(uri => uri.toString() === input1.resource.toString()), true);
@@ -266,13 +266,13 @@ suite('EditorService', () => {
 			// Trust: open in new window
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.OpenInNewWindow;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 0);
 
 			// Trust: allow
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Open;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }], undefined, { validateTrust: true });
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }], undefined, { validateTrust: true });
 			assert.strictEqual(part.activeGroup.count, 3);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
@@ -296,7 +296,7 @@ suite('EditorService', () => {
 			// Trust: cancel
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = async uris => WorkspaceTrustUriResponse.Cancel;
 
-			await service.openEditors([{ editor: input1 }, { editor: input2 }, { editor: sideBySideInput }]);
+			await service.openEditors([{ editor: input1, options: { override: EditorOverride.DISABLED } }, { editor: input2, options: { override: EditorOverride.DISABLED } }, { editor: sideBySideInput, options: { override: EditorOverride.DISABLED } }]);
 			assert.strictEqual(part.activeGroup.count, 3);
 		} finally {
 			accessor.workspaceTrustRequestService.requestOpenUrisHandler = oldHandler;
@@ -1208,7 +1208,7 @@ suite('EditorService', () => {
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		assert.strictEqual(part.activeGroup.count, 2);
 
 		// Try using find editors for opened editors
@@ -1269,7 +1269,7 @@ suite('EditorService', () => {
 		const otherInput = new TestFileEditorInput(URI.parse('my://resource2-openEditors'), TEST_EDITOR_INPUT_ID);
 
 		// Open editors
-		await service.openEditors([{ editor: input }, { editor: otherInput }]);
+		await service.openEditors([{ editor: input, options: { override: EditorOverride.DISABLED } }, { editor: otherInput, options: { override: EditorOverride.DISABLED } }]);
 		const sideEditor = await service.openEditor(input, { pinned: true }, SIDE_GROUP);
 
 		// Try using find editors for opened editors

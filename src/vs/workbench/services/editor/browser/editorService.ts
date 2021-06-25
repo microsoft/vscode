@@ -522,7 +522,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Resolve override unless disabled
 		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
 		if (options?.override !== EditorOverride.DISABLED) {
-			const overrideResult = await this.doResolveEditorOverride(editor, (typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup)) ? optionsOrPreferredGroup : undefined);
+			const overrideResult = await this.doResolveEditorOverride(isEditorInput(editor) ? { editor, options } : editor, (typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup)) ? optionsOrPreferredGroup : undefined);
 			if (overrideResult === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
