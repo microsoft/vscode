@@ -97,7 +97,13 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 	}
 
 	async $openTunnel(tunnelOptions: TunnelOptions, source: string): Promise<TunnelDto | undefined> {
-		const tunnel = await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source, false);
+		const tunnel = await this.remoteExplorerService.forward({
+			remote: tunnelOptions.remoteAddress,
+			local: tunnelOptions.localAddressPort,
+			name: tunnelOptions.label,
+			source,
+			elevateIfNeeded: false
+		});
 		if (tunnel) {
 			if (!this.elevateionRetry
 				&& (tunnelOptions.localAddressPort !== undefined)
@@ -121,7 +127,13 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				run: async () => {
 					this.elevateionRetry = true;
 					await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
-					await this.remoteExplorerService.forward(tunnelOptions.remoteAddress, tunnelOptions.localAddressPort, tunnelOptions.label, source, true);
+					await this.remoteExplorerService.forward({
+						remote: tunnelOptions.remoteAddress,
+						local: tunnelOptions.localAddressPort,
+						name: tunnelOptions.label,
+						source,
+						elevateIfNeeded: true
+					});
 					this.elevateionRetry = false;
 				}
 			}]);

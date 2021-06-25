@@ -380,7 +380,11 @@ class OnAutoForwardedAction extends Disposable {
 			label: nls.localize('remote.tunnelsView.elevationButton', "Use Port {0} as Sudo...", tunnel.tunnelRemotePort),
 			run: async () => {
 				await this.remoteExplorerService.close({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort });
-				const newTunnel = await this.remoteExplorerService.forward({ host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort }, tunnel.tunnelRemotePort, undefined, undefined, true, undefined, false);
+				const newTunnel = await this.remoteExplorerService.forward({
+					remote: { host: tunnel.tunnelRemoteHost, port: tunnel.tunnelRemotePort },
+					local: tunnel.tunnelRemotePort,
+					elevateIfNeeded: true
+				}, false);
 				if (!newTunnel) {
 					return;
 				}
@@ -461,7 +465,7 @@ class OutputAutomaticPortForwarding extends Disposable {
 			if (this.privilegedOnly() && !isPortPrivileged(localUrl.port, (await this.remoteAgentService.getEnvironment())?.os)) {
 				return;
 			}
-			const forwarded = await this.remoteExplorerService.forward(localUrl, undefined, undefined, undefined, undefined, undefined, false, attributes ?? null);
+			const forwarded = await this.remoteExplorerService.forward({ remote: localUrl }, false, attributes ?? null);
 			if (forwarded) {
 				this.notifier.doAction([forwarded]);
 			}
@@ -589,7 +593,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 			if (portAttributes?.onAutoForward === OnPortForward.Ignore) {
 				continue;
 			}
-			const forwarded = await this.remoteExplorerService.forward(value, undefined, undefined, undefined, undefined, undefined, false, portAttributes ?? null);
+			const forwarded = await this.remoteExplorerService.forward({ remote: value }, false, portAttributes ?? null);
 			if (!alreadyForwarded && forwarded) {
 				this.autoForwarded.add(address);
 			} else if (forwarded) {

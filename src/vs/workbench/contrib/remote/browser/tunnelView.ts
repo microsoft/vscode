@@ -1077,7 +1077,10 @@ export namespace ForwardPortAction {
 					remoteExplorerService.setEditable(undefined, TunnelEditId.New, null);
 					let parsed: { host: string, port: number } | undefined;
 					if (success && (parsed = parseAddress(value))) {
-						remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+						remoteExplorerService.forward({
+							remote: { host: parsed.host, port: parsed.port },
+							elevateIfNeeded: true
+						}).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 					}
 				},
 				validationMessage: (value) => validateInput(remoteExplorerService, value, tunnelService.canElevate),
@@ -1100,7 +1103,10 @@ export namespace ForwardPortAction {
 			});
 			let parsed: { host: string, port: number } | undefined;
 			if (value && (parsed = parseAddress(value))) {
-				remoteExplorerService.forward({ host: parsed.host, port: parsed.port }, undefined, undefined, undefined, true).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
+				remoteExplorerService.forward({
+					remote: { host: parsed.host, port: parsed.port },
+					elevateIfNeeded: true
+				}).then(tunnel => error(notificationService, tunnel, parsed!.host, parsed!.port));
 			}
 		};
 	}
@@ -1342,7 +1348,12 @@ namespace ChangeLocalPortAction {
 						if (success) {
 							await remoteExplorerService.close({ host: context.remoteHost, port: context.remotePort });
 							const numberValue = Number(value);
-							const newForward = await remoteExplorerService.forward({ host: context.remoteHost, port: context.remotePort }, numberValue, context.name, undefined, true);
+							const newForward = await remoteExplorerService.forward({
+								remote: { host: context.remoteHost, port: context.remotePort },
+								local: numberValue,
+								name: context.name,
+								elevateIfNeeded: true
+							});
 							if (newForward && newForward.tunnelLocalPort !== numberValue) {
 								notificationService.warn(nls.localize('remote.tunnel.changeLocalPortNumber', "The local port {0} is not available. Port number {1} has been used instead", value, newForward.tunnelLocalPort ?? newForward.localAddress));
 							}
@@ -1365,7 +1376,13 @@ namespace MakePortPublicAction {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
-				return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, undefined, true, true);
+				return remoteExplorerService.forward({
+					remote: { host: arg.remoteHost, port: arg.remotePort },
+					local: arg.localPort,
+					name: arg.name,
+					elevateIfNeeded: true,
+					isPublic: true
+				});
 			}
 		};
 	}
@@ -1380,7 +1397,13 @@ namespace MakePortPrivateAction {
 			if (arg instanceof TunnelItem) {
 				const remoteExplorerService = accessor.get(IRemoteExplorerService);
 				await remoteExplorerService.close({ host: arg.remoteHost, port: arg.remotePort });
-				return remoteExplorerService.forward({ host: arg.remoteHost, port: arg.remotePort }, arg.localPort, arg.name, undefined, true, false);
+				return remoteExplorerService.forward({
+					remote: { host: arg.remoteHost, port: arg.remotePort },
+					local: arg.localPort,
+					name: arg.name,
+					elevateIfNeeded: true,
+					isPublic: false
+				});
 			}
 		};
 	}

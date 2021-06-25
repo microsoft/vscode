@@ -74,6 +74,15 @@ export enum TunnelEditId {
 	LocalPort = 3
 }
 
+interface TunnelProperties {
+	remote: { host: string, port: number },
+	local?: number,
+	name?: string,
+	source?: string,
+	elevateIfNeeded?: boolean,
+	isPublic?: boolean
+}
+
 export interface Tunnel {
 	remoteHost: string;
 	remotePort: number;
@@ -504,7 +513,12 @@ export class TunnelModel extends Disposable {
 				this.logService.trace(`ForwardedPorts: (TunnelModel) restoring ports ${tunnels.map(tunnel => tunnel.remotePort).join(', ')}`);
 				for (let tunnel of tunnels) {
 					if (!mapHasAddressLocalhostOrAllInterfaces(this.detected, tunnel.remoteHost, tunnel.remotePort)) {
-						await this.forward({ host: tunnel.remoteHost, port: tunnel.remotePort }, tunnel.localPort, tunnel.name, undefined, undefined, tunnel.privacy === TunnelPrivacy.Public);
+						await this.forward({
+							remote: { host: tunnel.remoteHost, port: tunnel.remotePort },
+							local: tunnel.localPort,
+							name: tunnel.name,
+							isPublic: tunnel.privacy === TunnelPrivacy.Public
+						});
 					}
 				}
 			}
@@ -551,11 +565,10 @@ export class TunnelModel extends Disposable {
 		return this.dialogService.show(Severity.Info, mismatchString);
 	}
 
-	async forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean,
-		isPublic?: boolean, restore: boolean = true, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
-		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, remote.host, remote.port);
-		attributes = attributes ?? ((attributes !== null) ? (await this.getAttributes([remote.port]))?.get(remote.port) : undefined);
-		const localPort = (local !== undefined) ? local : remote.port;
+	async forward(tunnelProperties: TunnelProperties, restore: boolean = true, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
+		const existingTunnel = mapHasAddressLocalhostOrAllInterfaces(this.forwarded, tunnelProperties.remote.host, tunnelProperties.remote.port);
+		attributes = attributes ?? ((attributes !== null) ? (await this.getAttributes([tunnelProperties.remote.port]))?.get(tunnelProperties.remote.port) : undefined);
+		const localPort = (tunnelProperties.local !== undefined) ? tunnelProperties.local : tunnelProperties.remote.port;
 
 		if (!existingTunnel) {
 			const authority = this.environmentService.remoteAuthority;
@@ -563,11 +576,11 @@ export class TunnelModel extends Disposable {
 				getAddress: async () => { return (await this.remoteAuthorityResolverService.resolveAuthority(authority)).authority; }
 			} : undefined;
 
-			const key = makeAddress(remote.host, remote.port);
+			const key = makeAddress(tunnelProperties.remote.host, tunnelProperties.remote.port);
 			this.inProgress.set(key, true);
-			const tunnel = await this.tunnelService.openTunnel(addressProvider, remote.host, remote.port, localPort, (!elevateIfNeeded) ? attributes?.elevateIfNeeded : elevateIfNeeded, isPublic, attributes?.protocol);
+			const tunnel = await this.tunnelService.openTunnel(addressProvider, tunnelProperties.remote.host, tunnelProperties.remote.port, localPort, (!tunnelProperties.elevateIfNeeded) ? attributes?.elevateIfNeeded : tunnelProperties.elevateIfNeeded, tunnelProperties.isPublic, attributes?.protocol);
 			if (tunnel && tunnel.localAddress) {
-				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), remote.host, remote.port);
+				const matchingCandidate = mapHasAddressLocalhostOrAllInterfaces<CandidatePort>(this._candidates ?? new Map(), tunnelProperties.remote.host, tunnelProperties.remote.port);
 				const protocol = (tunnel.protocol ?
 					((tunnel.protocol === TunnelProtocol.Https) ? TunnelProtocol.Https : TunnelProtocol.Http)
 					: (attributes?.protocol ?? TunnelProtocol.Http));
@@ -575,7 +588,7 @@ export class TunnelModel extends Disposable {
 					remoteHost: tunnel.tunnelRemoteHost,
 					remotePort: tunnel.tunnelRemotePort,
 					localPort: tunnel.tunnelLocalPort,
-					name: attributes?.label ?? name,
+					name: attributes?.label ?? tunnelProperties.name,
 					closeable: true,
 					localAddress: tunnel.localAddress,
 					protocol,
@@ -583,7 +596,7 @@ export class TunnelModel extends Disposable {
 					runningProcess: matchingCandidate?.detail,
 					hasRunningProcess: !!matchingCandidate,
 					pid: matchingCandidate?.pid,
-					source,
+					source: tunnelProperties.source,
 					privacy: this.makeTunnelPrivacy(tunnel.public),
 					userForwarded: restore
 				};
@@ -596,16 +609,16 @@ export class TunnelModel extends Disposable {
 				return tunnel;
 			}
 		} else {
-			const newName = attributes?.label ?? name;
+			const newName = attributes?.label ?? tunnelProperties.name;
 			if (newName !== existingTunnel.name) {
 				existingTunnel.name = newName;
 				this._onForwardPort.fire();
 			}
 			if ((attributes?.protocol || (existingTunnel.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== existingTunnel.protocol)) {
 				await this.close(existingTunnel.remoteHost, existingTunnel.remotePort);
-				await this.forward({ host: existingTunnel.remoteHost, port: existingTunnel.remotePort }, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
+				await this.forward(tunnelProperties, restore, attributes);
 			}
-			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, remote.host, remote.port);
+			return mapHasAddressLocalhostOrAllInterfaces(this.remoteTunnels, tunnelProperties.remote.host, tunnelProperties.remote.port);
 		}
 	}
 
@@ -740,7 +753,12 @@ export class TunnelModel extends Disposable {
 		for (const forwarded of tunnels) {
 			const attributes = allAttributes.get(forwarded.remotePort);
 			if ((attributes?.protocol || (forwarded.protocol !== TunnelProtocol.Http)) && (attributes?.protocol !== forwarded.protocol)) {
-				await this.forward({ host: forwarded.remoteHost, port: forwarded.remotePort }, forwarded.localPort, forwarded.name, forwarded.source, undefined, undefined, undefined, attributes);
+				await this.forward({
+					remote: { host: forwarded.remoteHost, port: forwarded.remotePort },
+					local: forwarded.localPort,
+					name: forwarded.name,
+					source: forwarded.source
+				}, undefined, attributes);
 			}
 
 			if (!attributes) {
@@ -835,7 +853,7 @@ export interface IRemoteExplorerService {
 	onDidChangeEditable: Event<{ tunnel: ITunnelItem, editId: TunnelEditId } | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
 	getEditableData(tunnelItem: ITunnelItem | undefined, editId?: TunnelEditId): IEditableData | undefined;
-	forward(remote: { host: string, port: number }, localPort?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore?: boolean, attributes?: Attributes | null): Promise<RemoteTunnel | void>;
+	forward(tunnelProperties: TunnelProperties, restore?: boolean, attributes?: Attributes | null): Promise<RemoteTunnel | void>;
 	close(remote: { host: string, port: number }): Promise<void>;
 	setTunnelInformation(tunnelInformation: TunnelInformation | undefined): void;
 	setCandidateFilter(filter: ((candidates: CandidatePort[]) => Promise<CandidatePort[]>) | undefined): IDisposable;
@@ -894,8 +912,8 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		return this._tunnelModel;
 	}
 
-	forward(remote: { host: string, port: number }, local?: number, name?: string, source?: string, elevateIfNeeded?: boolean, isPublic?: boolean, restore?: boolean, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
-		return this.tunnelModel.forward(remote, local, name, source, elevateIfNeeded, isPublic, restore, attributes);
+	forward(tunnelProperties: TunnelProperties, restore?: boolean, attributes?: Attributes | null): Promise<RemoteTunnel | void> {
+		return this.tunnelModel.forward(tunnelProperties, restore, attributes);
 	}
 
 	close(remote: { host: string, port: number }): Promise<void> {
