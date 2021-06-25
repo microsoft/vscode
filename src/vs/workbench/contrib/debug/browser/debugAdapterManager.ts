@@ -28,6 +28,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { TaskDefinitionRegistry } from 'vs/workbench/contrib/tasks/common/taskDefinitionRegistry';
+import { IEditorModel } from 'vs/editor/common/editorCommon';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 
@@ -270,6 +271,7 @@ export class AdapterManager implements IAdapterManager {
 		const activeTextEditorControl = this.editorService.activeTextEditorControl;
 		let candidates: Debugger[] = [];
 		let languageLabel: string | null = null;
+		let model: IEditorModel | null = null;
 		if (isCodeEditor(activeTextEditorControl)) {
 			const model = activeTextEditorControl.getModel();
 			const language = model ? model.getLanguageIdentifier().language : undefined;
@@ -285,7 +287,9 @@ export class AdapterManager implements IAdapterManager {
 			}
 		}
 
-		if ((!languageLabel || gettingConfigurations) && candidates.length === 0) {
+		// We want to get the debuggers that have configuration providers in the case we are fetching configurations
+		// Or if a breakpoint can be set in the current file (good hint that an extension can handle it)
+		if ((!languageLabel || gettingConfigurations || (model && this.canSetBreakpointsIn(model))) && candidates.length === 0) {
 			await this.activateDebuggers('onDebugInitialConfigurations');
 			candidates = this.debuggers.filter(dbg => dbg.hasInitialConfiguration() || dbg.hasConfigurationProvider());
 		}
