@@ -42,7 +42,7 @@ export const IGettingStartedService = createDecorator<IGettingStartedService>('g
 export const hiddenEntriesConfigurationKey = 'workbench.welcomePage.hiddenCategories';
 
 export const walkthroughMetadataConfigurationKey = 'workbench.welcomePage.walkthroughMetadata';
-export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; }>;
+export type WalkthroughMetaDataType = Map<string, { firstSeen: number; stepIDs: string[]; manaullyOpened: boolean }>;
 
 export const enum GettingStartedCategory {
 	Beginner = 'Beginner',
@@ -169,6 +169,8 @@ export interface IGettingStartedService {
 	deprogressStep(id: string): void;
 
 	selectNewEntry(categories: IGettingStartedNewMenuEntryDescriptorCategory[]): Promise<void>;
+
+	markWalkthroughOpened(id: string): void;
 
 	installedExtensionsRegistered: Promise<void>;
 }
@@ -512,6 +514,15 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		});
 	}
 
+	markWalkthroughOpened(id: string) {
+		const walkthrough = this.gettingStartedContributions.get(id);
+		const prior = this.metadata.get(id);
+		if (prior && walkthrough && walkthrough.content.type === 'steps') {
+			this.metadata.set(id, { ...prior, manaullyOpened: true, stepIDs: walkthrough.content.steps.map(s => s.id) });
+		}
+		this.storageService.store(walkthroughMetadataConfigurationKey, JSON.stringify([...this.metadata.entries()]), StorageScope.GLOBAL, StorageTarget.USER);
+	}
+
 	private async registerExtensionWalkthroughContributions(extension: IExtensionDescription) {
 		const convertExtensionPathToFileURI = (path: string) => path.startsWith('https://')
 			? URI.parse(path, true)
@@ -545,7 +556,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 			const isNewlyInstalled = !this.metadata.get(categoryID);
 			if (isNewlyInstalled) {
-				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id) });
+				this.metadata.set(categoryID, { firstSeen: +new Date(), stepIDs: walkthrough.steps.map(s => s.id), manaullyOpened: false });
 			}
 
 			const override = await Promise.race([
@@ -789,11 +800,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 
 		const isFeatured = category.isFeatured;
 
+		const hasOpened = this.metadata.get(category.id)?.manaullyOpened;
 		const firstSeenDate = this.metadata.get(category.id)?.firstSeen;
 		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
 
 		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const hasNewSteps = lastStepIDs && category.content.steps.length === lastStepIDs.length && category.content.steps.every(({ id }, index) => id === lastStepIDs[index]);
+		const hasNewSteps = lastStepIDs && (category.content.steps.length !== lastStepIDs.length || category.content.steps.some(({ id }, index) => id !== lastStepIDs[index]));
 
 		let priority = 0;
 
@@ -808,13 +820,19 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		if (hasNewSteps) {
 			priority += 1;
 		}
+
 		return {
 			...category,
 			priority,
 			content: {
 				type: 'steps',
 				steps: stepsWithProgress,
-				accolades: isFeatured ? 'featured' : isNew ? 'newCategory' : hasNewSteps ? 'newContent' : undefined,
+				accolades:
+					isFeatured ? 'featured'
+						: (isNew && !hasOpened) ? 'newCategory'
+							: hasNewSteps ? 'newContent'
+								: undefined,
+
 				// accolades: Math.random() < 0.333 ? 'featured' : Math.random() < 0.5 ? 'newCategory' : 'newContent',
 				stepsComplete: stepsComplete.length,
 				stepsTotal: stepsWithProgress.length,
@@ -952,6 +970,12 @@ registerAction2(class extends Action2 {
 
 		storageService.store(
 			hiddenEntriesConfigurationKey,
+			JSON.stringify([]),
+			StorageScope.GLOBAL,
+			StorageTarget.USER);
+
+		storageService.store(
+			walkthroughMetadataConfigurationKey,
 			JSON.stringify([]),
 			StorageScope.GLOBAL,
 			StorageTarget.USER);

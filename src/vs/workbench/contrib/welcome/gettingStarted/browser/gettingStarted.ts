@@ -306,6 +306,7 @@ export class GettingStartedPage extends EditorPane {
 				if (selectedCategory.content.type === 'startEntry') {
 					this.commandService.executeCommand(selectedCategory.content.command);
 				} else {
+					this.gettingStartedService.markWalkthroughOpened(argument);
 					this.scrollToCategory(argument);
 				}
 				break;
@@ -385,7 +386,7 @@ export class GettingStartedPage extends EditorPane {
 			detail: x.description,
 		})), { canPickMany: false, title: localize('pickWalkthroughs', "Open a Walkthrough") });
 		if (selection) {
-			this.scrollToCategory(selection.id);
+			this.runDispatchCommand('selectCategory', selection.id);
 		}
 	}
 
