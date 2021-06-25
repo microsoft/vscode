@@ -11,13 +11,13 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 
 export class TerminalGroupService extends Disposable implements ITerminalGroupService, ITerminalFindHost {

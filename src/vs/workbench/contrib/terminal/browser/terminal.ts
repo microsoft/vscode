@@ -8,8 +8,8 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType } from 'vs/platform/terminal/common/terminal';
-import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IOffProcessTerminalService, IShellLaunchConfig, ITerminalChildProcess, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalIcon, TitleEventSource, TerminalShellType, ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { ICommandTracker, INavigationMode, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/common/terminal';
 import type { Terminal as XTermTerminal } from 'xterm';
 import type { SearchAddon as XTermSearchAddon } from 'xterm-addon-search';
 import type { Unicode11Addon as XTermUnicode11Addon } from 'xterm-addon-unicode11';
@@ -34,6 +34,8 @@ export const IRemoteTerminalService = createDecorator<IRemoteTerminalService>('r
  */
 export interface ITerminalInstanceService {
 	readonly _serviceBrand: undefined;
+
+	onDidCreateInstance: Event<ITerminalInstance>;
 
 	getXtermConstructor(): Promise<typeof XTermTerminal>;
 	getXtermSearchConstructor(): Promise<typeof XTermSearchAddon>;
@@ -97,23 +99,6 @@ export const enum TerminalConnectionState {
 	Connected
 }
 
-export interface ICreateTerminalOptions {
-	/**
-	 * The shell launch config or profile to launch with, when not specified the default terminal
-	 * profile will be used.
-	 */
-	config?: IShellLaunchConfig | ITerminalProfile;
-	/**
-	 * The current working directory to start with, this will override IShellLaunchConfig.cwd if
-	 * specified.
-	 */
-	cwd?: string | URI;
-	/**
-	 * Where to create the terminal, when not specified the default target will be used.
-	 */
-	target?: TerminalLocation;
-}
-
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
 
@@ -148,7 +133,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 */
 	createTerminal(options?: ICreateTerminalOptions): ITerminalInstance;
 
-	createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void>;
+	createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
@@ -310,7 +295,7 @@ export interface ITerminalExternalLinkProvider {
 }
 
 export interface ITerminalProfileProvider {
-	createContributedTerminalProfile(isSplitTerminal: boolean): Promise<void>;
+	createContributedTerminalProfile(options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
 
 export interface ITerminalLink {

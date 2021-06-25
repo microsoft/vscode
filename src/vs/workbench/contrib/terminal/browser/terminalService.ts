@@ -24,7 +24,7 @@ import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IKeyMods, IPickOptions, IQuickInputButton, IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, ICreateTerminalOptions, ILocalTerminalService, IOffProcessTerminalService, IShellLaunchConfig, ITerminalLaunchError, ITerminalProfile, ITerminalProfileObject, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalLocation, TerminalSettingId, TerminalSettingPrefix } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IconDefinition } from 'vs/platform/theme/common/iconRegistry';
@@ -32,14 +32,14 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService, Themable, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { VirtualWorkspaceContext } from 'vs/workbench/browser/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRemoteTerminalService, ITerminalEditorService, ITerminalExternalLinkProvider, ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalProfileProvider, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { configureTerminalProfileIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TerminalLocation, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalProcessExtHostProxy, ITerminalProfileContribution, KEYBINDING_CONTEXT_TERMINAL_ALT_BUFFER_ACTIVE, KEYBINDING_CONTEXT_TERMINAL_FOCUS, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN, KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_SHELL_TYPE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { formatMessageForTerminal, terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
@@ -145,6 +145,7 @@ export class TerminalService implements ITerminalService {
 		@ITerminalContributionService private readonly _terminalContributionService: ITerminalContributionService,
 		@ITerminalEditorService private readonly _terminalEditorService: ITerminalEditorService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
+		@ITerminalInstanceService terminalInstanceService: ITerminalInstanceService,
 		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -194,6 +195,7 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
+		terminalInstanceService.onDidCreateInstance(this._onInstanceCreated.fire, this._onInstanceCreated);
 
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
@@ -881,7 +883,7 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, !!(keyMods?.alt && activeInstance));
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, { isSplitTerminal: !!(keyMods?.alt && activeInstance) });
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
@@ -943,7 +945,7 @@ export class TerminalService implements ITerminalService {
 		return instance?.target === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 	}
 
-	async createContributedTerminalProfile(extensionIdentifier: string, id: string, isSplitTerminal: boolean): Promise<void> {
+	async createContributedTerminalProfile(extensionIdentifier: string, id: string, options: ICreateContributedTerminalProfileOptions): Promise<void> {
 		await this._extensionService.activateByEvent(`onTerminalProfile:${id}`);
 		const extMap = this._profileProviders.get(extensionIdentifier);
 		const profileProvider = extMap?.get(id);
@@ -952,7 +954,7 @@ export class TerminalService implements ITerminalService {
 			return;
 		}
 		try {
-			await profileProvider.createContributedTerminalProfile(isSplitTerminal);
+			await profileProvider.createContributedTerminalProfile(options);
 			this._terminalGroupService.setActiveInstanceByIndex(this.instances.length - 1);
 			await this.activeInstance?.focusWhenReady();
 		} catch (e) {

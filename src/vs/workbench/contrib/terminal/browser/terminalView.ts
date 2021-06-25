@@ -14,7 +14,7 @@ import { IThemeService, IColorTheme, registerThemingParticipant, ICssStyleCollec
 import { switchTerminalActionViewItemSeparator, switchTerminalShowTabsTitle } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR, TERMINAL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { ICreateTerminalOptions, ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalInstance, ITerminalService, TerminalConnectionState } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -22,8 +22,8 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND, EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMenu, IMenuActionOptions, IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { ITerminalProfileResolverService, TerminalCommandId, TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TerminalSettingId, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfileResolverService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { TerminalSettingId, ITerminalProfile, TerminalLocation, ICreateTerminalOptions } from 'vs/platform/terminal/common/terminal';
 import { ActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { attachSelectBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -260,8 +260,8 @@ export class TerminalViewPane extends ViewPane {
 		}
 
 		for (const contributed of this._terminalContributionService.terminalProfiles) {
-			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, false)));
-			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, true)));
+			dropdownActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: false })));
+			submenuActions.push(new Action(TerminalCommandId.NewWithProfile, contributed.title.replace(/[\n\r\t]/g, ''), undefined, true, () => this._terminalService.createContributedTerminalProfile(contributed.extensionIdentifier, contributed.id, { isSplitTerminal: true })));
 		}
 
 		if (dropdownActions.length > 0) {

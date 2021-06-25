@@ -10,9 +10,9 @@ import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService'
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalEditor } from 'vs/workbench/contrib/terminal/browser/terminalEditor';
-import { TerminalLocation } from 'vs/workbench/contrib/terminal/common/terminal';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalEditorInput extends EditorInput {
 

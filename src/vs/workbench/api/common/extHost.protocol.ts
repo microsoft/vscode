@@ -39,7 +39,7 @@ import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
@@ -474,6 +474,7 @@ export interface TerminalLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
+	target?: TerminalLocation;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -1727,7 +1728,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
-	$createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void>;
+	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
 
 export interface ExtHostSCMShape {

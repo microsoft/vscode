@@ -146,13 +146,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		};
 		let terminal: ITerminalInstance | undefined;
 		if (launchConfig.isSplitTerminal) {
-			const activeInstance = this._terminalService.activeInstance;
+			const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 			if (activeInstance) {
 				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
 			}
 		}
 		if (!terminal) {
-			terminal = this._terminalService.createTerminal({ config: shellLaunchConfig });
+			terminal = this._terminalService.createTerminal({
+				config: shellLaunchConfig,
+				target: launchConfig.target
+			});
 		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
@@ -215,8 +218,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
-			createContributedTerminalProfile: async (isSplitTerminal) => {
-				return this._proxy.$createContributedProfileTerminal(id, isSplitTerminal);
+			createContributedTerminalProfile: async (options) => {
+				return this._proxy.$createContributedProfileTerminal(id, options);
 			}
 		}));
 	}
