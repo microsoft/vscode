@@ -22,7 +22,6 @@ import { coalesce } from 'vs/base/common/arrays';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtUri } from 'vs/base/common/resources';
 import { Schemas } from 'vs/base/common/network';
-import { isEditorInput } from 'vs/workbench/common/editor/editorInput';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -736,7 +735,7 @@ export interface IEditorInputWithOptions {
 export function isEditorInputWithOptions(obj: unknown): obj is IEditorInputWithOptions {
 	const editorInputWithOptions = obj as IEditorInputWithOptions | undefined;
 
-	return !!editorInputWithOptions && isEditorInput(editorInputWithOptions.editor);
+	return !!editorInputWithOptions && !!editorInputWithOptions.editor;
 }
 
 /**
