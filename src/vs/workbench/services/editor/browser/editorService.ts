@@ -557,6 +557,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			if (!untypedEditor) {
 				return OverrideStatus.NONE;
 			}
+			untypedEditor.options = optionsOrPreferredGroup as IEditorOptions ?? untypedEditor?.options;
 
 			if (activation) {
 				untypedEditor.options = { ...untypedEditor.options, activation };
@@ -567,7 +568,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// Populate the override id if the untyped editor doesn't have one
 		if (typeof untypedEditor.options?.override !== 'string') {
-			const populatedInfo = await this.editorOverrideService.populateEditorId(editor);
+			const populatedInfo = await this.editorOverrideService.populateEditorId(untypedEditor);
 			if (!populatedInfo) {
 				return OverrideStatus.ABORT;
 			}
@@ -575,10 +576,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		if (!group) {
-			([group] = this.findTargetGroup(editor, optionsOrPreferredGroup));
+			([group] = this.findTargetGroup(untypedEditor, optionsOrPreferredGroup));
 		}
 
-		return this.editorOverrideService.resolveEditorInput(editor, group, conflictingDefaults);
+		return this.editorOverrideService.resolveEditorInput(untypedEditor, group, conflictingDefaults);
 	}
 
 	private findTargetGroup(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): [IEditorGroup, EditorActivation | undefined] {
