@@ -48,6 +48,8 @@ export class NotebookProviderInfoStore extends Disposable {
 	private readonly _memento: Memento;
 	private _handled: boolean = false;
 
+	private _untitledCounter = 1;
+
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
 	private readonly _contributedEditorDisposables = new DisposableStore();
 
@@ -178,7 +180,15 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorInfo,
 				notebookEditorOptions,
 				notebookEditorInputFactory,
-				undefined,
+				({ resource, options }, group) => {
+					if (!resource) {
+						resource = URI.from({
+							scheme: Schemas.untitled,
+							authority: `Untitled-${this._untitledCounter++}`
+						});
+					}
+					return notebookEditorInputFactory({ resource, options }, group);
+				},
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
