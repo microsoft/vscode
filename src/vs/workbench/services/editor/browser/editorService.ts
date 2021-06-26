@@ -42,6 +42,12 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 type CachedEditorInput = TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
 type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
 
+function isOpenInEditorGroup(obj: unknown): obj is OpenInEditorGroup {
+	const candidate = obj as OpenInEditorGroup | undefined;
+
+	return typeof obj === 'number' || isEditorGroup(candidate);
+}
+
 export class EditorService extends Disposable implements EditorServiceImpl {
 
 	declare readonly _serviceBrand: undefined;
@@ -512,16 +518,20 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	openEditor(editor: IResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
 	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
 	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
-
 		let typedEditor: IEditorInput | undefined = undefined;
 		let group: IEditorGroup | undefined = undefined;
 
 		// Resolve override unless disabled
 		let options = isEditorInput(editor) ? (optionsOrPreferredGroup as IEditorOptions) : editor.options;
 		if (options?.override !== EditorOverride.DISABLED) {
-			const [overrideResult, resolvedGroup, resolvedOptions] = await this.doResolveEditor(isEditorInput(editor) ? { editor, options } : editor, (typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup)) ? optionsOrPreferredGroup : preferredGroup);
+			const [overrideResult, resolvedGroup, resolvedOptions] = await this.doResolveEditor(
+				isEditorInput(editor) ? { editor, options } : editor,
+				isOpenInEditorGroup(optionsOrPreferredGroup) ? optionsOrPreferredGroup : preferredGroup
+			);
+
 			group = resolvedGroup;
 			options = resolvedOptions;
+
 			if (overrideResult === OverrideStatus.ABORT) {
 				return; // skip editor if override is aborted
 			}
@@ -535,17 +545,15 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Override is disabled or did not apply
 		if (!typedEditor) {
 			typedEditor = isEditorInput(editor) ? editor : this.createEditorInput(editor);
-			if ((typeof optionsOrPreferredGroup === 'number' || isEditorGroup(optionsOrPreferredGroup))) {
-				preferredGroup = optionsOrPreferredGroup;
-			}
 		}
 
 		// If group still isn't defined because of a disabled override we resolve it
 		if (!group) {
-			const [resolvedGroup, activation] = this.findTargetGroup(typedEditor, options, preferredGroup);
+			const [resolvedGroup, activation] = this.findTargetGroup(typedEditor, options, isOpenInEditorGroup(optionsOrPreferredGroup) ? optionsOrPreferredGroup : preferredGroup);
 			if (activation) {
 				options = { ...options, activation };
 			}
+
 			group = resolvedGroup;
 		}
 
@@ -560,8 +568,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			untypedEditor = editor.editor.toUntyped(undefined, UntypedEditorContext.Default);
 			if (!untypedEditor) {
 				const [group, activation] = this.findTargetGroup(editor.editor, editor.options);
-				editor.options = { ...editor.options, activation };
-				return [OverrideStatus.NONE, group, editor.options]; // unsupported untyped editor
+
+				return [OverrideStatus.NONE, group, { ...editor.options, activation }]; // unsupported untyped editor
 			}
 
 			// Preserve original options
@@ -743,27 +751,39 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Find target groups for editors to open
 		const mapGroupToEditors = new Map<IEditorGroup, Array<IEditorInputWithOptions>>();
 		for (const editor of editors) {
-			let [resolvedEditor, resolvedGroup, _]: [IEditorInputWithOptions | undefined, IEditorGroup | undefined, IEditorOptions | undefined] = [undefined, undefined, undefined];
+			let typedEditor: IEditorInputWithOptions | undefined = undefined;
+			let group: IEditorGroup | undefined = undefined;
+
+			// Resolve override unless disabled
 			if (editor.options?.override !== EditorOverride.DISABLED) {
-				const [possibleEditor, possibleGroup, possibleOptions] = await this.doResolveEditor(editor, preferredGroup);
-				if (!isEditorInputWithOptions(possibleEditor)) {
-					resolvedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.createEditorInput(editor), options: possibleOptions ?? editor.options };
+				const [overrideResult, resolvedGroup, resolvedOptions] = await this.doResolveEditor(editor, preferredGroup);
+				if (isEditorInputWithOptions(overrideResult)) {
+					typedEditor = overrideResult;
 				} else {
-					resolvedEditor = possibleEditor;
+					typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.createEditorInput(editor), options: resolvedOptions ?? editor.options };
 				}
-				resolvedGroup = possibleGroup ?? this.doFindTargetGroup(resolvedEditor.editor, resolvedEditor.options, preferredGroup);
-			} else {
-				resolvedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.createEditorInput(editor), options: editor.options };
-				resolvedGroup = this.doFindTargetGroup(resolvedEditor.editor, resolvedEditor.options, preferredGroup);
+
+				group = resolvedGroup;
 			}
 
-			let targetGroupEditors = mapGroupToEditors.get(resolvedGroup);
+			// Override is disabled or did not apply
+			else {
+				typedEditor = isEditorInputWithOptions(editor) ? editor : { editor: this.createEditorInput(editor), options: editor.options };
+			}
+
+			// If group still isn't defined because of a disabled override we resolve it
+			if (!group) {
+				group = this.doFindTargetGroup(typedEditor.editor, typedEditor.options, preferredGroup);
+			}
+
+			// Update map of groups to editors
+			let targetGroupEditors = mapGroupToEditors.get(group);
 			if (!targetGroupEditors) {
 				targetGroupEditors = [];
-				mapGroupToEditors.set(resolvedGroup, targetGroupEditors);
+				mapGroupToEditors.set(group, targetGroupEditors);
 			}
 
-			targetGroupEditors.push(resolvedEditor);
+			targetGroupEditors.push(typedEditor);
 		}
 
 		// Open in target groups
@@ -973,20 +993,25 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// Resolve the override if not disabled
 			if (override !== EditorOverride.DISABLED) {
-				const [resolvedEditorOverride, _, resolvedOptions] = await this.doResolveEditor(isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement, targetGroup);
+				const [overrideResult, , resolvedOptions] = await this.doResolveEditor(
+					isEditorReplacement(replacement) ? { editor: replacement.replacement, options: replacement.options } : replacement.replacement,
+					targetGroup
+				);
+
 				if (!isEditorReplacement(replacement)) {
 					replacement.replacement.options = resolvedOptions;
 				}
-				if (resolvedEditorOverride === OverrideStatus.ABORT) {
+
+				if (overrideResult === OverrideStatus.ABORT) {
 					continue; // skip editor if override is aborted
 				}
 
 				// We have an override to use!
-				if (isEditorInputWithOptions(resolvedEditorOverride)) {
+				if (isEditorInputWithOptions(overrideResult)) {
 					typedReplacement = {
 						editor: replacement.editor,
-						replacement: resolvedEditorOverride.editor,
-						options: resolvedEditorOverride.options ?? isEditorReplacement(replacement) ? (replacement as IEditorReplacement).options : replacement.replacement.options,
+						replacement: overrideResult.editor,
+						options: overrideResult.options ?? isEditorReplacement(replacement) ? (replacement as IEditorReplacement).options : replacement.replacement.options,
 						forceReplaceDirty: replacement.forceReplaceDirty
 					};
 				}
