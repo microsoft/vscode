@@ -39,7 +39,9 @@ import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/br
 import { peekViewEditorBackground } from 'vs/editor/contrib/peekView/peekView';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
-
+const INPUT_CONTAINER_PADDING = 10;
+const INPUT_WIDGET_HEIGHT = 19;
+const INPUT_CONTAINER_HEIGHT = INPUT_WIDGET_HEIGHT + 2 * INPUT_CONTAINER_PADDING;
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -102,7 +104,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
 		this.#inputEditorContainer = DOM.append(this.#rootElement, DOM.$('.input-editor-container'));
 		this.#inputEditorContainer.style.position = 'absolute';
-		this.#inputEditorContainer.style.height = `${19}px`;
+		this.#inputEditorContainer.style.height = `${INPUT_WIDGET_HEIGHT}px`;
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -145,10 +147,12 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		if (this.#dimension) {
-			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
-			this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
-			this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
+			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - INPUT_CONTAINER_HEIGHT), this.#rootElement);
+			this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, INPUT_WIDGET_HEIGHT));
+			this.#inputEditorContainer.style.top = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
 			this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
+			this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
+			this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 		}
 
 		await super.setInput(input, options, context, token);
@@ -181,10 +185,13 @@ export class InteractiveEditor extends EditorPane {
 			const contentHeight = this.#codeEditorWidget.getContentHeight();
 
 			if (this.#dimension) {
-				this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - contentHeight), this.#rootElement);
+				this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - contentHeight - 2 * INPUT_CONTAINER_PADDING), this.#rootElement);
 				this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, contentHeight));
-				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight}px`;
+				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight - 2 * INPUT_CONTAINER_PADDING}px`;
 				this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
+				this.#inputEditorContainer.style.height = `${contentHeight}px`;
+				this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
+				this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 			}
 		}));
 
@@ -266,12 +273,14 @@ export class InteractiveEditor extends EditorPane {
 			return;
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#dimension.height - 19}px`;
-		this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
+		this.#notebookEditorContainer.style.height = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
+		this.#inputEditorContainer.style.top = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
 		this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
+		this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
+		this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 
-		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
-		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
+		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, INPUT_WIDGET_HEIGHT));
+		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - INPUT_CONTAINER_HEIGHT), this.#rootElement);
 	}
 
 	#updateInputDecoration(): void {
