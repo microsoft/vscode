@@ -1,0 +1,4 @@
+<svg viewBox="0 0 10 10" width="100px" height="100px">
+	<rect width="8" height="8" x="0" y="0" fill="var(--vscode-inputValidation-warningBackground,#999)"/>
+	<circle r="4" cx="6" cy="6" fill="var(--vscode-inputValidation-errorBackground,#666)"/>
+</svg>

@@ -133,6 +133,12 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			type: 'steps',
 			steps: [
 				{
+					id: 'svgDemo',
+					title: 'svg demo',
+					description: 'demo of svg reading color tokens',
+					media: { type: 'svg', path: 'demo.svg', altText: 'demo svg' }
+				},
+				{
 					id: 'pickColorTheme',
 					title: localize('gettingStarted.pickColor.title', "Choose the look you want"),
 					description: localize('gettingStarted.pickColor.description.interpolated', "The right color palette helps you focus on your code, is easy on your eyes, and is simply more fun to use.\n{0}", Button(localize('titleID', "Browse Color Themes"), 'command:workbench.action.selectTheme')),
