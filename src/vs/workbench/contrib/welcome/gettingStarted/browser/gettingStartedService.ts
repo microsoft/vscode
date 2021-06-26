@@ -66,6 +66,7 @@ export interface IGettingStartedStep {
 	completionEvents: string[]
 	media:
 	| { type: 'image', path: { hc: URI, light: URI, dark: URI }, altText: string }
+	| { type: 'svg', path: URI, altText: string }
 	| { type: 'markdown', path: URI, base: URI, root: URI }
 }
 
@@ -370,12 +371,18 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 								altText: step.media.altText,
 								path: convertInternalMediaPathsToBrowserURIs(step.media.path)
 							}
-							: {
-								type: 'markdown',
-								path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
-								base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-								root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
-							},
+							: step.media.type === 'svg'
+								? {
+									type: 'svg',
+									altText: step.media.altText,
+									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) })
+								}
+								: {
+									type: 'markdown',
+									path: convertInternalMediaPathToFileURI(step.media.path).with({ query: JSON.stringify({ moduleId: 'vs/workbench/contrib/welcome/gettingStarted/common/media/' + step.media.path }) }),
+									base: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+									root: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/', require),
+								},
 					});
 				}));
 		});
@@ -938,10 +945,10 @@ const convertInternalMediaPathToFileURI = (path: string) => path.startsWith('htt
 	? URI.parse(path, true)
 	: FileAccess.asFileUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 
+const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
+	? URI.parse(path, true)
+	: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 const convertInternalMediaPathsToBrowserURIs = (path: string | { hc: string, dark: string, light: string }): { hc: URI, dark: URI, light: URI } => {
-	const convertInternalMediaPathToBrowserURI = (path: string) => path.startsWith('https://')
-		? URI.parse(path, true)
-		: FileAccess.asBrowserUri('vs/workbench/contrib/welcome/gettingStarted/common/media/' + path, require);
 	if (typeof path === 'string') {
 		const converted = convertInternalMediaPathToBrowserURI(path);
 		return { hc: converted, dark: converted, light: converted };

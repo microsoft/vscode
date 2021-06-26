@@ -24,6 +24,7 @@ export type BuiltinGettingStartedStep = {
 	when?: string,
 	media:
 	| { type: 'image', path: string | { hc: string, light: string, dark: string }, altText: string }
+	| { type: 'svg', path: string, altText: string }
 	| { type: 'markdown', path: string },
 };
 
