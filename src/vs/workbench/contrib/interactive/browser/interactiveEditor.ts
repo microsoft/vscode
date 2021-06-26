@@ -289,7 +289,7 @@ export class InteractiveEditor extends EditorPane {
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
+			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'Ctrl+Enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,
