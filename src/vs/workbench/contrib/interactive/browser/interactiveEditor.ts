@@ -16,8 +16,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { editorForeground, registerColor, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -36,6 +36,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { peekViewEditorBackground } from 'vs/editor/contrib/peekView/peekView';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -346,3 +347,17 @@ export class InteractiveEditor extends EditorPane {
 		};
 	}
 }
+
+export const interactiveInputEditorBackground = registerColor('interactive.inputEditorBackground', {
+	dark: peekViewEditorBackground,
+	light: peekViewEditorBackground,
+	hc: peekViewEditorBackground
+}, nls.localize('interactive.inputEditorBackground', "The background color of the input editor."));
+
+registerThemingParticipant((theme, collector) => {
+	const editorBackgroundColor = theme.getColor(interactiveInputEditorBackground) ?? theme.getColor(interactiveInputEditorBackground);
+	if (editorBackgroundColor) {
+		collector.addRule(`.interactive-editor .input-editor-container,
+		.interactive-editor .input-editor-container .monaco-editor-background { background: ${editorBackgroundColor}; }`);
+	}
+});
