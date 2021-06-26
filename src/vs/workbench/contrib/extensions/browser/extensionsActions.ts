@@ -2167,10 +2167,10 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-
-		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
-		if (this.workspaceTrustService.workspaceTrustEnabled && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustService.workspaceTrustEnabled && !this.workspaceTrustService.isWorkpaceTrusted() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+			const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
 			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
+
 			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
 			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?
