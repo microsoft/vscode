@@ -573,7 +573,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			}
 
 			// Preserve original options
-			untypedEditor.options = editor.options ?? untypedEditor?.options;
+			untypedEditor.options = editor.options ?? untypedEditor.options;
 		}
 
 		// Untyped: take as is
