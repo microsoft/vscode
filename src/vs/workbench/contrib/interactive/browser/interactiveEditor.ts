@@ -299,6 +299,7 @@ export class InteractiveEditor extends EditorPane {
 				},
 				renderOptions: {
 					after: {
+						fontStyle: 'italic',
 						contentText: text,
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
