@@ -21,7 +21,11 @@ export class MainThreadInteractive implements MainThreadInteractiveShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostInteractive);
 
 		this._disposables.add(interactiveDocumentService.onWillAddInteractiveDocument((e) => {
-			this._proxy.$acceptInputDocument(e.inputUri, '\n', 'plaintext', e.notebookUri);
+			this._proxy.$willAddInteractiveDocument(e.inputUri, '\n', 'plaintext', e.notebookUri);
+		}));
+
+		this._disposables.add(interactiveDocumentService.onWillAddInteractiveDocument((e) => {
+			this._proxy.$willRemoveInteractiveDocument(e.inputUri, e.notebookUri);
 		}));
 	}
 

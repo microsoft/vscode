@@ -173,9 +173,16 @@ export class InteractiveEditor extends EditorPane {
 		if (!editorModel) {
 			this.#interactiveDocumentService.willCreateInteractiveDocument(input.resource!, input.inputResource, this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 			editorModel = this.#modelService.createModel('', null, input.inputResource, false);
+
+			// willCreateInteractiveDocument refs the input model, then we should de-ref it on close.
+			this.#widgetDisposableStore.add({
+				dispose: () => {
+					this.#interactiveDocumentService.willRemoveInteractiveDocument(input.resource!, input.inputResource);
+					editorModel?.dispose();
+				}
+			});
 		}
 
-		this.#widgetDisposableStore.add(editorModel);
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
