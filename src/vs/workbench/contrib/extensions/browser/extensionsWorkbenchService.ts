@@ -944,9 +944,12 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (this.extensionManagementServerService.localExtensionManagementServer
-			|| this.extensionManagementServerService.remoteExtensionManagementServer
-			|| this.extensionManagementServerService.webExtensionManagementServer) {
+			|| this.extensionManagementServerService.remoteExtensionManagementServer) {
 			return true;
+		}
+
+		if (this.extensionManagementServerService.webExtensionManagementServer) {
+			return extension.gallery.webExtension;
 		}
 
 		return false;

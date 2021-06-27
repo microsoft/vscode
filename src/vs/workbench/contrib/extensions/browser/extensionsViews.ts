@@ -8,7 +8,7 @@ import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecy
 import { Event, Emitter } from 'vs/base/common/event';
 import { isPromiseCanceledError, getErrorMessage, createErrorWithActions } from 'vs/base/common/errors';
 import { PagedModel, IPagedModel, IPager, DelayedPagedModel } from 'vs/base/common/paging';
-import { SortBy, SortOrder, IQueryOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { SortBy, SortOrder, IQueryOptions, WEB_EXTENSION_TAG } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionManagementServer, IExtensionManagementServerService, EnablementState, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { areSameExtensions, getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -1079,6 +1079,15 @@ export class ExtensionsListView extends ViewPane {
 		}
 		this.list.domFocus();
 	}
+}
+
+export class DefaultPopularExtensionsView extends ExtensionsListView {
+
+	override async show(): Promise<IPagedModel<IExtension>> {
+		const query = this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer && !this.extensionManagementServerService.remoteExtensionManagementServer ? `tag:${WEB_EXTENSION_TAG}` : '';
+		return super.show(query);
+	}
+
 }
 
 export class ServerInstalledExtensionsView extends ExtensionsListView {
