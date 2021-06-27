@@ -51,6 +51,7 @@ export interface IProductConfiguration {
 	readonly downloadUrl?: string;
 	readonly updateUrl?: string;
 	readonly webEndpointUrl?: string;
+	readonly webEndpointUrlTemplate?: string;
 	readonly target?: string;
 
 	readonly settingsSearchBuildId?: number;
