@@ -254,10 +254,6 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider | undefined) {
-		if (this.tree === undefined) {
-			this.createTree();
-		}
-
 		if (dataProvider) {
 			const self = this;
 			this._dataProvider = new class implements ITreeViewDataProvider {
@@ -336,7 +332,11 @@ export class TreeView extends Disposable implements ITreeView {
 	}
 
 	set canSelectMany(canSelectMany: boolean) {
+		const oldCanSelectMany = this._canSelectMany;
 		this._canSelectMany = canSelectMany;
+		if (this._canSelectMany !== oldCanSelectMany) {
+			this.tree?.updateOptions({ multipleSelectionSupport: this.canSelectMany });
+		}
 	}
 
 	get hasIconForParentNode(): boolean {
@@ -465,7 +465,7 @@ export class TreeView extends Disposable implements ITreeView {
 		this._register(focusTracker.onDidBlur(() => this.focused = false));
 	}
 
-	private createTree() {
+	protected createTree() {
 		const actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 		const treeMenus = this._register(this.instantiationService.createInstance(TreeMenus, this.id));
 		this.treeLabels = this._register(this.instantiationService.createInstance(ResourceLabels, this));
@@ -1185,6 +1185,7 @@ export class CustomTreeView extends TreeView {
 
 	private activate() {
 		if (!this.activated) {
+			this.createTree();
 			this.progressService.withProgress({ location: this.id }, () => this.extensionService.activateByEvent(`onView:${this.id}`))
 				.then(() => timeout(2000))
 				.then(() => {
