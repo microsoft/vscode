@@ -148,7 +148,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					description: localize('gettingStarted.findLanguageExts.description.interpolated', "Code smarter with syntax highlighting, code completion, linting and debugging. While many languages are built-in, many more can be added as extensions.\n{0}", Button(localize('browseLangExts', "Browse Language Extensions"), 'command:workbench.extensions.action.showLanguageExtensions')),
 					media: {
 						type: 'image', altText: 'Language extensions', path: {
-							dark: 'dark/languageExtensions.png',
+							dark: 'dark/languages.svg',
 							light: 'light/languageExtensions.png',
 							hc: 'hc/languageExtensions.png',
 						}
@@ -158,13 +158,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'commandPaletteTask',
 					title: localize('gettingStarted.commandPalette.title', "One shortcut to access everything"),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Commands Palette is the keyboard way to accomplish any task in VS Code. **Practice** by looking up your frequently used commands to save time and keep in the flow.\n{0}\n__Try searching for 'view toggle'.__", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
-					media: {
-						type: 'image', altText: 'Command Palette overlay for searching and executing commands.', path: {
-							dark: 'dark/commandPalette.png',
-							light: 'light/commandPalette.png',
-							hc: 'hc/commandPalette.png',
-						}
-					},
+					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
 				{
 					id: 'workspaceTrust',
