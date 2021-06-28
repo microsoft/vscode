@@ -526,10 +526,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			readonly openInBackground: boolean;
 		};
 
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		let resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if (!resource) {
-			return;
+		if (resource === undefined) {
+			resource = URI.from({ scheme: Schemas.untitled });
 		}
 
 		// Text editor has the lowest priority because we
@@ -562,7 +562,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				}
 
 				// If asked to always update the setting then update it even if the gear isn't clicked
-				if (showDefaultPicker && result?.item.id) {
+				if (resource && showDefaultPicker && result?.item.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, result.item.id,);
 				}
 
