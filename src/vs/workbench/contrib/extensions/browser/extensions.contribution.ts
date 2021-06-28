@@ -75,6 +75,7 @@ import { WORKSPACE_TRUST_EXTENSION_SUPPORT } from 'vs/workbench/services/workspa
 import { ExtensionsCompletionItemsProvider } from 'vs/workbench/contrib/extensions/browser/extensionsCompletionItemsProvider';
 import { ITASExperimentService } from 'vs/workbench/services/experiment/common/experimentService';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { Event } from 'vs/base/common/event';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService);
@@ -792,7 +793,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				quickPick.customLabel = localize('install button', "Install");
 				quickPick.placeholder = localize('installFromLocationPlaceHolder', "Location of the web extension");
 				quickPick.ignoreFocusOut = true;
-				disposables.add(quickPick.onDidAccept(() => {
+				disposables.add(Event.any(quickPick.onDidAccept, quickPick.onDidCustom)(() => {
 					quickPick.hide();
 					if (quickPick.value) {
 						extensionManagementService.installWebExtension(URI.parse(quickPick.value));
