@@ -23,7 +23,7 @@ export interface IDisposableTracker {
 	trackDisposable(disposable: IDisposable): void;
 
 	/**
-	 * Is called when a disposable will be disposed by a parent disposable.
+	 * Is called when a disposable is registered as child of another disposable (e.g. {@link DisposableStore}).
 	 * If parent is `null`, the disposable is removed from its former parent.
 	*/
 	setParent(child: IDisposable, parent: IDisposable | null): void;
@@ -179,7 +179,7 @@ function noop(): void { }
  * Creates a disposable that calls `fn` and then clears its reference to `fn` when being disposed.
  * This prevents memory leaks and ensures `fn` is called at most once.
 */
-export function toDisposableSelfClearing(fn: () => void): IDisposable {
+export function toNonLeakingDisposable(fn: () => void): IDisposable {
 	const self = trackDisposable({
 		dispose: () => {
 			markAsDisposed(self);
