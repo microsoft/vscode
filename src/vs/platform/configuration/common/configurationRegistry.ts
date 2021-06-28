@@ -12,8 +12,8 @@ import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/plat
 import { IStringDictionary } from 'vs/base/common/collections';
 
 export enum EditPresentationTypes {
-	Multiline = 'multiline',
-	Singleline = 'singleline'
+	Multiline = 'multilineText',
+	Singleline = 'singlelineText'
 }
 
 export const Extensions = {
