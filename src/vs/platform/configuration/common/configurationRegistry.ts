@@ -11,7 +11,10 @@ import * as types from 'vs/base/common/types';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IStringDictionary } from 'vs/base/common/collections';
 
-export type EditPresentationTypes = 'multiline' | 'singleline';
+export enum EditPresentationTypes {
+	Multiline = 'multiline',
+	Singleline = 'singleline'
+}
 
 export const Extensions = {
 	Configuration: 'base.contributions.configuration'
