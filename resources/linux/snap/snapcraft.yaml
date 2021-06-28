@@ -12,55 +12,76 @@ architectures:
 
 grade: stable
 confinement: classic
+base: core20
+compression: lzo
 
 parts:
-  gnome:
-    plugin: nil
-    build-packages:
-      - software-properties-common
-    override-pull: |
-      add-apt-repository -y ppa:ubuntu-desktop/gnome-3-26
-      apt -y update
-
   code:
-    after:
-      - gnome
     plugin: dump
     source: .
     stage-packages:
-      - ibus-gtk3
-      - fcitx-frontend-gtk3
-      - gvfs-libs
+      - ca-certificates
       - libasound2
-      - libgconf-2-4
-      - libglib2.0-bin
-      - libgnome-keyring0
+      - libatk-bridge2.0-0
+      - libatk1.0-0
+      - libatspi2.0-0
+      - libcairo2
+      - libcurl3-gnutls
+      - libcurl3-nss
+      - libcurl4
+      - libdrm2
       - libgbm1
+      - libgl1
       - libgtk-3-0
-      - libnotify4
-      - libnspr4
       - libnss3
-      - libpcre3
-      - libpulse0
+      - libpango-1.0-0
       - libsecret-1-0
+      - libxcomposite1
+      - libxdamage1
+      - libxfixes3
+      - libxkbcommon0
+      - libxkbfile1
+      - libxrandr2
       - libxss1
-      - libxtst6
-      - zlib1g
+      - xdg-utils
     prime:
       - -usr/share/doc
       - -usr/share/fonts
       - -usr/share/icons
       - -usr/share/lintian
       - -usr/share/man
+  gnome-platform:
+    plugin: nil
+    build-packages:
+      - snapd
+    override-build: |
+      set -eu
+      snap download gnome-3-38-2004
+      unsquashfs -f -d $SNAPCRAFT_PART_INSTALL/gnome-platform gnome-*.snap
+  cleanup:
+    after:
+      - code
+      - gnome-platform
+    plugin: nil
+    build-snaps:
+      - core20
+    override-prime: |
+      set -eux
+      for snap in "core20"; do
+        cd "/snap/$snap/current" && find . -type f,l -exec rm -f "$SNAPCRAFT_PRIME/{}" \;
+      done
+      patchelf --print-rpath $SNAPCRAFT_PRIME/usr/share/code-insiders/code-insiders
 
 apps:
   @@NAME@@:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --no-sandbox
     common-id: @@NAME@@.desktop
     environment:
-      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+      GTK_USE_PORTAL: 1
+      SNAP_DESKTOP_RUNTIME: $SNAP/gnome-platform
 
   url-handler:
     command: electron-launch $SNAP/usr/share/@@NAME@@/bin/@@NAME@@ --open-url --no-sandbox
     environment:
-      GSETTINGS_SCHEMA_DIR: $SNAP/usr/share/glib-2.0/schemas
+      GTK_USE_PORTAL: 1
+      SNAP_DESKTOP_RUNTIME: $SNAP/gnome-platform

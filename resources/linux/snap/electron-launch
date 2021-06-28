@@ -4,6 +4,65 @@
 # We need to handle that case and reset $SNAP
 SNAP=$(echo "$SNAP" | sed -e "s|/var/lib/snapd||g")
 
+#
+# Exports are based on https://github.com/snapcore/snapcraft/blob/master/extensions/desktop/common/desktop-exports
+#
+
+# ensure_dir_exists calls `mkdir -p` if the given path is not a directory.
+# This speeds up execution time by avoiding unnecessary calls to mkdir.
+#
+# Usage: ensure_dir_exists <path> [<mkdir-options>]...
+#
+function ensure_dir_exists() {
+  [ -d "$1" ] || mkdir -p "$@"
+}
+
+declare -A PIDS
+function async_exec() {
+  "$@" &
+  PIDS[$!]=$*
+}
+function wait_for_async_execs() {
+  for pid in "${!PIDS[@]}"
+  do
+    wait "$pid" && continue || echo "ERROR: ${PIDS[$pid]} exited abnormally with status $?"
+  done
+}
+
+function prepend_dir() {
+  local -n var="$1"
+  local dir="$2"
+  # We can't check if the dir exists when the dir contains variables
+  if [[ "$dir" == *"\$"*  || -d "$dir" ]]; then
+    export "${!var}=${dir}${var:+:$var}"
+  fi
+}
+
+function append_dir() {
+  local -n var="$1"
+  local dir="$2"
+  # We can't check if the dir exists when the dir contains variables
+  if [[ "$dir" == *"\$"*  || -d "$dir" ]]; then
+    export "${!var}=${var:+$var:}${dir}"
+  fi
+}
+
+# shellcheck source=/dev/null
+source "$SNAP_USER_DATA/.last_revision" 2>/dev/null || true
+if [ "$SNAP_DESKTOP_LAST_REVISION" = "$SNAP_VERSION" ]; then
+  needs_update=false
+else
+  needs_update=true
+fi
+
+# Set $REALHOME to the users real home directory
+REALHOME=$(getent passwd $UID | cut -d ':' -f 6)
+
+# Set config folder to local path
+export XDG_CONFIG_HOME="$SNAP_USER_DATA/.config"
+ensure_dir_exists "$XDG_CONFIG_HOME"
+chmod 700 "$XDG_CONFIG_HOME"
+
 if [ "$SNAP_ARCH" == "amd64" ]; then
   ARCH="x86_64-linux-gnu"
 elif [ "$SNAP_ARCH" == "armhf" ]; then
@@ -14,21 +73,236 @@ else
   ARCH="$SNAP_ARCH-linux-gnu"
 fi
 
-GDK_CACHE_DIR="$SNAP_USER_COMMON/.cache"
-if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$GDK_CACHE_DIR" ]]; then
+export SNAP_LAUNCHER_ARCH_TRIPLET="$ARCH"
+
+function is_subpath() {
+  dir="$(realpath "$1")"
+  parent="$(realpath "$2")"
+  [ "${dir##"${parent}"/}" != "${dir}" ] && return 0 || return 1
+}
+
+function can_open_file() {
+  [ -f "$1" ] && [ -r "$1" ]
+}
+
+function update_xdg_dirs_values() {
+  local save_initial_values=false
+  local XDG_DIRS="DOCUMENTS DESKTOP DOWNLOAD MUSIC PICTURES VIDEOS PUBLICSHARE TEMPLATES"
+  unset XDG_SPECIAL_DIRS_PATHS
+
+  if [ -f "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" ]; then
+    # shellcheck source=/dev/null
+    source "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"
+  fi
+
+  if [ -z ${XDG_SPECIAL_DIRS+x} ]; then
+    save_initial_values=true
+  fi
+
+  for d in $XDG_DIRS; do
+    var="XDG_${d}_DIR"
+    value="${!var}"
+
+    if [ "$save_initial_values" = true ]; then
+      XDG_SPECIAL_DIRS+=("$var")
+      XDG_SPECIAL_DIRS_INITIAL_PATHS+=("$value")
+    fi
+
+    XDG_SPECIAL_DIRS_PATHS+=("$value")
+  done
+}
+
+# Tell libGL and libva where to find the drivers
+export LIBGL_DRIVERS_PATH="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
+append_dir LIBVA_DRIVERS_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/dri"
+
+# Set where the VDPAU drivers are located
+export VDPAU_DRIVER_PATH="/usr/lib/$ARCH/vdpau/"
+if [ -e "/var/lib/snapd/lib/gl/vdpau/libvdpau_nvidia.so" ]; then
+  export VDPAU_DRIVER_PATH="/var/lib/snapd/lib/gl/vdpau"
+  if [ "$__NV_PRIME_RENDER_OFFLOAD" = 1 ]; then
+    # Prevent picking VA-API (Intel/AMD) over NVIDIA VDPAU
+    # https://download.nvidia.com/XFree86/Linux-x86_64/510.54/README/primerenderoffload.html#configureapplications
+    unset LIBVA_DRIVERS_PATH
+  fi
+fi
+
+# EGL vendor files on glvnd enabled systems
+prepend_dir __EGL_VENDOR_LIBRARY_DIRS "/var/lib/snapd/lib/glvnd/egl_vendor.d"
+append_dir __EGL_VENDOR_LIBRARY_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share/glvnd/egl_vendor.d"
+
+# XDG Config
+prepend_dir XDG_CONFIG_DIRS "$SNAP_DESKTOP_RUNTIME/etc/xdg"
+prepend_dir XDG_CONFIG_DIRS "$SNAP/etc/xdg"
+
+# Define snaps' own data dir
+prepend_dir XDG_DATA_DIRS "$SNAP_DESKTOP_RUNTIME/usr/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/usr/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/share"
+prepend_dir XDG_DATA_DIRS "$SNAP/data-dir"
+prepend_dir XDG_DATA_DIRS "$SNAP_USER_DATA"
+
+# Set XDG_DATA_HOME to local path
+export XDG_DATA_HOME="$SNAP_USER_DATA/.local/share"
+ensure_dir_exists "$XDG_DATA_HOME"
+
+# Workaround for GLib < 2.53.2 not searching for schemas in $XDG_DATA_HOME:
+#   https://bugzilla.gnome.org/show_bug.cgi?id=741335
+prepend_dir XDG_DATA_DIRS "$XDG_DATA_HOME"
+
+# Set cache folder to local path
+export XDG_CACHE_HOME="$SNAP_USER_COMMON/.cache"
+if [[ -d "$SNAP_USER_DATA/.cache" && ! -e "$XDG_CACHE_HOME" ]]; then
   # the .cache directory used to be stored under $SNAP_USER_DATA, migrate it
   mv "$SNAP_USER_DATA/.cache" "$SNAP_USER_COMMON/"
 fi
-[ ! -d "$GDK_CACHE_DIR" ] && mkdir -p "$GDK_CACHE_DIR"
+ensure_dir_exists "$XDG_CACHE_HOME"
 
-# Gdk-pixbuf loaders
-export GDK_PIXBUF_MODULE_FILE="$GDK_CACHE_DIR/gdk-pixbuf-loaders.cache"
-export GDK_PIXBUF_MODULEDIR="$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
-if [ -f "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
-  "$SNAP/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+# Create $XDG_RUNTIME_DIR if not exists (to be removed when LP: #1656340 is fixed)
+# shellcheck disable=SC2174
+ensure_dir_exists "$XDG_RUNTIME_DIR" -m 700
+
+# Ensure the app finds locale definitions (requires locales-all to be installed)
+append_dir LOCPATH "$SNAP_DESKTOP_RUNTIME/usr/lib/locale"
+
+# If any, keep track of where XDG dirs were so we can potentially migrate the content later
+if [ "$needs_update" = true ]; then
+  update_xdg_dirs_values
 fi
 
-# Create $XDG_RUNTIME_DIR if not exists (to be removed when https://pad.lv/1656340 is fixed)
-[ -n "$XDG_RUNTIME_DIR" ] && mkdir -p -m 700 "$XDG_RUNTIME_DIR"
+# If detect wayland server socket, then set environment so applications prefer
+# wayland, and setup compat symlink (until we use user mounts. Remember,
+# XDG_RUNTIME_DIR is /run/user/<uid>/snap.$SNAP so look in the parent directory
+# for the socket. For details:
+# https://forum.snapcraft.io/t/wayland-dconf-and-xdg-runtime-dir/186/10
+# Applications that don't support wayland natively may define DISABLE_WAYLAND
+# (to any non-empty value) to skip that logic entirely.
+wayland_available=false
+if [[ -n "$XDG_RUNTIME_DIR" && -z "$DISABLE_WAYLAND" ]]; then
+    wdisplay="wayland-0"
+    if [ -n "$WAYLAND_DISPLAY" ]; then
+        wdisplay="$WAYLAND_DISPLAY"
+    fi
+    wayland_sockpath="$XDG_RUNTIME_DIR/../$wdisplay"
+    wayland_snappath="$XDG_RUNTIME_DIR/$wdisplay"
+    if [ -S "$wayland_sockpath" ]; then
+        # if running under wayland, use it
+        #export WAYLAND_DEBUG=1
+        # shellcheck disable=SC2034
+        wayland_available=true
+        # create the compat symlink for now
+        if [ ! -e "$wayland_snappath" ]; then
+            ln -s "$wayland_sockpath" "$wayland_snappath"
+        fi
+    fi
+fi
+
+# Keep an array of data dirs, for looping through them
+IFS=':' read -r -a data_dirs_array <<< "$XDG_DATA_DIRS"
+
+# Font Config and themes
+export FONTCONFIG_PATH="$SNAP_DESKTOP_RUNTIME/etc/fonts"
+export FONTCONFIG_FILE="$SNAP_DESKTOP_RUNTIME/etc/fonts/fonts.conf"
+
+# Build mime.cache
+# needed for gtk and qt icon
+if [ "$needs_update" = true ]; then
+  rm -rf "$XDG_DATA_HOME/mime"
+  if [ ! -f "$SNAP_DESKTOP_RUNTIME/usr/share/mime/mime.cache" ]; then
+    if command -v update-mime-database >/dev/null; then
+      cp --preserve=timestamps -dR "$SNAP_DESKTOP_RUNTIME/usr/share/mime" "$XDG_DATA_HOME"
+      async_exec update-mime-database "$XDG_DATA_HOME/mime"
+    fi
+  fi
+fi
+
+# Gio modules and cache (including gsettings module)
+export GIO_MODULE_DIR="$XDG_CACHE_HOME/gio-modules"
+function compile_giomodules {
+  if [ -f "$1/glib-2.0/gio-querymodules" ]; then
+    rm -rf "$GIO_MODULE_DIR"
+    ensure_dir_exists "$GIO_MODULE_DIR"
+    ln -s "$1"/gio/modules/*.so "$GIO_MODULE_DIR"
+    "$1/glib-2.0/gio-querymodules" "$GIO_MODULE_DIR"
+  fi
+}
+if [ "$needs_update" = true ]; then
+  async_exec compile_giomodules "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH"
+fi
+
+# Setup compiled gsettings schema
+GS_SCHEMA_DIR="$XDG_DATA_HOME/glib-2.0/schemas"
+function compile_schemas {
+  if [ -f "$1" ]; then
+    rm -rf "$GS_SCHEMA_DIR"
+    ensure_dir_exists "$GS_SCHEMA_DIR"
+    for ((i = 0; i < ${#data_dirs_array[@]}; i++)); do
+      schema_dir="${data_dirs_array[$i]}/glib-2.0/schemas"
+      if [ -f "$schema_dir/gschemas.compiled" ]; then
+        # This directory already has compiled schemas
+        continue
+      fi
+      if [ -n "$(ls -A "$schema_dir"/*.xml 2>/dev/null)" ]; then
+        ln -s "$schema_dir"/*.xml "$GS_SCHEMA_DIR"
+      fi
+      if [ -n "$(ls -A "$schema_dir"/*.override 2>/dev/null)" ]; then
+        ln -s "$schema_dir"/*.override "$GS_SCHEMA_DIR"
+      fi
+    done
+    # Only compile schemas if we copied anything
+    if [ -n "$(ls -A "$GS_SCHEMA_DIR"/*.xml "$GS_SCHEMA_DIR"/*.override 2>/dev/null)" ]; then
+      "$1" "$GS_SCHEMA_DIR"
+    fi
+  fi
+}
+if [ "$needs_update" = true ]; then
+  async_exec compile_schemas "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/glib-2.0/glib-compile-schemas"
+fi
+
+# Gdk-pixbuf loaders
+export GDK_PIXBUF_MODULE_FILE="$XDG_CACHE_HOME/gdk-pixbuf-loaders.cache"
+export GDK_PIXBUF_MODULEDIR="$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/2.10.0/loaders"
+if [ "$needs_update" = true ] || [ ! -f "$GDK_PIXBUF_MODULE_FILE" ]; then
+  rm -f "$GDK_PIXBUF_MODULE_FILE"
+  if [ -f "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" ]; then
+    async_exec "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gdk-pixbuf-2.0/gdk-pixbuf-query-loaders" > "$GDK_PIXBUF_MODULE_FILE"
+  fi
+fi
+
+# create symbolic link to ibus socket path for ibus to look up its socket files
+# (see comments #3 and #6 on https://launchpad.net/bugs/1580463)
+IBUS_CONFIG_PATH="$XDG_CONFIG_HOME/ibus"
+ensure_dir_exists "$IBUS_CONFIG_PATH"
+[ -d "$IBUS_CONFIG_PATH/bus" ] && rm -rf "$IBUS_CONFIG_PATH/bus"
+ln -sfn "$REALHOME/.config/ibus/bus" "$IBUS_CONFIG_PATH"
+
+# shellcheck disable=SC2154
+if [ "$wayland_available" = true ]; then
+  export GDK_BACKEND="wayland"
+  export CLUTTER_BACKEND="wayland"
+  # Does not hurt to specify this as well, just in case
+  export QT_QPA_PLATFORM=wayland-egl
+fi
+
+append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gtk-2.0"
+append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/gtk-2.0"
+append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/gtk-3.0"
+append_dir GTK_PATH "$SNAP_DESKTOP_RUNTIME/usr/lib/gtk-3.0"
+
+# ibus and fcitx integration
+GTK_IM_MODULE_DIR="$XDG_CACHE_HOME/immodules"
+export GTK_IM_MODULE_FILE="$GTK_IM_MODULE_DIR/immodules.cache"
+# shellcheck disable=SC2154
+if [ "$needs_update" = true ]; then
+  rm -rf "$GTK_IM_MODULE_DIR"
+  ensure_dir_exists "$GTK_IM_MODULE_DIR"
+  ln -s "$SNAP_DESKTOP_RUNTIME"/usr/lib/"$ARCH"/gtk-3.0/3.0.0/immodules/*.so "$GTK_IM_MODULE_DIR"
+  async_exec "$SNAP_DESKTOP_RUNTIME/usr/lib/$ARCH/libgtk-3-0/gtk-query-immodules-3.0" > "$GTK_IM_MODULE_FILE"
+fi
+
+# shellcheck disable=SC2154
+[ "$needs_update" = true ] && echo "SNAP_DESKTOP_LAST_REVISION=$SNAP_VERSION" > "$SNAP_USER_DATA/.last_revision"
+
+wait_for_async_execs
 
 exec "$@"
