@@ -1434,6 +1434,8 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 	dirty = false;
 	private fails = false;
 
+	disableToUntyped = false;
+
 	constructor(
 		public resource: URI,
 		private _typeId: string
@@ -1492,6 +1494,9 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		this.dirty = false;
 	}
 	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntypedEditorInput | undefined {
+		if (this.disableToUntyped) {
+			return undefined;
+		}
 		return { resource: this.resource };
 	}
 	setDirty(): void { this.dirty = true; }

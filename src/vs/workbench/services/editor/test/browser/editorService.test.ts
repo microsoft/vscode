@@ -779,6 +779,98 @@ suite('EditorService', () => {
 				await resetTestState();
 			}
 		}
+
+		// typed editor, not registered
+		{
+
+			// no options, no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				let pane = await service.openEditor(typedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// no options, SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				let pane = await service.openEditor(typedEditor, undefined, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+
+		// typed editor, not supporting `toUntyped`
+		{
+
+			// no options, no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				typedEditor.disableToUntyped = true;
+				let pane = await service.openEditor(typedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// no options, SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				typedEditor.disableToUntyped = true;
+				let pane = await service.openEditor(typedEditor, undefined, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
 	});
 
 	test('isOpen() with side by side editor', async () => {
