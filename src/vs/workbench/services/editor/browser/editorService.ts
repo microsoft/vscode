@@ -1242,7 +1242,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			// Preserve view state by opening the editor first if the editor
 			// is untitled or we "Save As". This also allows the user to review
 			// the contents of the editor before making a decision.
-			const editorPane = await this.openEditor(editor, { override: EditorOverride.DISABLED }, groupId);
+			const editorPane = await this.openEditor(editor, groupId);
 			const editorOptions: ITextEditorOptions = {
 				pinned: true,
 				viewState: isTextEditorPane(editorPane) ? editorPane.getViewState() : undefined
