@@ -138,7 +138,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const activeEditor = group.activeEditor;
 		const isActive = activeEditor ? activeEditor.editorId === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
 		if (isActive) {
-			return OverrideStatus.NONE;
+			return OverrideStatus.ABORT;
 		}
 		const input = await this.doOverrideEditorInput(editor, group, selectedEditor);
 		if (conflictingDefault && input) {
