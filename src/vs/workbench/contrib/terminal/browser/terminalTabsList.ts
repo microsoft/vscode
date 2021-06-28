@@ -232,7 +232,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionBar = new ActionBar(actionsContainer, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this._instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 

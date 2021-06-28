@@ -44,6 +44,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
+import { DataTransfers } from 'vs/base/browser/dnd';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
@@ -426,7 +427,9 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			undefined,
 			contextKeyService,
 			_commandService
-		), keybindingService, notificationService);
+		), {
+			draggable: true
+		}, keybindingService, notificationService);
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
@@ -457,19 +460,27 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			return;
 		}
 
-		if (this._elementDisposables.length === 0) {
+		if (this._elementDisposables.length === 0 && this.element && this.label) {
 			// Right click opens context menu
-			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.CONTEXT_MENU, e => {
+			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.CONTEXT_MENU, e => {
 				if (e.button === 2) {
 					this._openContextMenu();
 					e.preventDefault();
 				}
 			}));
 			// Middle click kills
-			this._elementDisposables.push(dom.addDisposableListener(this.element!, dom.EventType.AUXCLICK, e => {
+			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, e => {
 				if (e.button === 1) {
 					this._terminalService.activeInstance?.dispose();
 					e.preventDefault();
+				}
+			}));
+			// Drag and drop
+			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.DRAG_START, e => {
+				const instance = this._terminalGroupService.activeInstance;
+				if (e.dataTransfer && instance) {
+					e.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify([instance.resource.toString()]));
+					e.dataTransfer.setData(DataTransfers.TERMINALS, JSON.stringify([instance.instanceId]));
 				}
 			}));
 		}

@@ -49,7 +49,7 @@ export class SuggestWidgetStatus {
 		this.element = dom.append(container, dom.$('.suggest-status-bar'));
 
 		const actionViewItemProvider = <IActionViewItemProvider>(action => {
-			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action) : undefined;
+			return action instanceof MenuItemAction ? instantiationService.createInstance(StatusBarViewItem, action, undefined) : undefined;
 		});
 		this._leftActions = new ActionBar(this.element, { actionViewItemProvider });
 		this._rightActions = new ActionBar(this.element, { actionViewItemProvider });

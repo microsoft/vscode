@@ -116,7 +116,7 @@ abstract class AbstractCellRenderer {
 					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
 						return new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					} else {
-						return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService);
+						return new MenuEntryActionViewItem(action, undefined, this.keybindingService, this.notificationService);
 					}
 				}
 

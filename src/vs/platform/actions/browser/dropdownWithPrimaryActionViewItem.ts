@@ -36,7 +36,7 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		@INotificationService _notificationService: INotificationService
 	) {
 		super(null, primaryAction);
-		this._primaryAction = new MenuEntryActionViewItem(primaryAction, _keybindingService, _notificationService);
+		this._primaryAction = new MenuEntryActionViewItem(primaryAction, undefined, _keybindingService, _notificationService);
 		this._dropdown = new DropdownMenuActionViewItem(dropdownAction, dropdownMenuActions, this._contextMenuProvider, {
 			menuAsChild: true,
 			classNames: ['codicon', 'codicon-chevron-down']

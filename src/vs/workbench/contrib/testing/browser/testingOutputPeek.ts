@@ -1223,7 +1223,7 @@ class TestRunElementRenderer implements ICompressibleTreeRenderer<ITreeElement, 
 		const actionBar = new ActionBar(wrapper, {
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
-					? this.instantiationService.createInstance(MenuEntryActionViewItem, action)
+					? this.instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
 					: undefined
 		});
 
