@@ -602,11 +602,9 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
 			const uri = URI.parse(JSON.parse(terminalResources)[0]);
-			if (uri.scheme === Schemas.vscodeTerminal) {
-				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
-				if (instance) {
-					sourceInstances = [instance];
-				}
+			const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
+			if (instance) {
+				sourceInstances = [instance];
 				this._terminalService.moveToTerminalView(instance);
 			}
 		}
