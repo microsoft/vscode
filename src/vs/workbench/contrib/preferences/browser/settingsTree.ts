@@ -43,7 +43,7 @@ import { ICssStyleCollector, IColorTheme, IThemeService, registerThemingParticip
 import { getIgnoredSettings } from 'vs/platform/userDataSync/common/settingsMerge';
 import { ITOCEntry } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
 import { inspectSetting, ISettingsEditorViewState, settingKeyToDisplayFormat, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeNewExtensionsElement, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
-import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
+import { ExcludeSettingWidget, ISettingListChangeEvent, IListDataItem, ListSettingWidget, settingsNumberInputBackground, settingsNumberInputBorder, settingsNumberInputForeground, settingsSelectBackground, settingsSelectBorder, settingsSelectForeground, settingsSelectListBorder, settingsTextInputBackground, settingsTextInputBorder, settingsTextInputForeground, ObjectSettingWidget, IObjectDataItem, IObjectEnumOption, ObjectValue, IObjectValueSuggester, IObjectKeySuggester, focusedRowBackground, focusedRowBorder, settingsHeaderForeground, rowHoverBackground, BoolObjectSettingWidget, IBoolObjectDataItem } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ISetting, ISettingsGroup, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
@@ -199,6 +199,37 @@ function getObjectDisplayValue(element: SettingsTreeSettingElement): IObjectData
 			},
 			removable: true,
 		} as IObjectDataItem;
+	});
+}
+
+function getBoolObjectDisplayValue(element: SettingsTreeSettingElement): IBoolObjectDataItem[] {
+	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
+		? element.defaultValue ?? {}
+		: {};
+
+	const elementScopeValue: Record<string, unknown> = typeof element.scopeValue === 'object'
+		? element.scopeValue ?? {}
+		: {};
+
+	const data = element.isConfigured ?
+		{ ...elementDefaultValue, ...elementScopeValue } :
+		elementDefaultValue;
+
+	const { objectProperties } = element.setting;
+
+	return Object.keys(data).map(key => {
+		if (objectProperties && key in objectProperties) {
+			return {
+				key,
+				value: data[key],
+				description: objectProperties[key].description
+			} as IBoolObjectDataItem;
+		}
+
+		return {
+			key,
+			value: data[key],
+		} as IBoolObjectDataItem;
 	});
 }
 
@@ -498,6 +529,10 @@ interface ISettingObjectItemTemplate extends ISettingItemTemplate<void> {
 	objectWidget: ObjectSettingWidget;
 }
 
+interface ISettingBoolObjectItemTemplate extends ISettingItemTemplate<void> {
+	objectWidget: BoolObjectSettingWidget;
+}
+
 interface ISettingNewExtensionsTemplate extends IDisposableTemplate {
 	button: Button;
 	context?: SettingsTreeNewExtensionsElement;
@@ -516,6 +551,7 @@ const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
 const SETTINGS_ARRAY_TEMPLATE_ID = 'settings.array.template';
 const SETTINGS_EXCLUDE_TEMPLATE_ID = 'settings.exclude.template';
 const SETTINGS_OBJECT_TEMPLATE_ID = 'settings.object.template';
+const SETTINGS_BOOL_OBJECT_TEMPLATE_ID = 'settings.boolObject.template';
 const SETTINGS_COMPLEX_TEMPLATE_ID = 'settings.complex.template';
 const SETTINGS_NEW_EXTENSIONS_TEMPLATE_ID = 'settings.newExtensions.template';
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.group.template';
@@ -590,7 +626,7 @@ export abstract class AbstractSettingRenderer extends Disposable implements ITre
 	private readonly _onDidClickSettingLink = this._register(new Emitter<ISettingLinkClickEvent>());
 	readonly onDidClickSettingLink: Event<ISettingLinkClickEvent> = this._onDidClickSettingLink.event;
 
-	private readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
+	protected readonly _onDidFocusSetting = this._register(new Emitter<SettingsTreeSettingElement>());
 	readonly onDidFocusSetting: Event<SettingsTreeSettingElement> = this._onDidFocusSetting.event;
 
 	private ignoredSettings: string[];
@@ -1198,7 +1234,107 @@ export class SettingObjectRenderer extends AbstractSettingRenderer implements IT
 				)
 				: true,
 			keySuggester: createObjectKeySuggester(dataElement),
-			valueSuggester: createObjectValueSuggester(dataElement),
+			valueSuggester: createObjectValueSuggester(dataElement)
+		});
+
+		template.context = dataElement;
+	}
+}
+
+export class SettingBoolObjectRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingBoolObjectItemTemplate> {
+	templateId = SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
+
+	renderTemplate(container: HTMLElement): ISettingBoolObjectItemTemplate {
+		const common = this.renderCommonTemplate(null, container, 'list');
+
+		const objectWidget = this._instantiationService.createInstance(BoolObjectSettingWidget, common.controlElement);
+		objectWidget.domNode.classList.add(AbstractSettingRenderer.CONTROL_CLASS);
+		common.toDispose.add(objectWidget);
+
+		const template: ISettingBoolObjectItemTemplate = {
+			...common,
+			objectWidget
+		};
+
+		this.addSettingElementFocusHandler(template);
+
+		common.toDispose.add(objectWidget.onDidChangeList(e => this.onDidChangeObject(template, e)));
+
+		return template;
+	}
+
+	private onDidChangeObject(template: ISettingBoolObjectItemTemplate, e: ISettingListChangeEvent<IBoolObjectDataItem>): void {
+		if (template.context) {
+			const defaultValue: Record<string, boolean> = template.context?.defaultValue ?? {};
+			const scopeValue: Record<string, boolean> = template.context?.scopeValue ?? {};
+			const newValue: Record<string, boolean> = {};
+			const newItems: IBoolObjectDataItem[] = [];
+
+			template.objectWidget.items.forEach((item, idx) => {
+				// Item was updated
+				if (isDefined(e.item) && e.targetIndex === idx) {
+					newValue[e.item.key] = e.item.value;
+					newItems.push(e.item);
+				}
+				// All remaining items, but skip the one that we just updated
+				else if (isUndefinedOrNull(e.item) || e.item.key !== item.key) {
+					newValue[item.key] = item.value;
+					newItems.push(item);
+				}
+			});
+
+			// Item was deleted
+			if (isUndefinedOrNull(e.item)) {
+				delete newValue[e.originalItem.key];
+
+				const itemToDelete = newItems.findIndex(item => item.key === e.originalItem.key);
+				const defaultItemValue = defaultValue[e.originalItem.key];
+
+				// Item does not have a default
+				if (isUndefinedOrNull(defaultValue[e.originalItem.key]) && itemToDelete > -1) {
+					newItems.splice(itemToDelete, 1);
+				} else if (itemToDelete > -1) {
+					newItems[itemToDelete].value = defaultItemValue;
+				}
+			}
+			// New item was added
+			else if (template.objectWidget.isItemNew(e.originalItem) && e.item.key !== '') {
+				newValue[e.item.key] = e.item.value;
+				newItems.push(e.item);
+			}
+
+			Object.entries(newValue).forEach(([key, value]) => {
+				// value from the scope has changed back to the default
+				if (scopeValue[key] !== value && defaultValue[key] === value) {
+					delete newValue[key];
+				}
+			});
+
+			this._onDidChangeSetting.fire({
+				key: template.context.setting.key,
+				value: newValue,
+				type: template.context.valueType
+			});
+
+			// Focus this setting explicitly, in case we were previously
+			// focused on another setting and clicked a checkbox/value container
+			// for this setting.
+			this._onDidFocusSetting.fire(template.context);
+
+			template.objectWidget.setValue(newItems);
+		}
+	}
+
+	renderElement(element: ITreeNode<SettingsTreeSettingElement, never>, index: number, templateData: ISettingBoolObjectItemTemplate): void {
+		super.renderSettingElement(element, index, templateData);
+	}
+
+	protected renderValue(dataElement: SettingsTreeSettingElement, template: ISettingBoolObjectItemTemplate, onChange: (value: string) => void): void {
+		const items = getBoolObjectDisplayValue(dataElement);
+		const { key } = dataElement.setting;
+
+		template.objectWidget.setValue(items, {
+			settingKey: key
 		});
 
 		template.context = dataElement;
@@ -1667,6 +1803,7 @@ export class SettingTreeRenderers {
 			this._instantiationService.createInstance(SettingExcludeRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingEnumRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingObjectRenderer, this.settingActions, actionFactory),
+			this._instantiationService.createInstance(SettingBoolObjectRenderer, this.settingActions, actionFactory),
 			this._instantiationService.createInstance(SettingUntrustedRenderer, this.settingActions, actionFactory),
 		];
 
@@ -1913,6 +2050,10 @@ class SettingsTreeDelegate extends CachedListVirtualDelegate<SettingsTreeGroupCh
 
 			if (element.valueType === SettingValueType.Object) {
 				return SETTINGS_OBJECT_TEMPLATE_ID;
+			}
+
+			if (element.valueType === SettingValueType.BooleanObject) {
+				return SETTINGS_BOOL_OBJECT_TEMPLATE_ID;
 			}
 
 			return SETTINGS_COMPLEX_TEMPLATE_ID;
