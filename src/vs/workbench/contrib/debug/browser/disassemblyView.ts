@@ -45,7 +45,7 @@ export class DisassemblyView extends EditorPane {
 	private _disassembledInstructions: WorkbenchTable<IDisassembledInstructionEntry> | undefined;
 	private _onDidChangeStackFrame: Emitter<void>;
 	private _privousDebuggingState: State;
-	disassemblyViewFocus: IContextKey<boolean>;
+	_disassemblyViewFocus: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -69,7 +69,7 @@ export class DisassemblyView extends EditorPane {
 		this._disassembledInstructions = undefined;
 		this._onDidChangeStackFrame = new Emitter<void>();
 		this._privousDebuggingState = _debugService.state;
-		this.disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
+		this._disassemblyViewFocus = CONTEXT_DISASSEMBLE_VIEW_FOCUS.bindTo(contextKeyService);
 	}
 
 	get fontInfo() { return this._fontInfo; }
@@ -213,6 +213,13 @@ export class DisassemblyView extends EditorPane {
 			}
 			this._privousDebuggingState = e;
 		}));
+	}
+
+	override focus(): void {
+		super.focus();
+		let isFocus = this.hasFocus();
+		console.log(`DisassemblyView: Focus(${isFocus})`);
+		this._disassemblyViewFocus.set(isFocus);
 	}
 
 	layout(dimension: Dimension): void {

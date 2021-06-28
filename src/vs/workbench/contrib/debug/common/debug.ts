@@ -492,6 +492,7 @@ export interface IDebugModel extends ITreeElement {
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getDataBreakpoints(): ReadonlyArray<IDataBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
+	getInstructionBreakpoints(): ReadonlyArray<IInstructionBreakpoint>;
 	getWatchExpressions(): ReadonlyArray<IExpression & IEvaluate>;
 
 	onDidChangeBreakpoints: Event<IBreakpointsChangeEvent | undefined>;

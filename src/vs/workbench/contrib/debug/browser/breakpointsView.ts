@@ -57,7 +57,7 @@ function createCheckbox(): HTMLInputElement {
 
 const MAX_VISIBLE_BREAKPOINTS = 9;
 export function getExpandedBodySize(model: IDebugModel, countLimit: number): number {
-	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length;
+	const length = model.getBreakpoints().length + model.getExceptionBreakpoints().length + model.getFunctionBreakpoints().length + model.getDataBreakpoints().length + model.getInstructionBreakpoints().length;
 	return Math.min(countLimit, length) * 22;
 }
 type BreakpointItem = IBreakpoint | IFunctionBreakpoint | IDataBreakpoint | IExceptionBreakpoint | IInstructionBreakpoint;
@@ -217,7 +217,8 @@ export class BreakpointsView extends ViewPane {
 	private onListContextMenu(e: IListContextMenuEvent<IEnablement>): void {
 		const element = e.element;
 		const type = element instanceof Breakpoint ? 'breakpoint' : element instanceof ExceptionBreakpoint ? 'exceptionBreakpoint' :
-			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' : undefined;
+			element instanceof FunctionBreakpoint ? 'functionBreakpoint' : element instanceof DataBreakpoint ? 'dataBreakpoint' :
+				element instanceof InstructionBreakpoint ? 'instructionBreakpoint' : undefined;
 		this.breakpointItemType.set(type);
 		const session = this.debugService.getViewModel().focusedSession;
 		const conditionSupported = element instanceof ExceptionBreakpoint ? element.supportsCondition : (!session || !!session.capabilities.supportsConditionalBreakpoints);
@@ -291,7 +292,7 @@ export class BreakpointsView extends ViewPane {
 
 	private get elements(): BreakpointItem[] {
 		const model = this.debugService.getModel();
-		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints());
+		const elements = (<ReadonlyArray<IEnablement>>model.getExceptionBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getDataBreakpoints()).concat(model.getBreakpoints()).concat(model.getInstructionBreakpoints());
 
 		return elements as BreakpointItem[];
 	}
