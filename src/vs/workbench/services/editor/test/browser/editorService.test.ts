@@ -204,7 +204,7 @@ suite('EditorService', () => {
 		disposables.add(accessor.editorOverrideService.registerEditor(
 			'*.editor-service-override-tests',
 			{ id: 'editorServiceOverrideTests', label: 'Label', priority: RegisteredEditorPriority.exclusive },
-			{ canHandleDiff: true },
+			{},
 			editor => {
 				editorFactoryCalled++;
 				lastEditorFactoryEditor = editor;

@@ -38,9 +38,7 @@ suite('EditorOverrideService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{
-				canHandleDiff: false
-			},
+			{},
 			resource => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 		);
 
