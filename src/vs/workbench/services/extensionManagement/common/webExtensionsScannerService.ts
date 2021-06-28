@@ -54,6 +54,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private readonly builtinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 	private readonly staticExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
+	private readonly cutomBuiltinExtensions: (string | URI)[];
 	private readonly customBuiltinExtensionsPromise: Promise<IExtension[]> = Promise.resolve([]);
 
 	private readonly customBuiltinExtensionsCacheResource: URI | undefined = undefined;
@@ -71,6 +72,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 	) {
 		super();
+		this.cutomBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions) ? this.environmentService.options.additionalBuiltinExtensions : [];
 		if (isWeb) {
 			this.installedExtensionsResource = joinPath(environmentService.userRoamingDataHome, 'extensions.json');
 			this.customBuiltinExtensionsCacheResource = joinPath(environmentService.userRoamingDataHome, 'customBuiltinExtensionsCache.json');
@@ -106,9 +108,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	 * All extensions defined via `additionalBuiltinExtensions` API
 	 */
 	private async readCustomBuiltinExtensions(): Promise<IExtension[]> {
-		const customBuiltinExtensions = this.environmentService.options && Array.isArray(this.environmentService.options.additionalBuiltinExtensions) ? this.environmentService.options.additionalBuiltinExtensions : [];
 		const extensionIds: string[] = [], extensionLocations: URI[] = [], result: IExtension[] = [];
-		for (const e of customBuiltinExtensions) {
+		for (const e of this.cutomBuiltinExtensions) {
 			if (isString(e)) {
 				extensionIds.push(e);
 			} else {
@@ -136,6 +137,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					} catch (error) {
 						this.logService.info('Ignoring following additional builtin extensions as there is an error while fetching them from gallery', extensionIds, getErrorMessage(error));
 					}
+				} else {
+					await this.writeCustomBuiltinExtensionsCache([]);
 				}
 			})(),
 		]);
@@ -149,7 +152,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 
-		const cachedStaticWebExtensions = await this.readWebExtensions(this.customBuiltinExtensionsCacheResource);
+		const cachedStaticWebExtensions = await this.readCustomBuiltinExtensionsCache();
 		const webExtensions: IWebExtension[] = [];
 		extensionIds = extensionIds.map(id => id.toLowerCase());
 
@@ -194,7 +197,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		}
 
 		try {
-			await this.writeWebExtensions(this.customBuiltinExtensionsCacheResource, webExtensions);
+			await this.writeCustomBuiltinExtensionsCache(webExtensions);
 		} catch (error) {
 			this.logService.info(`Ignoring the error while adding additional builtin gallery extensions`, getErrorMessage(error));
 		}
@@ -309,10 +312,24 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async addWebExtension(webExtension: IWebExtension) {
-		const extension = await this.toExtension(webExtension, false);
-		const installedExtensions = await this.readInstalledExtensions();
-		installedExtensions.push(webExtension);
-		await this.writeInstalledExtensions(installedExtensions);
+		const isBuiltin = this.cutomBuiltinExtensions.some(id => isString(id) && areSameExtensions(webExtension.identifier, { id }));
+		const extension = await this.toExtension(webExtension, isBuiltin);
+
+		// Update custom builtin extensions to custom builtin extensions cache
+		if (isBuiltin) {
+			let customBuiltinExtensions = await this.readCustomBuiltinExtensionsCache();
+			customBuiltinExtensions = customBuiltinExtensions.filter(extension => !areSameExtensions(extension.identifier, webExtension.identifier));
+			customBuiltinExtensions.push(webExtension);
+			await this.writeCustomBuiltinExtensionsCache(customBuiltinExtensions);
+		}
+
+		// User installed extensions
+		else {
+			const installedExtensions = await this.readInstalledExtensions();
+			installedExtensions.push(webExtension);
+			await this.writeInstalledExtensions(installedExtensions);
+		}
+
 		return extension;
 	}
 
@@ -417,6 +434,14 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private writeInstalledExtensions(userWebExtensions: IWebExtension[]): Promise<IWebExtension[]> {
 		return this.writeWebExtensions(this.installedExtensionsResource, userWebExtensions);
+	}
+
+	private readCustomBuiltinExtensionsCache(): Promise<IWebExtension[]> {
+		return this.readWebExtensions(this.customBuiltinExtensionsCacheResource);
+	}
+
+	private writeCustomBuiltinExtensionsCache(customBuiltinExtensions: IWebExtension[]): Promise<IWebExtension[]> {
+		return this.writeWebExtensions(this.customBuiltinExtensionsCacheResource, customBuiltinExtensions);
 	}
 
 	private async readWebExtensions(file: URI | undefined): Promise<IWebExtension[]> {

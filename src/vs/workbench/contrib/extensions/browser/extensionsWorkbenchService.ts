@@ -807,7 +807,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			this.webExtensions ? this.webExtensions.syncLocalWithGalleryExtension(gallery, maliciousExtensionSet) : Promise.resolve(false)
 		])
 			.then(result => {
-				if (result[0] || result[1]) {
+				if (result[0] || result[1] || result[2]) {
 					this.eventuallyAutoUpdateExtensions();
 				}
 			});
