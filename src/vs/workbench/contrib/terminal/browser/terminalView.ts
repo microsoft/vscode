@@ -416,8 +416,8 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		super(new MenuItemAction(
 			{
 				id: action.id,
-				title: getSingleTabLabel(_terminalService.activeInstance),
-				tooltip: getSingleTabTooltip(_terminalService.activeInstance)
+				title: getSingleTabLabel(_terminalGroupService.activeInstance),
+				tooltip: getSingleTabTooltip(_terminalGroupService.activeInstance)
 			},
 			{
 				id: TerminalCommandId.Split,
@@ -436,7 +436,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 		this._register(_terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {
-			if (e === this._terminalService.activeInstance) {
+			if (e === this._terminalGroupService.activeInstance) {
 				this._action.tooltip = getSingleTabTooltip(e);
 				this.updateLabel();
 			}
@@ -471,7 +471,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			// Middle click kills
 			this._elementDisposables.push(dom.addDisposableListener(this.element, dom.EventType.AUXCLICK, e => {
 				if (e.button === 1) {
-					this._terminalService.activeInstance?.dispose();
+					this._terminalGroupService.activeInstance?.dispose();
 					e.preventDefault();
 				}
 			}));
