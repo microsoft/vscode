@@ -506,7 +506,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			};
 			quickPickEntries.push(quickPickEntry);
 		});
-		if (!showDefaultPicker) {
+		if (!showDefaultPicker && extname(resource) !== '') {
 			const separator: IQuickPickSeparator = { type: 'separator' };
 			quickPickEntries.push(separator);
 			const configureDefaultEntry = {
