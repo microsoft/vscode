@@ -395,8 +395,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		qp.matchOnDetail = true;
 		qp.matchOnDescription = true;
 
-		if (this.newMenuItems
-			.filter(entry => categories.includes(entry.category)).length === 1) {
+		if (this.newMenuItems.filter(entry => categories.includes(entry.category)).length === 1
+			&& !(categories.length === 1 && categories[0] === IGettingStartedNewMenuEntryDescriptorCategory.folder)) {
 			const selection = this.newMenuItems
 				.filter(entry => categories.includes(entry.category))[0];
 
@@ -407,6 +407,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					await this.instantiationService.invokeFunction<unknown>(selection.action.invokeFunction);
 				}
 			}
+			return;
 		}
 
 		const refreshQp = () => {
