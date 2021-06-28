@@ -4,16 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorActivation, EditorOverride } from 'vs/platform/editor/common/editor';
+import { EditorActivation, EditorOverride, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
-import { EditorsOrder, IResourceDiffEditorInput, isResourceDiffEditorInput, isUntitledResourceEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
-import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
+import { DEFAULT_EDITOR_ASSOCIATION, EditorsOrder, GroupIdentifier, IEditorInputWithOptions, IEditorPane, IResourceDiffEditorInput, isEditorInputWithOptions, isResourceDiffEditorInput, isUntitledResourceEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, UntypedEditorContext } from 'vs/workbench/common/editor';
+import { workbenchInstantiationService, TestServiceAccessor, registerTestEditor, TestFileEditorInput, ITestInstantiationService, registerTestResourceEditor, registerTestSideBySideEditor, createEditorPart, registerTestFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ACTIVE_GROUP_TYPE, IEditorService, SIDE_GROUP, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { FileEditorInput } from 'vs/workbench/contrib/files/browser/editors/fileEditorInput';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
@@ -71,7 +71,7 @@ suite('EditorService', () => {
 		return [part, editorService, instantiationService.createInstance(TestServiceAccessor)];
 	}
 
-	test('basics', async () => {
+	test('openEditor', async () => {
 		const [, service] = await createEditorService();
 
 		let input = new TestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
@@ -177,6 +177,723 @@ suite('EditorService', () => {
 		visibleEditorChangeListener.dispose();
 		didCloseEditorListener.dispose();
 	});
+
+	test('openEditor - override handling', () => {
+		return testOpenEditors(false);
+	});
+
+	test('openEditors - override handling', () => {
+		return testOpenEditors(true);
+	});
+
+	async function testOpenEditors(useOpenEditors: boolean) {
+		disposables.add(registerTestFileEditor());
+
+		const [part, service, accessor] = await createEditorService();
+
+		let rootGroup = part.activeGroup;
+
+		let editorFactoryCalled = 0;
+		let untitledEditorFactoryCalled = 0;
+		let diffEditorFactoryCalled = 0;
+
+		let lastEditorFactoryEditor: IResourceEditorInput | undefined = undefined;
+		let lastUntitledEditorFactoryEditor: IUntitledTextResourceEditorInput | undefined = undefined;
+		let lastDiffEditorFactoryEditor: IResourceDiffEditorInput | undefined = undefined;
+
+		disposables.add(accessor.editorOverrideService.registerEditor(
+			'*.editor-service-override-tests',
+			{ id: 'editorServiceOverrideTests', label: 'Label', priority: RegisteredEditorPriority.exclusive },
+			{ canHandleDiff: true },
+			editor => {
+				editorFactoryCalled++;
+				lastEditorFactoryEditor = editor;
+
+				return { editor: new TestFileEditorInput(editor.resource, TEST_EDITOR_INPUT_ID) };
+			},
+			untitledEditor => {
+				untitledEditorFactoryCalled++;
+				lastUntitledEditorFactoryEditor = untitledEditor;
+
+				return { editor: new TestFileEditorInput(untitledEditor.resource ?? URI.parse(`untitled://my-untitled-editor-${untitledEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
+			},
+			diffEditor => {
+				diffEditorFactoryCalled++;
+				lastDiffEditorFactoryEditor = diffEditor;
+
+				return { editor: new TestFileEditorInput(URI.file(`diff-editor-${diffEditorFactoryCalled}`), TEST_EDITOR_INPUT_ID) };
+			}
+		));
+
+		async function resetTestState() {
+			editorFactoryCalled = 0;
+			untitledEditorFactoryCalled = 0;
+			diffEditorFactoryCalled = 0;
+
+			lastEditorFactoryEditor = undefined;
+			lastUntitledEditorFactoryEditor = undefined;
+			lastDiffEditorFactoryEditor = undefined;
+
+			for (const group of part.groups) {
+				await group.closeAllEditors();
+			}
+
+			for (const group of part.groups) {
+				accessor.editorGroupService.removeGroup(group);
+			}
+
+			rootGroup = part.activeGroup;
+		}
+
+		async function openEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined> {
+			if (useOpenEditors) {
+				const panes = await service.openEditors([editor], group);
+
+				return panes[0];
+			}
+
+			if (isEditorInputWithOptions(editor)) {
+				return service.openEditor(editor.editor, editor.options, group);
+			}
+
+			return service.openEditor(editor, group);
+		}
+
+		// untyped
+		{
+			// untyped resource editor, no options, no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests') };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual(lastEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped resource editor, options (override disabled), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { override: EditorOverride.DISABLED } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof FileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped resource editor, options (override disabled, sticky: true, preserveFocus: true), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { sticky: true, preserveFocus: true, override: EditorOverride.DISABLED } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof FileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// untyped resource editor, options (override default), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { override: DEFAULT_EDITOR_ASSOCIATION.id } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof FileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped resource editor, options (override: 'editorServiceOverrideTests'), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual(lastEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped resource editor, options (sticky: true, preserveFocus: true), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { sticky: true, preserveFocus: true } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), untypedEditor.resource.toString());
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// untyped resource editor, options (override: 'editorServiceOverrideTests', sticky: true, preserveFocus: true), no group
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { sticky: true, preserveFocus: true, override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), untypedEditor.resource.toString());
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// untyped resource editor, no options, SIDE_GROUP
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests') };
+				let pane = await openEditor(untypedEditor, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual(lastEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped resource editor, options (override disabled), SIDE_GROUP
+			{
+				let untypedEditor: IResourceEditorInput = { resource: URI.file('file.editor-service-override-tests'), options: { override: EditorOverride.DISABLED } };
+				let pane = await openEditor(untypedEditor, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof FileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), untypedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+
+		// Typed
+		{
+			// typed editor, no options, no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// typed editor, options (override disabled), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { override: EditorOverride.DISABLED } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// typed editor, options (override disabled, sticky: true, preserveFocus: true), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { sticky: true, preserveFocus: true, override: EditorOverride.DISABLED } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// typed editor, options (override default), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { override: DEFAULT_EDITOR_ASSOCIATION.id } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof FileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// typed editor, options (override: 'editorServiceOverrideTests'), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { override: 'editorServiceOverrideTests' } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// typed editor, options (sticky: true, preserveFocus: true), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { sticky: true, preserveFocus: true } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// typed editor, options (override: 'editorServiceOverrideTests', sticky: true, preserveFocus: true), no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { sticky: true, preserveFocus: true, override: 'editorServiceOverrideTests' } });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).options?.preserveFocus, true);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+				await part.activeGroup.closeEditor(pane.input);
+			}
+
+			// typed editor, no options, SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor }, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 1);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedEditor.resource.toString());
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// typed editor, options (override disabled), SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor, options: { override: EditorOverride.DISABLED } }, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.toString(), typedEditor.resource.toString());
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+
+		// Untyped untitled
+		{
+			// untyped untitled editor, no options, no group
+			{
+				let untypedEditor: IUntitledTextResourceEditorInput = { options: { override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.scheme, 'untitled');
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 1);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.strictEqual(lastUntitledEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped untitled editor, no options, SIDE_GROUP
+			{
+				let untypedEditor: IUntitledTextResourceEditorInput = { options: { override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input.resource.scheme, 'untitled');
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 1);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.strictEqual(lastUntitledEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped untitled editor with associated resource, no options, no group
+			{
+				let untypedEditor: IUntitledTextResourceEditorInput = { resource: URI.file('file-original.editor-service-override-tests').with({ scheme: 'untitled' }) };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.scheme, 'untitled');
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 1);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.strictEqual(lastUntitledEditorFactoryEditor, untypedEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// untyped untitled editor, options (sticky: true, preserveFocus: true), no group
+			{
+				let untypedEditor: IUntitledTextResourceEditorInput = { options: { sticky: true, preserveFocus: true, override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input.resource.scheme, 'untitled');
+				// assert.strictEqual(pane.group.isSticky(pane.input), true); https://github.com/microsoft/vscode/issues/127314
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 1);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.strictEqual(lastUntitledEditorFactoryEditor, untypedEditor);
+				assert.strictEqual((lastUntitledEditorFactoryEditor as IUntitledTextResourceEditorInput).options?.preserveFocus, true);
+				assert.strictEqual((lastUntitledEditorFactoryEditor as IUntitledTextResourceEditorInput).options?.sticky, true);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+
+		// Untyped diff
+		{
+			// untyped diff editor, no options, no group
+			{
+				let untypedEditor: IResourceDiffEditorInput = { originalInput: { resource: URI.file('file-original.editor-service-override-tests') }, modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') }, options: { override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 1);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.strictEqual(lastDiffEditorFactoryEditor, untypedEditor);
+
+				await resetTestState();
+			}
+
+			// untyped diff editor, no options, SIDE_GROUP
+			{
+				let untypedEditor: IResourceDiffEditorInput = { originalInput: { resource: URI.file('file-original.editor-service-override-tests') }, modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') }, options: { override: 'editorServiceOverrideTests' } };
+				let pane = await openEditor(untypedEditor, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 1);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.strictEqual(lastDiffEditorFactoryEditor, untypedEditor);
+
+				await resetTestState();
+			}
+
+			// untyped diff editor, options (sticky: true, preserveFocus: true), no group
+			{
+				let untypedEditor: IResourceDiffEditorInput = {
+					originalInput: { resource: URI.file('file-original.editor-service-override-tests') },
+					modifiedInput: { resource: URI.file('file-modified.editor-service-override-tests') },
+					options: {
+						override: 'editorServiceOverrideTests', sticky: true, preserveFocus: true
+					}
+				};
+				let pane = await openEditor(untypedEditor);
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				// assert.strictEqual(pane.group.isSticky(pane.input), true); https://github.com/microsoft/vscode/issues/127314
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 1);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.strictEqual(lastDiffEditorFactoryEditor, untypedEditor);
+				assert.strictEqual((lastDiffEditorFactoryEditor as IUntitledTextResourceEditorInput).options?.preserveFocus, true);
+				assert.strictEqual((lastDiffEditorFactoryEditor as IUntitledTextResourceEditorInput).options?.sticky, true);
+
+				await resetTestState();
+			}
+		}
+
+		// typed editor, not registered
+		{
+
+			// no options, no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// no options, SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				let pane = await openEditor({ editor: typedEditor }, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+
+		// typed editor, not supporting `toUntyped`
+		{
+
+			// no options, no group
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				typedEditor.disableToUntyped = true;
+				let pane = await openEditor({ editor: typedEditor });
+
+				assert.strictEqual(pane?.group, rootGroup);
+				assert.ok(pane.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+
+			// no options, SIDE_GROUP
+			{
+				let typedEditor = new TestFileEditorInput(URI.file('file.something'), TEST_EDITOR_INPUT_ID);
+				typedEditor.disableToUntyped = true;
+				let pane = await openEditor({ editor: typedEditor }, SIDE_GROUP);
+
+				assert.strictEqual(accessor.editorGroupService.groups.length, 2);
+				assert.notStrictEqual(pane?.group, rootGroup);
+				assert.ok(pane?.input instanceof TestFileEditorInput);
+				assert.strictEqual(pane?.input, typedEditor);
+
+				assert.strictEqual(editorFactoryCalled, 0);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
+
+				assert.ok(!lastEditorFactoryEditor);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
+
+				await resetTestState();
+			}
+		}
+	}
 
 	test('isOpen() with side by side editor', async () => {
 		const [part, service] = await createEditorService();
