@@ -16,8 +16,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorForeground, registerColor, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { editorForeground, resolveColorValue } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { getSimpleCodeEditorWidgetOptions, getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -36,12 +36,9 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
 import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
-import { peekViewEditorBackground } from 'vs/editor/contrib/peekView/peekView';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
-const INPUT_CONTAINER_PADDING = 10;
-const INPUT_WIDGET_HEIGHT = 19;
-const INPUT_CONTAINER_HEIGHT = INPUT_WIDGET_HEIGHT + 2 * INPUT_CONTAINER_PADDING;
+
 
 export class InteractiveEditor extends EditorPane {
 	static readonly ID: string = 'workbench.editor.interactive';
@@ -104,7 +101,7 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookEditorContainer = DOM.append(this.#rootElement, DOM.$('.notebook-editor-container'));
 		this.#inputEditorContainer = DOM.append(this.#rootElement, DOM.$('.input-editor-container'));
 		this.#inputEditorContainer.style.position = 'absolute';
-		this.#inputEditorContainer.style.height = `${INPUT_WIDGET_HEIGHT}px`;
+		this.#inputEditorContainer.style.height = `${19}px`;
 	}
 
 	override async setInput(input: InteractiveEditorInput, options: INotebookEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -147,12 +144,10 @@ export class InteractiveEditor extends EditorPane {
 		});
 
 		if (this.#dimension) {
-			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - INPUT_CONTAINER_HEIGHT), this.#rootElement);
-			this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, INPUT_WIDGET_HEIGHT));
-			this.#inputEditorContainer.style.top = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
+			this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
+			this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
+			this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
 			this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
-			this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
-			this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 		}
 
 		await super.setInput(input, options, context, token);
@@ -192,13 +187,10 @@ export class InteractiveEditor extends EditorPane {
 			const contentHeight = this.#codeEditorWidget.getContentHeight();
 
 			if (this.#dimension) {
-				this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - contentHeight - 2 * INPUT_CONTAINER_PADDING), this.#rootElement);
+				this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - contentHeight), this.#rootElement);
 				this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, contentHeight));
-				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight - 2 * INPUT_CONTAINER_PADDING}px`;
+				this.#inputEditorContainer.style.top = `${this.#dimension.height - contentHeight}px`;
 				this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
-				this.#inputEditorContainer.style.height = `${contentHeight}px`;
-				this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
-				this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 			}
 		}));
 
@@ -280,14 +272,12 @@ export class InteractiveEditor extends EditorPane {
 			return;
 		}
 
-		this.#notebookEditorContainer.style.height = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
-		this.#inputEditorContainer.style.top = `${this.#dimension.height - INPUT_CONTAINER_HEIGHT}px`;
+		this.#notebookEditorContainer.style.height = `${this.#dimension.height - 19}px`;
+		this.#inputEditorContainer.style.top = `${this.#dimension.height - 19}px`;
 		this.#inputEditorContainer.style.width = `${this.#dimension.width}px`;
-		this.#inputEditorContainer.style.paddingTop = `${INPUT_CONTAINER_PADDING}px`;
-		this.#inputEditorContainer.style.paddingBottom = `${INPUT_CONTAINER_PADDING}px`;
 
-		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, INPUT_WIDGET_HEIGHT));
-		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - INPUT_CONTAINER_HEIGHT), this.#rootElement);
+		this.#codeEditorWidget.layout(new DOM.Dimension(this.#dimension.width, 19));
+		this.#notebookWidget.value!.layout(this.#dimension.with(this.#dimension.width, this.#dimension.height - 19), this.#rootElement);
 	}
 
 	#updateInputDecoration(): void {
@@ -306,7 +296,7 @@ export class InteractiveEditor extends EditorPane {
 		if (model?.getValueLength() === 0) {
 			const transparentForeground = resolveColorValue(editorForeground, this.themeService.getColorTheme())?.transparent(0.4);
 			const keybinding = this.#keybindingService.lookupKeybinding('interactive.execute')?.getLabel();
-			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'Ctrl+Enter');
+			const text = nls.localize('interactiveInputPlaceHolder', "Type code here and press {0} to run", keybinding ?? 'ctrl+enter');
 			decorations.push({
 				range: {
 					startLineNumber: 0,
@@ -316,7 +306,6 @@ export class InteractiveEditor extends EditorPane {
 				},
 				renderOptions: {
 					after: {
-						fontStyle: 'italic',
 						contentText: text,
 						color: transparentForeground ? transparentForeground.toString() : undefined
 					}
@@ -363,17 +352,3 @@ export class InteractiveEditor extends EditorPane {
 		};
 	}
 }
-
-export const interactiveInputEditorBackground = registerColor('interactive.inputEditorBackground', {
-	dark: peekViewEditorBackground,
-	light: peekViewEditorBackground,
-	hc: peekViewEditorBackground
-}, nls.localize('interactive.inputEditorBackground', "The background color of the input editor."));
-
-registerThemingParticipant((theme, collector) => {
-	const editorBackgroundColor = theme.getColor(interactiveInputEditorBackground) ?? theme.getColor(interactiveInputEditorBackground);
-	if (editorBackgroundColor) {
-		collector.addRule(`.interactive-editor .input-editor-container,
-		.interactive-editor .input-editor-container .monaco-editor-background { background: ${editorBackgroundColor}; }`);
-	}
-});

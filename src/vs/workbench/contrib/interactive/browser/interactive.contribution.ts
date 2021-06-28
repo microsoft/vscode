@@ -255,7 +255,7 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, { preserveFocus: true }, currentGroup);
+				await editorService.openEditor(editorInput, undefined, currentGroup);
 				return {
 					notebookUri: editorInput.resource!,
 					inputUri: editorInput.inputResource
