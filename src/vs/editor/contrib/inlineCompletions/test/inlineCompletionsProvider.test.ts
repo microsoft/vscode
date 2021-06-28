@@ -442,7 +442,7 @@ test('Support backward instability', async function () {
 					TODO: Remove this flickering. Fortunately, it is not visible.
 					It is caused by the text model updating before the cursor position.
 				*/
-				'foo',
+				'foob',
 				'foob[ar]',
 				'foob[az]'
 			]);
