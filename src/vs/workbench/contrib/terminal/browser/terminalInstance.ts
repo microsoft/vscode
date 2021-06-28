@@ -2030,12 +2030,15 @@ class TerminalInstanceDragAndDropController extends Disposable implements IDragA
 
 		const terminalResources = e.dataTransfer.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
-			const uri = URI.from({
-				scheme: Schemas.vscodeTerminal,
-				path: URI.parse(JSON.parse(terminalResources)[0]).path
-			});
-			const side = this._getDropSide(e);
-			this._onDropTerminal.fire({ uri, side });
+			const json = JSON.parse(terminalResources);
+			for (const entry of json) {
+				const uri = URI.from({
+					scheme: Schemas.vscodeTerminal,
+					path: URI.parse(entry).path
+				});
+				const side = this._getDropSide(e);
+				this._onDropTerminal.fire({ uri, side });
+			}
 			return;
 		}
 
