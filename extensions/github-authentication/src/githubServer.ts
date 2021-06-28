@@ -20,6 +20,7 @@ const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
+		Logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
 }
@@ -54,7 +55,7 @@ export class GitHubServer {
 	}
 
 	public async login(scopes: string): Promise<string> {
-		Logger.info('Logging in...');
+		Logger.info(`Logging in for the following scopes: ${scopes}`);
 		this.updateStatusBarItem(true);
 
 		const state = uuid();

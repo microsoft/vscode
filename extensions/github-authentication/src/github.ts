@@ -86,6 +86,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			try {
 				await this._githubServer.getUserInfo(session.accessToken);
 				this.afterTokenLoad(session.accessToken);
+				Logger.info(`Verified sesion with the following scopes: ${session.scopes}`);
 				verifiedSessions.push(session);
 			} catch (e) {
 				// Remove sessions that return unauthorized response
@@ -156,6 +157,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 						userInfo = await this._githubServer.getUserInfo(session.accessToken);
 					}
 
+					Logger.trace(`Read the following session from the keychain with the following scopes: ${session.scopes}`);
 					return {
 						id: session.id,
 						account: {
