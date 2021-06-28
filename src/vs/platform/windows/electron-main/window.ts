@@ -853,8 +853,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (isWorkspaceIdentifier(configuration.workspace)) {
 			const configPath = configuration.workspace.configPath;
 			if (configPath.scheme === Schemas.file) {
-				const workspace = await this.workspacesManagementMainService.resolveLocalWorkspace(configPath);
-				if (!workspace || workspace.transient /* transient workspaces only valid once (https://github.com/microsoft/vscode/issues/119695) */) {
+				const workspaceExists = await this.fileService.exists(configPath);
+				if (!workspaceExists) {
 					return undefined;
 				}
 			}

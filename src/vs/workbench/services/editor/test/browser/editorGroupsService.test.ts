@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, ITestInstantiationService, TestServiceAccessor, createEditorPart } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, GroupLocation, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -60,6 +60,7 @@ suite('EditorGroupsService', () => {
 
 		// always a root group
 		const rootGroup = part.groups[0];
+		assert.strictEqual(isEditorGroup(rootGroup), true);
 		assert.strictEqual(part.groups.length, 1);
 		assert.strictEqual(part.count, 1);
 		assert.strictEqual(rootGroup, part.getGroup(rootGroup.id));

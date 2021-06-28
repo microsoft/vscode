@@ -17,7 +17,7 @@ import { TestItemImpl, TestResultState, testStubs } from 'vs/workbench/contrib/t
 import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
 import type { TestItem, TestRunRequest } from 'vscode';
 
-const simplify = (item: TestItem<unknown>) => ({
+const simplify = (item: TestItem) => ({
 	id: item.id,
 	label: item.label,
 	uri: item.uri,
@@ -26,7 +26,7 @@ const simplify = (item: TestItem<unknown>) => ({
 	debuggable: item.debuggable,
 });
 
-const assertTreesEqual = (a: TestItem<unknown> | undefined, b: TestItem<unknown> | undefined) => {
+const assertTreesEqual = (a: TestItem | undefined, b: TestItem | undefined) => {
 	if (!a) {
 		throw new assert.AssertionError({ message: 'Expected a to be defined', actual: a });
 	}
@@ -303,7 +303,7 @@ suite('ExtHost Testing', () => {
 		let c: TestRunCoordinator;
 		let cts: CancellationTokenSource;
 
-		let req: TestRunRequest<unknown>;
+		let req: TestRunRequest;
 
 		let dto: TestRunDto;
 

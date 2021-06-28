@@ -34,6 +34,9 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { ISharedProcess } from 'vs/platform/sharedProcess/node/sharedProcess';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
+import { isWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
+import { Schemas } from 'vs/base/common/network';
+import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -57,7 +60,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
 	) {
 		super();
 
@@ -689,7 +693,24 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {
-			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options?.disableExtensions } : undefined);
+
+			// Special case: support `transient` workspaces by preventing
+			// the reload and rather go back to an empty window. Transient
+			// workspaces should never restore, even when the user wants
+			// to reload.
+			// For: https://github.com/microsoft/vscode/issues/119695
+			if (isWorkspaceIdentifier(window.openedWorkspace)) {
+				const configPath = window.openedWorkspace.configPath;
+				if (configPath.scheme === Schemas.file) {
+					const workspace = await this.workspacesManagementMainService.resolveLocalWorkspace(configPath);
+					if (workspace?.transient) {
+						return this.openWindow(window.id, { forceReuseWindow: true });
+					}
+				}
+			}
+
+			// Proceed normally to reload the window
+			return this.lifecycleMainService.reload(window, options?.disableExtensions !== undefined ? { _: [], 'disable-extensions': options.disableExtensions } : undefined);
 		}
 	}
 

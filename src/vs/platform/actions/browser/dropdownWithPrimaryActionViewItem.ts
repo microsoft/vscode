@@ -32,8 +32,8 @@ export class DropdownWithPrimaryActionViewItem extends BaseActionViewItem {
 		dropdownMenuActions: IAction[],
 		className: string,
 		private readonly _contextMenuProvider: IContextMenuProvider,
-		_keybindingService: IKeybindingService,
-		_notificationService: INotificationService
+		@IKeybindingService _keybindingService: IKeybindingService,
+		@INotificationService _notificationService: INotificationService
 	) {
 		super(null, primaryAction);
 		this._primaryAction = new MenuEntryActionViewItem(primaryAction, _keybindingService, _notificationService);

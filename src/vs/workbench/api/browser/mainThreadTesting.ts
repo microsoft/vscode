@@ -11,7 +11,9 @@ import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { extHostNamedCustomer } from 'vs/workbench/api/common/extHostCustomers';
 import { TestResultState } from 'vs/workbench/api/common/extHostTypes';
+import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
 import { ExtensionRunTestsRequest, ITestItem, ITestMessage, ITestRunTask, RunTestsRequest, TestDiffOpType, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestRootProvider, ITestService } from 'vs/workbench/contrib/testing/common/testService';
@@ -76,6 +78,23 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 		}
 
 		this.withLiveRun(runId, r => r.addTestChainToRun(controllerId, tests));
+	}
+
+	/**
+	 * @inheritdoc
+	 */
+	$signalCoverageAvailable(runId: string, taskId: string): void {
+		this.withLiveRun(runId, run => {
+			const task = run.tasks.find(t => t.id === taskId);
+			if (!task) {
+				return;
+			}
+
+			(task.coverage as MutableObservableValue<TestCoverage>).value = new TestCoverage({
+				provideFileCoverage: token => this.proxy.$provideFileCoverage(runId, taskId, token),
+				resolveFileCoverage: (i, token) => this.proxy.$resolveFileCoverage(runId, taskId, i, token),
+			});
+		});
 	}
 
 	/**

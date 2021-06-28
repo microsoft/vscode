@@ -242,6 +242,10 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const resolvedInvalid = await service.resolveLocalWorkspace(workspace.configPath);
 		assert.ok(!resolvedInvalid);
+
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient worksapce
+		const resolvedTransient = await service.resolveLocalWorkspace(workspace.configPath);
+		assert.ok(resolvedTransient?.transient);
 	});
 
 	test('resolveWorkspaceSync', async () => {
@@ -261,6 +265,10 @@ flakySuite('WorkspacesManagementMainService', () => {
 
 		const resolvedInvalid = service.resolveLocalWorkspaceSync(workspace.configPath);
 		assert.ok(!resolvedInvalid);
+
+		fs.writeFileSync(workspace.configPath.fsPath, JSON.stringify({ transient: true, folders: [] })); // transient worksapce
+		const resolvedTransient = service.resolveLocalWorkspaceSync(workspace.configPath);
+		assert.ok(resolvedTransient?.transient);
 	});
 
 	test('resolveWorkspaceSync (support relative paths)', async () => {

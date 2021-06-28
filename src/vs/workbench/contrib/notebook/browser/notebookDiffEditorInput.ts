@@ -21,25 +21,6 @@ class NotebookDiffEditorModel extends EditorModel implements INotebookDiffEditor
 	) {
 		super();
 	}
-
-	async load(): Promise<NotebookDiffEditorModel> {
-		await this.original.load();
-		await this.modified.load();
-
-		return this;
-	}
-
-	async resolveOriginalFromDisk() {
-		await this.original.load({ forceReadFromFile: true });
-	}
-
-	async resolveModifiedFromDisk() {
-		await this.modified.load({ forceReadFromFile: true });
-	}
-
-	override dispose(): void {
-		super.dispose();
-	}
 }
 
 export class NotebookDiffEditorInput extends DiffEditorInput {

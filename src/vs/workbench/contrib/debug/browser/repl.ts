@@ -135,9 +135,9 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.filterState = new ReplFilterState(this);
 		this.filter.filterQuery = this.filterState.filterText = this.storageService.get(FILTER_VALUE_STORAGE_KEY, StorageScope.WORKSPACE, '');
 		this.multiSessionRepl = CONTEXT_MULTI_SESSION_REPL.bindTo(contextKeyService);
-		this.multiSessionRepl.set(this.isMultiSessionView);
 
 		codeEditorService.registerDecorationType('repl-decoration', DECORATION_KEY, {});
+		this.multiSessionRepl.set(this.isMultiSessionView);
 		this.registerListeners();
 	}
 
@@ -229,10 +229,10 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => {
-			if (!visible) {
-				dispose(this.model);
-			} else {
-				this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+			if (visible) {
+				if (!this.model) {
+					this.model = this.modelService.getModel(Repl.URI) || this.modelService.createModel('', null, Repl.URI, true);
+				}
 				this.setMode();
 				this.replInput.setModel(this.model);
 				this.updateInputDecoration();
@@ -436,9 +436,11 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 			const lineDelimiter = this.textResourcePropertiesService.getEOL(this.model.uri);
 			const traverseAndAppend = (node: ITreeNode<IReplElement, FuzzyScore>) => {
 				node.children.forEach(child => {
-					text += child.element.toString().trimRight() + lineDelimiter;
-					if (!child.collapsed && child.children.length) {
-						traverseAndAppend(child);
+					if (child.visible) {
+						text += child.element.toString().trimRight() + lineDelimiter;
+						if (!child.collapsed && child.children.length) {
+							traverseAndAppend(child);
+						}
 					}
 				});
 			};

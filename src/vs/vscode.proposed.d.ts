@@ -1796,14 +1796,14 @@ declare module 'vscode' {
 		 *
 		 * @param id Identifier for the controller, must be globally unique.
 		 */
-		export function createTestController<T>(id: string): TestController<T>;
+		export function createTestController(id: string): TestController;
 
 		/**
 		 * Requests that tests be run by their controller.
 		 * @param run Run options to use
 		 * @param token Cancellation token for the test run
 		 */
-		export function runTests<T>(run: TestRunRequest<T>, token?: CancellationToken): Thenable<void>;
+		export function runTests(run: TestRunRequest, token?: CancellationToken): Thenable<void>;
 
 		/**
 		 * Returns an observer that watches and can request tests.
@@ -1832,7 +1832,7 @@ declare module 'vscode' {
 		/**
 		 * List of tests returned by test provider for files in the workspace.
 		 */
-		readonly tests: ReadonlyArray<TestItem<never>>;
+		readonly tests: ReadonlyArray<TestItem>;
 
 		/**
 		 * An event that fires when an existing test in the collection changes, or
@@ -1855,23 +1855,28 @@ declare module 'vscode' {
 		/**
 		 * List of all tests that are newly added.
 		 */
-		readonly added: ReadonlyArray<TestItem<never>>;
+		readonly added: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have updated.
 		 */
-		readonly updated: ReadonlyArray<TestItem<never>>;
+		readonly updated: ReadonlyArray<TestItem>;
 
 		/**
 		 * List of existing tests that have been removed.
 		 */
-		readonly removed: ReadonlyArray<TestItem<never>>;
+		readonly removed: ReadonlyArray<TestItem>;
 	}
 
 	/**
 	 * Interface to discover and execute tests.
 	 */
-	export interface TestController<T = any> {
+	export interface TestController {
+		/**
+		 * The ID of the controller, passed in {@link vscode.test.createTestController}
+		 */
+		readonly id: string;
+
 		/**
 		 * Root test item. Tests in the workspace should be added as children of
 		 * the root. The extension controls when to add these, although the
@@ -1884,6 +1889,8 @@ declare module 'vscode' {
 		 * as files change. See  {@link resolveChildrenHandler} for details around
 		 * for the lifecycle of watches.
 		 */
+		// todo@API a little weird? what is its label, id, busy state etc? Can I dispose this?
+		// todo@API allow createTestItem-calls without parent and simply treat them as root (similar to createSourceControlResourceGroup)
 		readonly root: TestItem;
 
 		/**
@@ -1896,13 +1903,12 @@ declare module 'vscode' {
 		 * @param uri URI this TestItem is associated with. May be a file or directory.
 		 * @param data Custom data to be stored in {@link TestItem.data}
 		 */
-		createTestItem<TChild = T>(
+		createTestItem(
 			id: string,
 			label: string,
 			parent: TestItem,
 			uri?: Uri,
-			data?: TChild,
-		): TestItem<TChild>;
+		): TestItem;
 
 
 		/**
@@ -1920,7 +1926,7 @@ declare module 'vscode' {
 		 * @param item An unresolved test item for which
 		 * children are being requested
 		 */
-		resolveChildrenHandler?: (item: TestItem<T>) => Thenable<void> | void;
+		resolveChildrenHandler?: (item: TestItem) => Thenable<void> | void;
 
 		/**
 		 * Starts a test run. When called, the controller should call
@@ -1934,7 +1940,7 @@ declare module 'vscode' {
 		 * instances associated with the request will be
 		 * automatically cancelled as well.
 		 */
-		runHandler?: (request: TestRunRequest<T>, token: CancellationToken) => Thenable<void> | void;
+		runHandler?: (request: TestRunRequest, token: CancellationToken) => Thenable<void> | void;
 		/**
 		 * Creates a {@link TestRun<T>}. This should be called by the
 		 * {@link TestRunner} when a request is made to execute tests, and may also
@@ -1951,7 +1957,7 @@ declare module 'vscode' {
 		 * persisted in the editor. This may be false if the results are coming from
 		 * a file already saved externally, such as a coverage information file.
 		 */
-		createTestRun<T>(request: TestRunRequest<T>, name?: string, persist?: boolean): TestRun<T>;
+		createTestRun(request: TestRunRequest, name?: string, persist?: boolean): TestRun;
 
 		/**
 		 * Unregisters the test controller, disposing of its associated tests
@@ -1963,20 +1969,20 @@ declare module 'vscode' {
 	/**
 	 * Options given to {@link test.runTests}.
 	 */
-	export class TestRunRequest<T> {
+	export class TestRunRequest {
 		/**
 		 * Array of specific tests to run. The controllers should run all of the
 		 * given tests and all children of the given tests, excluding any tests
 		 * that appear in {@link TestRunRequest.exclude}.
 		 */
-		tests: TestItem<T>[];
+		tests: TestItem[];
 
 		/**
 		 * An array of tests the user has marked as excluded in the editor. May be
 		 * omitted if no exclusions were requested. Test controllers should not run
 		 * excluded tests or any children of excluded tests.
 		 */
-		exclude?: TestItem<T>[];
+		exclude?: TestItem[];
 
 		/**
 		 * Whether tests in this run should be debugged.
@@ -1988,13 +1994,13 @@ declare module 'vscode' {
 		 * @param exclude Tests to exclude from the run
 		 * @param debug Whether tests in this run should be debugged.
 		 */
-		constructor(tests: readonly TestItem<T>[], exclude?: readonly TestItem<T>[], debug?: boolean);
+		constructor(tests: readonly TestItem[], exclude?: readonly TestItem[], debug?: boolean);
 	}
 
 	/**
 	 * Options given to {@link TestController.runTests}
 	 */
-	export interface TestRun<T = void> {
+	export interface TestRun {
 		/**
 		 * The human-readable name of the run. This can be used to
 		 * disambiguate multiple sets of results in a test run. It is useful if
@@ -2017,7 +2023,8 @@ declare module 'vscode' {
 		 * @param state The state to assign to the test
 		 * @param duration Optionally sets how long the test took to run, in milliseconds
 		 */
-		setState(test: TestItem<T>, state: TestResultState, duration?: number): void;
+		//todo@API is this "update" state or set final state? should this be called setTestResult?
+		setState(test: TestItem, state: TestResultState, duration?: number): void;
 
 		/**
 		 * Appends a message, such as an assertion error, to the test item.
@@ -2028,7 +2035,7 @@ declare module 'vscode' {
 		 * @param test The test to update
 		 * @param message The message to add
 		 */
-		appendMessage(test: TestItem<T>, message: TestMessage): void;
+		appendMessage(test: TestItem, message: TestMessage): void;
 
 		/**
 		 * Appends raw output from the test runner. On the user's request, the
@@ -2051,7 +2058,7 @@ declare module 'vscode' {
 	 * A test item is an item shown in the "test explorer" view. It encompasses
 	 * both a suite and a test, since they have almost or identical capabilities.
 	 */
-	export interface TestItem<T = any> {
+	export interface TestItem {
 		/**
 		 * Unique identifier for the TestItem. This is used to correlate
 		 * test results and tests in the document with those in the workspace
@@ -2067,13 +2074,14 @@ declare module 'vscode' {
 		/**
 		 * A mapping of children by ID to the associated TestItem instances.
 		 */
+		//todo@API use array over es6-map
 		readonly children: ReadonlyMap<string, TestItem>;
 
 		/**
-		 * The parent of this item, if any. Assigned automatically when calling
-		 * {@link TestItem.addChild}.
+		 * The parent of this item, given in {@link TestController.createTestItem}.
+		 * This is undefined only for the {@link TestController.root}.
 		 */
-		readonly parent?: TestItem<any>;
+		readonly parent?: TestItem;
 
 		/**
 		 * Indicates whether this test item may have children discovered by resolving.
@@ -2128,12 +2136,6 @@ declare module 'vscode' {
 		debuggable: boolean;
 
 		/**
-		 * Custom extension data on the item. This data will never be serialized
-		 * or shared outside the extenion who created the item.
-		 */
-		data: T;
-
-		/**
 		 * Marks the test as outdated. This can happen as a result of file changes,
 		 * for example. In "auto run" mode, tests that are outdated will be
 		 * automatically rerun after a short delay. Invoking this on a
@@ -2141,7 +2143,7 @@ declare module 'vscode' {
 		 *
 		 * Extensions should generally not override this method.
 		 */
-		invalidate(): void;
+		invalidateResults(): void;
 
 		/**
 		 * Removes the test and its children from the tree.
@@ -2831,6 +2833,197 @@ declare module 'vscode' {
 		 */
 		mime: string | undefined;
 	}
+
+	//#endregion
+
+	//#region https://github.com/microsoft/vscode/issues/123713 @connor4312
+	export interface TestRun {
+		/**
+		 * Test coverage provider for this result. An extension can defer setting
+		 * this until after a run is complete and coverage is available.
+		 */
+		coverageProvider?: TestCoverageProvider
+		// ...
+	}
+
+	/**
+	 * Provides information about test coverage for a test result.
+	 * Methods on the provider will not be called until the test run is complete
+	 */
+	export interface TestCoverageProvider<T extends FileCoverage = FileCoverage> {
+		/**
+		 * Returns coverage information for all files involved in the test run.
+		 * @param token A cancellation token.
+		 * @return Coverage metadata for all files involved in the test.
+		 */
+		provideFileCoverage(token: CancellationToken): ProviderResult<T[]>;
+
+		/**
+		 * Give a FileCoverage to fill in more data, namely {@link FileCoverage.detailedCoverage}.
+		 * The editor will only resolve a FileCoverage once, and onyl if detailedCoverage
+		 * is undefined.
+		 *
+		 * @param coverage A coverage object obtained from {@link provideFileCoverage}
+		 * @param token A cancellation token.
+		 * @return The resolved file coverage, or a thenable that resolves to one. It
+		 * is OK to return the given `coverage`. When no result is returned, the
+		 * given `coverage` will be used.
+		 */
+		resolveFileCoverage?(coverage: T, token: CancellationToken): ProviderResult<T>;
+	}
+
+	/**
+	 * A class that contains information about a covered resource. A count can
+	 * be give for lines, branches, and functions in a file.
+	 */
+	export class CoveredCount {
+		/**
+		 * Number of items covered in the file.
+		 */
+		covered: number;
+		/**
+		 * Total number of covered items in the file.
+		 */
+		total: number;
+
+		/**
+		 * @param covered Value for {@link CovereredCount.covered}
+		 * @param total Value for {@link CovereredCount.total}
+		 */
+		constructor(covered: number, total: number);
+	}
+
+	/**
+	 * Contains coverage metadata for a file.
+	 */
+	export class FileCoverage {
+		/**
+		 * File URI.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * Statement coverage information. If the reporter does not provide statement
+		 * coverage information, this can instead be used to represent line coverage.
+		 */
+		statementCoverage: CoveredCount;
+
+		/**
+		 * Branch coverage information.
+		 */
+		branchCoverage?: CoveredCount;
+
+		/**
+		 * Function coverage information.
+		 */
+		functionCoverage?: CoveredCount;
+
+		/**
+		 * Detailed, per-statement coverage. If this is undefined, the editor will
+		 * call {@link TestCoverageProvider.resolveFileCoverage} when necessary.
+		 */
+		detailedCoverage?: DetailedCoverage[];
+
+		/**
+		 * Creates a {@link FileCoverage} instance with counts filled in from
+		 * the coverage details.
+		 * @param uri Covered file URI
+		 * @param detailed Detailed coverage information
+		 */
+		static fromDetails(uri: Uri, details: readonly DetailedCoverage[]): FileCoverage;
+
+		/**
+		 * @param uri Covered file URI
+		 * @param statementCoverage Statement coverage information. If the reporter
+		 * does not provide statement coverage information, this can instead be
+		 * used to represent line coverage.
+		 * @param branchCoverage Branch coverage information
+		 * @param functionCoverage Function coverage information
+		 */
+		constructor(
+			uri: Uri,
+			statementCoverage: CoveredCount,
+			branchCoverage?: CoveredCount,
+			functionCoverage?: CoveredCount,
+		);
+	}
+
+	/**
+	 * Contains coverage information for a single statement or line.
+	 */
+	export class StatementCoverage {
+		/**
+		 * The number of times this statement was executed. If zero, the
+		 * statement will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Statement location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * Coverage from branches of this line or statement. If it's not a
+		 * conditional, this will be empty.
+		 */
+		branches: BranchCoverage[];
+
+		/**
+		 * @param location The statement position.
+		 * @param executionCount The number of times this statement was
+		 * executed. If zero, the statement will be marked as un-covered.
+		 * @param branches Coverage from branches of this line.  If it's not a
+		 * conditional, this should be omitted.
+		 */
+		constructor(executionCount: number, location: Position | Range, branches?: BranchCoverage[]);
+	}
+
+	/**
+	 * Contains coverage information for a branch of a {@link StatementCoverage}.
+	 */
+	export class BranchCoverage {
+		/**
+		 * The number of times this branch was executed. If zero, the
+		 * branch will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Branch location.
+		 */
+		location?: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this branch was executed.
+		 * @param location The branch position.
+		 */
+		constructor(executionCount: number, location?: Position | Range);
+	}
+
+	/**
+	 * Contains coverage information for a function or method.
+	 */
+	export class FunctionCoverage {
+		/**
+		 * The number of times this function was executed. If zero, the
+		 * function will be marked as un-covered.
+		 */
+		executionCount: number;
+
+		/**
+		 * Function location.
+		 */
+		location: Position | Range;
+
+		/**
+		 * @param executionCount The number of times this function was executed.
+		 * @param location The function position.
+		 */
+		constructor(executionCount: number, location: Position | Range);
+	}
+
+	export type DetailedCoverage = StatementCoverage | FunctionCoverage;
 
 	//#endregion
 }

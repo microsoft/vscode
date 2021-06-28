@@ -44,7 +44,7 @@ suite('EditorOverrideService', () => {
 			resource => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 		);
 
-		const resultingOverride = await service.resolveEditorOverride({ resource: URI.file('my://resource-basics.test') }, undefined, part.activeGroup);
+		const resultingOverride = await service.resolveEditorInput({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
 		assert.ok(resultingOverride);
 		assert.notStrictEqual(typeof resultingOverride, 'number');
 		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {

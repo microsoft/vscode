@@ -213,7 +213,7 @@ const productJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../produ
 const builtInExtensions = productJson.builtInExtensions || [];
 const webBuiltInExtensions = productJson.webBuiltInExtensions || [];
 /**
- * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionsUtil.ts`
+ * Loosely based on `getExtensionKind` from `src/vs/workbench/services/extensions/common/extensionManifestPropertiesService.ts`
  */
 function isWebExtension(manifest) {
     if (typeof manifest.extensionKind !== 'undefined') {

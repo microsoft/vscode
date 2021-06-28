@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { canceled, onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event, Listener } from 'vs/base/common/event';
+import { canceled, } from 'vs/base/common/errors';
+import { Emitter, Event, } from 'vs/base/common/event';
 import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { LinkedList } from 'vs/base/common/linkedList';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -1190,68 +1189,6 @@ export class DeferredPromise<T> {
 			this.rejected = true;
 			resolve();
 		});
-	}
-}
-
-//#endregion
-
-//#region
-
-export interface IWaitUntil {
-	waitUntil(thenable: Promise<unknown>): void;
-}
-
-export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
-
-	private _asyncDeliveryQueue?: LinkedList<[Listener<T>, Omit<T, 'waitUntil'>]>;
-
-	async fireAsync(data: Omit<T, 'waitUntil'>, token: CancellationToken, promiseJoin?: (p: Promise<unknown>, listener: Function) => Promise<unknown>): Promise<void> {
-		if (!this._listeners) {
-			return;
-		}
-
-		if (!this._asyncDeliveryQueue) {
-			this._asyncDeliveryQueue = new LinkedList();
-		}
-
-		for (const listener of this._listeners) {
-			this._asyncDeliveryQueue.push([listener, data]);
-		}
-
-		while (this._asyncDeliveryQueue.size > 0 && !token.isCancellationRequested) {
-
-			const [listener, data] = this._asyncDeliveryQueue.shift()!;
-			const thenables: Promise<unknown>[] = [];
-
-			const event = <T>{
-				...data,
-				waitUntil: (p: Promise<unknown>): void => {
-					if (Object.isFrozen(thenables)) {
-						throw new Error('waitUntil can NOT be called asynchronous');
-					}
-					if (promiseJoin) {
-						p = promiseJoin(p, typeof listener === 'function' ? listener : listener[0]);
-					}
-					thenables.push(p);
-				}
-			};
-
-			try {
-				if (typeof listener === 'function') {
-					listener.call(undefined, event);
-				} else {
-					listener[0].call(listener[1], event);
-				}
-			} catch (e) {
-				onUnexpectedError(e);
-				continue;
-			}
-
-			// freeze thenables-collection to enforce sync-calls to
-			// wait until and then wait for all thenables to resolve
-			Object.freeze(thenables);
-			await Promises.settled(thenables).catch(e => onUnexpectedError(e));
-		}
 	}
 }
 

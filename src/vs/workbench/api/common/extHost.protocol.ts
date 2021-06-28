@@ -39,11 +39,12 @@ import { IRemoteConnectionData, RemoteAuthorityResolverErrorCode, ResolverResult
 import { ProvidedPortAttributes, TunnelCreationOptions, TunnelOptions, TunnelProviderFeatures } from 'vs/platform/remote/common/tunnel';
 import { ClassifiedEvent, GDPRClassification, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
-import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, ITerminalEnvironment, ITerminalLaunchError, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { ThemeColor, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { IExtensionIdWithVersion } from 'vs/platform/userDataSync/common/extensionsStorageSync';
 import { WorkspaceTrustRequestOptions } from 'vs/platform/workspace/common/workspaceTrust';
 import { ExtensionActivationReason } from 'vs/workbench/api/common/extHostExtensionActivator';
+import { ExtHostInteractive } from 'vs/workbench/api/common/extHostInteractive';
 import { TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { DebugConfigurationProviderTriggerKind, TestResultState } from 'vs/workbench/api/common/extHostTypes';
 import * as tasks from 'vs/workbench/api/common/shared/tasks';
@@ -56,7 +57,7 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { ITextQueryBuilderOptions } from 'vs/workbench/contrib/search/common/queryBuilder';
 import { ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
-import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, RunTestsRequest, ITestIdWithSrc, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ExtensionRunTestsRequest, ISerializedTestResults, ITestItem, ITestMessage, ITestRunTask, RunTestForControllerRequest, RunTestsRequest, ITestIdWithSrc, TestsDiff, IFileCoverage, CoverageDetails } from 'vs/workbench/contrib/testing/common/testCollection';
 import { InternalTimelineOptions, Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { ActivationKind, ExtensionHostKind, MissingExtensionDependency } from 'vs/workbench/services/extensions/common/extensions';
 import { createExtHostContextProxyIdentifier as createExtId, createMainContextProxyIdentifier as createMainId, IRPCProtocol } from 'vs/workbench/services/extensions/common/proxyIdentifier';
@@ -474,6 +475,7 @@ export interface TerminalLaunchConfig {
 	isExtensionOwnedTerminal?: boolean;
 	useShellEnvironment?: boolean;
 	isSplitTerminal?: boolean;
+	target?: TerminalLocation;
 }
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
@@ -926,6 +928,9 @@ export interface MainThreadNotebookKernelsShape extends IDisposable {
 
 export interface MainThreadNotebookRenderersShape extends IDisposable {
 	$postMessage(editorId: string, rendererId: string, message: unknown): void;
+}
+
+export interface MainThreadInteractiveShape extends IDisposable {
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -1727,7 +1732,7 @@ export interface ExtHostTerminalServiceShape {
 	$activateLink(id: number, linkId: number): void;
 	$initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void;
 	$acceptDefaultProfile(profile: ITerminalProfile, automationProfile: ITerminalProfile): void;
-	$createContributedProfileTerminal(id: string, isSplitTerminal: boolean): Promise<void>;
+	$createContributedProfileTerminal(id: string, options: ICreateContributedTerminalProfileOptions): Promise<void>;
 }
 
 export interface ExtHostSCMShape {
@@ -2032,6 +2037,11 @@ export interface ExtHostNotebookKernelsShape {
 	$acceptKernelMessageFromRenderer(handle: number, editorId: string, message: any): void;
 }
 
+export interface ExtHostInteractiveShape {
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
+	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
+}
+
 export interface ExtHostStorageShape {
 	$acceptValue(shared: boolean, key: string, value: object | undefined): void;
 }
@@ -2064,14 +2074,19 @@ export const enum ExtHostTestingResource {
 export interface ExtHostTestingShape {
 	$runControllerTests(req: RunTestForControllerRequest, token: CancellationToken): Promise<void>;
 	$cancelExtensionTestRun(runId: string | undefined): void;
-
 	/** Handles a diff of tests, as a result of a subscribeToDiffs() call */
 	$acceptDiff(diff: TestsDiff): void;
-
 	/** Publishes that a test run finished. */
 	$publishTestResults(results: ISerializedTestResults[]): void;
 	/** Expands a test item's children, by the given number of levels. */
 	$expandTest(src: ITestIdWithSrc, levels: number): Promise<void>;
+	/** Requests file coverage for a test run. Errors if not available. */
+	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]>;
+	/**
+	 * Requests coverage details for the file index in coverage data for the run.
+	 * Requires file coverage to have been previously requested via $provideFileCoverage.
+	 */
+	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]>;
 }
 
 export interface MainThreadTestingShape {
@@ -2101,6 +2116,8 @@ export interface MainThreadTestingShape {
 	$appendTestMessageInRun(runId: string, taskId: string, testId: string, message: ITestMessage): void;
 	/** Appends raw output to the test run.. */
 	$appendOutputToRun(runId: string, taskId: string, output: VSBuffer): void;
+	/** Triggered when coverage is added to test results. */
+	$signalCoverageAvailable(runId: string, taskId: string): void;
 	/** Signals a task in a test run started. */
 	$startedTestRunTask(runId: string, task: ITestRunTask): void;
 	/** Signals a task in a test run ended. */
@@ -2165,6 +2182,7 @@ export const MainContext = {
 	MainThreadNotebookEditors: createMainId<MainThreadNotebookEditorsShape>('MainThreadNotebookEditorsShape'),
 	MainThreadNotebookKernels: createMainId<MainThreadNotebookKernelsShape>('MainThreadNotebookKernels'),
 	MainThreadNotebookRenderers: createMainId<MainThreadNotebookRenderersShape>('MainThreadNotebookRenderers'),
+	MainThreadInteractive: createMainId<MainThreadInteractiveShape>('MainThreadInteractive'),
 	MainThreadTheming: createMainId<MainThreadThemingShape>('MainThreadTheming'),
 	MainThreadTunnelService: createMainId<MainThreadTunnelServiceShape>('MainThreadTunnelService'),
 	MainThreadTimeline: createMainId<MainThreadTimelineShape>('MainThreadTimeline'),
@@ -2215,6 +2233,7 @@ export const ExtHostContext = {
 	ExtHostNotebookEditors: createMainId<ExtHostNotebookEditorsShape>('ExtHostNotebookEditors'),
 	ExtHostNotebookKernels: createMainId<ExtHostNotebookKernelsShape>('ExtHostNotebookKernels'),
 	ExtHostNotebookRenderers: createMainId<ExtHostNotebookRenderersShape>('ExtHostNotebookRenderers'),
+	ExtHostInteractive: createMainId<ExtHostInteractive>('ExtHostInteractive'),
 	ExtHostTheming: createMainId<ExtHostThemingShape>('ExtHostTheming'),
 	ExtHostTunnelService: createMainId<ExtHostTunnelServiceShape>('ExtHostTunnelService'),
 	ExtHostAuthentication: createMainId<ExtHostAuthenticationShape>('ExtHostAuthentication'),

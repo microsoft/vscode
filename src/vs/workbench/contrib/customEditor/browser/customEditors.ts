@@ -6,6 +6,7 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { extname, isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
@@ -33,6 +34,7 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 	_serviceBrand: any;
 
 	private readonly _contributedEditors: ContributedCustomEditors;
+	private _untitledCounter = 0;
 	private readonly _editorOverrideDisposables: IDisposable[] = [];
 	private readonly _editorCapabilities = new Map<string, CustomEditorCapabilities>();
 
@@ -123,10 +125,13 @@ export class CustomEditorService extends Disposable implements ICustomEditorServ
 					{
 						singlePerResource: () => !this.getCustomEditorCapabilities(contributedEditor.id)?.supportsMultipleEditorsPerDocument ?? true
 					},
-					(resource, options, group) => {
+					({ resource }, group) => {
 						return { editor: CustomEditorInput.create(this.instantiationService, resource, contributedEditor.id, group.id) };
 					},
-					(diffEditorInput, options, group) => {
+					({ resource }, group) => {
+						return { editor: CustomEditorInput.create(this.instantiationService, resource ?? URI.from({ scheme: Schemas.untitled, authority: `Untitled-${this._untitledCounter++}` }), contributedEditor.id, group.id) };
+					},
+					(diffEditorInput, group) => {
 						return { editor: this.createDiffEditorInput(diffEditorInput, contributedEditor.id, group) };
 					}
 				)));

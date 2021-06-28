@@ -114,7 +114,7 @@ export abstract class BaseWebview<T extends HTMLElement> extends Disposable {
 		private readonly options: WebviewOptions,
 		contentOptions: WebviewContentOptions,
 		public extension: WebviewExtensionDescription | undefined,
-		private readonly webviewThemeDataProvider: WebviewThemeDataProvider,
+		protected readonly webviewThemeDataProvider: WebviewThemeDataProvider,
 		services: {
 			contextMenuService: IContextMenuService,
 			environmentService: IWorkbenchEnvironmentService,

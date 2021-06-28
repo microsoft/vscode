@@ -12,7 +12,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IShellLaunchConfig, IShellLaunchConfigDto, ITerminalDimensions, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
-import { ITerminalExternalLinkProvider, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalExternalLinkProvider, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalLink, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalProcessExtHostProxy } from 'vs/workbench/contrib/terminal/browser/terminalProcessExtHostProxy';
 import { IEnvironmentVariableService, ISerializableEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { deserializeEnvironmentVariableCollection, serializeEnvironmentVariableCollection } from 'vs/workbench/contrib/terminal/common/environmentVariableShared';
@@ -53,12 +53,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@ILogService private readonly _logService: ILogService,
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
-		@IRemoteAgentService remoteAgentService: IRemoteAgentService
+		@IRemoteAgentService remoteAgentService: IRemoteAgentService,
+		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService
 	) {
 		this._proxy = _extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
 
 		// ITerminalService listeners
-		this._toDispose.add(_terminalService.onInstanceCreated((instance) => {
+		this._toDispose.add(_terminalService.onDidCreateInstance((instance) => {
 			this._onTerminalOpened(instance);
 			this._onInstanceDimensionsChanged(instance);
 		}));
@@ -145,13 +146,16 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		};
 		let terminal: ITerminalInstance | undefined;
 		if (launchConfig.isSplitTerminal) {
-			const activeInstance = this._terminalService.activeInstance;
+			const activeInstance = this._terminalService.getInstanceHost(launchConfig.target).activeInstance;
 			if (activeInstance) {
 				terminal = withNullAsUndefined(this._terminalService.splitInstance(activeInstance, shellLaunchConfig));
 			}
 		}
 		if (!terminal) {
-			terminal = this._terminalService.createTerminal({ config: shellLaunchConfig });
+			terminal = this._terminalService.createTerminal({
+				config: shellLaunchConfig,
+				target: launchConfig.target
+			});
 		}
 		this._extHostTerminalIds.set(extHostTerminalId, terminal.instanceId);
 	}
@@ -160,7 +164,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const terminalInstance = this._getTerminalInstance(id);
 		if (terminalInstance) {
 			this._terminalService.setActiveInstance(terminalInstance);
-			this._terminalService.showPanel(!preserveFocus);
+			this._terminalGroupService.showPanel(!preserveFocus);
 		}
 	}
 
@@ -168,7 +172,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		const rendererId = this._getTerminalId(id);
 		const instance = this._terminalService.activeInstance;
 		if (instance && instance.instanceId === rendererId) {
-			this._terminalService.hidePanel();
+			this._terminalGroupService.hidePanel();
 		}
 	}
 
@@ -214,8 +218,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerProfileProvider(id: string, extensionIdentifier: string): void {
 		// Proxy profile provider requests through the extension host
 		this._profileProviders.set(id, this._terminalService.registerTerminalProfileProvider(extensionIdentifier, id, {
-			createContributedTerminalProfile: async (isSplitTerminal) => {
-				return this._proxy.$createContributedProfileTerminal(id, isSplitTerminal);
+			createContributedTerminalProfile: async (options) => {
+				return this._proxy.$createContributedProfileTerminal(id, options);
 			}
 		}));
 	}
@@ -383,7 +387,7 @@ class TerminalDataEventTracker extends Disposable {
 		this._register(this._bufferer = new TerminalDataBufferer(this._callback));
 
 		this._terminalService.instances.forEach(instance => this._registerInstance(instance));
-		this._register(this._terminalService.onInstanceCreated(instance => this._registerInstance(instance)));
+		this._register(this._terminalService.onDidCreateInstance(instance => this._registerInstance(instance)));
 		this._register(this._terminalService.onDidDisposeInstance(instance => this._bufferer.stopBuffering(instance.instanceId)));
 	}
 

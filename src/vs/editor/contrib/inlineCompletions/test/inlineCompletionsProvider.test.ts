@@ -42,7 +42,7 @@ suite('inlineCompletionToGhostText', () => {
 		assert.deepStrictEqual(getOutput('[aaa]aaa', 'aaaaaa'), 'aaa[aaa]aaa');
 		assert.deepStrictEqual(getOutput('[foo]baz', 'boobar'), undefined);
 		assert.deepStrictEqual(getOutput('[foo]foo', 'foofoo'), 'foo[foo]foo');
-		assert.deepStrictEqual(getOutput('foo[]', 'bar\nhello'), 'foo[bar]{\nhello}');
+		assert.deepStrictEqual(getOutput('foo[]', 'bar\nhello'), 'foo[bar\nhello]');
 	});
 
 	test('Empty ghost text', () => {
@@ -437,7 +437,15 @@ test('Support backward instability', async function () {
 			assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 				{ position: '(1,5)', text: 'foob', triggerKind: 0, }
 			]);
-			assert.deepStrictEqual(context.getAndClearViewStates(), ['foob[ar]', 'foob[az]']);
+			assert.deepStrictEqual(context.getAndClearViewStates(), [
+				/*
+					TODO: Remove this flickering. Fortunately, it is not visible.
+					It is caused by the text model updating before the cursor position.
+				*/
+				'foob',
+				'foob[ar]',
+				'foob[az]'
+			]);
 		}
 	);
 });

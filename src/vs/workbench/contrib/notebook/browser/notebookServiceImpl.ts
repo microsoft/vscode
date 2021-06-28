@@ -48,6 +48,8 @@ export class NotebookProviderInfoStore extends Disposable {
 	private readonly _memento: Memento;
 	private _handled: boolean = false;
 
+	private _untitledCounter = 1;
+
 	private readonly _contributedEditors = new Map<string, NotebookProviderInfo>();
 	private readonly _contributedEditorDisposables = new DisposableStore();
 
@@ -154,7 +156,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
 				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = (resource, options, group) => {
+			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }, group) => {
 				const data = CellUri.parse(resource);
 				let notebookUri: URI = resource;
 				let cellOptions: IResourceEditorInput | undefined;
@@ -178,6 +180,15 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorInfo,
 				notebookEditorOptions,
 				notebookEditorInputFactory,
+				({ resource, options }, group) => {
+					if (!resource) {
+						resource = URI.from({
+							scheme: Schemas.untitled,
+							authority: `Untitled-${this._untitledCounter++}`
+						});
+					}
+					return notebookEditorInputFactory({ resource, options }, group);
+				},
 				notebookEditorDiffFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
@@ -186,6 +197,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				{ ...notebookEditorInfo, priority: RegisteredEditorPriority.exclusive },
 				notebookEditorOptions,
 				notebookEditorInputFactory,
+				undefined,
 				notebookEditorDiffFactory
 			));
 		}

@@ -24,11 +24,7 @@ export function renderGhostTextToText(ghostText: GhostText | undefined, text: st
 	const tempModel = createTextModel(text);
 	tempModel.applyEdits(
 		[
-			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.text}]` })),
-			...(ghostText.additionalLines.length > 0 ? [{
-				range: { startLineNumber: l, endLineNumber: l, startColumn: tempModel.getLineMaxColumn(l), endColumn: tempModel.getLineMaxColumn(l) },
-				text: `{${ghostText.additionalLines.map(s => '\n' + s).join('')}}`
-			}] : [])
+			...ghostText.parts.map(p => ({ range: { startLineNumber: l, endLineNumber: l, startColumn: p.column, endColumn: p.column }, text: `[${p.lines.join('\n')}]` })),
 		]
 	);
 	const value = tempModel.getValue();
