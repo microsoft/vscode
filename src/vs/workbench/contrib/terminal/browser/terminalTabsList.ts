@@ -541,6 +541,12 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		return elements.length === 1 ? elements[0].title : undefined;
 	}
 
+	onDragLeave() {
+		this._autoFocusInstance = undefined;
+		this._autoFocusDisposable.dispose();
+		this._autoFocusDisposable = Disposable.None;
+	}
+
 	onDragStart(data: IDragAndDropData, originalEvent: DragEvent): void {
 		if (!originalEvent.dataTransfer) {
 			return;
