@@ -25,8 +25,18 @@ With `$name` or `${name:default}` you can insert the value of a variable. When a
 * `TM_LINE_INDEX` The zero-index based line number
 * `TM_LINE_NUMBER` The one-index based line number
 * `TM_FILENAME` The filename of the current document
+* `TM_FILENAME_BASE` The basename of the current document
 * `TM_DIRECTORY` The directory of the current document
 * `TM_FILEPATH` The full file path of the current document
+* `RELATIVE_FILEPATH` The relative file path of the current document
+* `LINE_COMMENT` Language specific line comment token
+* `BLOCK_COMMENT_START` Language specific block comment start token
+* `BLOCK_COMMENT_END` Language specific block comment end token
+* `WORKSPACE_NAME` Name of the current workspace
+* `WORKSPACE_FOLDER` The directory path of the current workspace
+* `RANDOM` A random number
+* `RANDOM_HEX` A random number in base 16
+* `UUID` A UUID
 
 Variable-Transform
 --
