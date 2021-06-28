@@ -572,11 +572,10 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			untypedEditor = editor.editor.toUntyped(undefined, UntypedEditorContext.Default);
 
 			if (untypedEditor) {
-				const override = editor.options?.override ?? untypedEditor.options?.override;
 				// Preserve original options: specifically it is
 				// possible that a `override` was defined from
 				// the outside and we do not want to loose it.
-				untypedEditor.options = { ...untypedEditor.options, ...editor.options, override };
+				untypedEditor.options = { ...untypedEditor.options, ...editor.options };
 			}
 		}
 
