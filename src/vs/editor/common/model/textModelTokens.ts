@@ -9,7 +9,6 @@ import { LineTokens } from 'vs/editor/common/core/lineTokens';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { TokenizationResult2 } from 'vs/editor/common/core/token';
-import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { IState, ITokenizationSupport, LanguageIdentifier, TokenizationRegistry } from 'vs/editor/common/modes';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -217,14 +216,11 @@ export class TextModelTokenization extends Disposable {
 			this._textModel.clearTokens();
 		}));
 
-		this._register(this._textModel.onDidChangeRawContentFast((e) => {
-			if (e.containsEvent(RawContentChangedType.Flush)) {
+		this._register(this._textModel.onDidChangeContentFast((e) => {
+			if (e.isFlush) {
 				this._resetTokenizationState();
 				return;
 			}
-		}));
-
-		this._register(this._textModel.onDidChangeContentFast((e) => {
 			for (let i = 0, len = e.changes.length; i < len; i++) {
 				const change = e.changes[i];
 				const [eolCount] = countEOL(change.text);

@@ -588,3 +588,16 @@ export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): numb
 
 	return maxIdx;
 }
+
+/**
+ * Returns an array of all elements `e` with `startKey <= keySelector(e) <= endKey`.
+ * `data` must be sorted in ascending order.
+*/
+export function filterSortedByKey<T>(data: readonly T[], keySelector: (value: T) => number, startKey: number, endKey = startKey): T[] | null {
+	const startIdx = findFirstInSorted(data, x => startKey <= keySelector(x));
+	const endIdx = findFirstInSorted(data, x => endKey < keySelector(x));
+	if (startIdx === endIdx) {
+		return null;
+	}
+	return data.slice(startIdx, endIdx);
+}
