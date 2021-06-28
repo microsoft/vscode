@@ -122,7 +122,7 @@ export class TerminalEditor extends EditorPane {
 		if (!this._parentElement) {
 			return;
 		}
-		dom.addDisposableListener(this._parentElement, 'mousedown', async (event: MouseEvent) => {
+		this._register(dom.addDisposableListener(this._parentElement, 'mousedown', async (event: MouseEvent) => {
 			if (this._terminalEditorService.instances.length === 0) {
 				return;
 			}
@@ -170,21 +170,21 @@ export class TerminalEditor extends EditorPane {
 					this._cancelContextMenu = true;
 				}
 			}
-		});
-		dom.addDisposableListener(this._parentElement, dom.EventType.CONTEXT_MENU, e => {
+		}));
+		this._register(dom.addDisposableListener(this._parentElement, dom.EventType.CONTEXT_MENU, e => {
 			if (e.button === 2) {
 				this._openContextMenu(e);
 				e.preventDefault();
 			}
-		});
-		dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
+		}));
+		this._register(dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				this._openContextMenu(event);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			this._cancelContextMenu = false;
-		});
+		}));
 	}
 
 	private _openContextMenu(event: MouseEvent): void {
