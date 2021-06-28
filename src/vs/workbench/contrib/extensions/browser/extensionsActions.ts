@@ -2089,10 +2089,15 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 
-			if (!this.extension.gallery.webExtension) {
-				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+			if (this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer
+				&& !this.extensionManagementServerService.remoteExtensionManagementServer) {
 				const productName = isWeb ? localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web") : this.productService.nameLong;
-				this.tooltip = localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName);
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				if (this.extension.gallery.webExtension) {
+					this.tooltip = localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName);
+				} else {
+					this.tooltip = localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName);
+				}
 				return;
 			}
 		}

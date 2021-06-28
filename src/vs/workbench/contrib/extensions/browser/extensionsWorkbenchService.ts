@@ -951,7 +951,8 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 
 		if (this.extensionManagementServerService.webExtensionManagementServer) {
-			return extension.gallery.webExtension;
+			const configuredExtensionKind = this.extensionManifestPropertiesService.getUserConfiguredExtensionKind(extension.gallery.identifier);
+			return configuredExtensionKind ? configuredExtensionKind.includes('web') : extension.gallery.webExtension;
 		}
 
 		return false;
