@@ -632,7 +632,7 @@ class TerminalThemeIconStyle extends Themable {
 			if (color) {
 				// exclude status icons (file-icon) and inline action icons (trashcan and horizontalSplit)
 				css += (
-					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon),` +
+					`.monaco-workbench .${colorClass} .codicon:first-child:not(.codicon-split-horizontal):not(.codicon-trashcan):not(.file-icon)` +
 					`{ color: ${color} !important; }`
 				);
 			}
