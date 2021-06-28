@@ -601,11 +601,14 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 		let sourceInstances: ITerminalInstance[] | undefined;
 		const terminalResources = originalEvent.dataTransfer?.getData(DataTransfers.TERMINALS);
 		if (terminalResources) {
-			const uri = URI.parse(JSON.parse(terminalResources)[0]);
-			const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
-			if (instance) {
-				sourceInstances = [instance];
-				this._terminalService.moveToTerminalView(instance);
+			const json = JSON.parse(terminalResources);
+			for (const entry of json) {
+				const uri = URI.parse(entry);
+				const instance = this._terminalService.instances.find(e => e.resource.path === uri.path);
+				if (instance) {
+					sourceInstances = [instance];
+					this._terminalService.moveToTerminalView(instance);
+				}
 			}
 		}
 
