@@ -1427,19 +1427,14 @@ export class SettingExcludeRenderer extends AbstractSettingRenderer implements I
 }
 
 abstract class AbstractSettingTextRenderer extends AbstractSettingRenderer implements ITreeRenderer<SettingsTreeSettingElement, never, ISettingTextItemTemplate> {
-	private _useMultiline: boolean = false;
 	private readonly MULTILINE_MAX_HEIGHT = 150;
 
-	protected set useMultiline(useMultiline: boolean) {
-		this._useMultiline = useMultiline;
-	}
-
-	renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
+	renderTemplate(_container: HTMLElement, useMultiline?: boolean): ISettingTextItemTemplate {
 		const common = this.renderCommonTemplate(null, _container, 'text');
 		const validationErrorMessageElement = DOM.append(common.containerElement, $('.setting-item-validation-message'));
 
 		const inputBoxOptions: IInputOptions = {
-			flexibleHeight: this._useMultiline,
+			flexibleHeight: useMultiline,
 			flexibleWidth: false,
 			flexibleMaxHeight: this.MULTILINE_MAX_HEIGHT
 		};
@@ -1492,8 +1487,7 @@ export class SettingTextRenderer extends AbstractSettingTextRenderer implements 
 	templateId = SETTINGS_TEXT_TEMPLATE_ID;
 
 	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
-		super.useMultiline = false;
-		const template = super.renderTemplate(_container);
+		const template = super.renderTemplate(_container, false);
 
 		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
 		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
@@ -1511,8 +1505,7 @@ export class SettingMultilineTextRenderer extends AbstractSettingTextRenderer im
 	templateId = SETTINGS_MULTILINE_TEXT_TEMPLATE_ID;
 
 	override renderTemplate(_container: HTMLElement): ISettingTextItemTemplate {
-		super.useMultiline = true;
-		return super.renderTemplate(_container);
+		return super.renderTemplate(_container, true);
 	}
 
 	protected override renderValue(dataElement: SettingsTreeSettingElement, template: ISettingTextItemTemplate, onChange: (value: string) => void) {
