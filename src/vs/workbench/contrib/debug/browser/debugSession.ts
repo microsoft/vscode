@@ -50,7 +50,7 @@ export class DebugSession implements IDebugSession {
 	private rawListeners: IDisposable[] = [];
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private repl: ReplModel;
-	private stoppedDetails: IRawStoppedDetails | undefined;
+	private stoppedDetails: IRawStoppedDetails[] = [];
 
 	private readonly _onDidChangeState = new Emitter<void>();
 	private readonly _onDidEndAdapter = new Emitter<AdapterEndEvent | undefined>();
@@ -725,7 +725,7 @@ export class DebugSession implements IDebugSession {
 	}
 
 	getStoppedDetails(): IRawStoppedDetails | undefined {
-		return this.stoppedDetails;
+		return this.stoppedDetails.length >= 1 ? this.stoppedDetails[0] : undefined;
 	}
 
 	rawUpdate(data: IRawModelUpdate): void {
@@ -825,7 +825,7 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidStop(async event => {
-			this.stoppedDetails = event.body;
+			this.stoppedDetails.push(event.body);
 			await this.fetchThreads(event.body);
 			const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
 			if (thread) {
@@ -892,20 +892,29 @@ export class DebugSession implements IDebugSession {
 		}));
 
 		this.rawListeners.push(this.raw.onDidContinued(event => {
-			this.stoppedDetails = undefined;
 			const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
-			if (threadId) {
+			if (typeof threadId === 'number') {
+				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
 				const tokens = this.cancellationMap.get(threadId);
 				this.cancellationMap.delete(threadId);
 				if (tokens) {
 					tokens.forEach(t => t.cancel());
 				}
 			} else {
+				this.stoppedDetails = [];
 				this.cancelAllRequests();
 			}
 
 			this.model.clearThreads(this.getId(), false, threadId);
 			this._onDidChangeState.fire();
+			// If the focused thread does get stopped in the next 800ms auto focus another thread or session https://github.com/microsoft/vscode/issues/125144
+			setTimeout(() => {
+				if (typeof threadId === 'number' && this.debugService.getViewModel().focusedThread?.threadId === threadId && this.debugService.state !== State.Stopped) {
+					const toFocusThreadId = this.getStoppedDetails()?.threadId;
+					const toFocusThread = typeof toFocusThreadId === 'number' ? this.getThread(toFocusThreadId) : undefined;
+					this.debugService.focusStackFrame(undefined, toFocusThread);
+				}
+			}, 800);
 		}));
 
 		const outputQueue = new Queue<void>();
@@ -1048,7 +1057,7 @@ export class DebugSession implements IDebugSession {
 				// If invalidated event only requires to update variables or watch, do that, otherwise refatch threads https://github.com/microsoft/vscode/issues/106745
 				this.cancelAllRequests();
 				this.model.clearThreads(this.getId(), true);
-				await this.fetchThreads(this.stoppedDetails);
+				await this.fetchThreads(this.getStoppedDetails());
 			}
 
 			const viewModel = this.debugService.getViewModel();
