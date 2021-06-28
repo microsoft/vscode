@@ -2783,18 +2783,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region https://github.com/microsoft/vscode/issues/87110 @eamodio
-
-	export interface Memento {
-
-		/**
-		 * The stored keys.
-		 */
-		readonly keys: readonly string[];
-	}
-
-	//#endregion
-
 	//#region https://github.com/microsoft/vscode/issues/126258 @aeschli
 
 	export interface StatusBarItem {
