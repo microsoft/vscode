@@ -193,11 +193,21 @@ suite('Reference Collection', () => {
 	});
 });
 
+function assertThrows(fn: () => void, test: (error: any) => void) {
+	try {
+		fn();
+		assert.fail('Expected function to throw, but it did not.');
+	} catch (e) {
+		assert.ok(test(e));
+	}
+}
+
 suite('No Leakage Utilities', () => {
 	suite('throwIfDisposablesAreLeaked', () => {
 		test('throws if an event subscription is not cleaned up', () => {
 			const eventEmitter = new Emitter();
-			assert.throws(() => {
+
+			assertThrows(() => {
 				throwIfDisposablesAreLeaked(() => {
 					eventEmitter.event(() => {
 						// noop
@@ -207,7 +217,7 @@ suite('No Leakage Utilities', () => {
 		});
 
 		test('throws if a disposable is not disposed', () => {
-			assert.throws(() => {
+			assertThrows(() => {
 				throwIfDisposablesAreLeaked(() => {
 					new DisposableStore();
 				});
