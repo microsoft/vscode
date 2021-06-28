@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { canceled, } from 'vs/base/common/errors';
 import { Emitter, Event, } from 'vs/base/common/event';
-import { IDisposable, toDisposable, Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, Disposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -19,18 +19,19 @@ export interface CancelablePromise<T> extends Promise<T> {
 }
 
 export function createCancelablePromise<T>(callback: (token: CancellationToken) => Promise<T>): CancelablePromise<T> {
-	const source = new CancellationTokenSource();
+	const disposableStore = new DisposableStore();
+	const source = disposableStore.add(new CancellationTokenSource());
 
 	const thenable = callback(source.token);
 	const promise = new Promise<T>((resolve, reject) => {
-		source.token.onCancellationRequested(() => {
+		disposableStore.add(source.token.onCancellationRequested(() => {
 			reject(canceled());
-		});
+		}));
 		Promise.resolve(thenable).then(value => {
-			source.dispose();
+			disposableStore.dispose();
 			resolve(value);
 		}, err => {
-			source.dispose();
+			disposableStore.dispose();
 			reject(err);
 		});
 	});
@@ -394,9 +395,13 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	}
 
 	return new Promise((resolve, reject) => {
-		const handle = setTimeout(resolve, millis);
-		token.onCancellationRequested(() => {
+		const handle = setTimeout(() => {
+			disposable.dispose();
+			resolve();
+		}, millis);
+		const disposable = token.onCancellationRequested(() => {
 			clearTimeout(handle);
+			disposable.dispose();
 			reject(canceled());
 		});
 	});
