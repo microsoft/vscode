@@ -49,7 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
 		supportsMultipleEditorsPerDocument: true
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.showPreview', () => {
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.showPreviewToSide', () => {
 		svgPreviewManager.activePreview?.showPreviewToSide();
 	}));
 

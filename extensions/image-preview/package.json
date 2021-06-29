@@ -26,10 +26,11 @@
     "onCustomEditor:svgPreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
     "onCommand:imagePreview.zoomOut",
-    "onCommand:svgPreview.refresh",
     "onCommand:svgPreview.showPreview",
     "onCommand:svgPreview.showPreviewToSide",
     "onCommand:svgPreview.showSource",
+    "onCommand:svgPreview.zoomIn",
+    "onCommand:svgPreview.zoomOut",
     "onLanguage:xml",
     "onLanguage:svg"
   ],
