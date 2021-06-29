@@ -87,17 +87,5 @@ suite('Workbench - Testing Explorer Hierarchal by Name Projection', () => {
 			{ e: 'ba' },
 		]);
 	});
-
-	test('swaps when node is no longer runnable', async () => {
-		harness.flush();
-		const ba = new TestItemImpl('ba', 'ba', undefined, undefined, harness.c.root.children.get('id-b')!);
-		ba.runnable = false;
-
-		assert.deepStrictEqual(harness.flush(), [
-			{ e: 'aa' },
-			{ e: 'ab' },
-			{ e: 'b' },
-		]);
-	});
 });
 

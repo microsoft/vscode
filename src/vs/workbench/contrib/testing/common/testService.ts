@@ -5,14 +5,14 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
+import * as extpath from 'vs/base/common/extpath';
+import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, RunTestForControllerRequest, RunTestsRequest, TestIdPath, TestItemExpandState, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { AbstractIncrementalTestCollection, IncrementalTestCollectionItem, InternalTestItem, ITestIdWithSrc, ResolvedTestRunRequest, RunTestForControllerRequest, TestIdPath, TestItemExpandState, TestRunConfigurationBitset, TestsDiff } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestExclusions } from 'vs/workbench/contrib/testing/common/testExclusions';
 import { ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
-import * as extpath from 'vs/base/common/extpath';
-import { Iterable } from 'vs/base/common/iterator';
 
 export const ITestService = createDecorator<ITestService>('testService');
 
@@ -161,6 +161,23 @@ export interface ITestRootProvider {
 	// todo: nothing, yet
 }
 
+/**
+ * A run request that expresses the intent of the request and allows the
+ * test service to resolve the specifics of the group.
+ */
+export interface AmbiguousRunTestsRequest {
+	/** Group to run */
+	group: TestRunConfigurationBitset;
+	/** If there is a configuration in the group with this label, use it */
+	preferGroupLabel?: string;
+	/** Tests to run. Allowed to be from different controllers */
+	tests: ITestIdWithSrc[];
+	/** Tests to exclude. If not given, the current UI excluded tests are used */
+	exclude?: ITestIdWithSrc[];
+	/** Whether this was triggered from an auto run. */
+	isAutoRun?: boolean;
+}
+
 export interface ITestService {
 	readonly _serviceBrand: undefined;
 	/**
@@ -170,9 +187,9 @@ export interface ITestService {
 	readonly onDidCancelTestRun: Event<{ runId: string | undefined; }>;
 
 	/**
-	 * Set of test IDs the user asked to exclude.
+	 * Event that fires when the excluded tests change.
 	 */
-	readonly excludeTests: MutableObservableValue<ReadonlySet<string>>;
+	readonly excluded: TestExclusions;
 
 	/**
 	 * Test collection instance.
@@ -185,16 +202,6 @@ export interface ITestService {
 	readonly onDidProcessDiff: Event<TestsDiff>;
 
 	/**
-	 * Sets whether a test is excluded.
-	 */
-	setTestExcluded(testId: string, exclude?: boolean): void;
-
-	/**
-	 * Removes all test exclusions.
-	 */
-	clearExcludedTests(): void;
-
-	/**
 	 * Registers an interface that runs tests for the given provider ID.
 	 */
 	registerTestController(providerId: string, controller: MainTestController): IDisposable;
@@ -202,7 +209,12 @@ export interface ITestService {
 	/**
 	 * Requests that tests be executed.
 	 */
-	runTests(req: RunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
+	runTests(req: AmbiguousRunTestsRequest, token?: CancellationToken): Promise<ITestResult>;
+
+	/**
+	 * Requests that tests be executed.
+	 */
+	runResolvedTests(req: ResolvedTestRunRequest, token?: CancellationToken): Promise<ITestResult>;
 
 	/**
 	 * Cancels an ongoing test run by its ID, or all runs if no ID is given.

@@ -26,7 +26,8 @@ import { ITestingProgressUiService, TestingProgressUiService } from 'vs/workbenc
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguation } from 'vs/workbench/contrib/testing/common/configuration';
 import { Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { TestIdPath, ITestIdWithSrc, identifyTest } from 'vs/workbench/contrib/testing/common/testCollection';
+import { TestIdPath, ITestIdWithSrc, identifyTest, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { ITestConfigurationService, TestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { ITestingAutoRun, TestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContentProvider } from 'vs/workbench/contrib/testing/common/testingContentProvider';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
@@ -38,14 +39,15 @@ import { TestService } from 'vs/workbench/contrib/testing/common/testServiceImpl
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { allTestActions, runTestsByPath } from './testExplorerActions';
 
-registerSingleton(ITestService, TestService);
-registerSingleton(ITestResultStorage, TestResultStorage);
-registerSingleton(ITestResultService, TestResultService);
-registerSingleton(ITestExplorerFilterState, TestExplorerFilterState);
+registerSingleton(ITestService, TestService, true);
+registerSingleton(ITestResultStorage, TestResultStorage, true);
+registerSingleton(ITestConfigurationService, TestConfigurationService, true);
+registerSingleton(ITestResultService, TestResultService, true);
+registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, true);
 registerSingleton(ITestingAutoRun, TestingAutoRun, true);
 registerSingleton(ITestingOutputTerminalService, TestingOutputTerminalService, true);
-registerSingleton(ITestingPeekOpener, TestingPeekOpener);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService);
+registerSingleton(ITestingPeekOpener, TestingPeekOpener, true);
+registerSingleton(ITestingProgressUiService, TestingProgressUiService, true);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
@@ -110,7 +112,7 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.runTests',
 	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: false, tests });
+		testService.runTests({ group: TestRunConfigurationBitset.Run, tests });
 	}
 });
 
@@ -118,7 +120,7 @@ CommandsRegistry.registerCommand({
 	id: 'vscode.debugTests',
 	handler: async (accessor: ServicesAccessor, tests: ITestIdWithSrc[]) => {
 		const testService = accessor.get(ITestService);
-		testService.runTests({ debug: true, tests });
+		testService.runTests({ group: TestRunConfigurationBitset.Debug, tests });
 	}
 });
 
@@ -142,16 +144,13 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'vscode.runTestsByPath',
-	handler: async (accessor: ServicesAccessor, debug: boolean, ...pathToTests: TestIdPath[]) => {
+	handler: async (accessor: ServicesAccessor, group: TestRunConfigurationBitset, ...pathToTests: TestIdPath[]) => {
 		const testService = accessor.get(ITestService);
 		await runTestsByPath(
 			accessor.get(ITestService).collection,
 			accessor.get(IProgressService),
 			pathToTests,
-			tests => testService.runTests({
-				debug: false,
-				tests: tests.map(identifyTest),
-			}),
+			tests => testService.runTests({ group, tests: tests.map(identifyTest) }),
 		);
 	}
 });

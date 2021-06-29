@@ -29,7 +29,7 @@ import { ITestExplorerFilterState } from 'vs/workbench/contrib/testing/browser/t
 import { TestingExplorerView, TestingExplorerViewModel } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { ITestingOutputTerminalService } from 'vs/workbench/contrib/testing/browser/testingOutputTerminalService';
 import { TestExplorerViewMode, TestExplorerViewSorting, Testing } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, TestIdPath } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, InternalTestItem, ITestIdWithSrc, ITestItem, TestIdPath, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestingAutoRun } from 'vs/workbench/contrib/testing/common/testingAutoRun';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
@@ -46,6 +46,7 @@ const enum ActionOrder {
 	// Navigation:
 	Run = 10,
 	Debug,
+	Coverage,
 	AutoRun,
 	Collapse,
 
@@ -74,7 +75,7 @@ export class HideTestAction extends Action2 {
 		const service = accessor.get(ITestService);
 		for (const element of elements) {
 			if (element instanceof TestItemTreeElement) {
-				service.setTestExcluded(element.test.item.extId, true);
+				service.excluded.toggle(identifyTest(element.test), true);
 			}
 		}
 		return Promise.resolve();
@@ -98,7 +99,7 @@ export class UnhideTestAction extends Action2 {
 		const service = accessor.get(ITestService);
 		for (const element of elements) {
 			if (element instanceof TestItemTreeElement) {
-				service.setTestExcluded(element.test.item.extId, false);
+				service.excluded.toggle(identifyTest(element.test), false);
 			}
 		}
 		return Promise.resolve();
@@ -123,8 +124,8 @@ export class DebugAction extends Action2 {
 
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.debuggable))],
-			debug: true,
+			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			group: TestRunConfigurationBitset.Debug,
 		});
 	}
 }
@@ -151,14 +152,14 @@ export class RunAction extends Action2 {
 	 */
 	public override run(acessor: ServicesAccessor, ...elements: IActionableTestTreeElement[]): Promise<any> {
 		return acessor.get(ITestService).runTests({
-			tests: [...Iterable.concatNested(elements.map(e => e.runnable))],
-			debug: false,
+			tests: [...Iterable.concatNested(elements.map(e => e.tests))],
+			group: TestRunConfigurationBitset.Run,
 		});
 	}
 }
 
-abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> {
-	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean) {
+abstract class ExecuteSelectedAction extends ViewAction<TestingExplorerView> {
+	constructor(id: string, title: string, icon: ThemeIcon, private readonly group: TestRunConfigurationBitset) {
 		super({
 			id,
 			title,
@@ -179,7 +180,7 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			return Promise.resolve(undefined);
 		}
 
-		return accessor.get(ITestService).runTests({ tests, debug: this.debug });
+		return accessor.get(ITestService).runTests({ tests, group: this.group });
 	}
 
 	private getActionableTests(testService: ITestService, viewModel: TestingExplorerViewModel) {
@@ -189,18 +190,16 @@ abstract class RunOrDebugSelectedAction extends ViewAction<TestingExplorerView> 
 			tests = ([...testService.collection.rootItems].map(identifyTest));
 		} else {
 			tests = selected
-				.map(treeElement => treeElement instanceof TestItemTreeElement && this.filter(treeElement.test) ? treeElement.test : undefined)
+				.map(treeElement => treeElement instanceof TestItemTreeElement ? treeElement.test : undefined)
 				.filter(isDefined)
 				.map(identifyTest);
 		}
 
 		return tests;
 	}
-
-	protected abstract filter(item: InternalTestItem): boolean;
 }
 
-export class RunSelectedAction extends RunOrDebugSelectedAction {
+export class RunSelectedAction extends ExecuteSelectedAction {
 	public static readonly ID = 'testing.runSelected';
 
 	constructor() {
@@ -208,34 +207,20 @@ export class RunSelectedAction extends RunOrDebugSelectedAction {
 			RunSelectedAction.ID,
 			localize('runSelectedTests', 'Run Selected Tests'),
 			icons.testingRunIcon,
-			false,
+			TestRunConfigurationBitset.Run,
 		);
-	}
-
-	/**
-	 * @override
-	 */
-	public filter({ item }: InternalTestItem) {
-		return item.runnable;
 	}
 }
 
-export class DebugSelectedAction extends RunOrDebugSelectedAction {
+export class DebugSelectedAction extends ExecuteSelectedAction {
 	public static readonly ID = 'testing.debugSelected';
 	constructor() {
 		super(
 			DebugSelectedAction.ID,
 			localize('debugSelectedTests', 'Debug Selected Tests'),
 			icons.testingDebugIcon,
-			true,
+			TestRunConfigurationBitset.Debug,
 		);
-	}
-
-	/**
-	 * @override
-	 */
-	public filter({ item }: InternalTestItem) {
-		return item.debuggable;
 	}
 }
 
@@ -250,27 +235,26 @@ const showDiscoveringWhile = <R>(progress: IProgressService, task: Promise<R>): 
 };
 
 abstract class RunOrDebugAllTestsAction extends Action2 {
-	constructor(id: string, title: string, icon: ThemeIcon, private readonly debug: boolean, private noTestsFoundError: string, keybinding: IAction2Options['keybinding']) {
+	constructor(options: IAction2Options, private readonly group: TestRunConfigurationBitset, private noTestsFoundError: string) {
 		super({
-			id,
-			title,
-			icon,
+			...options,
 			category,
-			keybinding,
 			menu: [{
 				id: MenuId.ViewTitle,
-				order: debug ? ActionOrder.Debug : ActionOrder.Run,
+				order: group === TestRunConfigurationBitset.Run
+					? ActionOrder.Run
+					: group === TestRunConfigurationBitset.Debug
+						? ActionOrder.Debug
+						: ActionOrder.Coverage,
 				group: 'navigation',
 				when: ContextKeyAndExpr.create([
 					ContextKeyEqualsExpr.create('view', Testing.ExplorerViewId),
 					TestingContextKeys.isRunning.isEqualTo(false),
-					debug
-						? TestingContextKeys.hasDebuggableTests.isEqualTo(true)
-						: TestingContextKeys.hasRunnableTests.isEqualTo(true),
+					TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
 				])
 			}, {
 				id: MenuId.CommandPalette,
-				when: hasAnyTestProvider,
+				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
 			}]
 		});
 	}
@@ -285,7 +269,7 @@ abstract class RunOrDebugAllTestsAction extends Action2 {
 			return;
 		}
 
-		await testService.runTests({ tests: roots.map(identifyTest), debug: this.debug });
+		await testService.runTests({ tests: roots.map(identifyTest), group: this.group });
 	}
 }
 
@@ -293,15 +277,17 @@ export class RunAllAction extends RunOrDebugAllTestsAction {
 	public static readonly ID = 'testing.runAll';
 	constructor() {
 		super(
-			RunAllAction.ID,
-			localize('runAllTests', 'Run All Tests'),
-			icons.testingRunAllIcon,
-			false,
-			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
 			{
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
-			}
+				id: RunAllAction.ID,
+				title: localize('runAllTests', 'Run All Tests'),
+				icon: icons.testingRunAllIcon,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_A),
+				},
+			},
+			TestRunConfigurationBitset.Run,
+			localize('noTestProvider', 'No tests found in this workspace. You may need to install a test provider extension'),
 		);
 	}
 }
@@ -310,15 +296,17 @@ export class DebugAllAction extends RunOrDebugAllTestsAction {
 	public static readonly ID = 'testing.debugAll';
 	constructor() {
 		super(
-			DebugAllAction.ID,
-			localize('debugAllTests', 'Debug All Tests'),
-			icons.testingDebugIcon,
-			true,
-			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
 			{
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
-			}
+				id: DebugAllAction.ID,
+				title: localize('debugAllTests', 'Debug All Tests'),
+				icon: icons.testingDebugIcon,
+				keybinding: {
+					weight: KeybindingWeight.WorkbenchContrib,
+					primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_A),
+				},
+			},
+			TestRunConfigurationBitset.Debug,
+			localize('noDebugTestProvider', 'No debuggable tests found in this workspace. You may need to install a test provider extension'),
 		);
 	}
 }
@@ -718,8 +706,8 @@ export class AutoRunOffAction extends ToggleAutoRun {
 }
 
 
-abstract class RunOrDebugAtCursor extends Action2 {
-	constructor(options: IAction2Options) {
+abstract class ExecuteTestAtCursor extends Action2 {
+	constructor(options: IAction2Options, protected readonly group: TestRunConfigurationBitset) {
 		super({
 			...options,
 			menu: {
@@ -745,7 +733,7 @@ abstract class RunOrDebugAtCursor extends Action2 {
 
 		await showDiscoveringWhile(accessor.get(IProgressService), (async () => {
 			for await (const test of testsInFile(testService.collection, model.uri)) {
-				if (this.filter(test) && test.item.range && Range.containsPosition(test.item.range, position)) {
+				if (test.item.range && Range.containsPosition(test.item.range, position)) {
 					bestNode = test;
 				}
 			}
@@ -753,16 +741,15 @@ abstract class RunOrDebugAtCursor extends Action2 {
 
 
 		if (bestNode) {
-			await this.runTest(testService, bestNode);
+			await testService.runTests({
+				group: this.group,
+				tests: [identifyTest(bestNode)],
+			});
 		}
 	}
-
-	protected abstract filter(node: InternalTestItem): boolean;
-
-	protected abstract runTest(service: ITestService, node: InternalTestItem): Promise<ITestResult>;
 }
 
-export class RunAtCursor extends RunOrDebugAtCursor {
+export class RunAtCursor extends ExecuteTestAtCursor {
 	public static readonly ID = 'testing.runAtCursor';
 	constructor() {
 		super({
@@ -774,22 +761,11 @@ export class RunAtCursor extends RunOrDebugAtCursor {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_C),
 			},
-		});
-	}
-
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.runnable;
-	}
-
-	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({
-			debug: false,
-			tests: [identifyTest(internalTest)],
-		});
+		}, TestRunConfigurationBitset.Run);
 	}
 }
 
-export class DebugAtCursor extends RunOrDebugAtCursor {
+export class DebugAtCursor extends ExecuteTestAtCursor {
 	public static readonly ID = 'testing.debugAtCursor';
 	constructor() {
 		super({
@@ -801,28 +777,17 @@ export class DebugAtCursor extends RunOrDebugAtCursor {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_C),
 			},
-		});
-	}
-
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.debuggable;
-	}
-
-	protected runTest(service: ITestService, internalTest: InternalTestItem): Promise<ITestResult> {
-		return service.runTests({
-			debug: true,
-			tests: [identifyTest(internalTest)],
-		});
+		}, TestRunConfigurationBitset.Debug);
 	}
 }
 
-abstract class RunOrDebugCurrentFile extends Action2 {
-	constructor(options: IAction2Options) {
+abstract class ExecuteTestsInCurrentFile extends Action2 {
+	constructor(options: IAction2Options, protected readonly group: TestRunConfigurationBitset) {
 		super({
 			...options,
 			menu: {
 				id: MenuId.CommandPalette,
-				when: hasAnyTestProvider,
+				when: TestingContextKeys.capabilityToContextKey[group].isEqualTo(true),
 			},
 		});
 	}
@@ -843,21 +808,20 @@ abstract class RunOrDebugCurrentFile extends Action2 {
 		const demandedUri = model.uri.toString();
 		for (const test of testService.collection.all) {
 			if (test.item.uri?.toString() === demandedUri) {
-				return this.runTest(testService, [test]);
+				return testService.runTests({
+					tests: [identifyTest(test)],
+					group: this.group,
+				});
 			}
 		}
 
 		return undefined;
 	}
-
-
-	protected abstract filter(node: InternalTestItem): boolean;
-
-	protected abstract runTest(service: ITestService, node: InternalTestItem[]): Promise<ITestResult>;
 }
 
-export class RunCurrentFile extends RunOrDebugCurrentFile {
+export class RunCurrentFile extends ExecuteTestsInCurrentFile {
 	public static readonly ID = 'testing.runCurrentFile';
+
 	constructor() {
 		super({
 			id: RunCurrentFile.ID,
@@ -868,27 +832,13 @@ export class RunCurrentFile extends RunOrDebugCurrentFile {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyCode.KEY_F),
 			},
-			menu: {
-				id: MenuId.CommandPalette,
-				when: hasAnyTestProvider,
-			},
-		});
-	}
-
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.runnable;
-	}
-
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			debug: false,
-			tests: internalTests.map(identifyTest),
-		});
+		}, TestRunConfigurationBitset.Run);
 	}
 }
 
-export class DebugCurrentFile extends RunOrDebugCurrentFile {
+export class DebugCurrentFile extends ExecuteTestsInCurrentFile {
 	public static readonly ID = 'testing.debugCurrentFile';
+
 	constructor() {
 		super({
 			id: DebugCurrentFile.ID,
@@ -899,18 +849,7 @@ export class DebugCurrentFile extends RunOrDebugCurrentFile {
 				when: EditorContextKeys.editorTextFocus,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.US_SEMICOLON, KeyMod.CtrlCmd | KeyCode.KEY_F),
 			},
-		});
-	}
-
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.debuggable;
-	}
-
-	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
-		return service.runTests({
-			debug: true,
-			tests: internalTests.map(identifyTest)
-		});
+		}, TestRunConfigurationBitset.Debug);
 	}
 }
 
@@ -940,8 +879,6 @@ abstract class RunOrDebugExtsByPath extends Action2 {
 	}
 
 	protected abstract getTestExtIdsToRun(accessor: ServicesAccessor, ...args: unknown[]): Iterable<TestIdPath>;
-
-	protected abstract filter(node: InternalTestItem): boolean;
 
 	protected abstract runTest(service: ITestService, node: readonly InternalTestItem[]): Promise<ITestResult>;
 }
@@ -1003,9 +940,12 @@ abstract class RunOrDebugLastRun extends RunOrDebugExtsByPath {
 			return;
 		}
 
-		for (const test of lastResult.tests) {
-			if (test.direct) {
-				yield getPathForTestInResult(test, lastResult);
+		for (const test of lastResult.request.targets) {
+			for (const testId of test.testIds) {
+				const test = lastResult.getStateById(testId);
+				if (test) {
+					yield getPathForTestInResult(test, lastResult);
+				}
 			}
 		}
 	}
@@ -1025,13 +965,9 @@ export class ReRunFailedTests extends RunOrDebugFailedTests {
 		});
 	}
 
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.runnable;
-	}
-
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			debug: false,
+			group: TestRunConfigurationBitset.Run,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1051,13 +987,9 @@ export class DebugFailedTests extends RunOrDebugFailedTests {
 		});
 	}
 
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.debuggable;
-	}
-
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			debug: true,
+			group: TestRunConfigurationBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1077,13 +1009,9 @@ export class ReRunLastRun extends RunOrDebugLastRun {
 		});
 	}
 
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.runnable;
-	}
-
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			debug: false,
+			group: TestRunConfigurationBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1103,13 +1031,9 @@ export class DebugLastRun extends RunOrDebugLastRun {
 		});
 	}
 
-	protected filter(node: InternalTestItem): boolean {
-		return node.item.debuggable;
-	}
-
 	protected runTest(service: ITestService, internalTests: InternalTestItem[]): Promise<ITestResult> {
 		return service.runTests({
-			debug: true,
+			group: TestRunConfigurationBitset.Debug,
 			tests: internalTests.map(identifyTest),
 		});
 	}
@@ -1187,5 +1111,3 @@ export const allTestActions = [
 	TestingViewAsTreeAction,
 	UnhideTestAction,
 ];
-
-export const internalTestActionIds = new Set<string>(allTestActions.map(a => a.ID));

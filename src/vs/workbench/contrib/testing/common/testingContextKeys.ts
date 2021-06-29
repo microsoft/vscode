@@ -7,11 +7,20 @@ import { localize } from 'vs/nls';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TestExplorerViewMode, TestExplorerViewSorting } from 'vs/workbench/contrib/testing/common/constants';
+import { TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
 
 export namespace TestingContextKeys {
 	export const providerCount = new RawContextKey('testing.providerCount', 0);
-	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false);
-	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false);
+	export const hasDebuggableTests = new RawContextKey('testing.hasDebuggableTests', false, { type: 'boolean', description: localize('testing.hasDebuggableTests', 'Indicates whether any test controller has registered a debug configuration') });
+	export const hasRunnableTests = new RawContextKey('testing.hasRunnableTests', false, { type: 'boolean', description: localize('testing.hasRunnableTests', 'Indicates whether any test controller has registered a run configuration') });
+	export const hasCoverableTests = new RawContextKey('testing.hasCoverableTests', false, { type: 'boolean', description: localize('testing.hasCoverableTests', 'Indicates whether any test controller has registered a coverage configuration') });
+
+	export const capabilityToContextKey: { [K in TestRunConfigurationBitset]: RawContextKey<boolean> } = {
+		[TestRunConfigurationBitset.Run]: hasRunnableTests,
+		[TestRunConfigurationBitset.Coverage]: hasCoverableTests,
+		[TestRunConfigurationBitset.Debug]: hasDebuggableTests,
+	};
+
 	export const hasAnyResults = new RawContextKey('testing.hasAnyResults', false);
 	export const viewMode = new RawContextKey('testing.explorerViewMode', TestExplorerViewMode.List);
 	export const viewSorting = new RawContextKey('testing.explorerViewSorting', TestExplorerViewSorting.ByLocation);

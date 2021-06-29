@@ -19,13 +19,8 @@ suite('Workbench - Test Result Storage', () => {
 		const t = new LiveTestResult(
 			'',
 			emptyOutputController(),
-			{
-				tests: [],
-				exclude: [],
-				debug: false,
-				id: 'x',
-				persist: true,
-			}
+			true,
+			{ targets: [] }
 		);
 
 		t.addTask({ id: 't', name: undefined, running: true });

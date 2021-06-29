@@ -17,7 +17,6 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { splitGlobAware } from 'vs/base/common/glob';
-import { Iterable } from 'vs/base/common/iterator';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
@@ -54,7 +53,8 @@ import { ITestExplorerFilterState, TestExplorerFilterState, TestingExplorerFilte
 import { ITestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { getTestingConfiguration, TestingConfigKeys } from 'vs/workbench/contrib/testing/common/configuration';
 import { labelForTestInState, TestExplorerStateFilter, TestExplorerViewMode, TestExplorerViewSorting, Testing, testStateNames } from 'vs/workbench/contrib/testing/common/constants';
-import { identifyTest, TestIdPath, TestItemExpandState } from 'vs/workbench/contrib/testing/common/testCollection';
+import { identifyTest, TestIdPath, TestItemExpandState, TestRunConfigurationBitset } from 'vs/workbench/contrib/testing/common/testCollection';
+import { capabilityContextKeys, ITestConfigurationService } from 'vs/workbench/contrib/testing/common/testConfigurationService';
 import { TestingContextKeys } from 'vs/workbench/contrib/testing/common/testingContextKeys';
 import { ITestingPeekOpener } from 'vs/workbench/contrib/testing/common/testingPeekOpener';
 import { cmpPriority, isFailedState, isStateWithResult } from 'vs/workbench/contrib/testing/common/testingStates';
@@ -278,6 +278,7 @@ export class TestingExplorerViewModel extends Disposable {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ITestResultService private readonly testResults: ITestResultService,
 		@ITestingPeekOpener private readonly peekOpener: ITestingPeekOpener,
+		@ITestConfigurationService private readonly testConfigurationService: ITestConfigurationService,
 	) {
 		super();
 
@@ -321,7 +322,7 @@ export class TestingExplorerViewModel extends Disposable {
 			filterState.text.onDidChange,
 			filterState.stateFilter.onDidChange,
 			filterState.showExcludedTests.onDidChange,
-			testService.excludeTests.onDidChange,
+			testService.excluded.onTestExclusionsChanged,
 		)(this.tree.refilter, this.tree));
 
 		this._register(this.tree);
@@ -396,6 +397,10 @@ export class TestingExplorerViewModel extends Disposable {
 				}
 			}
 		}));
+
+		this._register(this.testConfigurationService.onDidChange(() => {
+			this.tree.rerender();
+		}));
 	}
 
 	/**
@@ -446,7 +451,7 @@ export class TestingExplorerViewModel extends Disposable {
 			// If the node or any of its children are excluded, flip on the 'show
 			// excluded tests' checkbox automatically.
 			for (let n: TestItemTreeElement | null = element; n instanceof TestItemTreeElement; n = n.parent) {
-				if (n.test && this.testService.excludeTests.value.has(n.test.item.extId)) {
+				if (n.test && this.testService.excluded.contains(identifyTest(n.test))) {
 					this.filterState.showExcludedTests.value = true;
 					break;
 				}
@@ -499,7 +504,7 @@ export class TestingExplorerViewModel extends Disposable {
 			return;
 		}
 
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.testConfigurationService, element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => [
@@ -525,12 +530,11 @@ export class TestingExplorerViewModel extends Disposable {
 		}
 
 		const toRun = targeted
-			.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement)
-			.filter(e => e.test.item.runnable);
+			.filter((e): e is TestItemTreeElement => e instanceof TestItemTreeElement);
 
 		if (toRun.length) {
 			this.testService.runTests({
-				debug: false,
+				group: TestRunConfigurationBitset.Run,
 				tests: toRun.map(t => identifyTest(t.test)),
 			});
 		}
@@ -641,7 +645,7 @@ class TestsFilter implements ITreeFilter<TestExplorerTreeElement> {
 		if (
 			element.test
 			&& !this.state.showExcludedTests.value
-			&& this.testService.excludeTests.value.has(element.test.item.extId)
+			&& this.testService.excluded.contains(identifyTest(element.test))
 		) {
 			return TreeVisibility.Hidden;
 		}
@@ -883,10 +887,11 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 	constructor(
 		protected readonly labels: ResourceLabels,
 		private readonly actionRunner: TestExplorerActionRunner,
-		private readonly menuService: IMenuService,
-		protected readonly testService: ITestService,
-		private readonly contextKeyService: IContextKeyService,
-		private readonly instantiationService: IInstantiationService,
+		@IMenuService private readonly menuService: IMenuService,
+		@ITestService protected readonly testService: ITestService,
+		@ITestConfigurationService protected readonly configurations: ITestConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
 	}
@@ -942,7 +947,7 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 	}
 
 	private fillActionBar(element: T, data: IActionableElementTemplateData) {
-		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, element);
+		const actions = getActionableElementActions(this.contextKeyService, this.menuService, this.testService, this.configurations, element);
 		data.elementDisposable.push(actions);
 		data.actionBar.clear();
 		data.actionBar.context = element;
@@ -952,17 +957,6 @@ abstract class ActionableItemTemplateData<T extends TestItemTreeElement> extends
 
 class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 	public static readonly ID = 'testItem';
-
-	constructor(
-		labels: ResourceLabels,
-		actionRunner: TestExplorerActionRunner,
-		@IMenuService menuService: IMenuService,
-		@ITestService testService: ITestService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IInstantiationService instantiationService: IInstantiationService,
-	) {
-		super(labels, actionRunner, menuService, testService, contextKeyService, instantiationService);
-	}
 
 	/**
 	 * @inheritdoc
@@ -981,7 +975,7 @@ class TestItemRenderer extends ActionableItemTemplateData<TestItemTreeElement> {
 		const options: IResourceLabelOptions = {};
 		data.label.setResource(label, options);
 
-		const testHidden = this.testService.excludeTests.value.has(node.element.test.item.extId);
+		const testHidden = this.testService.excluded.contains(identifyTest(node.element.test));
 		data.wrapper.classList.toggle('test-is-hidden', testHidden);
 
 		const icon = testingStatesToIcons.get(
@@ -1025,6 +1019,7 @@ const getActionableElementActions = (
 	contextKeyService: IContextKeyService,
 	menuService: IMenuService,
 	testService: ITestService,
+	configurations: ITestConfigurationService,
 	element: TestItemTreeElement,
 ) => {
 	const test = element instanceof TestItemTreeElement ? element.test : undefined;
@@ -1032,9 +1027,8 @@ const getActionableElementActions = (
 		['view', Testing.ExplorerViewId],
 		[TestingContextKeys.testItemExtId.key, test?.item.extId],
 		[TestingContextKeys.testItemHasUri.key, !!test?.item.uri],
-		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excludeTests.value.has(test.item.extId)],
-		[TestingContextKeys.hasDebuggableTests.key, !Iterable.isEmpty(element.debuggable)],
-		[TestingContextKeys.hasRunnableTests.key, !Iterable.isEmpty(element.runnable)],
+		[TestingContextKeys.testItemIsHidden.key, !!test && testService.excluded.contains(identifyTest(test))],
+		...(test ? capabilityContextKeys(configurations.controllerCapabilities(test.controllerId)) : []),
 	]);
 	const menu = menuService.createMenu(MenuId.TestItem, contextOverlay);
 
