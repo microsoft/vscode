@@ -836,7 +836,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.Rename,
-				title: { value: localize('workbench.action.terminal.rename', "Rename..."), original: 'Rename...' },
+				title: terminalStrings.rename,
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -850,7 +850,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.RenameInstance,
-				title: { value: localize('workbench.action.terminal.renameInstance', "Rename..."), original: 'Rename...' },
+				title: terminalStrings.rename,
 				f1: false,
 				category,
 				keybinding: {

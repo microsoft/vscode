@@ -532,11 +532,11 @@ export function setupTerminalMenus(): void {
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
 		command: {
-			id: TerminalCommandId.ChangeIcon,
-			title: terminalStrings.changeIcon
+			id: TerminalCommandId.Rename,
+			title: terminalStrings.rename
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '2_files'
+		group: '3_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
@@ -545,7 +545,16 @@ export function setupTerminalMenus(): void {
 			title: terminalStrings.changeColor
 		},
 		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
-		group: '2_files'
+		group: '3_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ChangeIcon,
+			title: terminalStrings.changeIcon
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '3_files'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {

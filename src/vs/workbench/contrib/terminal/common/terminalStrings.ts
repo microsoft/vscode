@@ -42,7 +42,7 @@ export const terminalStrings = {
 	},
 	changeColor: {
 		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
-		original: 'Change Color'
+		original: 'Change Color...'
 	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
@@ -52,5 +52,10 @@ export const terminalStrings = {
 	unsplit: {
 		value: localize('unsplitTerminal', "Unsplit Terminal"),
 		original: 'Unsplit Terminal'
+	},
+	rename:
+	{
+		value: localize('workbench.action.terminal.rename', "Rename..."),
+		original: 'Rename...'
 	}
 };
