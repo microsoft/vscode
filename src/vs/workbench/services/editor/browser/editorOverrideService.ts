@@ -294,7 +294,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
-				editor: undefined,
+				editor: associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
 				conflictingDefault: false
 			};
 		}
