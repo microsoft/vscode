@@ -279,31 +279,30 @@ suite('EditorService', () => {
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
-				// TODO@bpasero https://github.com/microsoft/vscode/issues/127310
 				// opening the same editor should not create
 				// a new editor input
-				// await openEditor(untypedEditor);
-				// assert.strictEqual(pane?.group.activeEditor, typedEditor);
-				//
+				await openEditor(untypedEditor);
+				assert.strictEqual(pane?.group.activeEditor, typedEditor);
+
 				// replaceEditors should work too
-				// let untypedEditorReplacement: IResourceEditorInput = { resource: URI.file('file-replaced.editor-service-override-tests') };
-				// await service.replaceEditors([{
-				// 	editor: typedEditor,
-				// 	replacement: untypedEditorReplacement
-				// }], rootGroup);
+				let untypedEditorReplacement: IResourceEditorInput = { resource: URI.file('file-replaced.editor-service-override-tests') };
+				await service.replaceEditors([{
+					editor: typedEditor,
+					replacement: untypedEditorReplacement
+				}], rootGroup);
 
-				// typedEditor = rootGroup.activeEditor!;
+				typedEditor = rootGroup.activeEditor!;
 
-				// assert.ok(typedEditor instanceof TestFileEditorInput);
-				// assert.strictEqual(typedEditor?.resource?.toString(), untypedEditorReplacement.resource.toString());
+				assert.ok(typedEditor instanceof TestFileEditorInput);
+				assert.strictEqual(typedEditor?.resource?.toString(), untypedEditorReplacement.resource.toString());
 
-				// assert.strictEqual(editorFactoryCalled, 2);
-				// assert.strictEqual(untitledEditorFactoryCalled, 0);
-				// assert.strictEqual(diffEditorFactoryCalled, 0);
+				assert.strictEqual(editorFactoryCalled, 2);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				// assert.strictEqual(lastEditorFactoryEditor, untypedEditorReplacement);
-				// assert.ok(!lastUntitledEditorFactoryEditor);
-				// assert.ok(!lastDiffEditorFactoryEditor);
+				assert.strictEqual(lastEditorFactoryEditor, untypedEditorReplacement);
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
 
 				await resetTestState();
 			}
@@ -329,7 +328,7 @@ suite('EditorService', () => {
 				// opening the same editor should not create
 				// a new editor input
 				await openEditor(untypedEditor);
-				// assert.strictEqual(pane?.group.activeEditor, typedEditor); // TODO@bpasero https://github.com/microsoft/vscode/issues/127310
+				assert.strictEqual(pane?.group.activeEditor, typedEditor);
 
 				await resetTestState();
 			}
@@ -505,30 +504,30 @@ suite('EditorService', () => {
 				assert.ok(!lastUntitledEditorFactoryEditor);
 				assert.ok(!lastDiffEditorFactoryEditor);
 
-				// // TODO@bpasero https://github.com/microsoft/vscode/issues/127310
 				// opening the same editor should not create
 				// a new editor input
-				// await openEditor(typedEditor);
-				// assert.strictEqual(pane?.group.activeEditor, typedEditor);
+				await openEditor(typedEditor);
+				assert.strictEqual(pane?.group.activeEditor, typedInput);
+
 				// replaceEditors should work too
-				// let typedEditorReplacement = new TestFileEditorInput(URI.file('file-replaced.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
-				// await service.replaceEditors([{
-				// 	editor: typedEditor,
-				// 	replacement: typedEditorReplacement
-				// }], rootGroup);
+				let typedEditorReplacement = new TestFileEditorInput(URI.file('file-replaced.editor-service-override-tests'), TEST_EDITOR_INPUT_ID);
+				await service.replaceEditors([{
+					editor: typedEditor,
+					replacement: typedEditorReplacement
+				}], rootGroup);
 
-				// typedInput = rootGroup.activeEditor!;
+				typedInput = rootGroup.activeEditor!;
 
-				// assert.ok(typedInput instanceof TestFileEditorInput);
-				// assert.strictEqual(typedInput.resource.toString(), typedEditorReplacement.resource.toString());
+				assert.ok(typedInput instanceof TestFileEditorInput);
+				assert.strictEqual(typedInput.resource.toString(), typedEditorReplacement.resource.toString());
 
-				// assert.strictEqual(editorFactoryCalled, 2);
-				// assert.strictEqual(untitledEditorFactoryCalled, 0);
-				// assert.strictEqual(diffEditorFactoryCalled, 0);
+				assert.strictEqual(editorFactoryCalled, 2);
+				assert.strictEqual(untitledEditorFactoryCalled, 0);
+				assert.strictEqual(diffEditorFactoryCalled, 0);
 
-				// assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedInput.resource.toString());
-				// assert.ok(!lastUntitledEditorFactoryEditor);
-				// assert.ok(!lastDiffEditorFactoryEditor);
+				assert.strictEqual((lastEditorFactoryEditor as IResourceEditorInput).resource.toString(), typedInput.resource.toString());
+				assert.ok(!lastUntitledEditorFactoryEditor);
+				assert.ok(!lastDiffEditorFactoryEditor);
 
 				await resetTestState();
 			}
@@ -554,7 +553,7 @@ suite('EditorService', () => {
 				// opening the same editor should not create
 				// a new editor input
 				await openEditor(typedEditor);
-				// assert.strictEqual(pane?.group.activeEditor, typedEditor); // TODO@bpasero https://github.com/microsoft/vscode/issues/127310
+				assert.strictEqual(pane?.group.activeEditor, typedEditor);
 
 				await resetTestState();
 			}
@@ -774,7 +773,7 @@ suite('EditorService', () => {
 				// opening the same editor should not create
 				// a new editor input
 				await openEditor(untypedEditor);
-				// assert.strictEqual(pane?.group.activeEditor, typedEditor); // TODO@bpasero https://github.com/microsoft/vscode/issues/127310
+				assert.strictEqual(pane?.group.activeEditor, typedEditor);
 
 				await resetTestState();
 			}
