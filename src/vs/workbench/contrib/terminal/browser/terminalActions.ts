@@ -203,7 +203,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.CreateTerminalEditor,
-				title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create Terminal Editor"), original: 'Create Terminal Editor' },
+				title: { value: localize('workbench.action.terminal.createTerminalEditor', "Create Terminal in Editor Area"), original: 'Create Terminal in Editor Area' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -1694,7 +1694,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.KillEditor,
-				title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal Editor"), original: 'Kill the Active Terminal Editor' },
+				title: { value: localize('workbench.action.terminal.killEditor', "Kill the Active Terminal in Editor Area"), original: 'Kill the Active Terminal in Editor Area' },
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,

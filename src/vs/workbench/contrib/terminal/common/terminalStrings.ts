@@ -28,9 +28,9 @@ export const terminalStrings = {
 		short: localize('killTerminal.short', "Kill"),
 	},
 	moveToEditor: {
-		value: localize('moveToEditor', "Move Terminal into Editor Group"),
-		original: 'Move Terminal into Editor Group',
-		short: 'Move into Editor Group'
+		value: localize('moveToEditor', "Move Terminal into Editor Area"),
+		original: 'Move Terminal into Editor Area',
+		short: 'Move into Editor Area'
 	},
 	moveToTerminalPanel: {
 		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
