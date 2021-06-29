@@ -1755,7 +1755,7 @@ export enum TaskPanelKind {
 }
 
 @es5ClassCompat
-export class TaskGroup implements vscode.TaskGroup {
+export class TaskGroup implements vscode.TaskGroup2 {
 
 	private _id: string;
 
@@ -1766,6 +1766,8 @@ export class TaskGroup implements vscode.TaskGroup {
 	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
+
+	isDefault?: boolean;
 
 	public static from(value: string) {
 		switch (value) {
