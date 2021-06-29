@@ -957,6 +957,16 @@ declare module 'vscode' {
 	}
 	//#endregion
 
+	export class TaskGroup2 {
+		static Clean: TaskGroup2;
+		static Build: TaskGroup2;
+		static Rebuild: TaskGroup2;
+		static Test: TaskGroup2;
+		readonly isDefault?: boolean;
+		readonly id: string;
+		private constructor(id: string, label: string);
+	}
+
 	//#region Custom editor move https://github.com/microsoft/vscode/issues/86146
 
 	// TODO: Also for custom editor

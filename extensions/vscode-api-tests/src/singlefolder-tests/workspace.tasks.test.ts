@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent } from 'vscode';
+import { window, tasks, Disposable, TaskDefinition, Task, EventEmitter, CustomExecution, Pseudoterminal, TaskScope, commands, env, UIKind, ShellExecution, TaskExecution, Terminal, Event, workspace, ConfigurationTarget, TaskProcessStartEvent, TaskGroup, TaskGroup2 } from 'vscode';
 import { assertNoRpc } from '../utils';
 
 // Disable tasks tests:
@@ -254,6 +254,7 @@ import { assertNoRpc } from '../utils';
 								return Promise.resolve(pty);
 							});
 							const task = new Task(kind, TaskScope.Workspace, taskName, taskType, execution);
+							task.group = TaskGroup2.Build;
 							result.push(task);
 							return result;
 						},
@@ -310,6 +311,7 @@ import { assertNoRpc } from '../utils';
 								}
 							)
 						);
+
 						return task;
 					}
 
@@ -325,6 +327,9 @@ import { assertNoRpc } from '../utils';
 					const task = await tasks.fetchTasks({ type: 'customTesting' });
 
 					if (task && task.length > 0) {
+						if (task[0].group != undefined) {
+							assert.notStrictEqual(task[0].group.isDefault, undefined);
+						}
 						await tasks.executeTask(task[0]);
 					} else {
 						reject('fetched task can\'t be undefined');
