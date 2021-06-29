@@ -183,7 +183,8 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 		Schemas.extension,
 		Schemas.webviewPanel,
 		Schemas.vscodeWorkspaceTrust,
-		Schemas.walkThrough
+		Schemas.walkThrough,
+		Schemas.vscodeSettings
 	]);
 	// We want to say that the above schemes match no glob patterns
 	if (excludedSchemes.has(resource.scheme)) {
