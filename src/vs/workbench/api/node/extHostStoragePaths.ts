@@ -71,7 +71,10 @@ async function mkdir(dir: string): Promise<void> {
 		// doesn't exist, that's OK
 	}
 
-	await fs.promises.mkdir(dir);
+	try {
+		await fs.promises.mkdir(dir, { recursive: true });
+	} catch {
+	}
 }
 
 const MTIME_UPDATE_TIME = 1000; // 1s
