@@ -1199,24 +1199,6 @@ export class TreeView extends AbstractTreeView {
 
 	private activated: boolean = false;
 
-	constructor(
-		id: string,
-		title: string,
-		@IThemeService themeService: IThemeService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICommandService commandService: ICommandService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IProgressService progressService: IProgressService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IHoverService hoverService: IHoverService,
-	) {
-		super(id, title, themeService, instantiationService, commandService, configurationService, progressService, contextMenuService, keybindingService, notificationService, viewDescriptorService, hoverService, contextKeyService);
-	}
-
 	protected activate() {
 		if (!this.activated) {
 			this.createTree();
