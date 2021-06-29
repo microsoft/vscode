@@ -272,7 +272,7 @@ export class HoverWidget extends Widget {
 			// Hover is going beyond window towards right end
 			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin;
+				this._x = Math.max(document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, document.documentElement.clientLeft);
 			}
 		}
 
