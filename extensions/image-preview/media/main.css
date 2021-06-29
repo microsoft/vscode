@@ -9,7 +9,7 @@ html, body {
 	text-align: center;
 }
 
-body img {
+body > img {
 	max-width: none;
 	max-height: none;
 }
@@ -31,37 +31,49 @@ body img {
 	box-sizing: border-box;
 }
 
-.container.image img {
+.container.image > img {
 	padding: 0;
 	background-position: 0 0, 8px 8px;
 	background-size: 16px 16px;
 	border: 1px solid var(--vscode-imagePreview-border);
 }
 
-.container.image img {
+.container.image > img {
 	background-image:
 		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230)),
 		linear-gradient(45deg, rgb(230, 230, 230) 25%, transparent 25%, transparent 75%, rgb(230, 230, 230) 75%, rgb(230, 230, 230));
 }
 
-.vscode-dark.container.image img {
+.vscode-dark.container.image > img {
 	background-image:
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20)),
 		linear-gradient(45deg, rgb(20, 20, 20) 25%, transparent 25%, transparent 75%, rgb(20, 20, 20) 75%, rgb(20, 20, 20));
 }
 
-.container img.pixelated {
+.container > img.pixelated {
 	image-rendering: pixelated;
 }
 
-.container img.scale-to-fit {
+.container > img.scale-to-fit {
 	max-width: calc(100% - 20px);
 	max-height: calc(100% - 20px);
 	object-fit: contain;
 }
 
-.container img {
+.container > img {
 	margin: auto;
+}
+
+.container.reflow {
+	border-color: var(--vscode-editorLineNumber-foreground);
+	border-style: solid;
+	border-width: 1px 0 0 1px;
+	margin-top: 9px;
+}
+
+.container.reflow > img {
+	margin: 0 auto auto 0;
+	transform-origin: top left;
 }
 
 .container.ready.zoom-in {

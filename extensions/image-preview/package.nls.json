@@ -1,7 +1,14 @@
 {
 	"displayName": "Image Preview",
 	"description": "Provides VS Code's built-in image preview",
-	"customEditors.displayName": "Image Preview",
+	"category.image": "Image Preview",
+	"category.svg": "SVG Preview",
+	"customEditors.imagePreview": "Image Preview",
+	"customEditors.svgPreview": "SVG Preview",
+	"command.svgShowPreview": "Open Preview",
+	"command.svgShowSource": "Open Source",
+	"markdown.preview.title": "Open Preview",
+	"markdown.previewSide.title": "Open Preview to the Side",
 	"command.zoomIn": "Zoom in",
 	"command.zoomOut": "Zoom out"
 }

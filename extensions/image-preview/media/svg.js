@@ -59,11 +59,22 @@
 	];
 
 	const settings = getSettings();
+	const isBoxed = settings.isBoxed;
 	const isMac = settings.isMac;
 
 	const vscode = acquireVsCodeApi();
 
-	const initialState = vscode.getState() || { scale: 'fit', offsetX: 0, offsetY: 0 };
+	/**
+	 * @constant
+	 * @type {object}
+	 */
+	const initialState = typeof vscode.getState() === 'object'
+		? vscode.getState()
+		: {};
+	initialState.scale = initialState.scale || 'fit';
+	initialState.offsetX = initialState.offsetX || 0;
+	initialState.offsetY = initialState.offsetY || 0;
+	initialState.reflow = initialState.reflow || !isBoxed;
 
 	// State
 	let scale = initialState.scale;
@@ -97,24 +108,43 @@
 				image.classList.remove('pixelated');
 			}
 
-			const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
-			const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
+			if (isBoxed) {
+				const dx = (window.scrollX + container.clientWidth / 2) / container.scrollWidth;
+				const dy = (window.scrollY + container.clientHeight / 2) / container.scrollHeight;
 
-			image.classList.remove('scale-to-fit');
-			image.style.minWidth = `${(image.naturalWidth * scale)}px`;
-			image.style.width = `${(image.naturalWidth * scale)}px`;
+				image.classList.remove('scale-to-fit');
+				image.style.minWidth = `${(image.naturalWidth * scale)}px`;
+				image.style.width = `${(image.naturalWidth * scale)}px`;
 
-			const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
-			const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
+				const newScrollX = container.scrollWidth * dx - container.clientWidth / 2;
+				const newScrollY = container.scrollHeight * dy - container.clientHeight / 2;
 
-			window.scrollTo(newScrollX, newScrollY);
+				window.scrollTo(newScrollX, newScrollY);
 
-			vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
+				vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
+			} else {
+				image.classList.remove('scale-to-fit');
+				image.style.minWidth = `${Math.round(100 / scale * 1000) / 1000}%`;
+				image.style.width = `${Math.round(100 / scale * 1000) / 1000}%`;
+				image.style.transform = `scale(${scale})`;
+
+				vscode.setState({ scale: scale, offsetX: 0, offsetY: 0, reflow: true });
+			}
 		}
 
 		vscode.postMessage({
 			type: 'zoom',
 			value: scale
+		});
+
+		vscode.postMessage({
+			type: 'max-scale',
+			value: scale === MAX_SCALE
+		});
+
+		vscode.postMessage({
+			type: 'min-scale',
+			value: scale === MIN_SCALE
 		});
 	}
 
@@ -269,12 +299,21 @@
 		}
 
 		const entry = vscode.getState();
-		if (entry) {
-			vscode.setState({ scale: entry.scale, offsetX: window.scrollX, offsetY: window.scrollY });
+		if (typeof entry === 'object') {
+			vscode.setState({
+				// @ts-ignore
+				scale: entry.scale,
+				offsetX: window.scrollX,
+				offsetY: window.scrollY
+			});
 		}
 	}, { passive: true });
 
 	container.classList.add('image');
+
+	if (isBoxed) {
+		container.classList.add('reflow');
+	}
 
 	image.classList.add('scale-to-fit');
 
@@ -286,7 +325,9 @@
 
 		vscode.postMessage({
 			type: 'size',
-			value: `${image.naturalWidth}x${image.naturalHeight}`,
+			value: isBoxed
+				? `${image.naturalWidth}x${image.naturalHeight}`
+				: '100%x100%',
 		});
 
 		document.body.classList.remove('loading');

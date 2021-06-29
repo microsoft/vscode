@@ -14,3 +14,4 @@ Supported image formats:
 - `*.gif`
 - `*.ico`
 - `*.webp`
+- `*.svg`

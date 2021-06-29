@@ -13,12 +13,12 @@ import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
 const localize = nls.loadMessageBundle();
 
 
-export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
+export class ImagePreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public static readonly viewType = 'imagePreview.previewEditor';
 
-	private readonly _previews = new Set<Preview>();
-	private _activePreview: Preview | undefined;
+	private readonly _previews = new Set<ImagePreview>();
+	private _activePreview: ImagePreview | undefined;
 
 	constructor(
 		private readonly extensionRoot: vscode.Uri,
@@ -35,7 +35,7 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 		document: vscode.CustomDocument,
 		webviewEditor: vscode.WebviewPanel,
 	): Promise<void> {
-		const preview = new Preview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
+		const preview = new ImagePreview(this.extensionRoot, document.uri, webviewEditor, this.sizeStatusBarEntry, this.binarySizeStatusBarEntry, this.zoomStatusBarEntry);
 		this._previews.add(preview);
 		this.setActivePreview(preview);
 
@@ -52,7 +52,7 @@ export class PreviewManager implements vscode.CustomReadonlyEditorProvider {
 
 	public get activePreview() { return this._activePreview; }
 
-	private setActivePreview(value: Preview | undefined): void {
+	private setActivePreview(value: ImagePreview | undefined): void {
 		this._activePreview = value;
 		this.setPreviewActiveContext(!!value);
 	}
@@ -68,7 +68,7 @@ const enum PreviewState {
 	Active,
 }
 
-class Preview extends Disposable {
+class ImagePreview extends Disposable {
 
 	private readonly id: string = `${Date.now()}-${Math.random().toString()}`;
 
@@ -114,10 +114,22 @@ class Preview extends Disposable {
 						this.update();
 						break;
 					}
-
 				case 'reopen-as-text':
 					{
-						vscode.commands.executeCommand('vscode.openWith', resource, 'default', webviewEditor.viewColumn);
+						let viewColumn = webviewEditor.viewColumn || vscode.ViewColumn.Active;
+						vscode.commands.executeCommand('vscode.openWith', resource, 'default', viewColumn);
+						break;
+					}
+
+				case 'max-scale':
+					{
+						this.setZoomContext('max', message.value);
+						break;
+					}
+
+				case 'min-scale':
+					{
+						this.setZoomContext('min', message.value);
 						break;
 					}
 			}
@@ -177,6 +189,17 @@ class Preview extends Disposable {
 		}
 	}
 
+	public setZoomContext(bound: 'min' | 'max', value: boolean) {
+		switch (bound) {
+			case 'max':
+				vscode.commands.executeCommand('setContext', 'imagePreviewMaxZoom', value);
+				break;
+			case 'min':
+				vscode.commands.executeCommand('setContext', 'imagePreviewMinZoom', value);
+				break;
+		}
+	}
+
 	private async render() {
 		if (this._previewState !== PreviewState.Disposed) {
 			this.webviewEditor.webview.html = await this.getWebviewContents();
@@ -222,7 +245,7 @@ class Preview extends Disposable {
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-	<title>Image Preview</title>
+	<title>Image ImagePreview</title>
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
 

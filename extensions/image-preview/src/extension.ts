@@ -5,31 +5,68 @@
 
 import * as vscode from 'vscode';
 import { BinarySizeStatusBarEntry } from './binarySizeStatusBarEntry';
-import { PreviewManager } from './preview';
+import { ImagePreviewManager } from './imagePreview';
+import { SvgPreviewManager } from './svgPreview';
 import { SizeStatusBarEntry } from './sizeStatusBarEntry';
 import { ZoomStatusBarEntry } from './zoomStatusBarEntry';
 
 export function activate(context: vscode.ExtensionContext) {
-	const sizeStatusBarEntry = new SizeStatusBarEntry();
-	context.subscriptions.push(sizeStatusBarEntry);
+	const imageSizeStatusBarEntry = new SizeStatusBarEntry();
+	context.subscriptions.push(imageSizeStatusBarEntry);
 
-	const binarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
-	context.subscriptions.push(binarySizeStatusBarEntry);
+	const imageBinarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
+	context.subscriptions.push(imageBinarySizeStatusBarEntry);
 
-	const zoomStatusBarEntry = new ZoomStatusBarEntry();
-	context.subscriptions.push(zoomStatusBarEntry);
+	const imageZoomStatusBarEntry = new ZoomStatusBarEntry();
+	context.subscriptions.push(imageZoomStatusBarEntry);
 
-	const previewManager = new PreviewManager(context.extensionUri, sizeStatusBarEntry, binarySizeStatusBarEntry, zoomStatusBarEntry);
+	const imagePreviewManager = new ImagePreviewManager(context.extensionUri, imageSizeStatusBarEntry, imageBinarySizeStatusBarEntry, imageZoomStatusBarEntry);
 
-	context.subscriptions.push(vscode.window.registerCustomEditorProvider(PreviewManager.viewType, previewManager, {
-		supportsMultipleEditorsPerDocument: true,
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider(ImagePreviewManager.viewType, imagePreviewManager, {
+		supportsMultipleEditorsPerDocument: true
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomIn', () => {
-		previewManager.activePreview?.zoomIn();
+		imagePreviewManager.activePreview?.zoomIn();
 	}));
 
 	context.subscriptions.push(vscode.commands.registerCommand('imagePreview.zoomOut', () => {
-		previewManager.activePreview?.zoomOut();
+		imagePreviewManager.activePreview?.zoomOut();
 	}));
+
+	const svgSizeStatusBarEntry = new SizeStatusBarEntry();
+	context.subscriptions.push(svgSizeStatusBarEntry);
+
+	const svgBinarySizeStatusBarEntry = new BinarySizeStatusBarEntry();
+	context.subscriptions.push(svgBinarySizeStatusBarEntry);
+
+	const svgZoomStatusBarEntry = new ZoomStatusBarEntry();
+	context.subscriptions.push(svgZoomStatusBarEntry);
+
+	const svgPreviewManager = new SvgPreviewManager(context.extensionUri, svgSizeStatusBarEntry, svgBinarySizeStatusBarEntry, svgZoomStatusBarEntry);
+
+	context.subscriptions.push(vscode.window.registerCustomEditorProvider(SvgPreviewManager.viewType, svgPreviewManager, {
+		supportsMultipleEditorsPerDocument: true
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.showPreview', () => {
+		svgPreviewManager.activePreview?.showPreviewToSide();
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.showPreview', () => {
+		svgPreviewManager.activePreview?.showPreview();
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.showSource', () => {
+		svgPreviewManager.activePreview?.showSource();
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.zoomIn', () => {
+		svgPreviewManager.activePreview?.zoomIn();
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('svgPreview.zoomOut', () => {
+		svgPreviewManager.activePreview?.zoomOut();
+	}));
+
 }

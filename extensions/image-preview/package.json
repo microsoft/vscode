@@ -23,8 +23,15 @@
   ],
   "activationEvents": [
     "onCustomEditor:imagePreview.previewEditor",
+    "onCustomEditor:svgPreview.previewEditor",
     "onCommand:imagePreview.zoomIn",
-    "onCommand:imagePreview.zoomOut"
+    "onCommand:imagePreview.zoomOut",
+    "onCommand:svgPreview.refresh",
+    "onCommand:svgPreview.showPreview",
+    "onCommand:svgPreview.showPreviewToSide",
+    "onCommand:svgPreview.showSource",
+    "onLanguage:xml",
+    "onLanguage:svg"
   ],
   "capabilities": {
     "virtualWorkspaces": true,
@@ -36,11 +43,21 @@
     "customEditors": [
       {
         "viewType": "imagePreview.previewEditor",
-        "displayName": "%customEditors.displayName%",
-        "priority": "builtin",
+        "displayName": "%customEditors.imagePreview%",
+        "priority": "default",
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
+          }
+        ]
+      },
+      {
+        "viewType": "svgPreview.previewEditor",
+        "displayName": "%customEditors.svgPreview%",
+        "priority": "option",
+        "selector": [
+          {
+            "filenamePattern": "*.svg"
           }
         ]
       }
@@ -49,28 +66,122 @@
       {
         "command": "imagePreview.zoomIn",
         "title": "%command.zoomIn%",
-        "category": "Image Preview"
+        "category": "%category.image%",
+        "when": "imagePreviewFocus && !imagePreviewMaxZoom",
+        "icon": "$(zoom-in)"
       },
       {
         "command": "imagePreview.zoomOut",
         "title": "%command.zoomOut%",
-        "category": "Image Preview"
+        "category": "%category.image%",
+        "when": "imagePreviewFocus && !imagePreviewMinZoom",
+        "icon": "$(zoom-out)"
+      },
+      {
+        "command": "svgPreview.showPreview",
+        "title": "%command.svgShowPreview%",
+        "category": "%category.svg%",
+        "when": "!svgPreviewFocus && resourceExtname == .svg",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "svgPreview.showPreviewToSide",
+        "title": "%command.svgShowPreviewToSide%",
+        "category": "%category.svg%",
+        "when": "!svgPreviewFocus && resourceExtname == .svg",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "svgPreview.showSource",
+        "title": "%command.svgShowSource%",
+        "category": "%category.svg%",
+        "when": "svgPreviewFocus",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "svgPreview.zoomIn",
+        "title": "%command.zoomIn%",
+        "category": "%category.svg%",
+        "when": "svgPreviewFocus && !svgPreviewMaxZoom",
+        "icon": "$(zoom-in)"
+      },
+      {
+        "command": "svgPreview.zoomOut",
+        "title": "%command.zoomOut%",
+        "category": "%category.svg%",
+        "when": "svgPreviewFocus && !svgPreviewMinZoom",
+        "icon": "$(zoom-out)"
       }
     ],
     "menus": {
+      "editor/title": [
+        {
+          "command": "svgPreview.showPreviewToSide",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
+        },
+        {
+          "command": "svgPreview.showSource",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "svgPreview.showPreview",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "svgPreview.showPreview",
+          "when": "resourceExtname == .svg",
+          "group": "1_open"
+        }
+      ],
       "commandPalette": [
         {
           "command": "imagePreview.zoomIn",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
+          "when": "imagePreviewFocus && !imagePreviewMaxZoom",
           "group": "1_imagePreview"
         },
         {
           "command": "imagePreview.zoomOut",
-          "when": "activeCustomEditorId == 'imagePreview.previewEditor'",
+          "when": "imagePreviewFocus && !imagePreviewMinZoom",
           "group": "1_imagePreview"
+        },
+        {
+          "command": "svgPreview.showPreview",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
+        },
+        {
+          "command": "svgPreview.showPreviewToSide",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
+        },
+        {
+          "command": "svgPreview.showSource",
+          "when": "resourceExtname == .svg",
+          "group": "navigation"
         }
       ]
-    }
+    },
+    "keybindings": [
+      {
+        "command": "svgPreview.showPreview",
+        "key": "shift+ctrl+v",
+        "mac": "shift+cmd+v",
+        "when": "resourceExtname == .svg"
+      },
+      {
+        "command": "svgPreview.showPreviewToSide",
+        "key": "ctrl+k v",
+        "mac": "cmd+k v",
+        "when": "resourceExtname == .svg"
+      }
+    ]
   },
   "scripts": {
     "compile": "gulp compile-extension:image-preview",
@@ -80,7 +191,11 @@
     "compile-web": "npx webpack-cli --config extension-browser.webpack.config --mode none",
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
+  "devDependencies": {
+    "@types/xml2js": "^0.4.0"
+  },
   "dependencies": {
+    "xml2js": "^0.4.17",
     "vscode-extension-telemetry": "0.1.7",
     "vscode-nls": "^4.0.0"
   },
