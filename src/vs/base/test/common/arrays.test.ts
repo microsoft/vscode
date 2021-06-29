@@ -347,22 +347,10 @@ suite('Arrays', () => {
 					assert.deepStrictEqual(queue1.takeWhile(() => true), normalize(array.filter(negatedPredicate)));
 				}
 				{
-					const queue2 = new arrays.ArrayQueue(array);
-					assert.deepStrictEqual(queue2.takeWhile(predicate, true), normalize(array.filter(predicate)));
-					assert.deepStrictEqual(queue2.length, array.length - array.filter(predicate).length);
-					assert.deepStrictEqual(queue2.takeWhile(() => true, true), normalize(array.filter(negatedPredicate)));
-				}
-				{
 					const queue3 = new arrays.ArrayQueue(array);
 					assert.deepStrictEqual(queue3.takeFromEndWhile(negatedPredicate), normalize(array.filter(negatedPredicate)));
 					assert.deepStrictEqual(queue3.length, array.length - array.filter(negatedPredicate).length);
 					assert.deepStrictEqual(queue3.takeFromEndWhile(() => true), normalize(array.filter(predicate)));
-				}
-				{
-					const queue4 = new arrays.ArrayQueue(array);
-					assert.deepStrictEqual(queue4.takeFromEndWhile(negatedPredicate, true), normalize(array.filter(negatedPredicate)));
-					assert.deepStrictEqual(queue4.length, array.length - array.filter(negatedPredicate).length);
-					assert.deepStrictEqual(queue4.takeFromEndWhile(() => true, true), normalize(array.filter(predicate)));
 				}
 			}
 
@@ -381,7 +369,6 @@ suite('Arrays', () => {
 			test('TakeWhile 8', () => testMonotonous(array2, value => value < 5));
 
 			test('TakeWhile Empty', () => testMonotonous([], value => value <= 5));
-
 		});
 	});
 });

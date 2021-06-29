@@ -605,103 +605,35 @@ export class ArrayQueue<T> {
 	/**
 	 * Consumes elements from the beginning of the queue as long as the predicate returns true.
 	 * If no elements were consumed, `null` is returned. Has a runtime of O(result.length).
-	 *
-	 * If isPredicateMonotonous is set to `true` and predicate is monotonous on the data,
-	 * it has a runtime of O(log(result.length)) + time(slice(result.length)).
 	*/
-	takeWhile(predicate: (value: T) => boolean, isPredicateMonotonous: boolean = false): T[] | null {
+	takeWhile(predicate: (value: T) => boolean): T[] | null {
 		// P(k) := k <= this.lastIdx && predicate(this.items[k])
 		// Find s := min { k | k >= this.firstIdx && !P(k) } and return this.data[this.firstIdx...s)
 
-		if (!isPredicateMonotonous) {
-			let startIdx = this.firstIdx;
-			while (startIdx < this.items.length && predicate(this.items[startIdx])) {
-				startIdx++;
-			}
-			const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
-			this.firstIdx = startIdx;
-			return result;
-		} else {
-			// `predicate` is monotonous, i.e. `!P(k) => !P(k + 1)`
-
-			let startIdx = this.firstIdx;
-			let delta = 1;
-			while (startIdx + delta <= this.lastIdx && predicate(this.items[startIdx + delta])) {
-				delta = delta * 2;
-			}
-			let endIdx = Math.min(startIdx + delta, this.lastIdx + 1);
-			// We have !P(startIdx + delta), thus startIdx <= s <= endIdx.
-
-			while (startIdx < endIdx) {
-				// Invariant: startIdx <= s <= endIdx.
-
-				const mid = Math.floor((startIdx + endIdx) / 2);
-				// startIdx <= mid < endIdx
-
-				if (predicate(this.items[mid])) {
-					// mid < s <= endIdx
-					startIdx = mid + 1;
-				} else {
-					// startIdx <= s <= mid
-					endIdx = mid;
-				}
-			}
-
-			const result = this.firstIdx === endIdx ? null : this.items.slice(this.firstIdx, endIdx);
-			this.firstIdx = endIdx;
-			return result;
+		let startIdx = this.firstIdx;
+		while (startIdx < this.items.length && predicate(this.items[startIdx])) {
+			startIdx++;
 		}
+		const result = startIdx === this.firstIdx ? null : this.items.slice(this.firstIdx, startIdx);
+		this.firstIdx = startIdx;
+		return result;
 	}
 
 	/**
 	 * Consumes elements from the end of the queue as long as the predicate returns true.
 	 * If no elements were consumed, `null` is returned.
 	 * The result has the same order as the underlying array!
-	 *
-	 * If isPredicateMonotonous is set to `true` and predicate is monotonous on the data,
-	 * it has a runtime of O(log(result.length)) + time(slice(result.length)).
 	*/
-	takeFromEndWhile(predicate: (value: T) => boolean, isPredicateMonotonous: boolean = false): T[] | null {
+	takeFromEndWhile(predicate: (value: T) => boolean): T[] | null {
 		// P(k) := this.firstIdx >= k && predicate(this.items[k])
 		// Find s := max { k | k <= this.lastIdx && !P(k) } and return this.data(s...this.lastIdx]
 
-		if (!isPredicateMonotonous) {
-			let endIdx = this.lastIdx;
-			while (endIdx >= 0 && predicate(this.items[endIdx])) {
-				endIdx--;
-			}
-			const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
-			this.lastIdx = endIdx;
-			return result;
-		} else {
-			// `predicate` is monotonous, i.e. `!P(k) => !P(k - 1)`
-
-			let endIdx = this.lastIdx;
-			let delta = 1;
-			while (endIdx - delta >= 0 && predicate(this.items[endIdx - delta])) {
-				delta = delta * 2;
-			}
-			let startIdx = Math.max(endIdx - delta, this.firstIdx - 1);
-			// We have !P(endIdx - delta), thus startIdx <= s <= endIdx.
-
-			while (startIdx < endIdx) {
-				// Invariant: startIdx <= s <= endIdx.
-
-				const mid = Math.ceil((startIdx + endIdx) / 2);
-				// startIdx < mid <= endIdx
-
-				if (predicate(this.items[mid])) {
-					// startIdx <= s < mid
-					endIdx = mid - 1;
-				} else {
-					// mid <= s <= endIdx
-					startIdx = mid;
-				}
-			}
-
-			const result = startIdx === this.lastIdx ? null : this.items.slice(startIdx + 1, this.lastIdx + 1);
-			this.lastIdx = startIdx;
-			return result;
+		let endIdx = this.lastIdx;
+		while (endIdx >= 0 && predicate(this.items[endIdx])) {
+			endIdx--;
 		}
+		const result = endIdx === this.lastIdx ? null : this.items.slice(endIdx + 1, this.lastIdx + 1);
+		this.lastIdx = endIdx;
+		return result;
 	}
 }

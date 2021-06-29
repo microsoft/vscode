@@ -1479,8 +1479,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 					const editLineNumber = startLineNumber + j;
 					const currentEditLineNumber = currentEditStartLineNumber + j;
 
-					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber, true);
-					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber, true);
+					injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber > currentEditLineNumber);
+					const decorationsInCurrentLine = injectedTextInEditedRangeQueue.takeFromEndWhile(r => r.lineNumber === currentEditLineNumber);
 
 					rawContentChanges.push(
 						new ModelRawLineChanged(
@@ -1508,8 +1508,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 						let lineNumber = fromLineNumber + i;
 						newLines[i] = this.getLineContent(lineNumber);
 
-						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber, true);
-						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber, true);
+						injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber < lineNumber);
+						injectedTexts[i] = injectedTextInEditedRangeQueue.takeWhile(r => r.lineNumber === lineNumber);
 					}
 
 					rawContentChanges.push(
