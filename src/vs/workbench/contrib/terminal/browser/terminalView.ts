@@ -33,10 +33,7 @@ import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { TerminalTabbedView } from 'vs/workbench/contrib/terminal/browser/terminalTabbedView';
 import { Codicon } from 'vs/base/common/codicons';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { DropdownWithPrimaryActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownWithPrimaryActionViewItem';
-import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import * as dom from 'vs/base/browser/dom';
-import { renderLabelWithIcons, separateIconAndText} from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { renderLabelWithIcons, renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { createAndFillInContextMenuActions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalTabContextMenuGroup } from 'vs/workbench/contrib/terminal/browser/terminalMenus';
@@ -48,6 +45,7 @@ import { getColorClass, getUriClasses } from 'vs/workbench/contrib/terminal/brow
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { DataTransfers } from 'vs/base/browser/dnd';
+import { separateIconAndText } from 'vs/base/common/iconLabels';
 
 export class TerminalViewPane extends ViewPane {
 	private _actions: IAction[] | undefined;
