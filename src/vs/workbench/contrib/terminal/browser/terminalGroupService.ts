@@ -163,20 +163,20 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	async showPanel(focus?: boolean): Promise<void> {
-		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor) {
+	async showPanel(focus?: boolean, force?: boolean): Promise<void> {
+		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor || force) {
 			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
 				?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
 			pane?.setExpanded(true);
-		}
 
-		if (focus) {
-			// Do the focus call asynchronously as going through the
-			// command palette will force editor focus
-			await timeout(0);
-			const instance = this.activeInstance;
-			if (instance) {
-				await instance.focusWhenReady(true);
+			if (focus) {
+				// Do the focus call asynchronously as going through the
+				// command palette will force editor focus
+				await timeout(0);
+				const instance = this.activeInstance;
+				if (instance) {
+					await instance.focusWhenReady(true);
+				}
 			}
 		}
 	}

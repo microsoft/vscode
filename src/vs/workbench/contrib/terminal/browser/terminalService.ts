@@ -695,6 +695,7 @@ export class TerminalService implements ITerminalService {
 		// Fire events
 		this._onDidChangeInstances.fire();
 		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
+		this._terminalGroupService.showPanel(true, true);
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
