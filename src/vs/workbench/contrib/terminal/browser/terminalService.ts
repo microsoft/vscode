@@ -599,7 +599,7 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal();
+			this.createTerminal({ target: TerminalLocation.TerminalView });
 		}
 	}
 
@@ -1054,7 +1054,8 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
-		if (options?.target === TerminalLocation.Editor) {
+		const target = options?.target || this.configHelper.config.defaultLocation;
+		if (target === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);
