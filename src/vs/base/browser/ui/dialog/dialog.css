@@ -10,7 +10,7 @@
 	width: 100%;
 	left:0;
 	top:0;
-	z-index: 2000;
+	z-index: 2600;
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -116,6 +116,11 @@
 
 .monaco-dialog-box .dialog-message-row .dialog-message-container .dialog-message-input .monaco-inputbox {
 	flex: 1;
+}
+
+/** Dialog: File Path */
+.monaco-dialog-box code {
+	font-family: var(--monaco-monospace-font);
 }
 
 /** Dialog: Buttons Row */

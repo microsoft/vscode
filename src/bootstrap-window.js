@@ -52,10 +52,17 @@
 		});
 
 		// Await window configuration from preload
+		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
 		performance.mark('code/willWaitForWindowConfig');
 		/** @type {ISandboxConfiguration} */
 		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
+		clearTimeout(timeout);
+
+		// Signal DOM modifications are now OK
+		if (typeof options?.canModifyDOM === 'function') {
+			options.canModifyDOM(configuration);
+		}
 
 		// Developer settings
 		const {
@@ -77,12 +84,7 @@
 		}
 
 		// Enable ASAR support
-		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot);
-
-		// Signal DOM modifications are now OK
-		if (typeof options?.canModifyDOM === 'function') {
-			options.canModifyDOM(configuration);
-		}
+		globalThis.MonacoBootstrap.enableASARSupport(configuration.appRoot, true);
 
 		// Get the nls configuration into the process.env as early as possible
 		const nlsConfig = globalThis.MonacoBootstrap.setupNLS();
@@ -147,10 +149,10 @@
 			loaderConfig.amdModulesPattern = /^vs\//;
 		}
 
-		// Cached data config
-		if (configuration.nodeCachedDataDir) {
+		// Cached data config (node.js loading only)
+		if (!useCustomProtocol && configuration.codeCachePath) {
 			loaderConfig.nodeCachedData = {
-				path: configuration.nodeCachedDataDir,
+				path: configuration.codeCachePath,
 				seed: modulePaths.join('')
 			};
 		}
@@ -178,13 +180,6 @@
 		// Actually require the main module as specified
 		require(modulePaths, async result => {
 			try {
-
-				// Wait for process environment being fully resolved
-				performance.mark('code/willWaitForShellEnv');
-				if (!safeProcess.env['VSCODE_SKIP_PROCESS_ENV_PATCHING'] /* TODO@bpasero for https://github.com/microsoft/vscode/issues/108804 */) {
-					await safeProcess.shellEnv();
-				}
-				performance.mark('code/didWaitForShellEnv');
 
 				// Callback only after process environment is resolved
 				const callbackResult = resultCallback(result, configuration);

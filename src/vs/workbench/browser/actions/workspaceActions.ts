@@ -11,20 +11,19 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/commo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
-import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { MenuRegistry, MenuId, SyncActionDescriptor, Action2, registerAction2 } from 'vs/platform/actions/common/actions';
+import { IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { MenuRegistry, MenuId, Action2, registerAction2, ILocalizedString } from 'vs/platform/actions/common/actions';
 import { EmptyWorkspaceSupportContext, WorkbenchStateContext, WorkspaceFolderCountContext } from 'vs/workbench/browser/contextkeys';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import Severity from 'vs/base/common/severity';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWorkspacesService, hasWorkspaceFileExtension } from 'vs/platform/workspaces/common/workspaces';
-import { WORKSPACE_TRUST_ENABLED } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+
+const workspacesCategory: ILocalizedString = { value: localize('workspaces', "Workspaces"), original: 'Workspaces' };
 
 export class OpenFileAction extends Action {
 
@@ -98,29 +97,36 @@ export class OpenWorkspaceAction extends Action {
 	}
 }
 
-export class CloseWorkspaceAction extends Action {
+export class CloseWorkspaceAction extends Action2 {
 
 	static readonly ID = 'workbench.action.closeFolder';
-	static readonly LABEL = localize('closeWorkspace', "Close Workspace");
 
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
-	) {
-		super(id, label);
+	constructor() {
+		super({
+			id: CloseWorkspaceAction.ID,
+			title: { value: localize('closeWorkspace', "Close Workspace"), original: 'Close Workspace' },
+			category: workspacesCategory,
+			f1: true,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				when: EmptyWorkspaceSupportContext,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F)
+			}
+		});
 	}
 
-	override async run(): Promise<void> {
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.notificationService.info(localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const contextService = accessor.get(IWorkspaceContextService);
+		const dialogService = accessor.get(IDialogService);
+		const hostService = accessor.get(IHostService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+
+		if (contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
+			dialogService.show(Severity.Error, localize('noWorkspaceOrFolderOpened', "There is currently no workspace or folder opened in this instance to close."));
 			return;
 		}
 
-		return this.hostService.openWindow({ forceReuseWindow: true, remoteAuthority: this.environmentService.remoteAuthority });
+		return hostService.openWindow({ forceReuseWindow: true, remoteAuthority: environmentService.remoteAuthority });
 	}
 }
 
@@ -148,139 +154,122 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 }
 
-export class AddRootFolderAction extends Action {
+export class AddRootFolderAction extends Action2 {
 
 	static readonly ID = 'workbench.action.addRootFolder';
-	static readonly LABEL = ADD_ROOT_FOLDER_LABEL;
 
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	override run(): Promise<void> {
-		return this.commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
-	}
-}
-
-export class GlobalRemoveRootFolderAction extends Action {
-
-	static readonly ID = 'workbench.action.removeRootFolder';
-	static readonly LABEL = localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@ICommandService private readonly commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const state = this.contextService.getWorkbenchState();
-
-		// Workspace / Folder
-		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
-			const folder = await this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-			if (folder) {
-				await this.workspaceEditingService.removeFolders([folder.uri]);
-			}
-		}
-	}
-}
-
-export class SaveWorkspaceAsAction extends Action {
-
-	static readonly ID = 'workbench.action.saveWorkspaceAs';
-	static readonly LABEL = localize('saveWorkspaceAsAction', "Save Workspace As...");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService
-
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const configPathUri = await this.workspaceEditingService.pickNewWorkspacePath();
-		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
-			switch (this.contextService.getWorkbenchState()) {
-				case WorkbenchState.EMPTY:
-				case WorkbenchState.FOLDER:
-					const folders = this.contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
-					return this.workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
-				case WorkbenchState.WORKSPACE:
-					return this.workspaceEditingService.saveAndEnterWorkspace(configPathUri);
-			}
-		}
-	}
-}
-
-export class DuplicateWorkspaceInNewWindowAction extends Action {
-
-	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
-	static readonly LABEL = localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IWorkspaceEditingService private readonly workspaceEditingService: IWorkspaceEditingService,
-		@IHostService private readonly hostService: IHostService,
-		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
-	) {
-		super(id, label);
-	}
-
-	override async run(): Promise<void> {
-		const folders = this.workspaceContextService.getWorkspace().folders;
-		const remoteAuthority = this.environmentService.remoteAuthority;
-
-		const newWorkspace = await this.workspacesService.createUntitledWorkspace(folders, remoteAuthority);
-		await this.workspaceEditingService.copyWorkspaceSettings(newWorkspace);
-
-		return this.hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
-	}
-}
-
-class WorkspaceTrustManageAction extends Action2 {
 	constructor() {
 		super({
-			id: 'workbench.action.manageTrust',
-			title: { value: localize('manageTrustAction', "Manage Workspace Trust"), original: 'Manage Workspace Trust' },
-			precondition: ContextKeyExpr.and(IsWebContext.negate(), ContextKeyExpr.equals(`config.${WORKSPACE_TRUST_ENABLED}`, true)),
-			category: localize('workspacesCategory', "Workspaces"),
+			id: AddRootFolderAction.ID,
+			title: ADD_ROOT_FOLDER_LABEL,
+			category: workspacesCategory,
 			f1: true
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	override run(accessor: ServicesAccessor): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		await commandService.executeCommand('workbench.trust.manage');
+
+		return commandService.executeCommand(ADD_ROOT_FOLDER_COMMAND_ID);
 	}
 }
 
-registerAction2(WorkspaceTrustManageAction);
+class RemoveRootFolderAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.removeRootFolder',
+			title: { value: localize('globalRemoveFolderFromWorkspace', "Remove Folder from Workspace..."), original: 'Remove Folder from Workspace...' },
+			category: workspacesCategory,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const contextService = accessor.get(IWorkspaceContextService);
+		const commandService = accessor.get(ICommandService);
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+
+		const state = contextService.getWorkbenchState();
+
+		// Workspace / Folder
+		if (state === WorkbenchState.WORKSPACE || state === WorkbenchState.FOLDER) {
+			const folder = await commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
+			if (folder) {
+				await workspaceEditingService.removeFolders([folder.uri]);
+			}
+		}
+	}
+}
+
+class SaveWorkspaceAsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.saveWorkspaceAs';
+
+	constructor() {
+		super({
+			id: SaveWorkspaceAsAction.ID,
+			title: { value: localize('saveWorkspaceAsAction', "Save Workspace As..."), original: 'Save Workspace As...' },
+			category: workspacesCategory,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const contextService = accessor.get(IWorkspaceContextService);
+
+		const configPathUri = await workspaceEditingService.pickNewWorkspacePath();
+		if (configPathUri && hasWorkspaceFileExtension(configPathUri)) {
+			switch (contextService.getWorkbenchState()) {
+				case WorkbenchState.EMPTY:
+				case WorkbenchState.FOLDER:
+					const folders = contextService.getWorkspace().folders.map(folder => ({ uri: folder.uri }));
+					return workspaceEditingService.createAndEnterWorkspace(folders, configPathUri);
+				case WorkbenchState.WORKSPACE:
+					return workspaceEditingService.saveAndEnterWorkspace(configPathUri);
+			}
+		}
+	}
+}
+
+class DuplicateWorkspaceInNewWindowAction extends Action2 {
+
+	static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+
+	constructor() {
+		super({
+			id: DuplicateWorkspaceInNewWindowAction.ID,
+			title: { value: localize('duplicateWorkspaceInNewWindow', "Duplicate As Workspace in New Window"), original: 'Duplicate As Workspace in New Window' },
+			category: workspacesCategory,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const workspaceContextService = accessor.get(IWorkspaceContextService);
+		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
+		const hostService = accessor.get(IHostService);
+		const workspacesService = accessor.get(IWorkspacesService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+
+		const folders = workspaceContextService.getWorkspace().folders;
+		const remoteAuthority = environmentService.remoteAuthority;
+
+		const newWorkspace = await workspacesService.createUntitledWorkspace(folders, remoteAuthority);
+		await workspaceEditingService.copyWorkspaceSettings(newWorkspace);
+
+		return hostService.openWindow([{ workspaceUri: newWorkspace.configPath }], { forceNewWindow: true });
+	}
+}
 
 // --- Actions Registration
 
-const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
-const workspacesCategory = localize('workspaces', "Workspaces");
-
-registry.registerWorkbenchAction(SyncActionDescriptor.from(AddRootFolderAction), 'Workspaces: Add Folder to Workspace...', workspacesCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(GlobalRemoveRootFolderAction), 'Workspaces: Remove Folder from Workspace...', workspacesCategory);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(CloseWorkspaceAction, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_F) }), 'Workspaces: Close Workspace', workspacesCategory, EmptyWorkspaceSupportContext);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(SaveWorkspaceAsAction), 'Workspaces: Save Workspace As...', workspacesCategory, EmptyWorkspaceSupportContext);
-registry.registerWorkbenchAction(SyncActionDescriptor.from(DuplicateWorkspaceInNewWindowAction), 'Workspaces: Duplicate As Workspace in New Window', workspacesCategory);
+registerAction2(AddRootFolderAction);
+registerAction2(RemoveRootFolderAction);
+registerAction2(CloseWorkspaceAction);
+registerAction2(SaveWorkspaceAsAction);
+registerAction2(DuplicateWorkspaceInNewWindowAction);
 
 // --- Menu Registration
 
@@ -307,10 +296,21 @@ MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 	when: EmptyWorkspaceSupportContext
 });
 
+MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+	group: '3_workspace',
+	command: {
+		id: DuplicateWorkspaceInNewWindowAction.ID,
+		title: localize('duplicateWorkspace', "Duplicate Workspace")
+	},
+	order: 3,
+	when: EmptyWorkspaceSupportContext
+});
+
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 	command: {
 		id: OpenWorkspaceConfigFileAction.ID,
-		title: { value: `${workspacesCategory}: ${OpenWorkspaceConfigFileAction.LABEL}`, original: 'Workspaces: Open Workspace Configuration File' },
+		title: { value: OpenWorkspaceConfigFileAction.LABEL, original: 'Workspaces: Open Workspace Configuration File' },
+		category: workspacesCategory
 	},
 	when: WorkbenchStateContext.isEqualTo('workspace')
 });

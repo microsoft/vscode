@@ -91,7 +91,7 @@ suite('Stream', () => {
 	});
 
 	test('WriteableStream - end with error works', async () => {
-		const reducer = (errors: Error[]) => errors.length > 0 ? errors[0] : null as unknown as Error;
+		const reducer = (errors: Error[]) => errors[0];
 		const stream = newWriteableStream<Error>(reducer);
 		stream.end(new Error('error'));
 

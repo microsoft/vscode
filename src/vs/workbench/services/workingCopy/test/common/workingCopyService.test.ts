@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { IWorkingCopy, WorkingCopyIdentifierSet } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { URI } from 'vs/base/common/uri';
 import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
 import { WorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
@@ -33,6 +33,9 @@ suite('WorkingCopyService', () => {
 
 		// resource 1
 		const resource1 = URI.file('/some/folder/file.txt');
+		assert.strictEqual(service.has(resource1), false);
+		assert.strictEqual(service.has({ resource: resource1, typeId: 'testWorkingCopyType' }), false);
+		assert.strictEqual(service.get({ resource: resource1, typeId: 'testWorkingCopyType' }), undefined);
 		const copy1 = new TestWorkingCopy(resource1);
 		const unregister1 = service.registerWorkingCopy(copy1);
 
@@ -42,6 +45,9 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(onDidRegister[0], copy1);
 		assert.strictEqual(service.dirtyCount, 0);
 		assert.strictEqual(service.isDirty(resource1), false);
+		assert.strictEqual(service.has(resource1), true);
+		assert.strictEqual(service.has(copy1), true);
+		assert.strictEqual(service.get(copy1), copy1);
 		assert.strictEqual(service.hasDirty, false);
 
 		copy1.setDirty(true);
@@ -75,6 +81,7 @@ suite('WorkingCopyService', () => {
 		assert.strictEqual(onDidUnregister.length, 1);
 		assert.strictEqual(onDidUnregister[0], copy1);
 		assert.strictEqual(service.workingCopies.length, 0);
+		assert.strictEqual(service.has(resource1), false);
 
 		// resource 2
 		const resource2 = URI.file('/some/folder/file-dirty.txt');
@@ -176,40 +183,5 @@ suite('WorkingCopyService', () => {
 		dispose3.dispose();
 
 		assert.strictEqual(service.workingCopies.length, 0);
-	});
-});
-
-suite('WorkingCopyIdentifierSet', () => {
-
-	test('basics', () => {
-		const resource1 = URI.parse('custom://some/folder/custom1.txt');
-		const resource2 = URI.parse('custom://some/folder/custom2.txt');
-
-		const copy1 = new TestWorkingCopy(resource1, false, 'testWorkingCopyTypeId1');
-		const copy2 = new TestWorkingCopy(resource2, false, 'testWorkingCopyTypeId1');
-
-		const set = new WorkingCopyIdentifierSet([copy1, copy2]);
-		assert.strictEqual(set.size, 2);
-		assert.ok(set.has(copy1));
-		assert.ok(set.has(copy2));
-
-		assert.ok(set.has({ resource: copy1.resource, typeId: copy1.typeId }));
-		assert.ok(!set.has({ resource: copy1.resource, typeId: 'testWorkingCopyTypeId2' }));
-	});
-
-	test('works when resource has no path component', () => {
-		const resource1 = URI.from({ scheme: 'custom', fragment: 'frag1' });
-		const resource2 = URI.from({ scheme: 'custom', fragment: 'frag2' });
-
-		const copy1 = new TestWorkingCopy(resource1, false, 'testWorkingCopyTypeId1');
-		const copy2 = new TestWorkingCopy(resource2, false, 'testWorkingCopyTypeId1');
-
-		const set = new WorkingCopyIdentifierSet([copy1, copy2]);
-		assert.strictEqual(set.size, 2);
-		assert.ok(set.has(copy1));
-		assert.ok(set.has(copy2));
-
-		assert.ok(set.has({ resource: copy1.resource, typeId: copy1.typeId }));
-		assert.ok(!set.has({ resource: copy1.resource, typeId: 'testWorkingCopyTypeId2' }));
 	});
 });

@@ -45,6 +45,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { MarshalledId } from 'vs/base/common/marshalling';
 
 const ItemHeight = 22;
 
@@ -1051,15 +1052,16 @@ export class TimelineIdentityProvider implements IIdentityProvider<TreeElement> 
 
 class TimelineActionRunner extends ActionRunner {
 
-	override runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<any> {
+	override async runAction(action: IAction, { uri, item }: TimelineActionContext): Promise<void> {
 		if (!isTimelineItem(item)) {
 			// TODO@eamodio do we need to do anything else?
-			return action.run();
+			await action.run();
+			return;
 		}
 
-		return action.run(...[
+		await action.run(...[
 			{
-				$mid: 11,
+				$mid: MarshalledId.TimelineActionContext,
 				handle: item.handle,
 				source: item.source,
 				uri: uri

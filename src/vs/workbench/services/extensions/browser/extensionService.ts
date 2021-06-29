@@ -9,11 +9,11 @@ import { IWorkbenchExtensionEnablementService, IWebExtensionsScannerService } fr
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IExtensionService, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionService, IExtensionHost, toExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference, parseScannedExtension } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { AbstractExtensionService, ExtensionRunningLocation, ExtensionRunningLocationClassifier, ExtensionRunningPreference } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { RemoteExtensionHost, IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
@@ -28,6 +28,7 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { IUserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
+import { IAutomatedWindow } from 'vs/platform/log/browser/log';
 
 export class ExtensionService extends AbstractExtensionService implements IExtensionService {
 
@@ -47,7 +48,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@IWebExtensionsScannerService private readonly _webExtensionsScannerService: IWebExtensionsScannerService,
+		@IWebExtensionsScannerService webExtensionsScannerService: IWebExtensionsScannerService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionManifestPropertiesService extensionManifestPropertiesService: IExtensionManifestPropertiesService,
 		@IUserDataInitializationService private readonly _userDataInitializationService: IUserDataInitializationService,
@@ -67,7 +68,8 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			extensionManagementService,
 			contextService,
 			configurationService,
-			extensionManifestPropertiesService
+			extensionManifestPropertiesService,
+			webExtensionsScannerService
 		);
 
 		this._runningLocation = new Map<string, ExtensionRunningLocation>();
@@ -91,9 +93,9 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 			return this._remoteAgentService.scanSingleExtension(extension.location, extension.type === ExtensionType.System);
 		}
 
-		const scannedExtension = await this._webExtensionsScannerService.scanAndTranslateSingleExtension(extension.location, extension.type);
+		const scannedExtension = await this._webExtensionsScannerService.scanExistingExtension(extension.location, extension.type);
 		if (scannedExtension) {
-			return parseScannedExtension(scannedExtension);
+			return toExtensionDescription(scannedExtension);
 		}
 
 		return null;
@@ -181,12 +183,12 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 	protected async _scanAndHandleExtensions(): Promise<void> {
 		// fetch the remote environment
 		let [localExtensions, remoteEnv, remoteExtensions] = await Promise.all([
-			this._webExtensionsScannerService.scanAndTranslateExtensions().then(extensions => extensions.map(parseScannedExtension)),
+			this._scanWebExtensions(),
 			this._remoteAgentService.getEnvironment(),
 			this._remoteAgentService.scanExtensions()
 		]);
-		localExtensions = this._checkEnabledAndProposedAPI(localExtensions);
-		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions);
+		localExtensions = this._checkEnabledAndProposedAPI(localExtensions, false);
+		remoteExtensions = this._checkEnabledAndProposedAPI(remoteExtensions, false);
 
 		const remoteAgentConnection = this._remoteAgentService.getConnection();
 		this._runningLocation = this._runningLocationClassifier.determineRunningLocation(localExtensions, remoteExtensions);
@@ -220,10 +222,10 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		// Dispose everything associated with the extension host
 		this.stopExtensionHosts();
 
-		// We log the exit code to the console. Do NOT remove this
-		// code as the automated integration tests in browser rely
-		// on this message to exit properly.
-		console.log(`vscode:exit ${code}`);
+		const automatedWindow = window as unknown as IAutomatedWindow;
+		if (typeof automatedWindow.codeAutomationExit === 'function') {
+			automatedWindow.codeAutomationExit(code);
+		}
 	}
 }
 

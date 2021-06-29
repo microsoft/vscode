@@ -59,6 +59,7 @@ import 'vs/workbench/services/encryption/browser/encryptionService';
 import 'vs/workbench/services/workingCopy/browser/workingCopyBackupService';
 import 'vs/workbench/services/remote/browser/tunnelServiceImpl';
 import 'vs/workbench/services/userDataSync/browser/userDataAutoSyncEnablementService';
+import 'vs/workbench/services/files/browser/elevatedFileService';
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -86,7 +87,9 @@ import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { ITimerService, TimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
+import { IUserConfigurationFileService, UserConfigurationFileService } from 'vs/platform/configuration/common/userConfigurationFileService';
 
+registerSingleton(IUserConfigurationFileService, UserConfigurationFileService);
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService);
 registerSingleton(IAccessibilityService, AccessibilityService, true);
 registerSingleton(IContextMenuService, ContextMenuService);
@@ -129,6 +132,7 @@ import 'vs/workbench/contrib/extensions/browser/extensions.web.contribution';
 
 // Terminal
 import 'vs/workbench/contrib/terminal/browser/terminal.web.contribution';
+import 'vs/workbench/contrib/externalTerminal/browser/externalTerminal.contribution';
 import 'vs/workbench/contrib/terminal/browser/terminalInstanceService';
 
 // Tasks

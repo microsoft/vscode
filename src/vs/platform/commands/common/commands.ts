@@ -148,3 +148,5 @@ export const NullCommandService: ICommandService = {
 		return Promise.resolve(undefined);
 	}
 };
+
+CommandsRegistry.registerCommand('noop', () => { });

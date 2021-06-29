@@ -41,7 +41,7 @@ export class ExtensionsWatcher extends Disposable {
 		const extensionsResource = URI.file(environmentService.extensionsPath);
 		const extUri = new ExtUri(resource => !fileService.hasCapability(resource, FileSystemProviderCapabilities.PathCaseSensitive));
 		this._register(fileService.watch(extensionsResource));
-		this._register(Event.filter(fileService.onDidFilesChange, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource, extUri)))(() => this.onDidChange()));
+		this._register(Event.filter(fileService.onDidChangeFilesRaw, e => e.changes.some(change => this.doesChangeAffects(change, extensionsResource, extUri)))(() => this.onDidChange()));
 	}
 
 	private doesChangeAffects(change: IFileChange, extensionsResource: URI, extUri: ExtUri): boolean {

@@ -504,6 +504,41 @@ import { assertNoRpc } from '../utils';
 				const terminal = window.createTerminal({ name: 'foo', pty });
 			});
 
+			test('should change terminal name', (done) => {
+				disposables.push(window.onDidOpenTerminal(term => {
+					try {
+						equal(terminal, term);
+						equal(terminal.name, 'foo');
+					} catch (e) {
+						done(e);
+						return;
+					}
+					disposables.push(window.onDidCloseTerminal(t => {
+						try {
+							equal(terminal, t);
+							equal(terminal.name, 'bar');
+						} catch (e) {
+							done(e);
+							return;
+						}
+						done();
+					}));
+				}));
+				const changeNameEmitter = new EventEmitter<string>();
+				const closeEmitter = new EventEmitter<number | undefined>();
+				const pty: Pseudoterminal = {
+					onDidWrite: new EventEmitter<string>().event,
+					onDidChangeName: changeNameEmitter.event,
+					onDidClose: closeEmitter.event,
+					open: () => {
+						changeNameEmitter.fire('bar');
+						closeEmitter.fire(undefined);
+					},
+					close: () => { }
+				};
+				const terminal = window.createTerminal({ name: 'foo', pty });
+			});
+
 			test('exitStatus.code should be set to the exit code (undefined)', (done) => {
 				disposables.push(window.onDidOpenTerminal(term => {
 					try {
@@ -633,8 +668,7 @@ import { assertNoRpc } from '../utils';
 			});
 		});
 
-		// https://github.com/microsoft/vscode/issues/119826
-		suite.skip('environmentVariableCollection', () => {
+		suite('environmentVariableCollection', () => {
 			test('should have collection variables apply to terminals immediately after setting', (done) => {
 				// Text to match on before passing the test
 				const expectedText = [

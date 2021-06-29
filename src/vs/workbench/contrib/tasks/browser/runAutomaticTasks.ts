@@ -15,28 +15,32 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IQuickPickItem, IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkspaceTrustManagementService, IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 
 const ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE = 'tasks.run.allowAutomatic';
 
 export class RunAutomaticTasks extends Disposable implements IWorkbenchContribution {
 	constructor(
 		@ITaskService private readonly taskService: ITaskService,
-		@IStorageService storageService: IStorageService,
-		@IWorkspaceTrustManagementService workspaceTrustManagementService: IWorkspaceTrustManagementService,
-		@IWorkspaceTrustRequestService workspaceTrustRequestService: IWorkspaceTrustRequestService) {
+		@IStorageService private readonly storageService: IStorageService,
+		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService) {
 		super();
-		const isFolderAutomaticAllowed = storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
-		const isWorkspaceTrusted = workspaceTrustManagementService.isWorkpaceTrusted();
-		this.tryRunTasks(isFolderAutomaticAllowed && isWorkspaceTrusted);
+		this.tryRunTasks();
 	}
 
-	private tryRunTasks(isAllowed: boolean | undefined) {
+	private async tryRunTasks() {
+		// Wait until we have task system info (the extension host and workspace folders are available).
+		if (!this.taskService.hasTaskSystemInfo) {
+			await Event.toPromise(Event.once(this.taskService.onDidChangeTaskSystemInfo));
+		}
+		const isFolderAutomaticAllowed = this.storageService.getBoolean(ARE_AUTOMATIC_TASKS_ALLOWED_IN_WORKSPACE, StorageScope.WORKSPACE, undefined);
+		const isWorkspaceTrusted = this.workspaceTrustManagementService.isWorkpaceTrusted();
 		// Only run if allowed. Prompting for permission occurs when a user first tries to run a task.
-		if (isAllowed === true) {
+		if (isFolderAutomaticAllowed && isWorkspaceTrusted) {
 			this.taskService.getWorkspaceTasks(TaskRunSource.FolderOpen).then(workspaceTaskResult => {
 				let { tasks } = RunAutomaticTasks.findAutoTasks(this.taskService, workspaceTaskResult);
 				if (tasks.length > 0) {

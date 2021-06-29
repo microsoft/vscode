@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./menuEntryActionViewItem';
-import { asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { domEvent } from 'vs/base/browser/event';
+import { addDisposableListener, asCSSUrl, ModifierKeyEmitter } from 'vs/base/browser/dom';
 import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { IDisposable, toDisposable, MutableDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -24,14 +23,16 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	const groups = menu.getActions(options);
 	const modifierKeyEmitter = ModifierKeyEmitter.getInstance();
 	const useAlternativeActions = modifierKeyEmitter.keyStatus.altKey || ((isWindows || isLinux) && modifierKeyEmitter.keyStatus.shiftKey);
-	fillInActions(groups, target, useAlternativeActions, primaryGroup);
+	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 	return asDisposable(groups);
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string, primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean): IDisposable {
+export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, primaryGroup?: string | ((actionGroup: string) => boolean), primaryMaxCount?: number, shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): IDisposable {
 	const groups = menu.getActions(options);
+	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
+
 	// Action bars handle alternative actions on their own so the alternative actions should be ignored
-	fillInActions(groups, target, false, primaryGroup, primaryMaxCount, shouldInlineSubmenu);
+	fillInActions(groups, target, false, isPrimaryAction, primaryMaxCount, shouldInlineSubmenu, useSeparatorsInPrimaryActions);
 	return asDisposable(groups);
 }
 
@@ -49,9 +50,10 @@ function asDisposable(groups: ReadonlyArray<[string, ReadonlyArray<MenuItemActio
 function fillInActions(
 	groups: ReadonlyArray<[string, ReadonlyArray<MenuItemAction | SubmenuItemAction>]>, target: IAction[] | { primary: IAction[]; secondary: IAction[]; },
 	useAlternativeActions: boolean,
-	primaryGroup = 'navigation',
+	isPrimaryAction: (actionGroup: string) => boolean = actionGroup => actionGroup === 'navigation',
 	primaryMaxCount: number = Number.MAX_SAFE_INTEGER,
-	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false
+	shouldInlineSubmenu: (action: SubmenuAction, group: string, groupSize: number) => boolean = () => false,
+	useSeparatorsInPrimaryActions: boolean = false
 ): void {
 
 	let primaryBucket: IAction[];
@@ -69,8 +71,11 @@ function fillInActions(
 	for (const [group, actions] of groups) {
 
 		let target: IAction[];
-		if (group === primaryGroup) {
+		if (isPrimaryAction(group)) {
 			target = primaryBucket;
+			if (target.length > 0 && useSeparatorsInPrimaryActions) {
+				target.push(new Separator());
+			}
 		} else {
 			target = secondaryBucket;
 			if (target.length > 0) {
@@ -93,7 +98,7 @@ function fillInActions(
 	// ask the outside if submenu should be inlined or not. only ask when
 	// there would be enough space
 	for (const { group, action, index } of submenuInfo) {
-		const target = group === primaryGroup ? primaryBucket : secondaryBucket;
+		const target = isPrimaryAction(group) ? primaryBucket : secondaryBucket;
 
 		// inlining submenus with length 0 or 1 is easy,
 		// larger submenus need to be checked with the overall limit
@@ -110,6 +115,10 @@ function fillInActions(
 	}
 }
 
+export interface IMenuEntryActionViewItemOptions {
+	draggable?: boolean;
+}
+
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -118,10 +127,11 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	constructor(
 		_action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -133,13 +143,15 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 		return this._wantsAltCommand && this._menuItemAction.alt || this._menuItemAction;
 	}
 
-	override onClick(event: MouseEvent): void {
+	override async onClick(event: MouseEvent): Promise<void> {
 		event.preventDefault();
 		event.stopPropagation();
 
-		this.actionRunner
-			.run(this._commandAction, this._context)
-			.catch(err => this._notificationService.error(err));
+		try {
+			await this.actionRunner.run(this._commandAction, this._context);
+		} catch (err) {
+			this._notificationService.error(err);
+		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -169,12 +181,12 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			}));
 		}
 
-		this._register(domEvent(container, 'mouseleave')(_ => {
+		this._register(addDisposableListener(container, 'mouseleave', _ => {
 			mouseOver = false;
 			updateAltState();
 		}));
 
-		this._register(domEvent(container, 'mouseenter')(e => {
+		this._register(addDisposableListener(container, 'mouseenter', _ => {
 			mouseOver = true;
 			updateAltState();
 		}));
@@ -295,7 +307,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
  */
 export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
 	if (action instanceof MenuItemAction) {
-		return instaService.createInstance(MenuEntryActionViewItem, action);
+		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
 		return instaService.createInstance(SubmenuEntryActionViewItem, action);
 	} else {

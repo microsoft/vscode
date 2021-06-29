@@ -115,7 +115,7 @@ export class TypeScriptVersionManager extends Disposable {
 				description: version.displayName,
 				detail: version.pathLabel,
 				run: async () => {
-					const trusted = await vscode.workspace.requestWorkspaceTrust({ modal: true });
+					const trusted = await vscode.workspace.requestWorkspaceTrust();
 					if (trusted) {
 						await this.workspaceState.update(useWorkspaceTsdkStorageKey, true);
 						const tsConfig = vscode.workspace.getConfiguration('typescript');

@@ -70,8 +70,9 @@
     "vscode-nls": "^4.0.0"
   },
   "devDependencies": {
-    "vscode-codicons": "^0.0.14",
-    "@types/node": "^12.11.7"
+    "@types/node": "14.x",
+    "@types/vscode-webview": "^1.57.0",
+    "vscode-codicons": "^0.0.14"
   },
   "repository": {
     "type": "git",

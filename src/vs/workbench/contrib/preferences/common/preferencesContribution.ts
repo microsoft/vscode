@@ -11,19 +11,19 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IEditorInput } from 'vs/workbench/common/editor';
-import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
-import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IEditorInputWithOptions } from 'vs/workbench/common/editor';
+import { RegisteredEditorPriority, IEditorOverrideService } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { FOLDER_SETTINGS_PATH, IPreferencesService, USE_SPLIT_JSON_SETTING } from 'vs/workbench/services/preferences/common/preferences';
+import { PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -36,10 +36,11 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IModeService private readonly modeService: IModeService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly workspaceService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorOverrideService private readonly editorOverrideService: IEditorOverrideService,
+		@IEditorService private readonly editorService: IEditorService,
 	) {
 		this.settingsListener = this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(USE_SPLIT_JSON_SETTING)) {
@@ -58,54 +59,44 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)) {
-			this.editorOpeningListener = this.editorService.overrideOpenEditor({
-				open: (editor, options, group) => this.onEditorOpening(editor, options, group)
-			});
-		}
-	}
+			this.editorOpeningListener = this.editorOverrideService.registerEditor(
+				'**/settings.json',
+				{
+					id: PreferencesEditorInput.ID,
+					detail: 'Split Settings Editor (deprecated)',
+					label: 'label',
+					priority: RegisteredEditorPriority.builtin,
+				},
+				{},
+				({ resource, options }, group): IEditorInputWithOptions => {
+					// Global User Settings File
+					if (isEqual(resource, this.environmentService.settingsResource)) {
+						return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.USER_LOCAL, resource, group), options };
+					}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): IOpenEditorOverride | undefined {
-		const resource = editor.resource;
-		if (
-			!resource ||
-			!resource.path.endsWith('settings.json') ||								// resource must end in settings.json
-			!this.configurationService.getValue(USE_SPLIT_JSON_SETTING)					// user has not disabled default settings editor
-		) {
-			return undefined;
-		}
+					// Single Folder Workspace Settings File
+					const state = this.workspaceService.getWorkbenchState();
+					if (state === WorkbenchState.FOLDER) {
+						const folders = this.workspaceService.getWorkspace().folders;
+						if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
+							return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE, resource, group), options };
+						}
+					}
 
-		// If the resource was already opened before in the group, do not prevent
-		// the opening of that resource. Otherwise we would have the same settings
-		// opened twice (https://github.com/microsoft/vscode/issues/36447)
-		if (group.contains(editor)) {
-			return undefined;
-		}
+					// Multi Folder Workspace Settings File
+					else if (state === WorkbenchState.WORKSPACE) {
+						const folders = this.workspaceService.getWorkspace().folders;
+						for (const folder of folders) {
+							if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
+								return { editor: this.preferencesService.getCurrentOrNewSplitJsonEditorInput(ConfigurationTarget.WORKSPACE_FOLDER, resource, group), options };
+							}
+						}
+					}
 
-		// Global User Settings File
-		if (isEqual(resource, this.environmentService.settingsResource)) {
-			return { override: this.preferencesService.openGlobalSettings(true, options, group) };
-		}
-
-		// Single Folder Workspace Settings File
-		const state = this.workspaceService.getWorkbenchState();
-		if (state === WorkbenchState.FOLDER) {
-			const folders = this.workspaceService.getWorkspace().folders;
-			if (isEqual(resource, folders[0].toResource(FOLDER_SETTINGS_PATH))) {
-				return { override: this.preferencesService.openWorkspaceSettings(true, options, group) };
-			}
-		}
-
-		// Multi Folder Workspace Settings File
-		else if (state === WorkbenchState.WORKSPACE) {
-			const folders = this.workspaceService.getWorkspace().folders;
-			for (const folder of folders) {
-				if (isEqual(resource, folder.toResource(FOLDER_SETTINGS_PATH))) {
-					return { override: this.preferencesService.openFolderSettings(folder.uri, true, options, group) };
+					return { editor: this.editorService.createEditorInput({ resource }), options };
 				}
-			}
+			);
 		}
-
-		return undefined;
 	}
 
 	private start(): void {

@@ -219,7 +219,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	setTitle(primaryHeading: string, secondaryHeading?: string): void {
 		if (this._primaryHeading && this._secondaryHeading) {
 			this._primaryHeading.innerText = primaryHeading;
-			this._primaryHeading.setAttribute('aria-label', primaryHeading);
+			this._primaryHeading.setAttribute('title', primaryHeading);
 			if (secondaryHeading) {
 				this._secondaryHeading.innerText = secondaryHeading;
 			} else {

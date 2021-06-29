@@ -6,6 +6,7 @@
 import { release, hostname } from 'os';
 import * as fs from 'fs';
 import { gracefulify } from 'graceful-fs';
+import { Promises } from 'vs/base/node/pfs';
 import { isAbsolute, join } from 'vs/base/common/path';
 import { raceTimeout } from 'vs/base/common/async';
 import product from 'vs/platform/product/common/product';
@@ -19,7 +20,7 @@ import { NativeEnvironmentService } from 'vs/platform/environment/node/environme
 import { IExtensionManagementService, IExtensionGalleryService, IExtensionManagementCLIService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionGalleryService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ITelemetryService, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { combinedAppender, NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import { resolveCommonProperties } from 'vs/platform/telemetry/common/commonProperties';
@@ -28,8 +29,6 @@ import { RequestService } from 'vs/platform/request/node/requestService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationService } from 'vs/platform/configuration/common/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
-import { IStateService } from 'vs/platform/state/node/state';
-import { StateService } from 'vs/platform/state/node/stateService';
 import { ILogService, getLogLevel, LogLevel, ConsoleLogger, MultiplexLogService, ILogger } from 'vs/platform/log/common/log';
 import { Schemas } from 'vs/base/common/network';
 import { SpdLogLogger } from 'vs/platform/log/node/spdlogLog';
@@ -104,7 +103,7 @@ class CliMain extends Disposable {
 		services.set(INativeEnvironmentService, environmentService);
 
 		// Init folders
-		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? fs.promises.mkdir(path, { recursive: true }) : undefined));
+		await Promise.all([environmentService.appSettingsHome.fsPath, environmentService.extensionsPath].map(path => path ? Promises.mkdir(path, { recursive: true }) : undefined));
 
 		// Log
 		const logLevel = getLogLevel(environmentService);
@@ -131,10 +130,6 @@ class CliMain extends Disposable {
 		// Init config
 		await configurationService.initialize();
 
-		// State
-		const stateService = new StateService(environmentService, logService);
-		services.set(IStateService, stateService);
-
 		// Request
 		services.set(IRequestService, new SyncDescriptor(RequestService));
 
@@ -158,7 +153,19 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appender: combinedAppender(...appenders),
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, stateService.getItem('telemetry.machineId'), productService.msftInternalDomains, installSourcePath),
+				commonProperties: (async () => {
+					let machineId: string | undefined = undefined;
+					try {
+						const storageContents = await Promises.readFile(join(environmentService.userDataPath, 'storage.json'));
+						machineId = JSON.parse(storageContents.toString())[machineIdKey];
+					} catch (error) {
+						if (error.code !== 'ENOENT') {
+							logService.error(error);
+						}
+					}
+
+					return resolveCommonProperties(fileService, release(), hostname(), process.arch, productService.commit, productService.version, machineId, productService.msftInternalDomains, installSourcePath);
+				})(),
 				piiPaths: [appRoot, extensionsPath]
 			};
 
@@ -213,7 +220,7 @@ class CliMain extends Disposable {
 
 		// Telemetry
 		else if (this.argv['telemetry']) {
-			console.log(buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
+			console.log(await buildTelemetryMessage(environmentService.appRoot, environmentService.extensionsPath));
 		}
 	}
 

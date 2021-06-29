@@ -43,7 +43,7 @@
 				};
 			},
 			canModifyDOM: function (windowConfig) {
-				showPartsSplash(windowConfig);
+				showSplash(windowConfig);
 			},
 			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
@@ -68,40 +68,24 @@
 		}
 	);
 
-	// add default trustedTypes-policy for logging and to workaround
-	// lib/platform limitations
-	window.trustedTypes?.createPolicy('default', {
-		createHTML(value) {
-			// see https://github.com/electron/electron/issues/27211
-			// Electron webviews use a static innerHTML default value and
-			// that isn't trusted. We use a default policy to check for the
-			// exact value of that innerHTML-string and only allow that.
-			if (value === '<!DOCTYPE html><style type="text/css">:host { display: flex; }</style>') {
-				return value;
-			}
-			throw new Error('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			// console.trace('UNTRUSTED html usage, default trusted types policy should NEVER be reached');
-			// return value;
-		}
-	});
-
 	//#region Helpers
 
 	/**
 	 * @typedef {import('../../../platform/windows/common/windows').INativeWindowConfiguration} INativeWindowConfiguration
+	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
 	 *
 	 * @returns {{
 	 *   load: (
 	 *     modules: string[],
-	 *     resultCallback: (result, configuration: INativeWindowConfiguration) => unknown,
+	 *     resultCallback: (result, configuration: INativeWindowConfiguration & NativeParsedArgs) => unknown,
 	 *     options?: {
-	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & object) => {
+	 *       configureDeveloperSettings?: (config: INativeWindowConfiguration & NativeParsedArgs) => {
 	 * 			forceDisableShowDevtoolsOnError?: boolean,
 	 * 			forceEnableDeveloperKeybindings?: boolean,
 	 * 			disallowReloadKeybinding?: boolean,
 	 * 			removeDeveloperKeybindingsAfterLoad?: boolean
 	 * 		 },
-	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & object) => void,
+	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
 	 *       beforeRequire?: () => void
 	 *     }
@@ -114,28 +98,15 @@
 	}
 
 	/**
-	 * @param {{
-	 *	partsSplashPath?: string,
-	 *	colorScheme: ('light' | 'dark' | 'hc'),
-	 *	autoDetectHighContrast?: boolean,
-	 *	extensionDevelopmentPath?: string[],
-	 *	workspace?: import('../../../platform/workspaces/common/workspaces').IWorkspaceIdentifier | import('../../../platform/workspaces/common/workspaces').ISingleFolderWorkspaceIdentifier
-	 * }} configuration
+	 * @param {INativeWindowConfiguration & NativeParsedArgs} configuration
 	 */
-	function showPartsSplash(configuration) {
+	function showSplash(configuration) {
 		performance.mark('code/willShowPartsSplash');
 
-		let data;
-		if (typeof configuration.partsSplashPath === 'string') {
-			try {
-				data = JSON.parse(require.__$__nodeRequire('fs').readFileSync(configuration.partsSplashPath, 'utf8'));
-			} catch (e) {
-				// ignore
-			}
-		}
+		let data = configuration.partsSplash;
 
 		// high contrast mode has been turned on from the outside, e.g. OS -> ignore stored colors and layouts
-		const isHighContrast = configuration.colorScheme === 'hc' /* ColorScheme.HIGH_CONTRAST */ && configuration.autoDetectHighContrast;
+		const isHighContrast = configuration.colorScheme.highContrast && configuration.autoDetectHighContrast;
 		if (data && isHighContrast && data.baseTheme !== 'hc-black') {
 			data = undefined;
 		}
@@ -160,16 +131,18 @@
 			shellBackground = '#1E1E1E';
 			shellForeground = '#CCCCCC';
 		}
+
 		const style = document.createElement('style');
 		style.className = 'initialShellColors';
 		document.head.appendChild(style);
 		style.textContent = `body { background-color: ${shellBackground}; color: ${shellForeground}; margin: 0; padding: 0; }`;
 
-		if (data && data.layoutInfo) {
-			// restore parts if possible (we might not always store layout info)
-			const { id, layoutInfo, colorInfo } = data;
+		// restore parts if possible (we might not always store layout info)
+		if (data?.layoutInfo) {
+			const { layoutInfo, colorInfo } = data;
+
 			const splash = document.createElement('div');
-			splash.id = id;
+			splash.id = 'monaco-parts-splash';
 			splash.className = baseTheme;
 
 			if (layoutInfo.windowBorder) {
@@ -198,8 +171,8 @@
 			splash.appendChild(activityDiv);
 
 			// part: side bar (only when opening workspace/folder)
+			// folder or workspace -> status bar color, sidebar
 			if (configuration.workspace) {
-				// folder or workspace -> status bar color, sidebar
 				const sideDiv = document.createElement('div');
 				sideDiv.setAttribute('style', `position: absolute; height: calc(100% - ${layoutInfo.titleBarHeight}px); top: ${layoutInfo.titleBarHeight}px; ${layoutInfo.sideBarSide}: ${layoutInfo.activityBarWidth}px; width: ${layoutInfo.sideBarWidth}px; background-color: ${colorInfo.sideBarBackground};`);
 				splash.appendChild(sideDiv);

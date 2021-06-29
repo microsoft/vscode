@@ -21,11 +21,10 @@ import { CompositeDragAndDropObserver, ICompositeDragAndDrop, Before2D, toggleDr
 import { Color } from 'vs/base/common/color';
 import { IBaseActionViewItemOptions, BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { Codicon } from 'vs/base/common/codicons';
-import { IHoverService, IHoverTarget } from 'vs/workbench/services/hover/browser/hover';
-import { domEvent } from 'vs/base/browser/event';
-import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export interface ICompositeActivity {
 	badge: IBadge;
@@ -127,13 +126,8 @@ export interface ICompositeBarColors {
 	dragAndDropBorder?: Color;
 }
 
-export const enum ActivityHoverAlignment {
-	LEFT, RIGHT, BELOW, ABOVE
-}
-
 export interface IActivityHoverOptions {
-	alignment: () => ActivityHoverAlignment;
-	delay: () => number;
+	position: () => HoverPosition;
 }
 
 export interface IActivityActionViewItemOptions extends IBaseActionViewItemOptions {
@@ -173,7 +167,6 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this._register(this.themeService.onDidColorThemeChange(this.onThemeChange, this));
 		this._register(action.onDidChangeActivity(this.updateActivity, this));
 		this._register(Event.filter(keybindingService.onDidUpdateKeybindings, () => this.keybindingLabel !== this.computeKeybindingLabel())(() => this.updateTitle()));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.experimental.useCustomHover'))(() => this.updateHover()));
 		this._register(action.onDidChangeBadge(this.updateBadge, this));
 		this._register(toDisposable(() => this.showHoverScheduler.cancel()));
 	}
@@ -369,12 +362,8 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		[this.label, this.badge, this.container].forEach(element => {
 			if (element) {
 				element.setAttribute('aria-label', title);
-				if (this.useCustomHover) {
-					element.setAttribute('title', '');
-					element.removeAttribute('title');
-				} else {
-					element.setAttribute('title', title);
-				}
+				element.setAttribute('title', '');
+				element.removeAttribute('title');
 			}
 		});
 	}
@@ -398,45 +387,33 @@ export class ActivityActionViewItem extends BaseActionViewItem {
 		this.hoverDisposables.clear();
 
 		this.updateTitle();
-		if (this.useCustomHover) {
-			this.hoverDisposables.add(domEvent(this.container, EventType.MOUSE_OVER, true)(() => {
-				if (!this.showHoverScheduler.isScheduled()) {
-					this.showHoverScheduler.schedule(this.options.hoverOptions!.delay() || 150);
-				}
-			}));
-			this.hoverDisposables.add(domEvent(this.container, EventType.MOUSE_LEAVE, true)(() => {
-				this.hover.value = undefined;
-				this.showHoverScheduler.cancel();
-			}));
-			this.hoverDisposables.add(toDisposable(() => {
-				this.hover.value = undefined;
-				this.showHoverScheduler.cancel();
-			}));
-		}
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_OVER, () => {
+			if (!this.showHoverScheduler.isScheduled()) {
+				this.showHoverScheduler.schedule(this.configurationService.getValue<number>('workbench.hover.delay'));
+			}
+		}, true));
+		this.hoverDisposables.add(addDisposableListener(this.container, EventType.MOUSE_LEAVE, () => {
+			this.hover.value = undefined;
+			this.showHoverScheduler.cancel();
+		}, true));
+		this.hoverDisposables.add(toDisposable(() => {
+			this.hover.value = undefined;
+			this.showHoverScheduler.cancel();
+		}));
 	}
 
 	private showHover(): void {
 		if (this.hover.value) {
 			return;
 		}
-		const { left, right, bottom } = this.container.getBoundingClientRect();
-		const hoverAlignment = this.options.hoverOptions!.alignment();
-		const anchorPosition: AnchorPosition | undefined = hoverAlignment === ActivityHoverAlignment.ABOVE ? AnchorPosition.ABOVE : hoverAlignment === ActivityHoverAlignment.BELOW ? AnchorPosition.BELOW : undefined;
-		const target: IHoverTarget | HTMLElement = anchorPosition === undefined ? {
-			targetElements: [this.container],
-			x: hoverAlignment === ActivityHoverAlignment.RIGHT ? right + 2 : left - 2,
-			y: bottom - 10,
-			dispose: () => { }
-		} : this.container;
+		const hoverPosition = this.options.hoverOptions!.position();
 		this.hover.value = this.hoverService.showHover({
-			target,
-			anchorPosition,
+			target: this.container,
+			hoverPosition,
 			text: this.computeTitle(),
+			showPointer: true,
+			compact: true
 		});
-	}
-
-	private get useCustomHover(): boolean {
-		return !!this.configurationService.getValue<boolean>('workbench.experimental.useCustomHover');
 	}
 
 	override dispose(): void {

@@ -14,14 +14,169 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { ILabelService } from 'vs/platform/label/common/label';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
-import { INotebookContentProvider, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
+import { ComplexNotebookEditorModel, NotebookFileWorkingCopyModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
+import { INotebookContentProvider, INotebookSerializer, INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
+import { CellKind, NotebookData, TransientOptions } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { setupInstantiationService } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
+import { VSBuffer } from 'vs/base/common/buffer';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { Mimes } from 'vs/base/common/mime';
 
-suite('NotebookEditorModel', function () {
+suite('NotebookFileWorkingCopyModel', function () {
+
+	const instantiationService = setupInstantiationService();
+
+	test('no transient output is send to serializer', function () {
+
+		const notebook = instantiationService.createInstance(NotebookTextModel,
+			'notebook',
+			URI.file('test'),
+			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [{ outputId: 'id', outputs: [{ mime: Mimes.text, value: 'Hello Out' }] }] }],
+			{},
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+		);
+
+		{ // transient output
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.cells.length, 1);
+						assert.strictEqual(notebook.cells[0].outputs.length, 0);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+
+		{ // NOT transient output
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.cells.length, 1);
+						assert.strictEqual(notebook.cells[0].outputs.length, 1);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+	});
+
+	test('no transient metadata is send to serializer', function () {
+
+		const notebook = instantiationService.createInstance(NotebookTextModel,
+			'notebook',
+			URI.file('test'),
+			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [] }],
+			{ foo: 123, bar: 456 },
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+		);
+
+		{ // transient
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: true, transientCellMetadata: {}, transientDocumentMetadata: { bar: true } };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.metadata.foo, 123);
+						assert.strictEqual(notebook.metadata.bar, undefined);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+
+		{ // NOT transient
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.metadata.foo, 123);
+						assert.strictEqual(notebook.metadata.bar, 456);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+	});
+
+	test('no transient cell metadata is send to serializer', function () {
+
+		const notebook = instantiationService.createInstance(NotebookTextModel,
+			'notebook',
+			URI.file('test'),
+			[{ cellKind: CellKind.Code, language: 'foo', source: 'foo', outputs: [], metadata: { foo: 123, bar: 456 } }],
+			{},
+			{ transientCellMetadata: {}, transientDocumentMetadata: {}, transientOutputs: false }
+		);
+
+		{ // transient
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: true, transientDocumentMetadata: {}, transientCellMetadata: { bar: true } };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
+						assert.strictEqual(notebook.cells[0].metadata!.bar, undefined);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+
+		{ // NOT transient
+			let callCount = 0;
+			const model = new NotebookFileWorkingCopyModel(
+				notebook,
+				new class extends mock<INotebookSerializer>() {
+					override options: TransientOptions = { transientOutputs: false, transientCellMetadata: {}, transientDocumentMetadata: {} };
+					override async notebookToData(notebook: NotebookData) {
+						callCount += 1;
+						assert.strictEqual(notebook.cells[0].metadata!.foo, 123);
+						assert.strictEqual(notebook.cells[0].metadata!.bar, 456);
+						return VSBuffer.fromString('');
+					}
+				}
+			);
+			model.snapshot(CancellationToken.None);
+			assert.strictEqual(callCount, 1);
+		}
+	});
+});
+
+suite('ComplexNotebookEditorModel', function () {
 
 	const instaService = new InstantiationService();
 	const notebokService = new class extends mock<INotebookService>() { };

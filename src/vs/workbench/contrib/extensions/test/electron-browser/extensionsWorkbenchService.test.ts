@@ -101,11 +101,11 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			}
 		});
 
-		instantiationService.stub(IExtensionManagementServerService, <IExtensionManagementServerService>{
-			localExtensionManagementServer: {
-				extensionManagementService: instantiationService.get(IExtensionManagementService)
-			}
-		});
+		instantiationService.stub(IExtensionManagementServerService, anExtensionManagementServerService({
+			id: 'local',
+			label: 'local',
+			extensionManagementService: instantiationService.get(IExtensionManagementService)
+		}, null, null));
 
 		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -121,7 +121,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage());
 		instantiationService.stubPromise(INotificationService, 'prompt', 0);
-		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
+		(<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).reset();
 	});
 
 	teardown(() => {
@@ -176,14 +176,14 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.strictEqual(4, actual.rating);
 			assert.strictEqual(100, actual.ratingCount);
 			assert.strictEqual(false, actual.outdated);
-			assert.deepEqual(['pub.1', 'pub.2'], actual.dependencies);
+			assert.deepStrictEqual(['pub.1', 'pub.2'], actual.dependencies);
 		});
 	});
 
 	test('test for empty installed extensions', async () => {
 		testObject = await aWorkbenchService();
 
-		assert.deepEqual([], testObject.local);
+		assert.deepStrictEqual([], testObject.local);
 	});
 
 	test('test for installed extensions', async () => {
@@ -233,7 +233,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(undefined, actual.rating);
 		assert.strictEqual(undefined, actual.ratingCount);
 		assert.strictEqual(false, actual.outdated);
-		assert.deepEqual(['pub.1', 'pub.2'], actual.dependencies);
+		assert.deepStrictEqual(['pub.1', 'pub.2'], actual.dependencies);
 
 		actual = actuals[1];
 		assert.strictEqual(ExtensionType.System, actual.type);
@@ -251,7 +251,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 		assert.strictEqual(undefined, actual.rating);
 		assert.strictEqual(undefined, actual.ratingCount);
 		assert.strictEqual(false, actual.outdated);
-		assert.deepEqual([], actual.dependencies);
+		assert.deepStrictEqual([], actual.dependencies);
 	});
 
 	test('test installed extensions get syncs with gallery', async () => {
@@ -327,7 +327,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.strictEqual(4, actual.rating);
 			assert.strictEqual(100, actual.ratingCount);
 			assert.strictEqual(true, actual.outdated);
-			assert.deepEqual(['pub.1'], actual.dependencies);
+			assert.deepStrictEqual(['pub.1'], actual.dependencies);
 
 			actual = actuals[1];
 			assert.strictEqual(ExtensionType.System, actual.type);
@@ -345,7 +345,7 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 			assert.strictEqual(undefined, actual.rating);
 			assert.strictEqual(undefined, actual.ratingCount);
 			assert.strictEqual(false, actual.outdated);
-			assert.deepEqual([], actual.dependencies);
+			assert.deepStrictEqual([], actual.dependencies);
 		});
 	});
 
@@ -1447,6 +1447,24 @@ suite('ExtensionsWorkbenchServiceTest', () => {
 				}
 			});
 		});
+	}
+
+	function anExtensionManagementServerService(localExtensionManagementServer: IExtensionManagementServer | null, remoteExtensionManagementServer: IExtensionManagementServer | null, webExtensionManagementServer: IExtensionManagementServer | null): IExtensionManagementServerService {
+		return {
+			_serviceBrand: undefined,
+			localExtensionManagementServer,
+			remoteExtensionManagementServer,
+			webExtensionManagementServer,
+			getExtensionManagementServer: (extension: IExtension) => {
+				if (extension.location.scheme === Schemas.file) {
+					return localExtensionManagementServer;
+				}
+				if (extension.location.scheme === Schemas.vscodeRemote) {
+					return remoteExtensionManagementServer;
+				}
+				return webExtensionManagementServer;
+			}
+		};
 	}
 
 	function aMultiExtensionManagementServerService(instantiationService: TestInstantiationService, localExtensionManagementService?: IExtensionManagementService, remoteExtensionManagementService?: IExtensionManagementService): IExtensionManagementServerService {

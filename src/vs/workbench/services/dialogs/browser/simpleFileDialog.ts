@@ -450,8 +450,12 @@ export class SimpleFileDialog {
 
 	private constructFullUserPath(): string {
 		const currentFolderPath = this.pathFromUri(this.currentFolder);
-		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment) && equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
-			return currentFolderPath;
+		if (equalsIgnoreCase(this.filePickBox.value.substr(0, this.userEnteredPathSegment.length), this.userEnteredPathSegment)) {
+			if (equalsIgnoreCase(this.filePickBox.value.substr(0, currentFolderPath.length), currentFolderPath)) {
+				return currentFolderPath;
+			} else {
+				return this.userEnteredPathSegment;
+			}
 		} else {
 			return this.pathAppend(this.currentFolder, this.userEnteredPathSegment);
 		}
@@ -540,9 +544,11 @@ export class SimpleFileDialog {
 	}
 
 	private tildaReplace(value: string): URI {
+		const home = this.userHome;
 		if ((value[0] === '~') && (value.length > 1)) {
-			let home = this.userHome;
 			return resources.joinPath(home, value.substring(1));
+		} else if (value[value.length - 1] === '~') {
+			return home;
 		}
 		return this.remoteUriFrom(value);
 	}
@@ -902,20 +908,22 @@ export class SimpleFileDialog {
 		return child.substring(parent.length);
 	}
 
-	private createBackItem(currFolder: URI): FileQuickPickItem | null {
+	private async createBackItem(currFolder: URI): Promise<FileQuickPickItem | undefined> {
 		const fileRepresentationCurr = this.currentFolder.with({ scheme: Schemas.file, authority: '' });
 		const fileRepresentationParent = resources.dirname(fileRepresentationCurr);
 		if (!resources.isEqual(fileRepresentationCurr, fileRepresentationParent)) {
 			const parentFolder = resources.dirname(currFolder);
-			return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			if (await this.fileService.exists(parentFolder)) {
+				return { label: '..', uri: resources.addTrailingPathSeparator(parentFolder, this.separator), isFolder: true };
+			}
 		}
-		return null;
+		return undefined;
 	}
 
 	private async createItems(folder: IFileStat | undefined, currentFolder: URI, token: CancellationToken): Promise<FileQuickPickItem[]> {
 		const result: FileQuickPickItem[] = [];
 
-		const backDir = this.createBackItem(currentFolder);
+		const backDir = await this.createBackItem(currentFolder);
 		try {
 			if (!folder) {
 				folder = await this.fileService.resolve(currentFolder);

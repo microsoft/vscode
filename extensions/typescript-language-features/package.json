@@ -9,7 +9,10 @@
   "aiKey": "AIF-d9b70cd4-b9f9-4d70-929b-a071c400b217",
   "enableProposedApi": true,
   "capabilities": {
-    "virtualWorkspaces": true,
+    "virtualWorkspaces": {
+      "supported": "limited",
+      "description": "%virtualWorkspaces%"
+    },
     "untrustedWorkspaces": {
       "supported": "limited",
       "description": "%workspaceTrust%",
@@ -35,7 +38,7 @@
     "vscode-nls": "^4.1.1"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/semver": "^5.5.0"
   },
   "scripts": {
@@ -147,7 +150,7 @@
         "typescript.disableAutomaticTypeAcquisition": {
           "type": "boolean",
           "default": false,
-          "description": "%typescript.disableAutomaticTypeAcquisition%",
+          "markdownDescription": "%typescript.disableAutomaticTypeAcquisition%",
           "scope": "window",
           "tags": [
             "usesOnlineServices"
@@ -165,13 +168,13 @@
             "null"
           ],
           "default": null,
-          "description": "%typescript.npm%",
+          "markdownDescription": "%typescript.npm%",
           "scope": "machine"
         },
         "typescript.check.npmIsInstalled": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.check.npmIsInstalled%",
+          "markdownDescription": "%typescript.check.npmIsInstalled%",
           "scope": "window"
         },
         "javascript.referencesCodeLens.enabled": {
@@ -1066,19 +1069,23 @@
       "explorer/context": [
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascript"
+          "when": "tsSupportsFileReferences && resourceLangId == typescript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescript"
+          "when": "tsSupportsFileReferences && resourceLangId == javascript",
+          "group": "4_search"
         },
         {
           "command": "typescript.findAllFileReferences",
-          "when": "tsSupportsFileReferences && resourceLangId == typescriptreact"
+          "when": "tsSupportsFileReferences && resourceLangId == javascriptreact",
+          "group": "4_search"
         }
       ],
       "editor/title/context": [

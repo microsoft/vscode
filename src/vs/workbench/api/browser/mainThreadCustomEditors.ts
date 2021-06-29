@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { multibyteAwareBtoa } from 'vs/base/browser/dom';
-import { CancelablePromise, createCancelablePromise, timeout } from 'vs/base/common/async';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
@@ -16,7 +16,7 @@ import { isEqual, isEqualOrParent, toLocalResource } from 'vs/base/common/resour
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { FileChangesEvent, FileChangeType, FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IUndoRedoService, UndoRedoElementType } from 'vs/platform/undoRedo/common/undoRedo';
@@ -35,9 +35,10 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
-import { IWorkingCopyFileService } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
+import { IWorkingCopyFileService, WorkingCopyFileEvent } from 'vs/workbench/services/workingCopy/common/workingCopyFileService';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, IWorkingCopyBackup, NO_TYPE_ID, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { ResourceWorkingCopy } from 'vs/workbench/services/workingCopy/common/resourceWorkingCopy';
 
 const enum CustomEditorModelType {
 	Custom,
@@ -50,6 +51,8 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 
 	private readonly _editorProviders = new Map<string, IDisposable>();
 
+	private readonly _editorRenameBackups = new Map<string, CustomDocumentBackupData>();
+
 	constructor(
 		context: extHostProtocol.IExtHostContext,
 		private readonly mainThreadWebview: MainThreadWebviews,
@@ -60,7 +63,7 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		@ICustomEditorService private readonly _customEditorService: ICustomEditorService,
 		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IWebviewWorkbenchService private readonly _webviewWorkbenchService: IWebviewWorkbenchService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
@@ -89,6 +92,9 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 			},
 			resolveWebview: () => { throw new Error('not implemented'); }
 		}));
+
+		// Working copy operations
+		this._register(workingCopyFileService.onWillRunWorkingCopyFileOperation(async e => this.onWillRunWorkingCopyFileOperation(e)));
 	}
 
 	override dispose() {
@@ -137,9 +143,18 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 				webviewInput.webview.options = options;
 				webviewInput.webview.extension = extension;
 
+				// If there's an old resource this was a move and we must resolve the backup at the same time as the webview
+				// This is because the backup must be ready upon model creation, and the input resolve method comes after
+				let backupId = webviewInput.backupId;
+				if (webviewInput.oldResource && !webviewInput.backupId) {
+					const backup = this._editorRenameBackups.get(webviewInput.oldResource.toString());
+					backupId = backup?.backupId;
+					this._editorRenameBackups.delete(webviewInput.oldResource.toString());
+				}
+
 				let modelRef: IReference<ICustomEditorModel>;
 				try {
-					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId: webviewInput.backupId }, cancellation);
+					modelRef = await this.getOrCreateCustomEditorModel(modelType, resource, viewType, { backupId }, cancellation);
 				} catch (error) {
 					onUnexpectedError(error);
 					webviewInput.webview.html = this.mainThreadWebview.getWebviewResolvedFailedContent(viewType);
@@ -252,6 +267,31 @@ export class MainThreadCustomEditors extends Disposable implements extHostProtoc
 		}
 		return model;
 	}
+
+	//#region Working Copy
+	private async onWillRunWorkingCopyFileOperation(e: WorkingCopyFileEvent) {
+		if (e.operation !== FileOperation.MOVE) {
+			return;
+		}
+		e.waitUntil((async () => {
+			const models = [];
+			for (const file of e.files) {
+				if (file.source) {
+					models.push(...(await this._customEditorService.models.getAllModels(file.source)));
+				}
+			}
+			for (const model of models) {
+				if (model instanceof MainThreadCustomEditorModel && model.isDirty()) {
+					const workingCopy = await model.backup(CancellationToken.None);
+					if (workingCopy.meta) {
+						// This cast is safe because we do an instanceof check above and a custom document backup data is always returned
+						this._editorRenameBackups.set(model.editorResource.toString(), workingCopy.meta as CustomDocumentBackupData);
+					}
+				}
+			}
+		})());
+	}
+	//#endregion
 }
 
 namespace HotExitState {
@@ -276,9 +316,7 @@ namespace HotExitState {
 }
 
 
-class MainThreadCustomEditorModel extends Disposable implements ICustomEditorModel, IWorkingCopy {
-
-	#isDisposed = false;
+class MainThreadCustomEditorModel extends ResourceWorkingCopy implements ICustomEditorModel {
 
 	private _fromBackup: boolean = false;
 	private _hotExitState: HotExitState.State = HotExitState.Allowed;
@@ -288,12 +326,8 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private _savePoint: number = -1;
 	private readonly _edits: Array<number> = [];
 	private _isDirtyFromContentChange = false;
-	private _inOrphaned = false;
 
 	private _ongoingSave?: CancelablePromise<void>;
-
-	private readonly _onDidChangeOrphaned = this._register(new Emitter<void>());
-	public readonly onDidChangeOrphaned = this._onDidChangeOrphaned.event;
 
 	// TODO@mjbvz consider to enable a `typeId` that is specific for custom
 	// editors. Using a distinct `typeId` allows the working copy to have
@@ -322,7 +356,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			untitledDocumentData = editors[0].untitledDocumentData;
 		}
 		const { editable } = await proxy.$createCustomDocument(resource, viewType, options.backupId, untitledDocumentData, cancellation);
-		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, getEditors);
+		return instantiationService.createInstance(MainThreadCustomEditorModel, proxy, viewType, resource, !!options.backupId, editable, !!untitledDocumentData, getEditors);
 	}
 
 	constructor(
@@ -331,16 +365,17 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		private readonly _editorResource: URI,
 		fromBackup: boolean,
 		private readonly _editable: boolean,
+		startDirty: boolean,
 		private readonly _getEditors: () => CustomEditorInput[],
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IFileService private readonly _fileService: IFileService,
+		@IFileService fileService: IFileService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IUndoRedoService private readonly _undoService: IUndoRedoService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 		@IWorkingCopyService workingCopyService: IWorkingCopyService,
-		@IPathService private readonly _pathService: IPathService
+		@IPathService private readonly _pathService: IPathService,
 	) {
-		super();
+		super(MainThreadCustomEditorModel.toWorkingCopyResource(_viewType, _editorResource), fileService);
 
 		this._fromBackup = fromBackup;
 
@@ -348,7 +383,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			this._register(workingCopyService.registerWorkingCopy(this));
 		}
 
-		this._register(_fileService.onDidFilesChange(e => this.onDidFilesChange(e)));
+		// Normally means we're re-opening an untitled file
+		if (startDirty) {
+			this._isDirtyFromContentChange = true;
+		}
 	}
 
 	get editorResource() {
@@ -356,8 +394,6 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	}
 
 	override dispose() {
-		this.#isDisposed = true;
-
 		if (this._editable) {
 			this._undoService.removeElements(this._editorResource);
 		}
@@ -369,11 +405,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 
 	//#region IWorkingCopy
 
-	public get resource() {
-		// Make sure each custom editor has a unique resource for backup and edits
-		return MainThreadCustomEditorModel.toWorkingCopyResource(this._viewType, this._editorResource);
-	}
-
+	// Make sure each custom editor has a unique resource for backup and edits
 	private static toWorkingCopyResource(viewType: string, resource: URI) {
 		const authority = viewType.replace(/[^a-z0-9\-_]/gi, '-');
 		const path = `/${multibyteAwareBtoa(resource.with({ query: null, fragment: null }).toString(true))}`;
@@ -403,10 +435,6 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		return this._fromBackup;
 	}
 
-	public isOrphaned(): boolean {
-		return this._inOrphaned;
-	}
-
 	private isUntitled() {
 		return this._editorResource.scheme === Schemas.untitled;
 	}
@@ -417,66 +445,12 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 
+	readonly onDidChangeReadonly = Event.None;
+
 	//#endregion
 
-	private async onDidFilesChange(e: FileChangesEvent): Promise<void> {
-		let fileEventImpactsModel = false;
-		let newInOrphanModeGuess: boolean | undefined;
-
-		// If we are currently orphaned, we check if the model file was added back
-		if (this._inOrphaned) {
-			const modelFileAdded = e.contains(this.editorResource, FileChangeType.ADDED);
-			if (modelFileAdded) {
-				newInOrphanModeGuess = false;
-				fileEventImpactsModel = true;
-			}
-		}
-
-		// Otherwise we check if the model file was deleted
-		else {
-			const modelFileDeleted = e.contains(this.editorResource, FileChangeType.DELETED);
-			if (modelFileDeleted) {
-				newInOrphanModeGuess = true;
-				fileEventImpactsModel = true;
-			}
-		}
-
-		if (fileEventImpactsModel && this._inOrphaned !== newInOrphanModeGuess) {
-			let newInOrphanModeValidated: boolean = false;
-			if (newInOrphanModeGuess) {
-				// We have received reports of users seeing delete events even though the file still
-				// exists (network shares issue: https://github.com/microsoft/vscode/issues/13665).
-				// Since we do not want to mark the model as orphaned, we have to check if the
-				// file is really gone and not just a faulty file event.
-				await timeout(100);
-
-				if (this.#isDisposed) {
-					newInOrphanModeValidated = true;
-				} else {
-					const exists = await this._fileService.exists(this.editorResource);
-					newInOrphanModeValidated = !exists;
-				}
-			}
-
-			if (this._inOrphaned !== newInOrphanModeValidated && !this.#isDisposed) {
-				this.setOrphaned(newInOrphanModeValidated);
-			}
-		}
-	}
-
-	private setOrphaned(orphaned: boolean): void {
-		if (this._inOrphaned !== orphaned) {
-			this._inOrphaned = orphaned;
-			this._onDidChangeOrphaned.fire();
-		}
-	}
-
-	public isEditable(): boolean {
-		return this._editable;
-	}
-
-	public isOnReadonlyFileSystem(): boolean {
-		return this._fileService.hasCapability(this.editorResource, FileSystemProviderCapabilities.Readonly);
+	public isReadonly(): boolean {
+		return !this._editable;
 	}
 
 	public get viewType() {
@@ -569,7 +543,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 		}
 	}
 
-	public async revert(_options?: IRevertOptions) {
+	public async revert(options?: IRevertOptions) {
 		if (!this._editable) {
 			return;
 		}
@@ -578,7 +552,10 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return;
 		}
 
-		this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		if (!options?.soft) {
+			this._proxy.$revert(this._editorResource, this.viewType, CancellationToken.None);
+		}
+
 		this.change(() => {
 			this._isDirtyFromContentChange = false;
 			this._fromBackup = false;
@@ -650,7 +627,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			return true;
 		} else {
 			// Since the editor is readonly, just copy the file over
-			await this._fileService.copy(resource, targetResource, false /* overwrite */);
+			await this.fileService.copy(resource, targetResource, false /* overwrite */);
 			return true;
 		}
 	}
@@ -698,6 +675,7 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			pendingState.operation.cancel();
 		});
 
+		let errorMessage = '';
 		try {
 			const backupId = await pendingState.operation;
 			// Make sure state has not changed in the meantime
@@ -716,12 +694,15 @@ class MainThreadCustomEditorModel extends Disposable implements ICustomEditorMod
 			if (this._hotExitState === pendingState) {
 				this._hotExitState = HotExitState.NotAllowed;
 			}
+			if (e.message) {
+				errorMessage = e.message;
+			}
 		}
 
 		if (this._hotExitState === HotExitState.Allowed) {
 			return backupData;
 		}
 
-		throw new Error('Cannot back up in this state');
+		throw new Error(`Cannot back up in this state: ${errorMessage}`);
 	}
 }

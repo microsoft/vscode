@@ -10,7 +10,7 @@ import { release, tmpdir, hostname } from 'os';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/electron-sandbox/workbenchCommonProperties';
 import { getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
-import { rimraf } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { timeout } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
@@ -40,11 +40,11 @@ suite('Telemetry - common properties', function () {
 	teardown(() => {
 		diskFileSystemProvider.dispose();
 
-		return rimraf(parentDir);
+		return Promises.rm(parentDir);
 	});
 
 	test('default', async function () {
-		await fs.promises.mkdir(parentDir, { recursive: true });
+		await Promises.mkdir(parentDir, { recursive: true });
 		fs.writeFileSync(installSource, 'my.install.source');
 		const props = await resolveWorkbenchCommonProperties(testStorageService, testFileService, release(), hostname(), commit, version, 'someMachineId', undefined, installSource);
 		assert.ok('commitHash' in props);

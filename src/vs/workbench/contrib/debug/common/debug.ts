@@ -106,6 +106,7 @@ export interface IRawStoppedDetails {
 	totalFrames?: number;
 	allThreadsStopped?: boolean;
 	framesErrorMessage?: string;
+	hitBreakpointIds?: number[];
 }
 
 // model
@@ -215,6 +216,7 @@ export interface IDebugSession extends ITreeElement {
 	getThread(threadId: number): IThread | undefined;
 	getAllThreads(): IThread[];
 	clearThreads(removeThreads: boolean, reference?: number): void;
+	getStoppedDetails(): IRawStoppedDetails | undefined;
 
 	getReplElements(): IReplElement[];
 	hasSeparateRepl(): boolean;

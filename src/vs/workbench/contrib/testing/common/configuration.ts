@@ -12,6 +12,8 @@ export const enum TestingConfigKeys {
 	AutoRunMode = 'testing.autoRun.mode',
 	AutoOpenPeekView = 'testing.automaticallyOpenPeekView',
 	AutoOpenPeekViewDuringAutoRun = 'testing.automaticallyOpenPeekViewDuringAutoRun',
+	FollowRunningTest = 'testing.followRunningTest',
+	DefaultGutterClickAction = 'testing.defaultGutterClickAction',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -22,6 +24,12 @@ export const enum AutoOpenPeekViewWhen {
 export const enum AutoRunMode {
 	AllInWorkspace = 'all',
 	OnlyPreviouslyRun = 'rerun',
+}
+
+export const enum DefaultGutterClickAction {
+	Run = 'run',
+	Debug = 'debug',
+	ContextMenu = 'contextMenu',
 }
 
 export const testingConfiguation: IConfigurationNode = {
@@ -65,6 +73,25 @@ export const testingConfiguation: IConfigurationNode = {
 			type: 'boolean',
 			default: false,
 		},
+		[TestingConfigKeys.FollowRunningTest]: {
+			description: localize('testing.followRunningTest', 'Controls whether the running test should be followed in the test explorer view'),
+			type: 'boolean',
+			default: true,
+		},
+		[TestingConfigKeys.DefaultGutterClickAction]: {
+			description: localize('testing.defaultGutterClickAction', 'Controls the action to take when left-clicking on a test decoration in the gutter.'),
+			enum: [
+				DefaultGutterClickAction.Run,
+				DefaultGutterClickAction.Debug,
+				DefaultGutterClickAction.ContextMenu,
+			],
+			enumDescriptions: [
+				localize('testing.defaultGutterClickAction.run', 'Run the test.'),
+				localize('testing.defaultGutterClickAction.debug', 'Debug the test.'),
+				localize('testing.defaultGutterClickAction.contextMenu', 'Open the context menu for more options.'),
+			],
+			default: DefaultGutterClickAction.Run,
+		},
 	}
 };
 
@@ -73,6 +100,8 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.AutoRunDelay]: number;
 	[TestingConfigKeys.AutoOpenPeekView]: AutoOpenPeekViewWhen;
 	[TestingConfigKeys.AutoOpenPeekViewDuringAutoRun]: boolean;
+	[TestingConfigKeys.FollowRunningTest]: boolean;
+	[TestingConfigKeys.DefaultGutterClickAction]: DefaultGutterClickAction;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

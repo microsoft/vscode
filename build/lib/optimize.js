@@ -177,7 +177,7 @@ function minifyTask(src, sourceMapBaseUrl) {
                 sourcemap: 'external',
                 outdir: '.',
                 platform: 'node',
-                target: ['node12.18'],
+                target: ['esnext'],
                 write: false
             }).then(res => {
                 const jsFile = res.outputFiles.find(f => /\.js$/.test(f.path));

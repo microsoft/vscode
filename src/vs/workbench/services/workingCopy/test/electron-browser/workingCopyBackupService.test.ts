@@ -6,16 +6,17 @@
 import * as assert from 'assert';
 import { isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
+import { createHash } from 'crypto';
 import { insert } from 'vs/base/common/arrays';
 import { hash } from 'vs/base/common/hash';
 import { isEqual } from 'vs/base/common/resources';
-import { promises, existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
 import { dirname, join } from 'vs/base/common/path';
-import { readdirSync, rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises, readdirSync } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { WorkingCopyBackupsModel, hashIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopyBackupService';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
-import { getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { Schemas } from 'vs/base/common/network';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { NullLogService } from 'vs/platform/log/common/log';
@@ -29,8 +30,7 @@ import { bufferToReadable, bufferToStream, streamToBuffer, VSBuffer, VSBufferRea
 import { TestWorkbenchConfiguration } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { TestProductService, toTypedWorkingCopyId, toUntypedWorkingCopyId } from 'vs/workbench/test/browser/workbenchTestServices';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { consumeStream } from 'vs/base/common/stream';
 
 class TestWorkbenchEnvironmentService extends NativeWorkbenchEnvironmentService {
@@ -47,23 +47,26 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
 	discardedBackups: IWorkingCopyIdentifier[];
+	discardedAllBackups: boolean;
 	private pendingBackupsArr: Promise<void>[];
+	private diskFileSystemProvider: DiskFileSystemProvider;
 
 	constructor(testDir: string, workspaceBackupPath: string) {
 		const environmentService = new TestWorkbenchEnvironmentService(testDir, workspaceBackupPath);
 		const logService = new NullLogService();
 		const fileService = new FileService(logService);
-		const diskFileSystemProvider = new DiskFileSystemProvider(logService);
-		fileService.registerProvider(Schemas.file, diskFileSystemProvider);
-		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, diskFileSystemProvider, Schemas.userData, logService));
-
 		super(environmentService, fileService, logService);
+
+		this.diskFileSystemProvider = new DiskFileSystemProvider(logService);
+		fileService.registerProvider(Schemas.file, this.diskFileSystemProvider);
+		fileService.registerProvider(Schemas.userData, new FileUserDataProvider(Schemas.file, this.diskFileSystemProvider, Schemas.userData, logService));
 
 		this.fileService = fileService;
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
+		this.discardedAllBackups = false;
 	}
 
 	async waitForAllBackups(): Promise<void> {
@@ -102,12 +105,22 @@ export class NodeTestWorkingCopyBackupService extends NativeWorkingCopyBackupSer
 		}
 	}
 
+	override async discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void> {
+		this.discardedAllBackups = true;
+
+		return super.discardBackups(filter);
+	}
+
 	async getBackupContents(identifier: IWorkingCopyIdentifier): Promise<string> {
 		const backupResource = this.toBackupResource(identifier);
 
 		const fileContents = await this.fileService.readFile(backupResource);
 
 		return fileContents.value.toString();
+	}
+
+	dispose() {
+		this.diskFileSystemProvider.dispose();
 	}
 }
 
@@ -136,13 +149,14 @@ suite('WorkingCopyBackupService', () => {
 
 		service = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 
-		await promises.mkdir(backupHome, { recursive: true });
+		await Promises.mkdir(backupHome, { recursive: true });
 
-		return writeFile(workspacesJsonPath, '');
+		return Promises.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(() => {
-		return rimraf(testDir);
+		service.dispose();
+		return Promises.rm(testDir);
 	});
 
 	suite('hashIdentifier', () => {
@@ -604,7 +618,7 @@ suite('WorkingCopyBackupService', () => {
 			await service.backup(backupId3, bufferToReadable(VSBuffer.fromString('test')));
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'file')).length, 3);
 
-			await service.discardBackups([backupId2, backupId3]);
+			await service.discardBackups({ except: [backupId2, backupId3] });
 
 			let backupPath = join(workspaceBackupPath, backupId1.resource.scheme, hashIdentifier(backupId1));
 			assert.strictEqual(existsSync(backupPath), false);
@@ -615,7 +629,7 @@ suite('WorkingCopyBackupService', () => {
 			backupPath = join(workspaceBackupPath, backupId3.resource.scheme, hashIdentifier(backupId3));
 			assert.strictEqual(existsSync(backupPath), true);
 
-			await service.discardBackups([backupId1]);
+			await service.discardBackups({ except: [backupId1] });
 
 			for (const backupId of [backupId1, backupId2, backupId3]) {
 				const backupPath = join(workspaceBackupPath, backupId.resource.scheme, hashIdentifier(backupId));
@@ -631,7 +645,7 @@ suite('WorkingCopyBackupService', () => {
 			assert.strictEqual(existsSync(backupPath), true);
 			assert.strictEqual(readdirSync(join(workspaceBackupPath, 'untitled')).length, 1);
 
-			await service.discardBackups([backupId]);
+			await service.discardBackups({ except: [backupId] });
 			assert.strictEqual(existsSync(backupPath), true);
 		});
 	});
@@ -974,21 +988,22 @@ suite('WorkingCopyBackupService', () => {
 		test('file with binary data', async () => {
 			const identifier = toUntypedWorkingCopyId(fooFile);
 
-			const buffer = VSBuffer.alloc(3);
-			buffer.writeUInt8(10, 0);
-			buffer.writeUInt8(20, 1);
-			buffer.writeUInt8(30, 2);
+			const sourceDir = getPathFromAmdModule(require, './fixtures');
 
-			await service.backup(identifier, bufferToReadable(buffer), undefined, { binaryTest: 'true' });
+			const buffer = await Promises.readFile(join(sourceDir, 'binary.txt'));
+			const hash = createHash('md5').update(buffer).digest('base64');
+
+			await service.backup(identifier, bufferToReadable(VSBuffer.wrap(buffer)), undefined, { binaryTest: 'true' });
 
 			const backup = await service.resolve(toUntypedWorkingCopyId(fooFile));
 			assert.ok(backup);
 
 			const backupBuffer = await consumeStream(backup.value, chunks => VSBuffer.concat(chunks));
 			assert.strictEqual(backupBuffer.buffer.byteLength, buffer.byteLength);
-			assert.strictEqual(backupBuffer.readUInt8(0), buffer.readUInt8(0));
-			assert.strictEqual(backupBuffer.readUInt8(1), buffer.readUInt8(1));
-			assert.strictEqual(backupBuffer.readUInt8(2), buffer.readUInt8(2));
+
+			const backupHash = createHash('md5').update(backupBuffer.buffer).digest('base64');
+
+			assert.strictEqual(hash, backupHash);
 		});
 	});
 
@@ -1052,7 +1067,7 @@ suite('WorkingCopyBackupService', () => {
 
 		test('create', async () => {
 			const fooBackupPath = join(workspaceBackupPath, fooFile.scheme, hashIdentifier(toUntypedWorkingCopyId(fooFile)));
-			await promises.mkdir(dirname(fooBackupPath), { recursive: true });
+			await Promises.mkdir(dirname(fooBackupPath), { recursive: true });
 			writeFileSync(fooBackupPath, 'foo');
 			const model = await WorkingCopyBackupsModel.create(URI.file(workspaceBackupPath), service.fileService);
 

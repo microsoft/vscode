@@ -6,26 +6,9 @@
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { IWorkingCopyBackupMeta, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 export const IWorkingCopyBackupService = createDecorator<IWorkingCopyBackupService>('workingCopyBackupService');
-
-/**
- * Working copy backup metadata that can be associated
- * with the backup.
- *
- * Some properties may be reserved as outlined here and
- * cannot be used.
- */
-export interface IWorkingCopyBackupMeta {
-	[key: string]: unknown;
-
-	/**
-	 * `typeId` is a reverved property that cannot be used
-	 * as backup metadata.
-	 */
-	typeId?: never;
-}
 
 /**
  * A resolved working copy backup carries the backup value
@@ -73,7 +56,7 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Gets a list of working copy backups for the current workspace.
 	 */
-	getBackups(): Promise<ReadonlyArray<IWorkingCopyIdentifier>>;
+	getBackups(): Promise<readonly IWorkingCopyIdentifier[]>;
 
 	/**
 	 * Resolves the working copy backup for the given identifier if that exists.
@@ -93,8 +76,8 @@ export interface IWorkingCopyBackupService {
 	/**
 	 * Discards all working copy backups.
 	 *
-	 * The optional set of identifiers can be provided to discard all but the
-	 * provided ones.
+	 * The optional set of identifiers in the filter can be
+	 * provided to discard all but the provided ones.
 	 */
-	discardBackups(except?: IWorkingCopyIdentifier[]): Promise<void>;
+	discardBackups(filter?: { except: IWorkingCopyIdentifier[] }): Promise<void>;
 }

@@ -176,7 +176,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		switch (targetSelector) {
 			case 'workspaceFolderValue':
 			case 'workspaceValue':
-				this.isUntrusted = !!this.setting.requireTrust && !isWorkspaceTrusted;
+				this.isUntrusted = !!this.setting.restricted && !isWorkspaceTrusted;
 				break;
 		}
 
@@ -199,7 +199,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		this.defaultValue = inspected.defaultValue;
 
 		this.isConfigured = isConfigured;
-		if (isConfigured || this.setting.tags || this.tags || this.isUntrusted) {
+		if (isConfigured || this.setting.tags || this.tags || this.setting.restricted) {
 			// Don't create an empty Set for all 1000 settings, only if needed
 			this.tags = new Set<string>();
 			if (isConfigured) {
@@ -210,7 +210,7 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 				this.setting.tags.forEach(tag => this.tags!.add(tag));
 			}
 
-			if (this.isUntrusted) {
+			if (this.setting.restricted) {
 				this.tags.add(REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG);
 			}
 		}
@@ -236,8 +236,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.valueType = SettingValueType.Number;
 		} else if (this.setting.type === 'boolean') {
 			this.valueType = SettingValueType.Boolean;
-		} else if (this.setting.type === 'array' && this.setting.arrayItemType === 'string') {
-			this.valueType = SettingValueType.ArrayOfString;
+		} else if (this.setting.type === 'array' && (this.setting.arrayItemType === 'string' || this.setting.arrayItemType === 'enum')) {
+			this.valueType = SettingValueType.StringOrEnumArray;
 		} else if (isArray(this.setting.type) && this.setting.type.indexOf(SettingValueType.Null) > -1 && this.setting.type.length === 2) {
 			if (this.setting.type.indexOf(SettingValueType.Integer) > -1) {
 				this.valueType = SettingValueType.NullableInteger;
@@ -248,6 +248,8 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			}
 		} else if (isObjectSetting(this.setting)) {
 			this.valueType = SettingValueType.Object;
+		} else if (this.setting.allKeysAreBoolean) {
+			this.valueType = SettingValueType.BooleanObject;
 		} else {
 			this.valueType = SettingValueType.Complex;
 		}
@@ -476,13 +478,13 @@ export function inspectSetting(key: string, target: SettingsTarget, configuratio
 	let isConfigured = typeof inspected[targetSelector] !== 'undefined';
 	if (!isConfigured) {
 		if (target === ConfigurationTarget.USER_LOCAL) {
-			isConfigured = !!configurationService.unTrustedSettings.userLocal?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.userLocal?.includes(key);
 		} else if (target === ConfigurationTarget.USER_REMOTE) {
-			isConfigured = !!configurationService.unTrustedSettings.userRemote?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.userRemote?.includes(key);
 		} else if (target === ConfigurationTarget.WORKSPACE) {
-			isConfigured = !!configurationService.unTrustedSettings.workspace?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.workspace?.includes(key);
 		} else if (target instanceof URI) {
-			isConfigured = !!configurationService.unTrustedSettings.workspaceFolder?.get(target)?.includes(key);
+			isConfigured = !!configurationService.restrictedSettings.workspaceFolder?.get(target)?.includes(key);
 		}
 	}
 
@@ -701,7 +703,7 @@ export class SearchResultModel extends SettingsTreeModel {
 		const isRemote = !!this.environmentService.remoteAuthority;
 
 		this.root.children = this.root.children
-			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && (this.containsValidFeature() ? child.matchesAnyFeature(this._viewState.featureFilters) : true));
+			.filter(child => child instanceof SettingsTreeSettingElement && child.matchesAllTags(this._viewState.tagFilters) && child.matchesScope(this._viewState.settingsTarget, isRemote) && child.matchesAnyExtension(this._viewState.extensionFilters) && child.matchesAnyId(this._viewState.idFilters) && child.matchesAnyFeature(this._viewState.featureFilters));
 
 		if (this.newExtensionSearchResults && this.newExtensionSearchResults.filterMatches.length) {
 			const resultExtensionIds = this.newExtensionSearchResults.filterMatches
@@ -712,22 +714,6 @@ export class SearchResultModel extends SettingsTreeModel {
 			const newExtElement = new SettingsTreeNewExtensionsElement('newExtensions', arrays.distinct(resultExtensionIds));
 			newExtElement.parent = this._root;
 			this._root.children.push(newExtElement);
-		}
-	}
-
-	private containsValidFeature(): boolean {
-		if (!this._viewState.featureFilters || !this._viewState.featureFilters.size || !tocData.children) {
-			return false;
-		}
-
-		const features = tocData.children.find(child => child.id === 'features');
-
-		if (features && features.children) {
-			return Array.from(this._viewState.featureFilters).some(filter => {
-				return features.children?.find(feature => 'features/' + filter === feature.id);
-			});
-		} else {
-			return false;
 		}
 	}
 

@@ -278,8 +278,8 @@ class WorkspaceProvider implements IWorkspaceProvider {
 	readonly trusted = true;
 
 	constructor(
-		public readonly workspace: IWorkspace,
-		public readonly payload: object
+		readonly workspace: IWorkspace,
+		readonly payload: object
 	) { }
 
 	async open(workspace: IWorkspace, options?: { reuse?: boolean, payload?: object }): Promise<boolean> {
@@ -520,7 +520,10 @@ class WindowIndicator implements IWindowIndicator {
 	// Finally create workbench
 	create(document.body, {
 		...config,
-		logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+		developmentOptions: {
+			logLevel: logLevel ? parseLogLevel(logLevel) : undefined,
+			...config.developmentOptions
+		},
 		settingsSyncOptions,
 		homeIndicator,
 		windowIndicator,

@@ -3,16 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Verbosity } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, IEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput, UntypedEditorContext, Verbosity } from 'vs/workbench/common/editor';
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { EncodingMode, IEncodingSupport, IModeSupport, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, toLocalResource } from 'vs/base/common/resources';
+import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
+import { IPathService } from 'vs/workbench/services/path/common/pathService';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -25,18 +26,22 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return UntitledTextEditorInput.ID;
 	}
 
+	override get editorId(): string | undefined {
+		return DEFAULT_EDITOR_ASSOCIATION.id;
+	}
+
 	private modelResolve: Promise<void> | undefined = undefined;
 
 	constructor(
-		public readonly model: IUntitledTextEditorModel,
+		readonly model: IUntitledTextEditorModel,
 		@ITextFileService textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
 		@IEditorService editorService: IEditorService,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IFileService fileService: IFileService,
-		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IPathService private readonly pathService: IPathService
 	) {
-		super(model.resource, undefined, editorService, editorGroupService, textFileService, labelService, fileService, filesConfigurationService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService);
 
 		this.registerModelListeners(model);
 	}
@@ -55,7 +60,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.name;
 	}
 
-	override getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string | undefined {
+	override getDescription(verbosity = Verbosity.MEDIUM): string | undefined {
 
 		// Without associated path: only use if name and description differ
 		if (!this.model.hasAssociatedFilePath) {
@@ -97,8 +102,8 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model.getEncoding();
 	}
 
-	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): void {
-		this.model.setEncoding(encoding);
+	setEncoding(encoding: string, mode: EncodingMode /* ignored, we only have Encode */): Promise<void> {
+		return this.model.setEncoding(encoding);
 	}
 
 	setMode(mode: string): void {
@@ -119,8 +124,30 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		return this.model;
 	}
 
-	override matches(otherInput: unknown): boolean {
-		if (otherInput === this) {
+	override toUntyped(group: GroupIdentifier | undefined, context: UntypedEditorContext): IUntitledTextResourceEditorInput {
+		const untypedInput: IUntitledTextResourceEditorInput & { options: ITextEditorOptions } = {
+			resource: this.model.hasAssociatedFilePath ? toLocalResource(this.model.resource, this.environmentService.remoteAuthority, this.pathService.defaultUriScheme) : this.resource,
+			forceUntitled: true,
+			options: {
+				override: this.editorId
+			}
+		};
+
+		if (context === UntypedEditorContext.Full) {
+			untypedInput.encoding = this.getEncoding();
+			untypedInput.mode = this.getMode();
+			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
+
+			if (typeof group === 'number') {
+				untypedInput.options.viewState = this.getViewStateFor(group);
+			}
+		}
+
+		return untypedInput;
+	}
+
+	override matches(otherInput: IEditorInput | IUntypedEditorInput): boolean {
+		if (super.matches(otherInput)) {
 			return true;
 		}
 

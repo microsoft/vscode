@@ -881,6 +881,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 						asyncDataTreeNode.children.forEach(node => dfs(node, node => this.nodes.delete(node.element as T)));
 						asyncDataTreeNode.children.splice(0, asyncDataTreeNode.children.length);
 						asyncDataTreeNode.stale = true;
+						if (this.collapseByDefault && !this.collapseByDefault(element)) {
+							asyncDataTreeNode.collapsedByDefault = false;
+							childrenToRefresh.push(asyncDataTreeNode);
+						}
 					} else {
 						childrenToRefresh.push(asyncDataTreeNode);
 					}

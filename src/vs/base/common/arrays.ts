@@ -554,3 +554,50 @@ export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undef
 
 	return undefined;
 }
+
+/**
+ * Like Math.min with a delegate, and returns the winning index
+ */
+export function minIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MAX_SAFE_INTEGER;
+	let minIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue < minValue) {
+			minValue = thisValue;
+			minIdx = i;
+		}
+	});
+
+	return minIdx;
+}
+
+/**
+ * Like Math.max with a delegate, and returns the winning index
+ */
+export function maxIndex<T>(array: readonly T[], fn: (value: T) => number): number {
+	let minValue = Number.MIN_SAFE_INTEGER;
+	let maxIdx = 0;
+	array.forEach((value, i) => {
+		const thisValue = fn(value);
+		if (thisValue > minValue) {
+			minValue = thisValue;
+			maxIdx = i;
+		}
+	});
+
+	return maxIdx;
+}
+
+/**
+ * Returns an array of all elements `e` with `startKey <= keySelector(e) <= endKey`.
+ * `data` must be sorted in ascending order.
+*/
+export function filterSortedByKey<T>(data: readonly T[], keySelector: (value: T) => number, startKey: number, endKey = startKey): T[] | null {
+	const startIdx = findFirstInSorted(data, x => startKey <= keySelector(x));
+	const endIdx = findFirstInSorted(data, x => endKey < keySelector(x));
+	if (startIdx === endIdx) {
+		return null;
+	}
+	return data.slice(startIdx, endIdx);
+}

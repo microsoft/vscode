@@ -7,9 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IWorkingCopyBackupMeta } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { HashSet } from 'vs/base/common/map';
 
 export const enum WorkingCopyCapabilities {
 
@@ -46,6 +44,27 @@ export interface IWorkingCopyBackup {
 }
 
 /**
+ * Working copy backup metadata that can be associated
+ * with the backup.
+ *
+ * Some properties may be reserved as outlined here and
+ * cannot be used.
+ */
+export interface IWorkingCopyBackupMeta {
+
+	/**
+	 * Any property needs to be serializable through JSON.
+	 */
+	[key: string]: unknown;
+
+	/**
+	 * `typeId` is a reverved property that cannot be used
+	 * as backup metadata.
+	 */
+	typeId?: never;
+}
+
+/**
  * @deprecated it is important to provide a type identifier
  * for working copies to enable all capabilities.
  */
@@ -72,15 +91,6 @@ export interface IWorkingCopyIdentifier {
 	 * working copies of the same `typeId`.
 	 */
 	readonly resource: URI;
-}
-
-/**
- * A helper to work efficiently with a set of `IWorkingCopyIdentifier`
- */
-export class WorkingCopyIdentifierSet extends HashSet<IWorkingCopyIdentifier> {
-	constructor(identifiers: IWorkingCopyIdentifier[]) {
-		super(identifiers, identifier => `${identifier.resource.toString()}${identifier.typeId}`);
-	}
 }
 
 /**

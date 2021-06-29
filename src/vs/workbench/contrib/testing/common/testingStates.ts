@@ -16,13 +16,14 @@ export const statePriority: { [K in TestResultState]: number } = {
 	[TestResultState.Running]: 6,
 	[TestResultState.Errored]: 5,
 	[TestResultState.Failed]: 4,
-	[TestResultState.Passed]: 3,
-	[TestResultState.Queued]: 2,
+	[TestResultState.Queued]: 3,
+	[TestResultState.Passed]: 2,
 	[TestResultState.Unset]: 1,
 	[TestResultState.Skipped]: 0,
 };
 
 export const isFailedState = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed;
+export const isStateWithResult = (s: TestResultState) => s === TestResultState.Errored || s === TestResultState.Failed || s === TestResultState.Passed;
 
 export const stateNodes = Object.entries(statePriority).reduce(
 	(acc, [stateStr, priority]) => {

@@ -4,17 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from 'vs/base/common/uri';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import type * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { IRawColorInfo, IWorkspaceEditDto, ICallHierarchyItemDto, IIncomingCallDto, IOutgoingCallDto } from 'vs/workbench/api/common/extHost.protocol';
 import * as modes from 'vs/editor/common/modes';
 import * as search from 'vs/workbench/contrib/search/common/search';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { CustomCodeAction } from 'vs/workbench/api/common/extHostLanguageFeatures';
-import { ICommandsExecutor, RemoveFromRecentlyOpenedAPICommand, OpenIssueReporter, OpenIssueReporterArgs } from './apiCommands';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
@@ -326,10 +323,10 @@ const newCommands: ApiCommand[] = [
 	),
 	// --- inline hints
 	new ApiCommand(
-		'vscode.executeInlineHintProvider', '_executeInlineHintProvider', 'Execute inline hints provider',
+		'vscode.executeInlayHintProvider', '_executeInlayHintProvider', 'Execute inlay hints provider',
 		[ApiCommandArgument.Uri, ApiCommandArgument.Range],
-		new ApiCommandResult<modes.InlineHint[], vscode.InlineHint[]>('A promise that resolves to an array of InlineHint objects', result => {
-			return result.map(typeConverters.InlineHint.to);
+		new ApiCommandResult<modes.InlayHint[], vscode.InlayHint[]>('A promise that resolves to an array of Inlay objects', result => {
+			return result.map(typeConverters.InlayHint.to);
 		})
 	),
 	// --- notebooks
@@ -420,62 +417,7 @@ export class ExtHostApiCommands {
 
 	static register(commands: ExtHostCommands) {
 		newCommands.forEach(commands.registerApiCommand, commands);
-		return new ExtHostApiCommands(commands).registerCommands();
 	}
-
-	private _commands: ExtHostCommands;
-	private readonly _disposables = new DisposableStore();
-
-	private constructor(commands: ExtHostCommands) {
-		this._commands = commands;
-	}
-
-	registerCommands() {
-
-
-
-
-
-		// -----------------------------------------------------------------
-		// The following commands are registered on both sides separately.
-		//
-		// We are trying to maintain backwards compatibility for cases where
-		// API commands are encoded as markdown links, for example.
-		// -----------------------------------------------------------------
-
-		type ICommandHandler = (...args: any[]) => any;
-		const adjustHandler = (handler: (executor: ICommandsExecutor, ...args: any[]) => any): ICommandHandler => {
-			return (...args: any[]) => {
-				return handler(this._commands, ...args);
-			};
-		};
-
-		this._register(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute), {
-			description: 'Removes an entry with the given path from the recently opened list.',
-			args: [
-				{ name: 'path', description: 'Path to remove from recently opened.', constraint: (value: any) => typeof value === 'string' }
-			]
-		});
-
-		this._register(OpenIssueReporter.ID, adjustHandler(OpenIssueReporter.execute), {
-			description: 'Opens the issue reporter with the provided extension id as the selected source',
-			args: [
-				{ name: 'extensionId', description: 'extensionId to report an issue on', constraint: (value: unknown) => typeof value === 'string' || (typeof value === 'object' && typeof (value as OpenIssueReporterArgs).extensionId === 'string') }
-			]
-		});
-	}
-
-	// --- command impl
-
-	/**
-	 * @deprecated use the ApiCommand instead
-	 */
-	private _register(id: string, handler: (...args: any[]) => any, description?: ICommandHandlerDescription): void {
-		const disposable = this._commands.registerCommand(false, id, handler, this, description);
-		this._disposables.add(disposable);
-	}
-
-
 
 }
 

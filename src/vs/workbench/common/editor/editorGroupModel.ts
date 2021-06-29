@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditorInputFactoryRegistry, EditorInput, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, IEditorInput, EditorsOrder, EditorExtensions } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, IEditorInput, EditorsOrder, EditorExtensions, IUntypedEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -80,7 +82,10 @@ export class EditorGroupModel extends Disposable {
 	readonly onDidChangeEditorDirty = this._onDidChangeEditorDirty.event;
 
 	private readonly _onDidChangeEditorLabel = this._register(new Emitter<EditorInput>());
-	readonly onDidEditorLabelChange = this._onDidChangeEditorLabel.event;
+	readonly onDidChangeEditorLabel = this._onDidChangeEditorLabel.event;
+
+	private readonly _onDidChangeEditorCapabilities = this._register(new Emitter<EditorInput>());
+	readonly onDidChangeEditorCapabilities = this._onDidChangeEditorCapabilities.event;
 
 	private readonly _onDidMoveEditor = this._register(new Emitter<EditorInput>());
 	readonly onDidMoveEditor = this._onDidMoveEditor.event;
@@ -165,7 +170,7 @@ export class EditorGroupModel extends Disposable {
 		return this.active;
 	}
 
-	isActive(editor: EditorInput): boolean {
+	isActive(editor: EditorInput | IUntypedEditorInput): boolean {
 		return this.matches(this.active, editor);
 	}
 
@@ -329,6 +334,11 @@ export class EditorGroupModel extends Disposable {
 		// Re-Emit label changes
 		listeners.add(editor.onDidChangeLabel(() => {
 			this._onDidChangeEditorLabel.fire(editor);
+		}));
+
+		// Re-Emit capability changes
+		listeners.add(editor.onDidChangeCapabilities(() => {
+			this._onDidChangeEditorCapabilities.fire(editor);
 		}));
 
 		// Clean up dispose listeners once the editor gets closed
@@ -694,7 +704,7 @@ export class EditorGroupModel extends Disposable {
 		return [this.editors[index], index];
 	}
 
-	contains(candidate: EditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
+	contains(candidate: EditorInput | IUntypedEditorInput, options?: { supportSideBySide?: boolean, strictEquals?: boolean }): boolean {
 		for (const editor of this.editors) {
 			if (this.matches(editor, candidate, options?.strictEquals)) {
 				return true;
@@ -710,7 +720,7 @@ export class EditorGroupModel extends Disposable {
 		return false;
 	}
 
-	private matches(editor: IEditorInput | null, candidate: IEditorInput | null, strictEquals?: boolean): boolean {
+	private matches(editor: IEditorInput | null, candidate: IEditorInput | IUntypedEditorInput | null, strictEquals?: boolean): boolean {
 		if (!editor || !candidate) {
 			return false;
 		}
@@ -810,8 +820,9 @@ export class EditorGroupModel extends Disposable {
 
 			const editorSerializer = registry.getEditorInputSerializer(e.id);
 			if (editorSerializer) {
-				editor = editorSerializer.deserialize(this.instantiationService, e.value);
-				if (editor) {
+				const deserializedEditor = editorSerializer.deserialize(this.instantiationService, e.value);
+				if (deserializedEditor instanceof EditorInput) {
+					editor = deserializedEditor;
 					this.registerEditorListeners(editor);
 				}
 			}

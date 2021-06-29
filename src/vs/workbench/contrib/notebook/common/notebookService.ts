@@ -8,35 +8,33 @@ import { URI } from 'vs/base/common/uri';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { NotebookExtensionDescription } from 'vs/workbench/api/common/extHost.protocol';
 import { Event } from 'vs/base/common/event';
-import { INotebookRendererInfo, NotebookDataDto, TransientOptions, INotebookExclusiveDocumentFilter, IOrderedMimeType, IOutputDto, INotebookMarkdownRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookRendererInfo, NotebookData, TransientOptions, IOrderedMimeType, IOutputDto, INotebookContributionData } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRelativePattern } from 'vs/base/common/glob';
 import { VSBuffer } from 'vs/base/common/buffer';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
 
 export interface INotebookContentProvider {
-	viewOptions?: { displayName: string; filenamePattern: (string | IRelativePattern | INotebookExclusiveDocumentFilter)[]; exclusive: boolean; };
 	options: TransientOptions;
 
-	open(uri: URI, backupId: string | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookDataDto, transientOptions: TransientOptions; }>;
+	open(uri: URI, backupId: string | VSBuffer | undefined, untitledDocumentData: VSBuffer | undefined, token: CancellationToken): Promise<{ data: NotebookData, transientOptions: TransientOptions; }>;
 	save(uri: URI, token: CancellationToken): Promise<boolean>;
 	saveAs(uri: URI, target: URI, token: CancellationToken): Promise<boolean>;
-	backup(uri: URI, token: CancellationToken): Promise<string>;
+	backup(uri: URI, token: CancellationToken): Promise<string | VSBuffer>;
 }
 
 export interface INotebookSerializer {
 	options: TransientOptions;
-	dataToNotebook(data: VSBuffer): Promise<NotebookDataDto>
-	notebookToData(data: NotebookDataDto): Promise<VSBuffer>;
+	dataToNotebook(data: VSBuffer): Promise<NotebookData>
+	notebookToData(data: NotebookData): Promise<VSBuffer>;
 }
 
 export interface INotebookRawData {
-	data: NotebookDataDto;
+	data: NotebookData;
 	transientOptions: TransientOptions;
 }
 
@@ -60,29 +58,34 @@ export interface INotebookService {
 	readonly _serviceBrand: undefined;
 	canResolve(viewType: string): Promise<boolean>;
 
-	onDidCreateNotebookDocument: Event<NotebookTextModel>;
-	onDidAddNotebookDocument: Event<NotebookTextModel>;
-	onDidRemoveNotebookDocument: Event<URI>;
+	readonly onWillRemoveViewType: Event<string>;
+
+	readonly onWillAddNotebookDocument: Event<NotebookTextModel>;
+	readonly onDidAddNotebookDocument: Event<NotebookTextModel>;
+
+	readonly onWillRemoveNotebookDocument: Event<NotebookTextModel>;
+	readonly onDidRemoveNotebookDocument: Event<NotebookTextModel>;
 
 	registerNotebookController(viewType: string, extensionData: NotebookExtensionDescription, controller: INotebookContentProvider): IDisposable;
 	registerNotebookSerializer(viewType: string, extensionData: NotebookExtensionDescription, serializer: INotebookSerializer): IDisposable;
 	withNotebookDataProvider(resource: URI, viewType?: string): Promise<ComplexNotebookProviderInfo | SimpleNotebookProviderInfo>;
 
-	getMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
+	getOutputMimeTypeInfo(textModel: NotebookTextModel, kernelProvides: readonly string[] | undefined, output: IOutputDto): readonly IOrderedMimeType[];
 
 	getRendererInfo(id: string): INotebookRendererInfo | undefined;
-	getMarkdownRendererInfo(): INotebookMarkdownRendererInfo[];
+	getRenderers(): INotebookRendererInfo[];
 
 	/** Updates the preferred renderer for the given mimetype in the workspace. */
 	updateMimePreferredRenderer(mimeType: string, rendererId: string): void;
 
-	createNotebookTextModel(viewType: string, uri: URI, data: NotebookDataDto, transientOptions: TransientOptions): NotebookTextModel;
+	createNotebookTextModel(viewType: string, uri: URI, data: NotebookData, transientOptions: TransientOptions): NotebookTextModel;
 	getNotebookTextModel(uri: URI): NotebookTextModel | undefined;
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
 
-	getContributedNotebookProviders(resource?: URI): readonly NotebookProviderInfo[];
-	getContributedNotebookProvider(viewType: string): NotebookProviderInfo | undefined;
+	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
+	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
+	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];
 	getNotebookProviderResourceRoots(): URI[];
 
 	setToCopy(items: NotebookCellTextModel[], isCopy: boolean): void;

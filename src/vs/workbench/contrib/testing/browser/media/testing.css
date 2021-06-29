@@ -15,20 +15,24 @@
 	position: relative;
 }
 
-.test-explorer .test-item {
+.test-explorer .test-item,
+.test-output-peek-tree .test-peek-item {
 	display: flex;
 	align-items: center;
 }
 
+.test-output-peek-tree .monaco-list-row .monaco-action-bar,
 .test-explorer .monaco-list-row .monaco-action-bar,
 .test-explorer .monaco-list-row .codicon-testing-hidden {
 	display: none;
 	flex-shrink: 0;
-	margin-right: 1px;
+	margin-right: 0.8em;
 }
 
 .test-explorer .monaco-list-row:hover .monaco-action-bar,
-.test-explorer .monaco-list-row:focus .monaco-action-bar {
+.test-output-peek-tree .monaco-list-row:hover .monaco-action-bar,
+.test-explorer .monaco-list-row:focus .monaco-action-bar,
+.test-output-peek-tree .monaco-list-row:focus .monaco-action-bar {
 	display: initial;
 }
 
@@ -46,7 +50,8 @@
 	margin: 0;
 }
 
-.test-explorer .name {
+.test-explorer .name,
+.test-output-peek-tree .name {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	flex-grow: 1;
@@ -54,7 +59,8 @@
 	align-items: center;
 }
 
-.test-explorer .computed-state {
+.test-explorer .computed-state,
+.test-output-peek-tree .computed-state {
 	margin-right: 0.25em;
 }
 
@@ -69,6 +75,7 @@
 
 .test-explorer .test-explorer-messages {
 	padding: 0 12px 8px;
+	font-variant-numeric: tabular-nums;
 }
 
 .monaco-workbench
@@ -121,6 +128,24 @@
 	border-bottom-width: 2px;
 }
 
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-message-container,
+.monaco-editor .zone-widget.test-output-peek .test-output-peek-tree {
+	height: 100%;
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text {
+	padding: 8px 12px 8px 20px;
+	height: calc(100% - 16px);
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:first-child {
+	margin-top: 0;
+}
+
+.monaco-editor .zone-widget.test-output-peek .preview-text p:last-child {
+	margin-bottom: 0;
+}
+
 /** -- filter  */
 .testing-filter-action-bar {
 	flex-shrink: 0;
@@ -154,14 +179,6 @@
 	right: 0;
 	display: flex;
 	align-items: center;
-}
-
-.testing-filter-action-item > .monaco-action-bar .action-item .action-label.codicon.testing-filter-button {
-	line-height: 20px;
-	height: 20px;
-	min-width: 22px;
-	margin-left: 4px;
-	justify-content: center;
 }
 
 /** -- decorations  */

@@ -236,9 +236,9 @@ export class ExtensionManagementCLIService implements IExtensionManagementCLISer
 
 		try {
 			if (installOptions.isBuiltin) {
-				output.log(localize('installing builtin ', "Installing builtin extension '{0}' v{1}...", id, galleryExtension.version));
+				output.log(version ? localize('installing builtin with version', "Installing builtin extension '{0}' v{1}...", id, version) : localize('installing builtin ', "Installing builtin extension '{0}'...", id));
 			} else {
-				output.log(localize('installing', "Installing extension '{0}' v{1}...", id, galleryExtension.version));
+				output.log(version ? localize('installing with version', "Installing extension '{0}' v{1}...", id, version) : localize('installing', "Installing extension '{0}'...", id));
 			}
 
 			await this.extensionManagementService.installFromGallery(galleryExtension, installOptions);

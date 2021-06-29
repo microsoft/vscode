@@ -20,24 +20,24 @@ export function activate(context: vscode.ExtensionContext): any {
 		await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(notebookPath));
 	}));
 
-	context.subscriptions.push(vscode.notebook.registerNotebookContentProvider('notebookSmokeTest', {
+	context.subscriptions.push(vscode.workspace.registerNotebookContentProvider('notebookSmokeTest', {
 		openNotebook: async (_resource: vscode.Uri) => {
 			const dto: vscode.NotebookData = {
-				metadata: new vscode.NotebookDocumentMetadata(),
+				metadata: {},
 				cells: [
 					{
-						source: 'code()',
-						language: 'typescript',
+						value: 'code()',
+						languageId: 'typescript',
 						kind: vscode.NotebookCellKind.Code,
 						outputs: [],
-						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
+						metadata: { custom: { testCellMetadata: 123 } }
 					},
 					{
-						source: 'Markdown Cell',
-						language: 'markdown',
-						kind: vscode.NotebookCellKind.Markdown,
+						value: 'Markdown Cell',
+						languageId: 'markdown',
+						kind: vscode.NotebookCellKind.Markup,
 						outputs: [],
-						metadata: new vscode.NotebookCellMetadata().with({ custom: { testCellMetadata: 123 } })
+						metadata: { custom: { testCellMetadata: 123 } }
 					}
 				]
 			};
@@ -58,7 +58,7 @@ export function activate(context: vscode.ExtensionContext): any {
 		}
 	}));
 
-	const controller = vscode.notebook.createNotebookController(
+	const controller = vscode.notebooks.createNotebookController(
 		'notebookSmokeTest',
 		'notebookSmokeTest',
 		'notebookSmokeTest'
@@ -66,12 +66,12 @@ export function activate(context: vscode.ExtensionContext): any {
 
 	controller.executeHandler = (cells) => {
 		for (const cell of cells) {
-			const task = controller.createNotebookCellExecutionTask(cell);
+			const task = controller.createNotebookCellExecution(cell);
 			task.start();
 			task.replaceOutput([new vscode.NotebookCellOutput([
-				new vscode.NotebookCellOutputItem('text/html', ['test output'], undefined)
+				vscode.NotebookCellOutputItem.text('test output', 'text/html')
 			])]);
-			task.end({ success: true });
+			task.end(true);
 		}
 	};
 

@@ -29,8 +29,7 @@ import { ConfigurationTarget, IConfigurationOverrides } from 'vs/platform/config
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { badgeBackground, badgeForeground, contrastBorder, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
@@ -45,16 +44,15 @@ import { AbstractSettingRenderer, ISettingLinkClickEvent, ISettingOverrideClickE
 import { ISettingsEditorViewState, parseQuery, SearchResultIdx, SearchResultModel, SettingsTreeElement, SettingsTreeGroupChild, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/contrib/preferences/browser/settingsTreeModels';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/browser/settingsWidgets';
 import { createTOCIterator, TOCTree, TOCTreeModel } from 'vs/workbench/contrib/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS } from 'vs/workbench/contrib/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, CONTEXT_TOC_ROW_FOCUS, EXTENSION_SETTING_TAG, FEATURE_SETTING_TAG, ID_SETTING_TAG, IPreferencesSearchService, ISearchProvider, MODIFIED_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, WORKSPACE_TRUST_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
-import { SettingsEditor2Input } from 'vs/workbench/services/preferences/browser/preferencesEditorInput';
+import { validateSettingsEditorOptions, IPreferencesService, ISearchResult, ISettingsEditorModel, ISettingsEditorOptions, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
+import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { Settings2EditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IUserDataSyncWorkbenchService } from 'vs/workbench/services/userDataSync/common/userDataSync';
 import { preferencesClearInputIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { isIPad } from 'vs/base/browser/browser';
 
 export const enum SettingsFocusContext {
 	Search,
@@ -82,7 +80,6 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
 
-const SETTINGS_AUTOSAVE_NOTIFIED_KEY = 'hasNotifiedOfSettingsAutosave';
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends EditorPane {
 
@@ -93,7 +90,27 @@ export class SettingsEditor2 extends EditorPane {
 	private static CONFIG_SCHEMA_UPDATE_DELAYER = 500;
 
 	private static readonly SUGGESTIONS: string[] = [
-		`@${MODIFIED_SETTING_TAG}`, '@tag:usesOnlineServices', '@tag:sync', `@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`, `@${ID_SETTING_TAG}`, `@${EXTENSION_SETTING_TAG}`, `@${FEATURE_SETTING_TAG}scm`, `@${FEATURE_SETTING_TAG}explorer`, `@${FEATURE_SETTING_TAG}search`, `@${FEATURE_SETTING_TAG}debug`, `@${FEATURE_SETTING_TAG}extensions`, `@${FEATURE_SETTING_TAG}terminal`, `@${FEATURE_SETTING_TAG}task`, `@${FEATURE_SETTING_TAG}problems`, `@${FEATURE_SETTING_TAG}output`, `@${FEATURE_SETTING_TAG}comments`, `@${FEATURE_SETTING_TAG}remote`, `@${FEATURE_SETTING_TAG}timeline`
+		`@${MODIFIED_SETTING_TAG}`,
+		'@tag:notebookLayout',
+		`@tag:${REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG}`,
+		`@tag:${WORKSPACE_TRUST_SETTING_TAG}`,
+		'@tag:sync',
+		'@tag:usesOnlineServices',
+		`@${ID_SETTING_TAG}`,
+		`@${EXTENSION_SETTING_TAG}`,
+		`@${FEATURE_SETTING_TAG}scm`,
+		`@${FEATURE_SETTING_TAG}explorer`,
+		`@${FEATURE_SETTING_TAG}search`,
+		`@${FEATURE_SETTING_TAG}debug`,
+		`@${FEATURE_SETTING_TAG}extensions`,
+		`@${FEATURE_SETTING_TAG}terminal`,
+		`@${FEATURE_SETTING_TAG}task`,
+		`@${FEATURE_SETTING_TAG}problems`,
+		`@${FEATURE_SETTING_TAG}output`,
+		`@${FEATURE_SETTING_TAG}comments`,
+		`@${FEATURE_SETTING_TAG}remote`,
+		`@${FEATURE_SETTING_TAG}timeline`,
+		`@${FEATURE_SETTING_TAG}notebook`,
 	];
 
 	private static shouldSettingUpdateFast(type: SettingValueType | SettingValueType[]): boolean {
@@ -102,7 +119,8 @@ export class SettingsEditor2 extends EditorPane {
 			return false;
 		}
 		return type === SettingValueType.Enum ||
-			type === SettingValueType.ArrayOfString ||
+			type === SettingValueType.StringOrEnumArray ||
+			type === SettingValueType.BooleanObject ||
 			type === SettingValueType.Complex ||
 			type === SettingValueType.Boolean ||
 			type === SettingValueType.Exclude;
@@ -173,8 +191,7 @@ export class SettingsEditor2 extends EditorPane {
 		@IPreferencesSearchService private readonly preferencesSearchService: IPreferencesSearchService,
 		@ILogService private readonly logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService,
-		@INotificationService private readonly notificationService: INotificationService,
+		@IStorageService storageService: IStorageService,
 		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IUserDataSyncWorkbenchService private readonly userDataSyncWorkbenchService: IUserDataSyncWorkbenchService,
 		@IUserDataAutoSyncEnablementService private readonly userDataAutoSyncEnablementService: IUserDataAutoSyncEnablementService,
@@ -213,11 +230,11 @@ export class SettingsEditor2 extends EditorPane {
 
 			if (this.settingsTreeModel) {
 				this.settingsTreeModel.updateWorkspaceTrust(workspaceTrustManagementService.isWorkpaceTrusted());
+				this.renderTree();
 			}
-			this.renderTree();
 		}));
 
-		this._register(configurationService.onDidChangeUntrustdSettings(e => {
+		this._register(configurationService.onDidChangeRestrictedSettings(e => {
 			if (e.default.length) {
 				this.updateElementsByKey([...e.default]);
 			}
@@ -270,7 +287,7 @@ export class SettingsEditor2 extends EditorPane {
 		this.updateStyles();
 	}
 
-	override async setInput(input: SettingsEditor2Input, options: SettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
 		await timeout(0); // Force setInput to be async
@@ -291,7 +308,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 		this.defaultSettingsEditorModel = model;
 
-		options = options || SettingsEditorOptions.create({});
+		options = options || validateSettingsEditorOptions({});
 		if (!this.viewState.settingsTarget) {
 			if (!options.target) {
 				options.target = ConfigurationTarget.USER_LOCAL;
@@ -330,7 +347,7 @@ export class SettingsEditor2 extends EditorPane {
 		return withUndefinedAsNull(cachedState);
 	}
 
-	override setOptions(options: SettingsEditorOptions | undefined): void {
+	override setOptions(options: ISettingsEditorOptions | undefined): void {
 		super.setOptions(options);
 
 		if (options) {
@@ -338,9 +355,9 @@ export class SettingsEditor2 extends EditorPane {
 		}
 	}
 
-	private _setOptions(options: SettingsEditorOptions): void {
-		if (options.focusSearch && !isIPad) {
-			// isIPad - #122044
+	private _setOptions(options: ISettingsEditorOptions): void {
+		if (options.focusSearch && !platform.isIOS) {
+			// isIOS - #122044
 			this.focusSearch();
 		}
 
@@ -380,7 +397,7 @@ export class SettingsEditor2 extends EditorPane {
 
 	override focus(): void {
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
-			if (!isIPad) {
+			if (!platform.isIOS) {
 				// #122044
 				this.focusSearch();
 			}
@@ -776,16 +793,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 	}
 
-	private notifyNoSaveNeeded() {
-		if (!this.storageService.getBoolean(SETTINGS_AUTOSAVE_NOTIFIED_KEY, StorageScope.GLOBAL, false)) {
-			this.storageService.store(SETTINGS_AUTOSAVE_NOTIFIED_KEY, true, StorageScope.GLOBAL, StorageTarget.USER);
-			this.notificationService.info(localize('settingsNoSaveNeeded', "Changes to settings are saved automatically."));
-		}
-	}
-
 	private onDidChangeSetting(key: string, value: any, type: SettingValueType | SettingValueType[]): void {
-		this.notifyNoSaveNeeded();
-
 		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
 			this.updateChangedSetting(key, value);
 		}
@@ -932,7 +940,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		const data = {
 			key: props.key,
-			query: props.query,
 			groupId,
 			nlpIndex,
 			displayIndex,
@@ -944,7 +951,6 @@ export class SettingsEditor2 extends EditorPane {
 		/* __GDPR__
 			"settingsEditor.settingModified" : {
 				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -1153,6 +1159,11 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private async onSearchInputChanged(): Promise<void> {
+		if (!this.currentSettingsModel) {
+			// Initializing search widget value
+			return;
+		}
+
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
 		await this.triggerSearch(query.replace(/›/g, ' '));
@@ -1267,7 +1278,6 @@ export class SettingsEditor2 extends EditorPane {
 		const requestCount = nlpMetadata && nlpMetadata.requestCount;
 
 		const data = {
-			query,
 			durations,
 			counts,
 			requestCount
@@ -1275,7 +1285,6 @@ export class SettingsEditor2 extends EditorPane {
 
 		/* __GDPR__
 			"settingsEditor.filter" : {
-				"query": { "classification": "CustomerContent", "purpose": "FeatureInsight" },
 				"durations.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.nlpResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"counts.filterResult" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

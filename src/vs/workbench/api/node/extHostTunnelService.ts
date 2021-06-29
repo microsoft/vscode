@@ -11,13 +11,12 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { URI } from 'vs/base/common/uri';
 import { exec } from 'child_process';
 import * as resources from 'vs/base/common/resources';
-import * as fs from 'fs';
 import * as pfs from 'vs/base/node/pfs';
 import * as types from 'vs/workbench/api/common/extHostTypes';
 import { isLinux } from 'vs/base/common/platform';
 import { IExtHostTunnelService, TunnelDto } from 'vs/workbench/api/common/extHostTunnelService';
 import { Event, Emitter } from 'vs/base/common/event';
-import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward } from 'vs/platform/remote/common/tunnel';
+import { TunnelOptions, TunnelCreationOptions, ProvidedPortAttributes, ProvidedOnAutoForward, isLocalhost, isAllInterfaces } from 'vs/platform/remote/common/tunnel';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { CandidatePort } from 'vs/workbench/services/remote/common/remoteExplorerService';
@@ -202,7 +201,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async openTunnel(extension: IExtensionDescription, forward: TunnelOptions): Promise<vscode.Tunnel | undefined> {
-		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier.value} called openTunnel API for ${forward.remoteAddress.port}.`);
+		this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) ${extension.identifier.value} called openTunnel API for ${forward.remoteAddress.host}:${forward.remoteAddress.port}.`);
 		const tunnel = await this._proxy.$openTunnel(forward, extension.displayName);
 		if (tunnel) {
 			const disposableTunnel: vscode.Tunnel = new ExtensionTunnel(tunnel.remoteAddress, tunnel.localAddress, () => {
@@ -271,7 +270,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let oldPorts: { host: string, port: number, detail?: string }[] | undefined = undefined;
 		while (this._candidateFindingEnabled) {
 			const startTime = new Date().getTime();
-			const newPorts = await this.findCandidatePorts();
+			const newPorts = (await this.findCandidatePorts()).filter(candidate => (isLocalhost(candidate.host) || isAllInterfaces(candidate.host)));
 			this.logService.trace(`ForwardedPorts: (ExtHostTunnelService) found candidate ports ${newPorts.map(port => port.port).join(', ')}`);
 			const timeTaken = new Date().getTime() - startTime;
 			movingAverage.update(timeTaken);
@@ -284,17 +283,19 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	}
 
 	async setTunnelExtensionFunctions(provider: vscode.RemoteAuthorityResolver | undefined): Promise<IDisposable> {
+		// Do not wait for any of the proxy promises here.
+		// It will delay startup and there is nothing that needs to be waited for.
 		if (provider) {
 			if (provider.candidatePortSource !== undefined) {
-				await this._proxy.$setCandidatePortSource(provider.candidatePortSource);
+				this._proxy.$setCandidatePortSource(provider.candidatePortSource);
 			}
 			if (provider.showCandidatePort) {
 				this._showCandidatePort = provider.showCandidatePort;
-				await this._proxy.$setCandidateFilter();
+				this._proxy.$setCandidateFilter();
 			}
 			if (provider.tunnelFactory) {
 				this._forwardPortProvider = provider.tunnelFactory;
-				await this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
+				this._proxy.$setTunnelProvider(provider.tunnelFeatures ?? {
 					elevation: false,
 					public: false
 				});
@@ -363,8 +364,8 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		let tcp: string = '';
 		let tcp6: string = '';
 		try {
-			tcp = await fs.promises.readFile('/proc/net/tcp', 'utf8');
-			tcp6 = await fs.promises.readFile('/proc/net/tcp6', 'utf8');
+			tcp = await pfs.Promises.readFile('/proc/net/tcp', 'utf8');
+			tcp6 = await pfs.Promises.readFile('/proc/net/tcp6', 'utf8');
 		} catch (e) {
 			// File reading error. No additional handling needed.
 		}
@@ -377,7 +378,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 		}));
 		const socketMap = getSockets(procSockets);
 
-		const procChildren = await pfs.readdir('/proc');
+		const procChildren = await pfs.Promises.readdir('/proc');
 		const processes: {
 			pid: number, cwd: string, cmd: string
 		}[] = [];
@@ -385,10 +386,10 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 			try {
 				const pid: number = Number(childName);
 				const childUri = resources.joinPath(URI.file('/proc'), childName);
-				const childStat = await fs.promises.stat(childUri.fsPath);
+				const childStat = await pfs.Promises.stat(childUri.fsPath);
 				if (childStat.isDirectory() && !isNaN(pid)) {
-					const cwd = await fs.promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
-					const cmd = await fs.promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
+					const cwd = await pfs.Promises.readlink(resources.joinPath(childUri, 'cwd').fsPath);
+					const cmd = await pfs.Promises.readFile(resources.joinPath(childUri, 'cmdline').fsPath, 'utf8');
 					processes.push({ pid, cwd, cmd });
 				}
 			} catch (e) {

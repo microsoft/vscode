@@ -9,7 +9,7 @@ import { IPickerQuickAccessItem, PickerQuickAccessProvider } from 'vs/platform/q
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IViewDescriptorService, IViewsService, ViewContainer } from 'vs/workbench/common/views';
 import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalGroupService, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IPanelService, IPanelIdentifier } from 'vs/workbench/services/panel/common/panelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
@@ -37,6 +37,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		@IViewsService private readonly viewsService: IViewsService,
 		@IOutputService private readonly outputService: IOutputService,
 		@ITerminalService private readonly terminalService: ITerminalService,
+		@ITerminalGroupService private readonly terminalGroupService: ITerminalGroupService,
 		@IPanelService private readonly panelService: IPanelService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
@@ -48,7 +49,7 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		});
 	}
 
-	protected getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
+	protected _getPicks(filter: string): Array<IViewQuickPickItem | IQuickPickSeparator> {
 		const filteredViewEntries = this.doGetViewPickItems().filter(entry => {
 			if (!filter) {
 				return true;
@@ -147,15 +148,14 @@ export class ViewQuickAccessProvider extends PickerQuickAccessProvider<IViewQuic
 		}
 
 		// Terminals
-		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
-			tab.terminalInstances.forEach((terminal, terminalIndex) => {
-				const label = localize('terminalTitle', "{0}: {1}", `${tabIndex + 1}.${terminalIndex + 1}`, terminal.title);
+		this.terminalGroupService.groups.forEach((group, groupIndex) => {
+			group.terminalInstances.forEach((terminal, terminalIndex) => {
+				const label = localize('terminalTitle', "{0}: {1}", `${groupIndex + 1}.${terminalIndex + 1}`, terminal.title);
 				viewEntries.push({
 					label,
 					containerLabel: localize('terminals', "Terminal"),
 					accept: async () => {
-						await this.terminalService.showPanel(true);
-
+						await this.terminalGroupService.showPanel(true);
 						this.terminalService.setActiveInstance(terminal);
 					}
 				});

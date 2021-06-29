@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IListVirtualDelegate, IListRenderer } from 'vs/base/browser/ui/list/list';
-import { clearNode, addDisposableListener, EventType, EventHelper, $ } from 'vs/base/browser/dom';
+import { clearNode, addDisposableListener, EventType, EventHelper, $, EventLike } from 'vs/base/browser/dom';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
@@ -24,6 +24,9 @@ import { Severity } from 'vs/platform/notification/common/notification';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { DropdownMenuActionViewItem } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
+import { DomEmitter } from 'vs/base/browser/event';
+import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
+import { Event } from 'vs/base/common/event';
 
 export class NotificationsListDelegate implements IListVirtualDelegate<INotificationViewItem> {
 
@@ -85,7 +88,7 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * 24) /* 24px per action */)}px`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * (24 + 8)) /* 24px (+8px padding) per action */ - 4 /* 4px less padding for last action */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);
@@ -151,10 +154,17 @@ class NotificationMessageRenderer {
 				const anchor = $('a', { href: node.href, title: title, }, node.label);
 
 				if (actionHandler) {
-					actionHandler.toDispose.add(addDisposableListener(anchor, EventType.CLICK, e => {
+					const onPointer = (e: EventLike) => {
 						EventHelper.stop(e, true);
 						actionHandler.callback(node.href);
-					}));
+					};
+
+					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, 'click')).event;
+
+					actionHandler.toDispose.add(Gesture.addTarget(anchor));
+					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;
+
+					Event.any(onClick, onTap)(onPointer, null, actionHandler.toDispose);
 				}
 
 				messageContainer.appendChild(anchor);

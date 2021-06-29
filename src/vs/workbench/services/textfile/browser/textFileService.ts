@@ -39,6 +39,7 @@ import { consumeStream, ReadableStream } from 'vs/base/common/stream';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IElevatedFileService } from 'vs/workbench/services/files/common/elevatedFileService';
 
 /**
  * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
@@ -68,17 +69,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		@IWorkingCopyFileService private readonly workingCopyFileService: IWorkingCopyFileService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IModeService private readonly modeService: IModeService,
-		@ILogService protected readonly logService: ILogService
+		@ILogService protected readonly logService: ILogService,
+		@IElevatedFileService private readonly elevatedFileService: IElevatedFileService
 	) {
 		super();
-
-		this.registerListeners();
-	}
-
-	protected registerListeners(): void {
-
-		// Lifecycle
-		this.lifecycleService.onDidShutdown(() => this.dispose());
 	}
 
 	//#region text file read / write / create
@@ -146,7 +140,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		return [bufferStream, decoder];
 	}
 
-	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<ReadonlyArray<IFileStatWithMetadata>> {
+	async create(operations: { resource: URI, value?: string | ITextSnapshot, options?: ICreateFileOptions }[], undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]> {
 		const operationsWithContents: ICreateFileOperation[] = await Promise.all(operations.map(async operation => {
 			const contents = await this.getEncodedReadable(operation.resource, operation.value);
 			return {
@@ -161,6 +155,10 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 
 	async write(resource: URI, value: string | ITextSnapshot, options?: IWriteTextFileOptions): Promise<IFileStatWithMetadata> {
 		const readable = await this.getEncodedReadable(resource, value, options);
+
+		if (options?.writeElevated && this.elevatedFileService.isSupported(resource)) {
+			return this.elevatedFileService.writeFileElevated(resource, readable, options);
+		}
 
 		return this.fileService.writeFile(resource, readable, options);
 	}
@@ -459,7 +457,7 @@ export abstract class AbstractTextFileService extends Disposable implements ITex
 		// Otherwise try to suggest a path that can be saved
 		let suggestedFilename: string | undefined = undefined;
 		if (resource.scheme === Schemas.untitled) {
-			const model = this.untitledTextEditorService.get(resource);
+			const model = this.untitled.get(resource);
 			if (model) {
 
 				// Untitled with associated file path

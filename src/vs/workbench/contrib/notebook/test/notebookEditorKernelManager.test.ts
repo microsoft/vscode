@@ -11,15 +11,16 @@ import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { NotebookEditorKernelManager } from 'vs/workbench/contrib/notebook/browser/notebookEditorKernelManager';
 import { NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
-import { CellKind, INotebookKernel, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, IOutputDto, NotebookCellMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { setupInstantiationService, withTestNotebook as _withTestNotebook } from 'vs/workbench/contrib/notebook/test/testNotebookEditor';
 import { Event } from 'vs/base/common/event';
-import { INotebookKernelBindEvent, INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { ISelectedNotebooksChangeEvent, INotebookKernelService, INotebookKernel } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { NotebookKernelService } from 'vs/workbench/contrib/notebook/browser/notebookKernelServiceImpl';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { mock } from 'vs/base/test/common/mock';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Mimes } from 'vs/base/common/mime';
 
 suite('NotebookEditorKernelManager', () => {
 
@@ -35,6 +36,7 @@ suite('NotebookEditorKernelManager', () => {
 
 		instantiationService.stub(INotebookService, new class extends mock<INotebookService>() {
 			override onDidAddNotebookDocument = Event.None;
+			override onWillRemoveNotebookDocument = Event.None;
 			override getNotebookTextModels() { return []; }
 		});
 
@@ -58,7 +60,7 @@ suite('NotebookEditorKernelManager', () => {
 		await withTestNotebook(
 			[],
 			async (viewModel) => {
-				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager, { activeKernel: undefined, viewModel });
+				const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
 				const cell = viewModel.createCell(1, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 				await assertThrowsAsync(async () => await kernelManager.executeNotebookCell(cell));
@@ -98,7 +100,7 @@ suite('NotebookEditorKernelManager', () => {
 		// https://github.com/microsoft/vscode/issues/121904
 
 		return withTestNotebook([], async viewModel => {
-			assert.strictEqual(kernelService.getNotebookKernels(viewModel.notebookDocument).all.length, 0);
+			assert.strictEqual(kernelService.getMatchingKernel(viewModel.notebookDocument).all.length, 0);
 
 			let didExecute = false;
 			const kernel = new class extends TestNotebookKernel {
@@ -116,8 +118,8 @@ suite('NotebookEditorKernelManager', () => {
 			kernelService.registerKernel(kernel);
 			const kernelManager = instantiationService.createInstance(NotebookEditorKernelManager);
 
-			let event: INotebookKernelBindEvent | undefined;
-			kernelService.onDidChangeNotebookKernelBinding(e => event = e);
+			let event: ISelectedNotebooksChangeEvent | undefined;
+			kernelService.onDidChangeSelectedNotebooks(e => event = e);
 
 			const cell = viewModel.createCell(0, 'var c = 3', 'javascript', CellKind.Code, {}, [], true);
 			await kernelManager.executeNotebookCells(viewModel.notebookDocument, [cell]);
@@ -150,6 +152,6 @@ class TestNotebookKernel implements INotebookKernel {
 	}
 
 	constructor(opts?: { languages: string[] }) {
-		this.supportedLanguages = opts?.languages ?? ['text/plain'];
+		this.supportedLanguages = opts?.languages ?? [Mimes.text];
 	}
 }

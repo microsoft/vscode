@@ -10,7 +10,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorOptions, IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
+import { IEditorMemento, IEditorOpenContext } from 'vs/workbench/common/editor';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WalkThroughInput } from 'vs/workbench/contrib/welcome/walkThrough/browser/walkThroughInput';
@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Event } from 'vs/base/common/event';
 import { isObject } from 'vs/base/common/types';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
+import { IEditorOptions as ICodeEditorOptions, EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { registerColor, focusBorder, textLinkForeground, textLinkActiveForeground, textPreformatForeground, contrastBorder, textBlockQuoteBackground, textBlockQuoteBorder } from 'vs/platform/theme/common/colorRegistry';
 import { getExtraColor } from 'vs/workbench/contrib/welcome/walkThrough/common/walkThroughUtils';
@@ -34,11 +34,11 @@ import { UILabelProvider } from 'vs/base/common/keybindingLabels';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
 import { deepClone } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, safeInnerHtml, size } from 'vs/base/browser/dom';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { domEvent } from 'vs/base/browser/event';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const WALK_THROUGH_FOCUS = new RawContextKey<boolean>('interactivePlaygroundFocus', false);
 
@@ -267,7 +267,7 @@ export class WalkThroughPart extends EditorPane {
 		this.scrollbar.setScrollPosition({ scrollTop: scrollPosition.scrollTop + scrollDimensions.height });
 	}
 
-	override setInput(input: WalkThroughInput, options: EditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
+	override setInput(input: WalkThroughInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		if (this.input instanceof WalkThroughInput) {
 			this.saveTextEditorViewState(this.input);
 		}
@@ -416,11 +416,11 @@ export class WalkThroughPart extends EditorPane {
 				this.loadTextEditorViewState(input);
 				this.updatedScrollPosition();
 				this.contentDisposables.push(Gesture.addTarget(innerContent));
-				this.contentDisposables.push(domEvent(innerContent, TouchEventType.Change)(e => this.onTouchChange(e as GestureEvent), this, this.disposables));
+				this.contentDisposables.push(addDisposableListener(innerContent, TouchEventType.Change, e => this.onTouchChange(e as GestureEvent)));
 			});
 	}
 
-	private getEditorOptions(language: string): IEditorOptions {
+	private getEditorOptions(language: string): ICodeEditorOptions {
 		const config = deepClone(this.configurationService.getValue<IEditorOptions>('editor', { overrideIdentifier: language }));
 		return {
 			...isObject(config) ? config : Object.create(null),

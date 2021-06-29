@@ -6,9 +6,9 @@
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
-import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, toDisposable, IReference, ReferenceCollection, Disposable, AsyncReferenceCollection } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
+import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { ITextFileService, TextFileResolveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { ITextModelService, ITextModelContentProvider, ITextEditorModel, IResolvedTextEditorModel } from 'vs/editor/common/services/resolverService';
@@ -50,7 +50,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 				throw new Error(`Unable to resolve inMemory resource ${key}`);
 			}
 
-			return this.instantiationService.createInstance(ResourceEditorModel, resource);
+			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
 		}
 
 		// Untitled Schema: go through untitled text service
@@ -67,7 +67,7 @@ class ResourceModelCollection extends ReferenceCollection<Promise<ITextEditorMod
 		if (this.providers.has(resource.scheme)) {
 			await this.resolveTextModelContent(key);
 
-			return this.instantiationService.createInstance(ResourceEditorModel, resource);
+			return this.instantiationService.createInstance(TextResourceEditorModel, resource);
 		}
 
 		// Either unknown schema, or not yet registered, try to activate
@@ -174,6 +174,7 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 	declare readonly _serviceBrand: undefined;
 
 	private readonly resourceModelCollection = this.instantiationService.createInstance(ResourceModelCollection);
+	private readonly asyncModelCollection = new AsyncReferenceCollection(this.resourceModelCollection);
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -194,20 +195,8 @@ export class TextModelResolverService extends Disposable implements ITextModelSe
 		// with different resource forms (e.g. path casing on Windows)
 		resource = this.uriIdentityService.asCanonicalUri(resource);
 
-		const ref = this.resourceModelCollection.acquire(resource.toString());
-
-		try {
-			const model = await ref.object;
-
-			return {
-				object: model as IResolvedTextEditorModel,
-				dispose: () => ref.dispose()
-			};
-		} catch (error) {
-			ref.dispose();
-
-			throw error;
-		}
+		const result = await this.asyncModelCollection.acquire(resource.toString());
+		return result as IReference<IResolvedTextEditorModel>; // TODO@Ben: why is this cast here?
 	}
 
 	registerTextModelContentProvider(scheme: string, provider: ITextModelContentProvider): IDisposable {

@@ -6,9 +6,8 @@
 import * as assert from 'assert';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { tmpdir } from 'os';
-import { promises } from 'fs';
 import { join } from 'vs/base/common/path';
-import { rimraf, writeFile } from 'vs/base/node/pfs';
+import { Promises } from 'vs/base/node/pfs';
 import { URI } from 'vs/base/common/uri';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { hash } from 'vs/base/common/hash';
@@ -30,7 +29,6 @@ import { ShutdownReason, ILifecycleService } from 'vs/workbench/services/lifecyc
 import { IFileDialogService, ConfirmResult, IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { INativeHostService } from 'vs/platform/native/electron-sandbox/native';
-import { WorkingCopyBackupTracker } from 'vs/workbench/services/workingCopy/common/workingCopyBackupTracker';
 import { workbenchInstantiationService, TestServiceAccessor } from 'vs/workbench/test/electron-browser/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -42,10 +40,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IWorkingCopyEditorService } from 'vs/workbench/services/workingCopy/common/workingCopyEditorService';
+import { TestWorkingCopy } from 'vs/workbench/test/common/workbenchTestServices';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IWorkingCopyBackup } from 'vs/workbench/services/workingCopy/common/workingCopy';
 
 flakySuite('WorkingCopyBackupTracker (native)', function () {
 
-	class TestBackupTracker extends NativeWorkingCopyBackupTracker {
+	class TestWorkingCopyBackupTracker extends NativeWorkingCopyBackupTracker {
 
 		constructor(
 			@IWorkingCopyBackupService workingCopyBackupService: IWorkingCopyBackupService,
@@ -60,14 +61,17 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 			@IEditorService editorService: IEditorService,
 			@IEnvironmentService environmentService: IEnvironmentService,
 			@IProgressService progressService: IProgressService,
-			@IEditorGroupsService editorGroupService: IEditorGroupsService,
 			@IWorkingCopyEditorService workingCopyEditorService: IWorkingCopyEditorService
 		) {
-			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, environmentService, progressService, editorGroupService, workingCopyEditorService, editorService);
+			super(workingCopyBackupService, filesConfigurationService, workingCopyService, lifecycleService, fileDialogService, dialogService, contextService, nativeHostService, logService, environmentService, progressService, workingCopyEditorService, editorService);
 		}
 
 		protected override getBackupScheduleDelay(): number {
 			return 10; // Reduce timeout for tests
+		}
+
+		waitForReady(): Promise<void> {
+			return super.whenReady;
 		}
 
 		override dispose() {
@@ -100,19 +104,19 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 
 		disposables.add(registerTestFileEditor());
 
-		await promises.mkdir(backupHome, { recursive: true });
-		await promises.mkdir(workspaceBackupPath, { recursive: true });
+		await Promises.mkdir(backupHome, { recursive: true });
+		await Promises.mkdir(workspaceBackupPath, { recursive: true });
 
-		return writeFile(workspacesJsonPath, '');
+		return Promises.writeFile(workspacesJsonPath, '');
 	});
 
 	teardown(async () => {
 		disposables.clear();
 
-		return rimraf(testDir);
+		return Promises.rm(testDir);
 	});
 
-	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: WorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
+	async function createTracker(autoSaveEnabled = false): Promise<{ accessor: TestServiceAccessor, part: EditorPart, tracker: TestWorkingCopyBackupTracker, instantiationService: IInstantiationService, cleanup: () => Promise<void> }> {
 		const workingCopyBackupService = new NodeTestWorkingCopyBackupService(testDir, workspaceBackupPath);
 		const instantiationService = workbenchInstantiationService();
 		instantiationService.stub(IWorkingCopyBackupService, workingCopyBackupService);
@@ -137,7 +141,7 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);
 
-		const tracker = instantiationService.createInstance(TestBackupTracker);
+		const tracker = instantiationService.createInstance(TestWorkingCopyBackupTracker);
 
 		const cleanup = async () => {
 			// File changes could also schedule some backup operations so we need to wait for them before finishing the test
@@ -266,6 +270,34 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		await cleanup();
 	});
 
+	test('onWillShutdown - no backups discarded when shutdown without dirty but tracker not ready', async function () {
+		const { accessor, cleanup } = await createTracker();
+
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(!veto);
+		assert.ok(!accessor.workingCopyBackupService.discardedAllBackups);
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - backups discarded when shutdown without dirty', async function () {
+		const { accessor, tracker, cleanup } = await createTracker();
+
+		await tracker.waitForReady();
+
+		const event = new TestBeforeShutdownEvent();
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(!veto);
+		assert.ok(!accessor.workingCopyBackupService.discardedAllBackups);
+
+		await cleanup();
+	});
+
 	test('onWillShutdown - save (hot.exit: off)', async function () {
 		const { accessor, cleanup } = await createTracker();
 
@@ -286,6 +318,36 @@ flakySuite('WorkingCopyBackupTracker (native)', function () {
 		const veto = await event.value;
 		assert.ok(!veto);
 		assert.ok(!model?.isDirty());
+
+		await cleanup();
+	});
+
+	test('onWillShutdown - veto if backup fails', async function () {
+		const { accessor, cleanup } = await createTracker();
+
+		class TestBackupWorkingCopy extends TestWorkingCopy {
+
+			constructor(resource: URI) {
+				super(resource);
+
+				accessor.workingCopyService.registerWorkingCopy(this);
+			}
+
+			override async backup(token: CancellationToken): Promise<IWorkingCopyBackup> {
+				throw new Error('unable to backup');
+			}
+		}
+
+		const resource = toResource.call(this, '/path/custom.txt');
+		const customWorkingCopy = new TestBackupWorkingCopy(resource);
+		customWorkingCopy.setDirty(true);
+
+		const event = new TestBeforeShutdownEvent();
+		event.reason = ShutdownReason.QUIT;
+		accessor.lifecycleService.fireBeforeShutdown(event);
+
+		const veto = await event.value;
+		assert.ok(veto);
 
 		await cleanup();
 	});

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as glob from 'vs/base/common/glob';
-import { Event } from 'vs/base/common/event';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { posix } from 'vs/base/common/path';
@@ -14,18 +12,17 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { Extensions as ConfigurationExtensions, IConfigurationNode, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IResourceEditorInput, ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorExtensions, IEditorInput, IEditorInputWithOptions, IEditorInputWithOptionsAndGroup } from 'vs/workbench/common/editor';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorInputWithOptions, IResourceDiffEditorInput, IUntitledTextResourceEditorInput, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export const IEditorOverrideService = createDecorator<IEditorOverrideService>('editorOverrideService');
 
 //#region Editor Associations
 
-// Static values for editor contributions
+// Static values for registered editors
 
 export type EditorAssociation = {
 	readonly viewType: string;
@@ -36,48 +33,16 @@ export type EditorAssociations = readonly EditorAssociation[];
 
 export const editorsAssociationsSettingId = 'workbench.editorAssociations';
 
-export const DEFAULT_EDITOR_ASSOCIATION: IEditorType = {
-	id: 'default',
-	displayName: localize('promptOpenWith.defaultEditor.displayName', "Text Editor"),
-	providerDisplayName: localize('builtinProviderDisplayName', "Built-in")
-};
-
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
-
-const editorTypeSchemaAddition: IJSONSchema = {
-	type: 'string',
-	enum: []
-};
 
 const editorAssociationsConfigurationNode: IConfigurationNode = {
 	...workbenchConfigurationNodeBase,
 	properties: {
 		'workbench.editorAssociations': {
-			type: 'array',
-			markdownDescription: localize('editor.editorAssociations', "Configure which editor to use for specific file types."),
-			items: {
-				type: 'object',
-				defaultSnippets: [{
-					body: {
-						'viewType': '$1',
-						'filenamePattern': '$2'
-					}
-				}],
-				properties: {
-					'viewType': {
-						anyOf: [
-							{
-								type: 'string',
-								description: localize('editor.editorAssociations.viewType', "The unique id of the editor to use."),
-							},
-							editorTypeSchemaAddition
-						]
-					},
-					'filenamePattern': {
-						type: 'string',
-						description: localize('editor.editorAssociations.filenamePattern', "Glob pattern specifying which files the editor should be used for."),
-					}
-				}
+			type: 'object',
+			markdownDescription: localize('editor.editorAssociations', "Configure glob patterns to editors (e.g. `\"*.hex\": \"hexEditor.hexEdit\"`). These have precedence over the default behavior."),
+			additionalProperties: {
+				type: 'string'
 			}
 		}
 	}
@@ -89,95 +54,54 @@ export interface IEditorType {
 	readonly providerDisplayName: string;
 }
 
-export interface IEditorTypesHandler {
-	readonly onDidChangeEditorTypes: Event<void>;
-
-	getEditorTypes(): IEditorType[];
-}
-
-export interface IEditorAssociationsRegistry {
-
-	/**
-	 * Register handlers for editor types
-	 */
-	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable;
-}
-
-class EditorAssociationsRegistry implements IEditorAssociationsRegistry {
-
-	private readonly editorTypesHandlers = new Map<string, IEditorTypesHandler>();
-
-	registerEditorTypesHandler(id: string, handler: IEditorTypesHandler): IDisposable {
-		if (this.editorTypesHandlers.has(id)) {
-			throw new Error(`An editor type handler with ${id} was already registered.`);
-		}
-
-		this.editorTypesHandlers.set(id, handler);
-		this.updateEditorAssociationsSchema();
-
-		const editorTypeChangeEvent = handler.onDidChangeEditorTypes(() => {
-			this.updateEditorAssociationsSchema();
-		});
-
-		return {
-			dispose: () => {
-				editorTypeChangeEvent.dispose();
-				this.editorTypesHandlers.delete(id);
-				this.updateEditorAssociationsSchema();
-			}
-		};
-	}
-
-	private updateEditorAssociationsSchema() {
-		const enumValues: string[] = [];
-		const enumDescriptions: string[] = [];
-
-		const editorTypes: IEditorType[] = [DEFAULT_EDITOR_ASSOCIATION];
-
-		for (const [, handler] of this.editorTypesHandlers) {
-			editorTypes.push(...handler.getEditorTypes());
-		}
-
-		for (const { id, providerDisplayName } of editorTypes) {
-			enumValues.push(id);
-			enumDescriptions.push(localize('editorAssociations.viewType.sourceDescription', "Source: {0}", providerDisplayName));
-		}
-
-		editorTypeSchemaAddition.enum = enumValues;
-		editorTypeSchemaAddition.enumDescriptions = enumDescriptions;
-
-		configurationRegistry.notifyConfigurationSchemaUpdated(editorAssociationsConfigurationNode);
-	}
-}
-
-Registry.add(EditorExtensions.Associations, new EditorAssociationsRegistry());
 configurationRegistry.registerConfiguration(editorAssociationsConfigurationNode);
 //#endregion
 
 //#region EditorOverrideService types
-export enum ContributedEditorPriority {
+export enum RegisteredEditorPriority {
 	builtin = 'builtin',
 	option = 'option',
 	exclusive = 'exclusive',
 	default = 'default'
 }
 
-export type ContributionPointOptions = {
+/**
+ * If we didn't resolve an override dictates what to do with the opening state
+ * ABORT = Do not continue with opening the editor
+ * NONE = Continue as if the override has been disabled as the service could not resolve one
+ */
+export const enum OverrideStatus {
+	ABORT = 1,
+	NONE = 2,
+}
+
+export type ReturnedOverride = IEditorInputWithOptions | OverrideStatus;
+
+export type RegisteredEditorOptions = {
+	/**
+	 * If your editor cannot be opened in multiple groups for the same resource
+	 */
 	singlePerResource?: boolean | (() => boolean);
-	canHandleDiff?: boolean | (() => boolean);
+
+	/**
+	 * Whether or not you can support opening the given resource.
+	 * If omitted we assume you can open everything
+	 */
+	canSupportResource?: (resource: URI) => boolean;
 };
 
-export type ContributedEditorInfo = {
+export type RegisteredEditorInfo = {
 	id: string;
-	describes: (currentEditor: IEditorInput) => boolean;
 	label: string;
 	detail?: string;
-	priority: ContributedEditorPriority;
+	priority: RegisteredEditorPriority;
 };
 
-export type EditorInputFactoryFunction = (resource: URI, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type EditorInputFactoryFunction = (editorInput: IResourceEditorInput | ITextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
-export type DiffEditorInputFactoryFunction = (diffEditorInput: DiffEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup) => IEditorInputWithOptions;
+export type UntitledEditorInputFactoryFunction = (untitledEditorInput: IUntitledTextResourceEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
+
+export type DiffEditorInputFactoryFunction = (diffEditorInput: IResourceDiffEditorInput, group: IEditorGroup) => IEditorInputWithOptions;
 
 export interface IEditorOverrideService {
 	readonly _serviceBrand: undefined;
@@ -196,43 +120,59 @@ export interface IEditorOverrideService {
 	updateUserAssociations(globPattern: string, editorID: string): void;
 
 	/**
-	 * Registers a specific editor contribution.
-	 * @param globPattern The glob pattern for this contribution point
-	 * @param editorInfo Information about the contribution point
-	 * @param options Specific options which apply to this contribution
+	 * Registers a specific editor.
+	 * @param globPattern The glob pattern for this registration
+	 * @param editorInfo Information about the registration
+	 * @param options Specific options which apply to this registration
 	 * @param createEditorInput The factory method for creating inputs
 	 */
-	registerContributionPoint(
+	registerEditor(
 		globPattern: string | glob.IRelativePattern,
-		editorInfo: ContributedEditorInfo,
-		options: ContributionPointOptions,
+		editorInfo: RegisteredEditorInfo,
+		options: RegisteredEditorOptions,
 		createEditorInput: EditorInputFactoryFunction,
+		createUntitledEditorInput?: UntitledEditorInputFactoryFunction | undefined,
 		createDiffEditorInput?: DiffEditorInputFactoryFunction
 	): IDisposable;
+
+	/**
+	 * Populates the override field of the untyped editor input
+	 * @param editor The editor input
+	 * @returns If one is populated whether or not there was a conflicting default, else undefined
+	 */
+	populateEditorId(editor: IUntypedEditorInput): Promise<{ conflictingDefault: boolean } | undefined>
 
 	/**
 	 * Given an editor determines if there's a suitable override for it, if so returns an IEditorInputWithOptions for opening
 	 * @param editor The editor to override
 	 * @param options The current options for the editor
 	 * @param group The current group
-	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or undefined if there is not
+	 * @param conflictingDefault Whether or not to show the conflicting default prompt
+	 * @returns An IEditorInputWithOptionsAndGroup if there is an available override or a status of how to proceed
 	 */
-	resolveEditorOverride(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions | undefined, group: IEditorGroup): Promise<IEditorInputWithOptionsAndGroup | undefined>;
+	resolveEditorInput(editor: IUntypedEditorInput, group: IEditorGroup, conflictingDefault?: boolean): Promise<ReturnedOverride>;
+
+	/**
+	 * Given a resource returns all the editor ids that match that resource
+	 * @param resource The resource
+	 * @returns A list of editor ids
+	 */
+	getEditorIds(resource: URI): string[];
 }
 
 //#endregion
 
 //#region Util functions
-export function priorityToRank(priority: ContributedEditorPriority): number {
+export function priorityToRank(priority: RegisteredEditorPriority): number {
 	switch (priority) {
-		case ContributedEditorPriority.exclusive:
+		case RegisteredEditorPriority.exclusive:
 			return 5;
-		case ContributedEditorPriority.default:
+		case RegisteredEditorPriority.default:
 			return 4;
-		case ContributedEditorPriority.builtin:
+		case RegisteredEditorPriority.builtin:
 			return 3;
 		// Text editor is priority 2
-		case ContributedEditorPriority.option:
+		case RegisteredEditorPriority.option:
 		default:
 			return 1;
 	}
@@ -242,13 +182,16 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 	const excludedSchemes = new Set([
 		Schemas.extension,
 		Schemas.webviewPanel,
+		Schemas.vscodeWorkspaceTrust,
+		Schemas.walkThrough,
+		Schemas.vscodeSettings
 	]);
 	// We want to say that the above schemes match no glob patterns
 	if (excludedSchemes.has(resource.scheme)) {
 		return false;
 	}
 	const matchOnPath = typeof globPattern === 'string' && globPattern.indexOf(posix.sep) >= 0;
-	const target = matchOnPath ? resource.path : basename(resource);
-	return glob.match(globPattern, target.toLowerCase());
+	const target = matchOnPath ? `${resource.scheme}:${resource.path}` : basename(resource);
+	return glob.match(typeof globPattern === 'string' ? globPattern.toLowerCase() : globPattern, target.toLowerCase());
 }
 //#endregion

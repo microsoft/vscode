@@ -8,24 +8,6 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import * as assert from 'assert';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 
-//
-// To run the emmet tests only change .vscode/launch.json
-// {
-// 	"name": "Stacks Tests",
-// 	"type": "node",
-// 	"request": "launch",
-// 	"program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
-// 	"stopOnEntry": false,
-// 	"args": [
-// 		"--timeout",
-// 		"999999",
-// 		"--colors",
-// 		"-g",
-// 		"Stacks"   <<<--- Emmet
-// 	],
-// Select the 'Stacks Tests' launch config and F5
-//
-
 class MockGrammarContributions implements IGrammarContributions {
 	private scopeName: string;
 

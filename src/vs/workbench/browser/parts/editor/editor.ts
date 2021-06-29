@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorInput, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent } from 'vs/workbench/common/editor';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
@@ -12,7 +12,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService, IResourceEditorInputType } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { withNullAsUndefined } from 'vs/base/common/types';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 
 export interface IEditorPartCreationOptions {
 	restorePreviousState: boolean;
@@ -129,15 +131,20 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	relayout(): void;
 }
 
-export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
+export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: IEditorOptions): ITextEditorOptions {
 	const activeGroupCodeEditor = group.activeEditorPane ? getIEditor(group.activeEditorPane.getControl()) : undefined;
 	if (activeGroupCodeEditor) {
-		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
-			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);
+		if (!expectedActiveEditor || !group.activeEditor || expectedActiveEditor.matches(group.activeEditor)) {
+			const textOptions: ITextEditorOptions = {
+				...presetOptions,
+				viewState: withNullAsUndefined(activeGroupCodeEditor.saveViewState())
+			};
+
+			return textOptions;
 		}
 	}
 
-	return presetOptions || new EditorOptions();
+	return presetOptions || Object.create(null);
 }
 
 /**
@@ -155,9 +162,4 @@ export interface EditorServiceImpl extends IEditorService {
 	 * Emitted when the list of most recently active editors change.
 	 */
 	readonly onDidMostRecentlyActiveEditorsChange: Event<void>;
-
-	/**
-	 * Override to return a typed `EditorInput`.
-	 */
-	createEditorInput(input: IResourceEditorInputType): EditorInput;
 }

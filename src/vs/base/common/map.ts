@@ -498,20 +498,27 @@ export class TernarySearchTree<K, V> {
 	}
 
 	private *_entries(node: TernarySearchTreeNode<K, V> | undefined): IterableIterator<[K, V]> {
-		if (node) {
-			// left
-			yield* this._entries(node.left);
-
-			// node
-			if (node.value) {
-				// callback(node.value, this._iter.join(parts));
-				yield [node.key, node.value];
+		// DFS
+		if (!node) {
+			return;
+		}
+		const stack = [node];
+		while (stack.length > 0) {
+			const node = stack.pop();
+			if (node) {
+				if (node.value) {
+					yield [node.key, node.value];
+				}
+				if (node.left) {
+					stack.push(node.left);
+				}
+				if (node.mid) {
+					stack.push(node.mid);
+				}
+				if (node.right) {
+					stack.push(node.right);
+				}
 			}
-			// mid
-			yield* this._entries(node.mid);
-
-			// right
-			yield* this._entries(node.right);
 		}
 	}
 }
@@ -1090,43 +1097,5 @@ export class ReadonlyMapView<K, V> implements ReadonlyMap<K, V>{
 
 	[Symbol.iterator](): IterableIterator<[K, V]> {
 		return this.#source.entries();
-	}
-}
-
-/**
- * A data structure that only allows a single entry
- * per hash provided by the hash function.
- */
-export class HashSet<T> {
-	private readonly map = new Map<string, T>();
-
-	constructor(entries: T[], private hash: (entry: T) => string) {
-		for (const entry of entries) {
-			this.add(entry);
-		}
-	}
-
-	get size(): number {
-		return this.map.size;
-	}
-
-	add(entry: T): void {
-		this.map.set(this.hash(entry), entry);
-	}
-
-	delete(entry: T): boolean {
-		return this.map.delete(this.hash(entry));
-	}
-
-	clear(): void {
-		this.map.clear();
-	}
-
-	has(entry: T): boolean {
-		return this.map.has(this.hash(entry));
-	}
-
-	get(entry: T): T | undefined {
-		return this.map.get(this.hash(entry));
 	}
 }

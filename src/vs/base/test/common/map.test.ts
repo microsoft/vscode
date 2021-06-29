@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ConfigKeysIterator, HashSet, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
+import { ConfigKeysIterator, LinkedMap, LRUCache, PathIterator, ResourceMap, StringIterator, TernarySearchTree, Touch, UriIterator } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -762,6 +762,9 @@ suite('Map', () => {
 
 		iter = map.findSuperstr(URI.file('/'))!;
 		item = iter.next();
+		assert.strictEqual(item.value[1], 4);
+		assert.strictEqual(item.done, false);
+		item = iter.next();
 		assert.strictEqual(item.value[1], 2);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
@@ -769,9 +772,6 @@ suite('Map', () => {
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value[1], 3);
-		assert.strictEqual(item.done, false);
-		item = iter.next();
-		assert.strictEqual(item.value[1], 4);
 		assert.strictEqual(item.done, false);
 		item = iter.next();
 		assert.strictEqual(item.value, undefined);
@@ -1019,45 +1019,5 @@ suite('Map', () => {
 
 		assert.strictEqual(map.get(windowsFile), 'true');
 		assert.strictEqual(map.get(uncFile), 'true');
-	});
-});
-
-
-suite('HashSet', () => {
-
-	test('basics', () => {
-
-		interface Type {
-			value: string;
-		}
-
-		const hashSet = new HashSet<Type>([], t => t.value);
-		assert.strictEqual(hashSet.size, 0);
-
-		const entry1 = { value: 'foo' };
-		const entry2 = { value: 'bar' };
-
-		hashSet.add(entry1);
-		hashSet.add(entry2);
-
-		assert.strictEqual(hashSet.size, 2);
-		assert.ok(hashSet.has(entry1));
-		assert.ok(hashSet.has(entry2));
-
-		assert.strictEqual(hashSet.get(entry1), entry1);
-		assert.strictEqual(hashSet.get({ value: 'foo' }), entry1);
-
-		hashSet.delete(entry1);
-		assert.strictEqual(hashSet.size, 1);
-		assert.ok(!hashSet.has(entry1));
-		assert.ok(hashSet.has(entry2));
-
-		hashSet.clear();
-		assert.strictEqual(hashSet.size, 0);
-
-		const hashSetWithInitialValues = new HashSet<Type>([entry1, entry2], t => t.value);
-		assert.strictEqual(hashSetWithInitialValues.size, 2);
-		assert.ok(hashSetWithInitialValues.has(entry1));
-		assert.ok(hashSetWithInitialValues.has(entry2));
 	});
 });

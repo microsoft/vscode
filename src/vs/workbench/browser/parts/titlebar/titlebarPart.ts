@@ -42,6 +42,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { Schemas } from 'vs/base/common/network';
 import { withNullAsUndefined } from 'vs/base/common/types';
 import { Codicon, iconRegistry } from 'vs/base/common/codicons';
+import { getVirtualWorkspaceLocation } from 'vs/platform/remote/common/remoteHosts';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -165,6 +166,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeEditor.onDidChangeCapabilities(() => this.titleUpdater.schedule()));
 		}
 	}
 
@@ -278,6 +280,19 @@ export class TitlebarPart extends Part implements ITitleService {
 			folder = withNullAsUndefined(this.contextService.getWorkspaceFolder(editorResource));
 		}
 
+		// Compute remote
+		// vscode-remtoe: use as is
+		// otherwise figure out if we have a virtual folder opened
+		let remoteName: string | undefined = undefined;
+		if (this.environmentService.remoteAuthority) {
+			remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
+		} else {
+			const virtualWorkspaceLocation = getVirtualWorkspaceLocation(workspace);
+			if (virtualWorkspaceLocation) {
+				remoteName = this.labelService.getHostLabel(virtualWorkspaceLocation.scheme, virtualWorkspaceLocation.authority);
+			}
+		}
+
 		// Variables
 		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
 		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
@@ -291,7 +306,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		const folderPath = folder ? this.labelService.getUriLabel(folder.uri) : '';
 		const dirty = editor?.isDirty() && !editor.isSaving() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.productService.nameLong;
-		const remoteName = this.labelService.getHostLabel(Schemas.vscodeRemote, this.environmentService.remoteAuthority);
 		const separator = this.configurationService.getValue<string>('window.titleSeparator');
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
 

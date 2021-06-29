@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import minimist = require('minimist');
 import { Application, Quality } from '../../../../automation';
+import { afterSuite, beforeSuite } from '../../utils';
 
-export function setup() {
+export function setup(opts: minimist.ParsedArgs) {
 	describe('Localization', () => {
+		beforeSuite(opts);
+
 		before(async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
+			// Don't run the localization tests in dev or remote.
+			if (app.quality === Quality.Dev || app.remote) {
 				return;
 			}
 
@@ -20,28 +25,22 @@ export function setup() {
 			await app.restart({ extraArgs: ['--locale=DE'] });
 		});
 
+		afterSuite();
+
 		it(`starts with 'DE' locale and verifies title and viewlets text is in German`, async function () {
 			const app = this.app as Application;
 
-			if (app.quality === Quality.Dev) {
-				this.skip();
+			const result = await app.workbench.localization.getLocalizedStrings();
+			if (app.quality === Quality.Dev || app.remote) {
+				if (result.open !== 'open' || result.close !== 'close' || result.find !== 'find') {
+					throw new Error(`Received wrong localized strings: ${JSON.stringify(result, undefined, 0)}`);
+				}
 				return;
+			} else {
+				if (result.open.toLowerCase() !== 'öffnen' || result.close.toLowerCase() !== 'schließen' || result.find.toLowerCase() !== 'finden') {
+					throw new Error(`Received wrong German localized strings: ${JSON.stringify(result, undefined, 0)}`);
+				}
 			}
-
-			// await app.workbench.explorer.waitForOpenEditorsViewTitle(title => /geöffnete editoren/i.test(title));
-
-			await app.workbench.search.openSearchViewlet();
-			await app.workbench.search.waitForTitle(title => /suchen/i.test(title));
-
-			// await app.workbench.scm.openSCMViewlet();
-			// await app.workbench.scm.waitForTitle(title => /quellcodeverwaltung/i.test(title));
-
-			// See https://github.com/microsoft/vscode/issues/93462
-			// await app.workbench.debug.openDebugViewlet();
-			// await app.workbench.debug.waitForTitle(title => /starten/i.test(title));
-
-			// await app.workbench.extensions.openExtensionsViewlet();
-			// await app.workbench.extensions.waitForTitle(title => /extensions/i.test(title));
 		});
 	});
 }

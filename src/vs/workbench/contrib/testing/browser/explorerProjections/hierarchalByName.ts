@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Iterable } from 'vs/base/common/iterator';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { TestExplorerTreeElement } from 'vs/workbench/contrib/testing/browser/explorerProjections';
+import { flatTestItemDelimiter } from 'vs/workbench/contrib/testing/browser/explorerProjections/display';
 import { HierarchicalByLocationProjection as HierarchicalByLocationProjection } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalByLocation';
-import { ByLocationTestItemElement, ByLocationFolderElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
+import { ByLocationTestItemElement } from 'vs/workbench/contrib/testing/browser/explorerProjections/hierarchalNodes';
 import { NodeRenderDirective } from 'vs/workbench/contrib/testing/browser/explorerProjections/nodeHelper';
 import { InternalTestItem, ITestItemUpdate } from 'vs/workbench/contrib/testing/common/testCollection';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
-import { TestSubscriptionListener } from 'vs/workbench/contrib/testing/common/workspaceTestCollectionService';
+import { ITestService } from 'vs/workbench/contrib/testing/common/testService';
 
 /**
  * Type of test element in the list.
@@ -38,7 +38,7 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	public override get description() {
 		let description: string | null = null;
 		for (let parent = this.actualParent; parent && !parent.isTestRoot; parent = parent.actualParent) {
-			description = description ? `${parent.label} › ${description}` : parent.label;
+			description = description ? parent.label + flatTestItemDelimiter + description : parent.label;
 		}
 
 		return description;
@@ -49,7 +49,7 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
 	 */
 	constructor(
 		internal: InternalTestItem,
-		parentItem: ByLocationFolderElement | ByLocationTestItemElement,
+		parentItem: null | ByLocationTestItemElement,
 		addedOrRemoved: (n: TestExplorerTreeElement) => void,
 		private readonly actualParent?: ByNameTestItemElement,
 	) {
@@ -113,8 +113,8 @@ export class ByNameTestItemElement extends ByLocationTestItemElement {
  * test root rather than the heirarchal parent.
  */
 export class HierarchicalByNameProjection extends HierarchicalByLocationProjection {
-	constructor(listener: TestSubscriptionListener, @ITestResultService results: ITestResultService) {
-		super(listener, results);
+	constructor(@ITestService testService: ITestService, @ITestResultService results: ITestResultService) {
+		super(testService, results);
 
 		const originalRenderNode = this.renderNode.bind(this);
 		this.renderNode = (node, recurse) => {
@@ -134,16 +134,18 @@ export class HierarchicalByNameProjection extends HierarchicalByLocationProjecti
 	/**
 	 * @override
 	 */
-	protected override createItem(item: InternalTestItem, folder: IWorkspaceFolder): ByLocationTestItemElement {
-		const { root, items } = this.getOrCreateFolderElement(folder);
-		const actualParent = item.parent ? items.get(item.parent) as ByNameTestItemElement : undefined;
-		for (const testRoot of root.children) {
-			if (testRoot.test.src.controller === item.src.controller) {
-				return new ByNameTestItemElement(item, testRoot, r => this.changes.addedOrRemoved(r), actualParent);
-			}
+	protected override createItem(item: InternalTestItem): ByLocationTestItemElement {
+		const actualParent = item.parent ? this.items.get(item.parent) as ByNameTestItemElement : undefined;
+		if (actualParent) {
+			return new ByNameTestItemElement(
+				item,
+				actualParent.parent as ByNameTestItemElement || actualParent,
+				r => this.changes.addedOrRemoved(r),
+				actualParent,
+			);
 		}
 
-		return new ByNameTestItemElement(item, root, r => this.changes.addedOrRemoved(r));
+		return new ByNameTestItemElement(item, null, r => this.changes.addedOrRemoved(r));
 	}
 
 	/**

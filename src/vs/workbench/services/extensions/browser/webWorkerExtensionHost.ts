@@ -89,8 +89,29 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 		if (this._environmentService.options && this._environmentService.options.webWorkerExtensionHostIframeSrc) {
 			return this._environmentService.options.webWorkerExtensionHostIframeSrc;
 		}
+
+		const forceHTTPS = (location.protocol === 'https:');
+
+		if (this._environmentService.options && this._environmentService.options.__uniqueWebWorkerExtensionHostOrigin) {
+			const webEndpointUrlTemplate = this._productService.webEndpointUrlTemplate;
+			const commit = this._productService.commit;
+			const quality = this._productService.quality;
+			if (webEndpointUrlTemplate && commit && quality) {
+				const baseUrl = (
+					webEndpointUrlTemplate
+						.replace('{{uuid}}', generateUuid())
+						.replace('{{commit}}', commit)
+						.replace('{{quality}}', quality)
+				);
+				return (
+					forceHTTPS
+						? `${baseUrl}/out/vs/workbench/services/extensions/worker/httpsWebWorkerExtensionHostIframe.html`
+						: `${baseUrl}/out/vs/workbench/services/extensions/worker/httpWebWorkerExtensionHostIframe.html`
+				);
+			}
+		}
+
 		if (this._productService.webEndpointUrl) {
-			const forceHTTPS = (location.protocol === 'https:');
 			let baseUrl = this._productService.webEndpointUrl;
 			if (this._productService.quality) {
 				baseUrl += `/${this._productService.quality}`;
@@ -360,8 +381,6 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				extensionTestsLocationURI: this._environmentService.extensionTestsLocationURI,
 				globalStorageHome: this._environmentService.globalStorageHome,
 				workspaceStorageHome: this._environmentService.workspaceStorageHome,
-				webviewResourceRoot: this._environmentService.webviewResourceRoot,
-				webviewCspSource: this._environmentService.webviewCspSource,
 			},
 			workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? undefined : {
 				configuration: workspace.configuration || undefined,

@@ -22,7 +22,7 @@
     "p-limit": "^3.0.2"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/p-limit": "^2.2.0"
   },
   "contributes": {

@@ -68,22 +68,7 @@
         "fileMatch": "composer.json",
         "url": "https://getcomposer.org/schema.json"
       }
-    ],
-    "commands": [
-      {
-        "title": "%command.untrustValidationExecutable%",
-        "category": "%commands.categroy.php%",
-        "command": "php.untrustValidationExecutable"
-      }
-    ],
-    "menus": {
-      "commandPalette": [
-        {
-          "command": "php.untrustValidationExecutable",
-          "when": "php.untrustValidationExecutableContext"
-        }
-      ]
-    }
+    ]
   },
   "scripts": {
     "compile": "npx gulp compile-extension:php-language-features",
@@ -94,7 +79,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "^12.19.9",
+    "@types/node": "14.x",
     "@types/which": "^2.0.0"
   },
   "repository": {

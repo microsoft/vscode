@@ -22,6 +22,7 @@ import { IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { ISaveOptions, IRevertOptions } from 'vs/workbench/common/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import product from 'vs/platform/product/common/product';
+import { IActivity, IActivityService } from 'vs/workbench/services/activity/common/activity';
 
 export class TestTextResourcePropertiesService implements ITextResourcePropertiesService {
 
@@ -145,7 +146,7 @@ export class TestWorkingCopy extends Disposable implements IWorkingCopy {
 
 	private dirty = false;
 
-	constructor(public readonly resource: URI, isDirty = false, public readonly typeId = 'testWorkingCopyType') {
+	constructor(readonly resource: URI, isDirty = false, readonly typeId = 'testWorkingCopyType') {
 		super();
 
 		this.dirty = isDirty;
@@ -214,3 +215,21 @@ export interface Ctor<T> {
 export class TestExtensionService extends NullExtensionService { }
 
 export const TestProductService = { _serviceBrand: undefined, ...product };
+
+export class TestActivityService implements IActivityService {
+	_serviceBrand: undefined;
+	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
+		return this;
+	}
+	showViewActivity(viewId: string, badge: IActivity): IDisposable {
+		return this;
+	}
+	showAccountsActivity(activity: IActivity): IDisposable {
+		return this;
+	}
+	showGlobalActivity(activity: IActivity): IDisposable {
+		return this;
+	}
+
+	dispose() { }
+}

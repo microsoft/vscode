@@ -5,8 +5,8 @@
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { Event } from 'vs/base/common/event';
-import { AsyncEmitter, IWaitUntil, Promises } from 'vs/base/common/async';
+import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
+import { Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -62,7 +62,7 @@ export interface WorkingCopyFileEvent extends IWaitUntil {
 	/**
 	 * The array of source/target pair of files involved in given operation.
 	 */
-	readonly files: ReadonlyArray<SourceTargetPair>;
+	readonly files: readonly SourceTargetPair[];
 }
 
 export interface IWorkingCopyFileOperationParticipant {
@@ -166,7 +166,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<ReadonlyArray<IFileStatWithMetadata>>;
+	create(operations: ICreateFileOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will create a folder and any parent folder that needs to be created.
@@ -177,7 +177,7 @@ export interface IWorkingCopyFileService {
 	 * Note: events will only be emitted for the provided resource, but not any
 	 * parent folders that are being created as part of the operation.
 	 */
-	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<ReadonlyArray<IFileStatWithMetadata>>;
+	createFolder(operations: ICreateOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will move working copies matching the provided resources and corresponding children
@@ -186,7 +186,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<ReadonlyArray<IFileStatWithMetadata>>;
+	move(operations: IMoveOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will copy working copies matching the provided resources and corresponding children
@@ -195,7 +195,7 @@ export interface IWorkingCopyFileService {
 	 * Working copy owners can listen to the `onWillRunWorkingCopyFileOperation` and
 	 * `onDidRunWorkingCopyFileOperation` events to participate.
 	 */
-	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<ReadonlyArray<IFileStatWithMetadata>>;
+	copy(operations: ICopyOperation[], token: CancellationToken, undoInfo?: IFileOperationUndoRedoInfo): Promise<readonly IFileStatWithMetadata[]>;
 
 	/**
 	 * Will delete working copies matching the provided resources and children
@@ -223,7 +223,7 @@ export interface IWorkingCopyFileService {
 	 * If the resource is a folder and the scheme supports file operations, a working
 	 * copy that is dirty and is a child of that folder will also be returned.
 	 */
-	getDirty(resource: URI): ReadonlyArray<IWorkingCopy>;
+	getDirty(resource: URI): readonly IWorkingCopy[];
 
 	//#endregion
 }

@@ -14,7 +14,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { IContextViewProvider, AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IListVirtualDelegate, IListRenderer, IListEvent } from 'vs/base/browser/ui/list/list';
-import { domEvent } from 'vs/base/browser/event';
+import { DomEmitter } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { ISelectBoxDelegate, ISelectOptionItem, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
@@ -329,11 +329,11 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		if (this.styles.listFocusForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { color: ${this.styles.listFocusForeground} !important; }`);
 		}
 
 		if (this.styles.decoratorRightForeground) {
-			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row .option-decorator-right { color: ${this.styles.decoratorRightForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.focused) .option-decorator-right { color: ${this.styles.decoratorRightForeground}; }`);
 		}
 
 		if (this.styles.selectBackground && this.styles.selectBorder && !this.styles.selectBorder.equals(this.styles.selectBackground)) {
@@ -736,7 +736,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 		}
 
 		// SetUp list keyboard controller - control navigation, disabled items, focus
-		const onSelectDropDownKeyDown = Event.chain(domEvent(this.selectDropDownListContainer, 'keydown'))
+		const onKeyDown = this._register(new DomEmitter(this.selectDropDownListContainer, 'keydown'));
+		const onSelectDropDownKeyDown = Event.chain(onKeyDown.event)
 			.filter(() => this.selectList.length > 0)
 			.map(e => new StandardKeyboardEvent(e));
 
@@ -752,7 +753,8 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
-		this._register(Event.chain(domEvent(this.selectList.getHTMLElement(), 'mouseup'))
+		const onMouseUp = this._register(new DomEmitter(this.selectList.getHTMLElement(), 'mouseup'));
+		this._register(Event.chain(onMouseUp.event)
 			.filter(() => this.selectList.length > 0)
 			.on(e => this.onMouseUp(e), this));
 

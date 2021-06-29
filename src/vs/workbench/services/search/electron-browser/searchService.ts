@@ -27,6 +27,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { FileAccess } from 'vs/base/common/network';
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class LocalSearchService extends SearchService {
 	constructor(
@@ -54,6 +55,7 @@ export class DiskSearch implements ISearchResultProvider {
 		searchDebug: IDebugParams | undefined,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configService: IConfigurationService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		const timeout = this.configService.getValue<ISearchConfiguration>().search.maintainFileSearchCache ?
 			100 * 60 * 60 * 1000 :
@@ -84,6 +86,8 @@ export class DiskSearch implements ISearchResultProvider {
 		const client = new Client(FileAccess.asFileUri('bootstrap-fork', require).fsPath, opts);
 		const channel = getNextTickChannel(client.getChannel('search'));
 		this.raw = new SearchChannelClient(channel);
+
+		this.lifecycleService.onWillShutdown(_ => client.dispose());
 	}
 
 	textSearch(query: ITextQuery, onProgress?: (p: ISearchProgressItem) => void, token?: CancellationToken): Promise<ISearchComplete> {

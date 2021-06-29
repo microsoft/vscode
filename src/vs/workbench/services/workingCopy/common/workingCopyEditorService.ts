@@ -6,9 +6,10 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IEditorInput } from 'vs/workbench/common/editor';
-import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
+import { EditorsOrder, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
+import { IWorkingCopy, IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const IWorkingCopyEditorService = createDecorator<IWorkingCopyEditorService>('workingCopyEditorService');
 
@@ -18,17 +19,17 @@ export interface IWorkingCopyEditorHandler {
 	 * Whether the handler is capable of opening the specific backup in
 	 * an editor.
 	 */
-	handles(workingCopy: IWorkingCopyIdentifier): Promise<boolean>;
+	handles(workingCopy: IWorkingCopyIdentifier): boolean;
 
 	/**
 	 * Whether the provided working copy is opened in the provided editor.
 	 */
-	isOpen(workingCopy: IWorkingCopyIdentifier, editor: IEditorInput): Promise<boolean>;
+	isOpen(workingCopy: IWorkingCopyIdentifier, editor: IEditorInput): boolean;
 
 	/**
 	 * Create an editor that is suitable of opening the provided working copy.
 	 */
-	createEditor(workingCopy: IWorkingCopyIdentifier): Promise<IEditorInput>;
+	createEditor(workingCopy: IWorkingCopyIdentifier): IEditorInput | Promise<IEditorInput>;
 }
 
 export interface IWorkingCopyEditorService {
@@ -44,6 +45,11 @@ export interface IWorkingCopyEditorService {
 	 * Register a handler to the working copy editor service.
 	 */
 	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable;
+
+	/**
+	 * Finds the first editor that can handle the provided working copy.
+	 */
+	findEditor(workingCopy: IWorkingCopy): IEditorIdentifier | undefined;
 }
 
 export class WorkingCopyEditorService extends Disposable implements IWorkingCopyEditorService {
@@ -55,6 +61,10 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 
 	private readonly handlers = new Set<IWorkingCopyEditorHandler>();
 
+	constructor(@IEditorService private readonly editorService: IEditorService) {
+		super();
+	}
+
 	registerHandler(handler: IWorkingCopyEditorHandler): IDisposable {
 
 		// Add to registry and emit as event
@@ -62,6 +72,26 @@ export class WorkingCopyEditorService extends Disposable implements IWorkingCopy
 		this._onDidRegisterHandler.fire(handler);
 
 		return toDisposable(() => this.handlers.delete(handler));
+	}
+
+	findEditor(workingCopy: IWorkingCopy): IEditorIdentifier | undefined {
+		for (const editorIdentifier of this.editorService.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+			if (this.isOpen(workingCopy, editorIdentifier.editor)) {
+				return editorIdentifier;
+			}
+		}
+
+		return undefined;
+	}
+
+	private isOpen(workingCopy: IWorkingCopy, editor: IEditorInput): boolean {
+		for (const handler of this.handlers) {
+			if (handler.handles(workingCopy) && handler.isOpen(workingCopy, editor)) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 }
 

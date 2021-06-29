@@ -99,6 +99,9 @@ export class TypeScriptServerSpawner {
 		}
 
 		switch (configuration.separateSyntaxServer) {
+			case SeparateSyntaxServerConfiguration.ForAllRequests:
+				return CompositeServerType.SyntaxOnly;
+
 			case SeparateSyntaxServerConfiguration.Disabled:
 				return CompositeServerType.Single;
 

@@ -137,3 +137,15 @@ export async function asPromise<T>(event: vscode.Event<T>, timeout = vscode.env.
 		});
 	});
 }
+
+export function testRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		test(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export function suiteRepeat(n: number, description: string, callback: (this: any) => any): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
+}

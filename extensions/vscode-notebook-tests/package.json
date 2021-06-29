@@ -20,7 +20,7 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@types/node": "^12.19.9"
+    "@types/node": "14.x"
   },
   "contributes": {
     "commands": [
@@ -34,9 +34,9 @@
         "icon": "$(debug)"
       }
     ],
-    "notebookProvider": [
+    "notebooks": [
       {
-        "viewType": "notebookSmokeTest",
+        "type": "notebookSmokeTest",
         "displayName": "Notebook Smoke Test",
         "selector": [
           {
@@ -46,7 +46,7 @@
         ]
       }
     ],
-    "notebookOutputRenderer": [
+    "notebookRenderer": [
       {
         "id": "notebookCoreTestRenderer",
         "displayName": "Notebook Core Test Renderer",
@@ -60,7 +60,7 @@
       "notebook/cell/title": [
         {
           "command": "vscode-notebook-tests.debugAction",
-          "when": "notebookViewType == notebookSmokeTest",
+          "when": "notebookType == notebookSmokeTest",
           "group": "inline@1"
         }
       ]

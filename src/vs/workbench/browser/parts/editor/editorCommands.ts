@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { isObject, isString, isUndefined, isNumber, withNullAsUndefined } from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditorInput, IVisibleEditorPane, ActiveEditorStickyContext, EditorsOrder, viewColumnToEditorGroup, EditorGroupColumn, EditorInputCapabilities, isEditorIdentifier } from 'vs/workbench/common/editor';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -17,7 +17,7 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IListService, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct, coalesce } from 'vs/base/common/arrays';
-import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
@@ -452,7 +452,7 @@ function registerOpenEditorAPICommands(): void {
 		}
 	});
 
-	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, leftResource: UriComponents, rightResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
+	CommandsRegistry.registerCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, async function (accessor: ServicesAccessor, originalResource: UriComponents, modifiedResource: UriComponents, label?: string, columnAndOptions?: [EditorGroupColumn?, ITextEditorOptions?], context?: IOpenEvent<unknown>) {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -460,8 +460,8 @@ function registerOpenEditorAPICommands(): void {
 		const [options, column] = mixinContext(context, optionsArg, columnArg);
 
 		await editorService.openEditor({
-			leftResource: URI.revive(leftResource),
-			rightResource: URI.revive(rightResource),
+			originalInput: { resource: URI.revive(originalResource) },
+			modifiedInput: { resource: URI.revive(modifiedResource) },
 			label,
 			options
 		}, viewColumnToEditorGroup(editorGroupService, column));
@@ -487,7 +487,7 @@ function registerOpenEditorAPICommands(): void {
 			group = editorGroupsService.getGroup(viewColumnToEditorGroup(editorGroupsService, columnArg)) ?? editorGroupsService.activeGroup;
 		}
 
-		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, override: id } }, group);
+		return editorService.openEditor({ resource: URI.revive(resource), options: { ...optionsArg, pinned: true, override: id } }, group);
 	});
 }
 
@@ -631,12 +631,13 @@ export function splitEditor(editorGroupService: IEditorGroupsService, direction:
 		editorToCopy = withNullAsUndefined(sourceGroup.activeEditor);
 	}
 
-	// Copy the editor to the new group, else move the editor to the new group
-	if (editorToCopy && (editorToCopy as EditorInput).canSplit()) {
+	// Copy the editor to the new group, else create an empty group
+	if (editorToCopy && !editorToCopy.hasCapability(EditorInputCapabilities.Singleton)) {
 		sourceGroup.copyEditor(editorToCopy, newGroup);
-		// Focus
-		newGroup.focus();
 	}
+
+	// Focus
+	newGroup.focus();
 
 }
 
@@ -1042,18 +1043,6 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// Otherwise go with passed in context
 	return !!editorContext ? [editorContext] : [];
-}
-
-function isEditorGroup(thing: unknown): thing is IEditorGroup {
-	const group = thing as IEditorGroup;
-
-	return group && typeof group.id === 'number' && Array.isArray(group.editors);
-}
-
-function isEditorIdentifier(thing: unknown): thing is IEditorIdentifier {
-	const identifier = thing as IEditorIdentifier;
-
-	return identifier && typeof identifier.groupId === 'number';
 }
 
 export function setup(): void {

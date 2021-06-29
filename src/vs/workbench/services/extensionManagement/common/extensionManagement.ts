@@ -5,8 +5,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IExtension, IScannedExtension, ExtensionType, ITranslatedScannedExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
-import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
+import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
 
 export interface IExtensionManagementServer {
@@ -24,9 +24,21 @@ export interface IExtensionManagementServerService {
 	getExtensionManagementServer(extension: IExtension): IExtensionManagementServer | null;
 }
 
+export type InstallExtensionOnServerEvent = InstallExtensionEvent & { server: IExtensionManagementServer };
+export type DidInstallExtensionOnServerEvent = DidInstallExtensionEvent & { server: IExtensionManagementServer };
+export type UninstallExtensionOnServerEvent = IExtensionIdentifier & { server: IExtensionManagementServer };
+export type DidUninstallExtensionOnServerEvent = DidUninstallExtensionEvent & { server: IExtensionManagementServer };
+
 export const IWorkbenchExtensionManagementService = refineServiceDecorator<IExtensionManagementService, IWorkbenchExtensionManagementService>(IExtensionManagementService);
 export interface IWorkbenchExtensionManagementService extends IExtensionManagementService {
 	readonly _serviceBrand: undefined;
+
+	onInstallExtension: Event<InstallExtensionOnServerEvent>;
+	onDidInstallExtension: Event<DidInstallExtensionOnServerEvent>;
+	onUninstallExtension: Event<UninstallExtensionOnServerEvent>;
+	onDidUninstallExtension: Event<DidUninstallExtensionOnServerEvent>;
+
+	installWebExtension(location: URI): Promise<ILocalExtension>;
 	installExtensions(extensions: IGalleryExtension[], installOptions?: InstallOptions): Promise<ILocalExtension[]>;
 	updateFromGallery(gallery: IGalleryExtension, extension: ILocalExtension): Promise<ILocalExtension>;
 	getExtensionManagementServerToInstall(manifest: IExtensionManifest): IExtensionManagementServer | null
@@ -37,6 +49,7 @@ export const enum EnablementState {
 	DisabledByExtensionKind,
 	DisabledByEnvironment,
 	DisabledByVirtualWorkspace,
+	DisabledByExtensionDependency,
 	DisabledGlobally,
 	DisabledWorkspace,
 	EnabledGlobally,
@@ -57,6 +70,12 @@ export interface IWorkbenchExtensionEnablementService {
 	 * Returns the enablement state for the given extension
 	 */
 	getEnablementState(extension: IExtension): EnablementState;
+
+	/**
+	 * Returns the enablement states for the given extensions
+	 * @param extensions list of extensions
+	 */
+	getEnablementStates(extensions: IExtension[]): EnablementState[];
 
 	/**
 	 * Returns `true` if the enablement can be changed.
@@ -102,10 +121,16 @@ export interface IWorkbenchExtensionEnablementService {
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
-	scanExtensions(type?: ExtensionType): Promise<IScannedExtension[]>;
-	scanAndTranslateExtensions(type?: ExtensionType): Promise<ITranslatedScannedExtension[]>;
-	scanAndTranslateSingleExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<ITranslatedScannedExtension | null>;
+
+	scanSystemExtensions(): Promise<IExtension[]>;
+	scanUserExtensions(): Promise<IExtension[]>;
+	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
+	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
+
 	canAddExtension(galleryExtension: IGalleryExtension): boolean;
-	addExtension(galleryExtension: IGalleryExtension): Promise<IScannedExtension>;
+	addExtension(location: URI): Promise<IExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
+
+	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;
 }

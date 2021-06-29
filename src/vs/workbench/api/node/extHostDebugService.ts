@@ -20,10 +20,11 @@ import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
 import { ExtHostDebugServiceBase, ExtHostDebugSession, ExtHostVariableResolverService } from 'vs/workbench/api/common/extHostDebugService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { SignService } from 'vs/platform/sign/node/signService';
-import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/common/variableResolver';
 import { createCancelablePromise, firstParallel } from 'vs/base/common/async';
+import { hasChildProcesses, prepareCommand, runInExternalTerminal } from 'vs/workbench/contrib/debug/node/terminals';
+import { IExtHostEditorTabs } from 'vs/workbench/api/common/extHostEditorTabs';
 
 export class ExtHostDebugService extends ExtHostDebugServiceBase {
 
@@ -38,9 +39,10 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 		@IExtHostExtensionService extensionService: IExtHostExtensionService,
 		@IExtHostDocumentsAndEditors editorsService: IExtHostDocumentsAndEditors,
 		@IExtHostConfiguration configurationService: IExtHostConfiguration,
-		@IExtHostTerminalService private _terminalService: IExtHostTerminalService
+		@IExtHostTerminalService private _terminalService: IExtHostTerminalService,
+		@IExtHostEditorTabs editorTabs: IExtHostEditorTabs
 	) {
-		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService);
+		super(extHostRpcService, workspaceService, extensionService, editorsService, configurationService, editorTabs);
 	}
 
 	protected override createDebugAdapter(adapter: IAdapterDescriptor, session: ExtHostDebugSession): AbstractDebugAdapter | undefined {
@@ -79,11 +81,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			}
 
 			const configProvider = await this._configurationService.getConfigProvider();
-			const shell = this._terminalService.getDefaultShell(true, configProvider);
-			const shellArgs = this._terminalService.getDefaultShellArgs(true, configProvider);
+			const shell = this._terminalService.getDefaultShell(true);
+			const shellArgs = this._terminalService.getDefaultShellArgs(true);
+
+			const terminalName = args.title || nls.localize('debug.terminal.title', "Debug Process");
 
 			const shellConfig = JSON.stringify({ shell, shellArgs });
-			let terminal = await this._integratedTerminalInstances.checkout(shellConfig);
+			let terminal = await this._integratedTerminalInstances.checkout(shellConfig, terminalName);
 
 			let cwdForPrepareCommand: string | undefined;
 			let giveShellTimeToInitialize = false;
@@ -93,10 +97,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 					shellPath: shell,
 					shellArgs: shellArgs,
 					cwd: args.cwd,
-					name: args.title || nls.localize('debug.terminal.title', "debuggee"),
+					name: terminalName,
 				};
 				giveShellTimeToInitialize = true;
-				terminal = this._terminalService.createTerminalFromOptions(options, true);
+				terminal = this._terminalService.createTerminalFromOptions(options, {
+					isFeatureTerminal: true,
+					useShellEnvironment: true
+				});
 				this._integratedTerminalInstances.insert(terminal, shellConfig);
 
 			} else {
@@ -139,14 +146,13 @@ export class ExtHostDebugService extends ExtHostDebugServiceBase {
 			return shellProcessId;
 
 		} else if (args.kind === 'external') {
-
 			return runInExternalTerminal(args, await this._configurationService.getConfigProvider());
 		}
 		return super.$runInTerminal(args, sessionId);
 	}
 
 	protected createVariableResolver(folders: vscode.WorkspaceFolder[], editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfigProvider): AbstractVariableResolverService {
-		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._workspaceService);
+		return new ExtHostVariableResolverService(folders, editorService, configurationService, this._editorTabs, this._workspaceService);
 	}
 }
 
@@ -158,9 +164,15 @@ class DebugTerminalCollection {
 
 	private _terminalInstances = new Map<vscode.Terminal, { lastUsedAt: number, config: string }>();
 
-	public async checkout(config: string) {
+	public async checkout(config: string, name: string) {
 		const entries = [...this._terminalInstances.entries()];
 		const promises = entries.map(([terminal, termInfo]) => createCancelablePromise(async ct => {
+
+			// Only allow terminals that match the title.  See #123189
+			if (terminal.name !== name) {
+				return null;
+			}
+
 			if (termInfo.lastUsedAt !== -1 && await hasChildProcesses(await terminal.processId)) {
 				return null;
 			}
