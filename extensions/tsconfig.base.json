@@ -6,7 +6,7 @@
 		],
 		"module": "commonjs",
 		"strict": true,
-		"strictOptionalProperties": false,
+		"exactOptionalPropertyTypes": false,
 		"useUnknownInCatchVariables": false,
 		"alwaysStrict": true,
 		"noImplicitAny": true,
