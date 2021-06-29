@@ -44,7 +44,7 @@
       {
         "viewType": "imagePreview.previewEditor",
         "displayName": "%customEditors.imagePreview%",
-        "priority": "default",
+        "priority": "builtin",
         "selector": [
           {
             "filenamePattern": "*.{jpg,jpe,jpeg,png,bmp,gif,ico,webp,avif}"
