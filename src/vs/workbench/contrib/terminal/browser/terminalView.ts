@@ -433,7 +433,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
-		this._register(_terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
+		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceColorChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {

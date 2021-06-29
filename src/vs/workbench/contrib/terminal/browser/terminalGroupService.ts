@@ -28,7 +28,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	get instances(): ITerminalInstance[] {
 		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
 	}
-	activeInstanceIndex: number = -1;
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _terminalCountContextKey: IContextKey<number>;
@@ -105,10 +104,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 	set activeGroup(value: ITerminalGroup | undefined) {
 		if (value === undefined) {
-			this.activeGroupIndex = -1;
+			// Setting to undefined is not possible, this can only be done when removing the last group
 			return;
 		}
-		this.activeGroupIndex = this.groups.findIndex(e => e === value);
+		const index = this.groups.findIndex(e => e === value);
+		this.setActiveGroupByIndex(index);
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -233,13 +233,10 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 
 		this._onDidChangeInstances.fire();
-		if (this.groups.length === 0) {
-			this._onDidChangeActiveInstance.fire(undefined);
-		}
-
 		this._onDidChangeGroups.fire();
 		if (wasActiveGroup) {
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
+			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
 	}
 
@@ -248,7 +245,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	 * group has been removed.
 	 */
 	setActiveGroupByIndex(index: number, force?: boolean) {
-		if (index >= this.groups.length) {
+		if (index < 0 || index >= this.groups.length) {
 			return;
 		}
 		const oldActiveGroup = this.activeGroup;
@@ -287,16 +284,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return;
 		}
 
-		this.activeInstanceIndex = instanceLocation.instanceIndex;
+		const activeInstanceIndex = instanceLocation.instanceIndex;
 
 		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
 			this.activeGroupIndex = instanceLocation.groupIndex;
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
+			instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		}
 		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 
-		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
-		this._onDidChangeActiveInstance.fire(newActiveInstance);
 	}
 
 	setActiveGroupToNext() {
