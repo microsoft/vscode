@@ -530,6 +530,24 @@ export function setupTerminalMenus(): void {
 		group: '2_files'
 	});
 
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ChangeIcon,
+			title: terminalStrings.changeIcon
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '2_files'
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, {
+		command: {
+			id: TerminalCommandId.ChangeColor,
+			title: terminalStrings.changeColor
+		},
+		when: ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal),
+		group: '2_files'
+	});
+
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		command: {
 			id: TerminalCommandId.CreateWithProfileButton,

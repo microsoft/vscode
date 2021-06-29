@@ -780,7 +780,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.ChangeIcon,
-				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
+				title: terminalStrings.changeIcon,
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -794,7 +794,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.ChangeIconInstance,
-				title: { value: localize('workbench.action.terminal.changeIcon', "Change Icon..."), original: 'Change Icon...' },
+				title: terminalStrings.changeIcon,
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION)
@@ -808,7 +808,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.ChangeColor,
-				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				title: terminalStrings.changeColor,
 				f1: true,
 				category,
 				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
@@ -822,7 +822,7 @@ export function registerTerminalActions() {
 		constructor() {
 			super({
 				id: TerminalCommandId.ChangeColorInstance,
-				title: { value: localize('workbench.action.terminal.changeColor', "Change Color..."), original: 'Change Color...' },
+				title: terminalStrings.changeColor,
 				f1: false,
 				category,
 				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_TABS_SINGULAR_SELECTION)

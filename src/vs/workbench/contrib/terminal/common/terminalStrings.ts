@@ -36,6 +36,14 @@ export const terminalStrings = {
 		value: localize('workbench.action.terminal.moveToTerminalPanel', "Move Terminal into Panel"),
 		original: 'Move Terminal into Panel'
 	},
+	changeIcon: {
+		value: localize('workbench.action.terminal.changeIcon', "Change Icon..."),
+		original: 'Change Icon...'
+	},
+	changeColor: {
+		value: localize('workbench.action.terminal.changeColor', "Change Color..."),
+		original: 'Change Color'
+	},
 	split: {
 		value: localize('splitTerminal', "Split Terminal"),
 		original: 'Split Terminal',
