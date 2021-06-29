@@ -1036,7 +1036,7 @@ suite('EditorService', () => {
 		pane = await service.openEditor({ resource: URI.file('file.editor-service-override-tests') });
 		pane = await service.openEditor({ resource: URI.file('file.editor-service-override-tests'), options: { sticky: true, preserveFocus: true } });
 
-		assert.ok(pane instanceof TestTextFileEditor);
+		assert.ok(pane instanceof TestEditorWithOptions);
 		assert.strictEqual(pane.lastSetOptions?.sticky, true);
 		assert.strictEqual(pane.lastSetOptions?.preserveFocus, true);
 	});
