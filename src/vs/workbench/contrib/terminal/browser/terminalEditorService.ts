@@ -127,6 +127,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
 		const newActiveInstance = this.activeInstance;
+		newActiveInstance?.focus();
 		this._onDidChangeActiveInstance.fire(newActiveInstance);
 	}
 
