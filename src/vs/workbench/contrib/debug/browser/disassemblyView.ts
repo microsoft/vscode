@@ -17,16 +17,19 @@ import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_DISASSEMBLE_VIEW_FOCUS, CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST, DISASSEMBLY_VIEW_ID, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { createStringBuilder } from 'vs/editor/common/core/stringBuilder';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { topStackFrameColor } from 'vs/workbench/contrib/debug/browser/callStackEditorContribution';
 import { Color } from 'vs/base/common/color';
 import { InstructionBreakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 interface IDisassembledInstructionEntry {
 	allowBreakpoint: boolean;
@@ -426,7 +429,7 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 	}
 
 	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IBreakpointColumnTemplateData, height: number | undefined): void {
-		templateData.disposables.forEach(disposable => disposable.dispose());
+		dispose(templateData.disposables);
 		templateData.disposables = [];
 	}
 
@@ -515,7 +518,7 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 	}
 
 	disposeElement(element: IDisassembledInstructionEntry, index: number, templateData: IInstructionColumnTemplateData, height: number | undefined): void {
-		templateData.disposables.forEach(disposable => disposable.dispose());
+		dispose(templateData.disposables);
 		templateData.disposables = [];
 	}
 
@@ -584,6 +587,53 @@ class AccessibilityProvider implements IListAccessibilityProvider<IDisassembledI
 		label += `, ${localize(`instructionText`, "Instruction")}: ${instruction.instruction}`;
 
 		return label;
+	}
+
+}
+
+export class DisassemblyVIewContribution implements IWorkbenchContribution {
+
+	private readonly _onDidActiveEditorChangeListener: IDisposable;
+	private _onDidChangeModelLanguage: IDisposable | undefined;
+	private _languageSupportsDisassemleRequest: IContextKey<boolean> | undefined;
+
+	constructor(
+		@IEditorService editorService: IEditorService,
+		@IDebugService debugService: IDebugService,
+		@IContextKeyService contextKeyService: IContextKeyService
+	) {
+		contextKeyService.bufferChangeEvents(() => {
+			this._languageSupportsDisassemleRequest = CONTEXT_LANGUAGE_SUPPORTS_DISASSEMBLE_REQUEST.bindTo(contextKeyService);
+		});
+
+		const onDidActiveEditorChangeListener = () => {
+			if (this._onDidChangeModelLanguage) {
+				this._onDidChangeModelLanguage.dispose();
+				this._onDidChangeModelLanguage = undefined;
+			}
+
+			const activeTextEditorControl = editorService.activeTextEditorControl;
+			if (isCodeEditor(activeTextEditorControl)) {
+				const language = activeTextEditorControl.getModel()?.getLanguageIdentifier().language;
+				// TODO: instead of using idDebuggerInterestedInLanguage, have a specific ext point for languages
+				// support disassembly
+				this._languageSupportsDisassemleRequest?.set(!!language && debugService.getAdapterManager().isDebuggerInterestedInLanguage(language));
+
+				this._onDidChangeModelLanguage = activeTextEditorControl.onDidChangeModelLanguage(e => {
+					this._languageSupportsDisassemleRequest?.set(debugService.getAdapterManager().isDebuggerInterestedInLanguage(e.newLanguage));
+				});
+			} else {
+				this._languageSupportsDisassemleRequest?.set(false);
+			}
+		};
+
+		onDidActiveEditorChangeListener();
+		this._onDidActiveEditorChangeListener = editorService.onDidActiveEditorChange(onDidActiveEditorChangeListener);
+	}
+
+	dispose(): void {
+		this._onDidActiveEditorChangeListener.dispose();
+		this._onDidChangeModelLanguage?.dispose();
 	}
 
 }

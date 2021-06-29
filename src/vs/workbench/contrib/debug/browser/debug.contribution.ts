@@ -52,7 +52,7 @@ import { FileAccess } from 'vs/base/common/network';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions } from 'vs/workbench/common/editor';
-import { DisassemblyView, DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
+import { DisassemblyView, DisassemblyVIewContribution, DisassemblyViewInput } from 'vs/workbench/contrib/debug/browser/disassemblyView';
 
 const debugCategory = nls.localize('debugCategory', "Debug");
 registerColors();
@@ -67,6 +67,7 @@ if (isWeb) {
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugToolBar, LifecyclePhase.Restored);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DebugContentProvider, LifecyclePhase.Eventually);
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(StatusBarColorProvider, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(DisassemblyVIewContribution, LifecyclePhase.Eventually);
 
 // Register Quick Access
 Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQuickAccessProvider({
