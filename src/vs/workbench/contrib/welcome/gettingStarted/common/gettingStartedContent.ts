@@ -64,16 +64,16 @@ export const startEntries: GettingStartedStartEntryContent = [
 			command: 'welcome.showNewFileEntries',
 		}
 	},
-	{
-		id: 'welcome.showNewFolderEntries',
-		title: localize('gettingStarted.newFolder.title', "New Folder..."),
-		description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
-		icon: Codicon.newFolder,
-		content: {
-			type: 'startEntry',
-			command: 'welcome.showNewFolderEntries',
-		}
-	},
+	// {
+	// 	id: 'welcome.showNewFolderEntries',
+	// 	title: localize('gettingStarted.newFolder.title', "New Folder..."),
+	// 	description: localize('gettingStarted.newFolder.description', "Create a folder from a Git repo or an extension contributed template folder"),
+	// 	icon: Codicon.newFolder,
+	// 	content: {
+	// 		type: 'startEntry',
+	// 		command: 'welcome.showNewFolderEntries',
+	// 	}
+	// },
 	{
 		id: 'topLevelOpenMac',
 		title: localize('gettingStarted.openMac.title', "Open..."),
