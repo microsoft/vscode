@@ -20,8 +20,6 @@ import { IExtHostTask } from 'vs/workbench/api/common/extHostTask';
 import { IExtHostTerminalService } from 'vs/workbench/api/common/extHostTerminalService';
 import { IExtHostTunnelService } from 'vs/workbench/api/common/extHostTunnelService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IExtensionStoragePaths } from 'vs/workbench/api/common/extHostStoragePaths';
-import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths';
 
 // #########################################################################
 // ###                                                                   ###
@@ -31,7 +29,6 @@ import { ExtensionStoragePaths } from 'vs/workbench/api/node/extHostStoragePaths
 
 registerSingleton(IExtHostExtensionService, ExtHostExtensionService);
 registerSingleton(ILogService, ExtHostLogService);
-registerSingleton(IExtensionStoragePaths, ExtensionStoragePaths);
 
 registerSingleton(IExtHostDebugService, ExtHostDebugService);
 registerSingleton(IExtHostOutputService, ExtHostOutputService2);
