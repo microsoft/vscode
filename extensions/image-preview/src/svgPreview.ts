@@ -184,8 +184,8 @@ class SvgPreview extends Disposable {
 	}
 
 	public showPreviewToSide() {
-		let viewColumn = this.webviewEditor.viewColumn || vscode.ViewColumn.Beside;
-		vscode.commands.executeCommand('vscode.openWith', this.resource, SvgPreviewManager.viewType, viewColumn);
+		let sideViewColumn = this.webviewEditor.viewColumn || vscode.ViewColumn.Beside;
+		vscode.commands.executeCommand('vscode.openWith', this.resource, SvgPreviewManager.viewType, sideViewColumn);
 	}
 
 	public showSource() {

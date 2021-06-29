@@ -72,8 +72,11 @@ body > img {
 }
 
 .container.reflow > img {
+	height: 100%;
 	margin: 0 auto auto 0;
+	min-width: 100%;
 	transform-origin: top left;
+	width: 100%;
 }
 
 .container.ready.zoom-in {

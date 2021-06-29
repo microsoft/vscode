@@ -306,7 +306,7 @@
 
 		vscode.postMessage({
 			type: 'size',
-			value: `${image.naturalWidth}x${image.naturalHeight}`,
+			value: `${image.naturalWidth}px x ${image.naturalHeight}px`,
 		});
 
 		document.body.classList.remove('loading');

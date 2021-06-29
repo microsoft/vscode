@@ -245,7 +245,7 @@ class ImagePreview extends Disposable {
 	<meta name="viewport"
 		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 
-	<title>Image ImagePreview</title>
+	<title>Image Preview</title>
 
 	<link rel="stylesheet" href="${escapeAttribute(this.extensionResource('/media/main.css'))}" type="text/css" media="screen" nonce="${nonce}">
 
@@ -258,7 +258,7 @@ class ImagePreview extends Disposable {
 		<p>${localize('preview.imageLoadError', "An error occurred while loading the image.")}</p>
 		<a href="#" class="open-file-link">${localize('preview.imageLoadErrorLink', "Open file using VS Code's standard text/binary editor?")}</a>
 	</div>
-	<script src="${escapeAttribute(this.extensionResource('/media/main.js'))}" nonce="${nonce}"></script>
+	<script src="${escapeAttribute(this.extensionResource('/media/image.js'))}" nonce="${nonce}"></script>
 </body>
 </html>`;
 	}

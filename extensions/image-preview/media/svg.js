@@ -124,8 +124,9 @@
 				vscode.setState({ scale: scale, offsetX: newScrollX, offsetY: newScrollY });
 			} else {
 				image.classList.remove('scale-to-fit');
-				image.style.minWidth = `${Math.round(100 / scale * 1000) / 1000}%`;
-				image.style.width = `${Math.round(100 / scale * 1000) / 1000}%`;
+				image.style.height = `${Math.floor(container.clientHeight / scale)}px`;
+				image.style.minWidth = `${Math.floor(container.clientWidth / scale)}px`;
+				image.style.width = `${Math.floor(container.clientWidth / scale)}px`;
 				image.style.transform = `scale(${scale})`;
 
 				vscode.setState({ scale: scale, offsetX: 0, offsetY: 0, reflow: true });
@@ -171,7 +172,12 @@
 			return;
 		}
 
-		scale = image.clientWidth / image.naturalWidth;
+		if (isBoxed) {
+			scale = image.clientWidth / image.naturalWidth;
+		} else {
+			scale = image.getBoundingClientRect().width / image.naturalWidth;
+		}
+
 		updateScale(scale);
 	}
 
@@ -294,7 +300,7 @@
 	}, { passive: false });
 
 	window.addEventListener('scroll', e => {
-		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit') {
+		if (!image || !hasLoadedImage || !image.parentElement || scale === 'fit' || !isBoxed) {
 			return;
 		}
 
@@ -311,8 +317,10 @@
 
 	container.classList.add('image');
 
-	if (isBoxed) {
+	if (!isBoxed) {
 		container.classList.add('reflow');
+		image.style.height = `${Math.floor(container.scrollHeight)}`;
+		image.style.width = `${Math.floor(container.scrollWidth)}`;
 	}
 
 	image.classList.add('scale-to-fit');
@@ -326,8 +334,8 @@
 		vscode.postMessage({
 			type: 'size',
 			value: isBoxed
-				? `${image.naturalWidth}x${image.naturalHeight}`
-				: '100%x100%',
+				? `${image.naturalWidth}px x ${image.naturalHeight}px`
+				: '100vw x 100vh',
 		});
 
 		document.body.classList.remove('loading');
@@ -336,7 +344,7 @@
 
 		updateScale(scale);
 
-		if (initialState.scale !== 'fit') {
+		if (initialState.scale !== 'fit' && isBoxed) {
 			window.scrollTo(initialState.offsetX, initialState.offsetY);
 		}
 	});
