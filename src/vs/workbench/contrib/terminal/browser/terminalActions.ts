@@ -109,7 +109,8 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.NewInActiveWorkspace,
 				title: { value: localize('workbench.action.terminal.newInActiveWorkspace', "Create New Integrated Terminal (In Active Workspace)"), original: 'Create New Integrated Terminal (In Active Workspace)' },
 				f1: true,
-				category
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -131,6 +132,7 @@ export function registerTerminalActions() {
 				title: { value: localize('workbench.action.terminal.newWithProfile', "Create New Integrated Terminal (With Profile)"), original: 'Create New Integrated Terminal (With Profile)' },
 				f1: true,
 				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED,
 				description: {
 					description: 'workbench.action.terminal.newWithProfile',
 					args: [{
@@ -222,7 +224,8 @@ export function registerTerminalActions() {
 				id: TerminalCommandId.MoveToEditor,
 				title: terminalStrings.moveToEditor,
 				f1: true,
-				category
+				category,
+				precondition: KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED
 			});
 		}
 		async run(accessor: ServicesAccessor) {
@@ -238,7 +241,7 @@ export function registerTerminalActions() {
 				title: terminalStrings.moveToEditor,
 				f1: false,
 				category,
-				precondition: ContextKeyExpr.or(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN)
+				precondition: ContextKeyExpr.and(KEYBINDING_CONTEXT_TERMINAL_PROCESS_SUPPORTED, KEYBINDING_CONTEXT_TERMINAL_IS_OPEN)
 			});
 		}
 		async run(accessor: ServicesAccessor) {
