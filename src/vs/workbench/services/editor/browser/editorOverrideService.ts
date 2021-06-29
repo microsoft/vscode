@@ -328,7 +328,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				return;
 			}
 			const inputWithOptions = selectedEditor.createDiffEditorInput(editor, group);
-			return inputWithOptions;
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
 		if (isUntitledResourceEditorInput(editor)) {
@@ -336,7 +336,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				return;
 			}
 			const inputWithOptions = selectedEditor.createUntitledEditorInput(editor, group);
-			return inputWithOptions;
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
 		// Should no longer have an undefined resource so lets throw an error if that's somehow the case

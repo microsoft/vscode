@@ -786,7 +786,7 @@ suite('EditorService', () => {
 				assert.strictEqual(pane?.group, rootGroup);
 				assert.ok(pane.input instanceof TestFileEditorInput);
 				assert.strictEqual(pane.input.resource.scheme, 'untitled');
-				// assert.strictEqual(pane.group.isSticky(pane.input), true); TODO@bpasero https://github.com/microsoft/vscode/issues/127314
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
 
 				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 1);
@@ -865,8 +865,7 @@ suite('EditorService', () => {
 
 				assert.strictEqual(pane?.group, rootGroup);
 				assert.ok(pane.input instanceof TestFileEditorInput);
-				// assert.strictEqual(pane.group.isSticky(pane.input), true); TODO@bpasero https://github.com/microsoft/vscode/issues/127314
-
+				assert.strictEqual(pane.group.isSticky(pane.input), true);
 				assert.strictEqual(editorFactoryCalled, 0);
 				assert.strictEqual(untitledEditorFactoryCalled, 0);
 				assert.strictEqual(diffEditorFactoryCalled, 1);
