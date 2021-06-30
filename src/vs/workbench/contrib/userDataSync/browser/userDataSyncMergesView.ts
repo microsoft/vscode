@@ -38,6 +38,7 @@ import { FloatingClickWidget } from 'vs/workbench/browser/codeeditor';
 import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { Severity } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { EditorOverride } from 'vs/platform/editor/common/editor';
 
 export class UserDataSyncMergesViewPane extends TreeViewPane {
 
@@ -322,7 +323,8 @@ export class UserDataSyncMergesViewPane extends TreeViewPane {
 				options: {
 					preserveFocus: true,
 					revealIfVisible: true,
-					pinned: true
+					pinned: true,
+					override: EditorOverride.DISABLED
 				},
 			});
 		}
