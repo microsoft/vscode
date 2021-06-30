@@ -25,7 +25,6 @@ import { localize } from 'vs/nls';
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ExtensionUntrustedWorkpaceSupportType } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchTable } from 'vs/platform/list/browser/listService';
@@ -52,6 +51,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 import { IUriIdentityService } from 'vs/workbench/services/uriIdentity/common/uriIdentity';
 import { WorkspaceTrustEditorInput } from 'vs/workbench/services/workspaces/browser/workspaceTrustEditorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { getExtensionDependencies } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 export const shieldIcon = registerCodicon('workspace-trust-icon', Codicon.shield);
 
@@ -765,9 +765,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 		}).length;
 
 		// Features List
-		const onDemandExtensionCount = this.getExtensionCountByUntrustedWorkspaceSupport('limited');
-		const onStartExtensionCount = this.getExtensionCountByUntrustedWorkspaceSupport(false);
-		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, onDemandExtensionCount + onStartExtensionCount);
+		this.renderAffectedFeatures(settingsRequiringTrustedWorkspaceCount, this.getExtensionCount());
 
 		// Configuration Tree
 		this.workpaceTrustedUrisTable.updateTable();
@@ -778,14 +776,25 @@ export class WorkspaceTrustEditor extends EditorPane {
 		this.rendering = false;
 	}
 
-	private getExtensionCountByUntrustedWorkspaceSupport(trustRequestType: ExtensionUntrustedWorkpaceSupportType): number {
+	private getExtensionCount(): number {
 		const set = new Set<string>();
+
 		const inVirtualWorkspace = isVirtualWorkspace(this.workspaceService.getWorkspace());
 		const localExtensions = this.extensionWorkbenchService.local.filter(ext => ext.local).map(ext => ext.local!);
-		const filtered = localExtensions.filter(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.manifest) === trustRequestType);
-		for (const ext of filtered) {
-			if (!inVirtualWorkspace || this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(ext.manifest) !== false) {
-				set.add(ext.identifier.id);
+
+		for (const extension of localExtensions) {
+			if (inVirtualWorkspace && this.extensionManifestPropertiesService.getExtensionVirtualWorkspaceSupportType(extension.manifest) === false) {
+				continue;
+			}
+
+			if (this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(extension.manifest) !== true) {
+				set.add(extension.identifier.id);
+				continue;
+			}
+
+			const dependencies = getExtensionDependencies(localExtensions, extension);
+			if (dependencies.some(ext => this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(ext.manifest) === false)) {
+				set.add(extension.identifier.id);
 			}
 		}
 

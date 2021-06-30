@@ -121,19 +121,8 @@ function getContextFromActiveEditor(editorService: IEditorService): INotebookAct
 }
 
 function getWidgetFromUri(accessor: ServicesAccessor, uri: URI) {
-	const editorService = accessor.get(IEditorService);
 	const notebookEditorService = accessor.get(INotebookEditorService);
-	const editorId = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editorId => editorId.editor instanceof NotebookEditorInput && editorId.editor.resource?.toString() === uri.toString());
-	if (!editorId) {
-		return undefined;
-	}
-
-	const notebookEditorInput = editorId.editor as NotebookEditorInput;
-	if (!notebookEditorInput.resource) {
-		return undefined;
-	}
-
-	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.textModel?.viewType === notebookEditorInput.viewType && widget.textModel?.uri.toString() === notebookEditorInput.resource.toString());
+	const widget = notebookEditorService.listNotebookEditors().find(widget => widget.hasModel() && widget.textModel.uri.toString() === uri.toString());
 
 	if (widget && widget.hasModel()) {
 		return widget;

@@ -40,6 +40,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -54,7 +55,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
-	constructor(@INotebookService notebookService: INotebookService) {
+	constructor(
+		@INotebookService notebookService: INotebookService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorService editorService: IEditorService,
+	) {
 		super();
 
 		const contentOptions = {
@@ -165,6 +170,40 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				exclusive: true
 			}));
 		}
+
+		editorOverrideService.registerEditor(
+			`${Schemas.vscodeInteractiveInput}:/**`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
+
+		editorOverrideService.registerEditor(
+			`*.interactive`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
 	}
 }
 
@@ -255,7 +294,7 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, undefined, currentGroup);
+				await editorService.openEditor(editorInput, { preserveFocus: true }, currentGroup);
 				return {
 					notebookUri: editorInput.resource!,
 					inputUri: editorInput.inputResource
@@ -275,7 +314,7 @@ registerAction2(class extends Action2 {
 		let counter = 1;
 		do {
 			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));

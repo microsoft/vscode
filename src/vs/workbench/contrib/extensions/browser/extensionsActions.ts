@@ -1924,30 +1924,6 @@ export class StatusLabelAction extends Action implements IExtensionContainer {
 
 }
 
-export class MaliciousStatusLabelAction extends ExtensionAction {
-
-	private static readonly Class = `${ExtensionAction.TEXT_ACTION_CLASS} malicious-status`;
-
-	constructor(long: boolean) {
-		const tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
-		const label = long ? tooltip : localize({ key: 'malicious', comment: ['Refers to a malicious extension'] }, "Malicious");
-		super('extensions.install', label, '', false);
-		this.tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
-	}
-
-	update(): void {
-		if (this.extension && this.extension.isMalicious) {
-			this.class = `${MaliciousStatusLabelAction.Class} malicious`;
-		} else {
-			this.class = `${MaliciousStatusLabelAction.Class} not-malicious`;
-		}
-	}
-
-	override run(): Promise<any> {
-		return Promise.resolve();
-	}
-}
-
 export class ToggleSyncExtensionAction extends ExtensionDropDownAction {
 
 	private static readonly IGNORED_SYNC_CLASS = `${ExtensionAction.ICON_ACTION_CLASS} extension-sync ${ThemeIcon.asClassName(syncIgnoredIcon)}`;
@@ -2083,7 +2059,8 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
-		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
+		@IProductService private readonly productService: IProductService,
 	) {
 		super('extensions.install', '', `${SystemDisabledWarningAction.CLASS} hide`, false);
 		this._register(this.labelService.onDidChangeFormatters(() => this.update(), this));
@@ -2100,9 +2077,32 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 		this.class = `${SystemDisabledWarningAction.CLASS} hide`;
 		this.tooltip = '';
 		this.enabled = false;
-		if (
-			!this.extension ||
-			!this.extension.local ||
+
+		if (!this.extension) {
+			return;
+		}
+
+		if (this.extension.state === ExtensionState.Uninstalled && !this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.gallery) {
+			if (this.extension.isMalicious) {
+				this.class = `${SystemDisabledWarningAction.WARNING_CLASS}`;
+				this.tooltip = localize('malicious tooltip', "This extension was reported to be problematic.");
+				return;
+			}
+
+			if (this.extensionManagementServerService.webExtensionManagementServer && !this.extensionManagementServerService.localExtensionManagementServer
+				&& !this.extensionManagementServerService.remoteExtensionManagementServer) {
+				const productName = isWeb ? localize({ key: 'vscode web', comment: ['VS Code Web is the name of the product'] }, "VS Code Web") : this.productService.nameLong;
+				this.class = `${SystemDisabledWarningAction.INFO_CLASS}`;
+				if (this.extension.gallery.webExtension) {
+					this.tooltip = localize('user disabled', "You have configured the '{0}' extension to be disabled in {1}. To enable it, please open user settings and remove it from `remote.extensionKind` setting.", this.extension.displayName || this.extension.identifier.id, productName);
+				} else {
+					this.tooltip = localize('not web tooltip', "The '{0}' extension is not available in {1}.", this.extension.displayName || this.extension.identifier.id, productName);
+				}
+				return;
+			}
+		}
+
+		if (!this.extension.local ||
 			!this.extension.server ||
 			!this._runningExtensions ||
 			this.extension.state !== ExtensionState.Installed
@@ -2167,10 +2167,10 @@ export class SystemDisabledWarningAction extends ExtensionAction {
 				return;
 			}
 		}
-
-		const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
-		if (this.workspaceTrustService.workspaceTrustEnabled && untrustedSupportType !== true && !this.workspaceTrustService.isWorkpaceTrusted()) {
+		if (this.workspaceTrustService.workspaceTrustEnabled && !this.workspaceTrustService.isWorkpaceTrusted() && this.extension.enablementState === EnablementState.DisabledByTrustRequirement) {
+			const untrustedSupportType = this.extensionManifestPropertiesService.getExtensionUntrustedWorkspaceSupportType(this.extension.local.manifest);
 			const untrustedDetails = getWorkpaceSupportTypeMessage(this.extension.local.manifest.capabilities?.untrustedWorkspaces);
+
 			this.enabled = true;
 			this.class = `${SystemDisabledWarningAction.TRUST_CLASS}`;
 			this.tooltip = untrustedDetails || (untrustedSupportType === 'limited' ?

@@ -16,7 +16,7 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 	) {
 	}
 
-	$acceptInputDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents) {
 		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
 			addedDocuments: [{
 				EOL: eol,
@@ -27,6 +27,12 @@ export class ExtHostInteractive implements ExtHostInteractiveShape {
 				versionId: 1,
 				notebook: this._extHostNotebooks.getNotebookDocument(URI.revive(notebookUri))?.apiNotebook
 			}]
+		});
+	}
+
+	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents) {
+		this._textDocumentsAndEditors.acceptDocumentsAndEditorsDelta({
+			removedDocuments: [uri]
 		});
 	}
 }

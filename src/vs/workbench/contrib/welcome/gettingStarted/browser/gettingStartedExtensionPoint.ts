@@ -223,7 +223,7 @@ export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				},
 				description: {
 					type: 'string',
-					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action significantly nuanced in a way the title can not capture.")
+					description: localize('startEntries.description', "Description of item. We recommend leaving this blank unless the action is significantly nuanced in a way the title can not capture.")
 				},
 				when: {
 					type: 'string',

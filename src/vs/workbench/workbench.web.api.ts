@@ -271,8 +271,16 @@ interface IWorkbenchConstructionOptions {
 
 	/**
 	 * An URL pointing to the web worker extension host <iframe> src.
+	 * @deprecated. This will be removed soon.
 	 */
 	readonly webWorkerExtensionHostIframeSrc?: string;
+
+	/**
+	 * [TEMPORARY]: This will be removed soon.
+	 * Use an unique origin for the web worker extension host.
+	 * Defaults to false.
+	 */
+	readonly __uniqueWebWorkerExtensionHostOrigin?: boolean;
 
 	/**
 	 * A factory for web sockets.

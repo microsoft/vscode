@@ -2038,7 +2038,8 @@ export interface ExtHostNotebookKernelsShape {
 }
 
 export interface ExtHostInteractiveShape {
-	$acceptInputDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
+	$willAddInteractiveDocument(uri: UriComponents, eol: string, modeId: string, notebookUri: UriComponents): void;
+	$willRemoveInteractiveDocument(uri: UriComponents, notebookUri: UriComponents): void;
 }
 
 export interface ExtHostStorageShape {

@@ -31,6 +31,7 @@ export class TerminalEditorInput extends EditorInput {
 
 	override copy(): IEditorInput {
 		const instance = this._copyInstance || this._terminalInstanceService.createInstance({}, TerminalLocation.Editor);
+		instance.focusWhenReady();
 		this._copyInstance = undefined;
 		return this._instantiationService.createInstance(TerminalEditorInput, instance);
 	}

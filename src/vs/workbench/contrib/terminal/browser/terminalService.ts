@@ -363,8 +363,10 @@ export class TerminalService implements ITerminalService {
 					terminalLayouts.forEach((terminalLayout) => {
 						if (!terminalInstance) {
 							// create group and terminal
-							const config = { attachPersistentProcess: terminalLayout.terminal! } as IShellLaunchConfig;
-							terminalInstance = this.createTerminal(config);
+							terminalInstance = this.createTerminal({
+								config: { attachPersistentProcess: terminalLayout.terminal! },
+								target: TerminalLocation.TerminalView
+							});
 							group = this._terminalGroupService.getGroupForInstance(terminalInstance);
 							if (groupLayout.isActive) {
 								activeGroup = group;
@@ -600,7 +602,7 @@ export class TerminalService implements ITerminalService {
 			await this._localTerminalsInitPromise;
 		}
 		if (this._terminalGroupService.groups.length === 0 && this.isProcessSupportRegistered) {
-			this.createTerminal();
+			this.createTerminal({ target: TerminalLocation.TerminalView });
 		}
 	}
 
@@ -696,6 +698,7 @@ export class TerminalService implements ITerminalService {
 		// Fire events
 		this._onDidChangeInstances.fire();
 		this._onActiveGroupChanged.fire(this._terminalGroupService.activeGroup);
+		this._terminalGroupService.showPanel(true);
 	}
 
 	protected _initInstanceListeners(instance: ITerminalInstance): void {
@@ -1054,7 +1057,8 @@ export class TerminalService implements ITerminalService {
 		this._evaluateLocalCwd(shellLaunchConfig);
 
 		let instance: ITerminalInstance;
-		if (options?.target === TerminalLocation.Editor) {
+		const target = options?.target || this.configHelper.config.defaultLocation;
+		if (target === TerminalLocation.Editor) {
 			instance = this.createInstance(shellLaunchConfig);
 			instance.target = TerminalLocation.Editor;
 			this._terminalEditorService.openEditor(instance);

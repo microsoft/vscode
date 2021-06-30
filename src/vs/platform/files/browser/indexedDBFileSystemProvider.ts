@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { URI } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IFileSystemProviderWithFileReadWriteCapability, FileSystemProviderCapabilities, IFileChange, IWatchOptions, IStat, FileOverwriteOptions, FileType, FileDeleteOptions, FileWriteOptions, FileChangeType, createFileSystemProviderError, FileSystemProviderErrorCode } from 'vs/platform/files/common/files';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { Throttler } from 'vs/base/common/async';
@@ -33,12 +33,12 @@ export class IndexedDB {
 		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
 	}
 
-	async createFileSystemProvider(scheme: string, store: string): Promise<IIndexedDBFileSystemProvider | null> {
+	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {
 		let fsp: IIndexedDBFileSystemProvider | null = null;
 		const indexedDB = await this.indexedDBPromise;
 		if (indexedDB) {
 			if (indexedDB.objectStoreNames.contains(store)) {
-				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store);
+				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store, watchCrossWindowChanges);
 			} else {
 				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
 			}
@@ -205,6 +205,11 @@ class IndexedDBFileSystemNode {
 	}
 }
 
+type FileChangeDto = {
+	readonly type: FileChangeType;
+	readonly resource: UriComponents;
+};
+
 class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSystemProvider {
 
 	readonly capabilities: FileSystemProviderCapabilities =
@@ -212,18 +217,34 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		| FileSystemProviderCapabilities.PathCaseSensitive;
 	readonly onDidChangeCapabilities: Event<void> = Event.None;
 
+	private readonly changesKey: string;
 	private readonly _onDidChangeFile = this._register(new Emitter<readonly IFileChange[]>());
 	readonly onDidChangeFile: Event<readonly IFileChange[]> = this._onDidChangeFile.event;
 
-	private readonly versions: Map<string, number> = new Map<string, number>();
+	private readonly versions = new Map<string, number>();
 
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
+	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string, private readonly watchCrossWindowChanges: boolean) {
 		super();
 		this.writeManyThrottler = new Throttler();
 
+		this.changesKey = `vscode.indexedDB.${scheme}.changes`;
+		if (watchCrossWindowChanges) {
+			const storageListener = (event: StorageEvent) => this.onDidStorageChange(event);
+			window.addEventListener('storage', storageListener);
+			this._register(toDisposable(() => window.removeEventListener('storage', storageListener)));
+		}
+	}
+
+	private onDidStorageChange(event: StorageEvent): void {
+		if (event.key === this.changesKey && event.newValue) {
+			try {
+				const changesDto: FileChangeDto[] = JSON.parse(event.newValue);
+				this._onDidChangeFile.fire(changesDto.map(c => ({ type: c.type, resource: URI.revive(c.resource) })));
+			} catch (error) {/* ignore*/ }
+		}
 	}
 
 	watch(resource: URI, opts: IWatchOptions): IDisposable {
@@ -317,7 +338,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		await this.writeManyThrottler.queue(() => this.writeMany());
 		(await this.getFiletree()).add(resource.path, { type: 'file', size: content.byteLength });
 		this.versions.set(resource.toString(), (this.versions.get(resource.toString()) || 0) + 1);
-		this._onDidChangeFile.fire([{ resource, type: FileChangeType.UPDATED }]);
+		this.triggerChanges([{ resource, type: FileChangeType.UPDATED }]);
 	}
 
 	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
@@ -344,7 +365,7 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		await this.deleteKeys(toDelete);
 		(await this.getFiletree()).delete(resource.path);
 		toDelete.forEach(key => this.versions.delete(key));
-		this._onDidChangeFile.fire(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
+		this.triggerChanges(toDelete.map(path => ({ resource: resource.with({ path }), type: FileChangeType.DELETED })));
 	}
 
 	private async tree(resource: URI): Promise<DirEntry[]> {
@@ -369,6 +390,18 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
 		return Promise.reject(new Error('Not Supported'));
+	}
+
+	private triggerChanges(changes: IFileChange[]): void {
+		if (changes.length) {
+			this._onDidChangeFile.fire(changes);
+
+			if (this.watchCrossWindowChanges) {
+				// remove previous changes so that event is triggered even if new changes are same as old changes
+				window.localStorage.removeItem(this.changesKey);
+				window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
+			}
+		}
 	}
 
 	private getFiletree(): Promise<IndexedDBFileSystemNode> {

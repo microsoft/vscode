@@ -115,6 +115,10 @@ function fillInActions(
 	}
 }
 
+export interface IMenuEntryActionViewItemOptions {
+	draggable?: boolean;
+}
+
 export class MenuEntryActionViewItem extends ActionViewItem {
 
 	private _wantsAltCommand: boolean = false;
@@ -123,10 +127,11 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 
 	constructor(
 		_action: MenuItemAction,
+		options: IMenuEntryActionViewItemOptions | undefined,
 		@IKeybindingService protected readonly _keybindingService: IKeybindingService,
 		@INotificationService protected _notificationService: INotificationService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.icon), label: !_action.class && !_action.item.icon, draggable: options?.draggable });
 		this._altKey = ModifierKeyEmitter.getInstance();
 	}
 
@@ -302,7 +307,7 @@ export class SubmenuEntryActionViewItem extends DropdownMenuActionViewItem {
  */
 export function createActionViewItem(instaService: IInstantiationService, action: IAction): undefined | MenuEntryActionViewItem | SubmenuEntryActionViewItem {
 	if (action instanceof MenuItemAction) {
-		return instaService.createInstance(MenuEntryActionViewItem, action);
+		return instaService.createInstance(MenuEntryActionViewItem, action, undefined);
 	} else if (action instanceof SubmenuItemAction) {
 		return instaService.createInstance(SubmenuEntryActionViewItem, action);
 	} else {

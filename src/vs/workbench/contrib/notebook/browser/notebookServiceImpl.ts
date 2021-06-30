@@ -36,7 +36,7 @@ import { updateEditorTopPadding } from 'vs/workbench/contrib/notebook/common/not
 import { NotebookOutputRendererInfo } from 'vs/workbench/contrib/notebook/common/notebookOutputRenderer';
 import { NotebookEditorDescriptor, NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { ComplexNotebookProviderInfo, INotebookContentProvider, INotebookSerializer, INotebookService, SimpleNotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookService';
-import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorOverrideService, IEditorType } from 'vs/workbench/services/editor/common/editorOverrideService';
+import { RegisteredEditorInfo, RegisteredEditorPriority, DiffEditorInputFactoryFunction, EditorInputFactoryFunction, IEditorOverrideService, IEditorType, UntitledEditorInputFactoryFunction } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 
@@ -156,7 +156,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				canHandleDiff: () => !!this._configurationService.getValue(NotebookTextDiffEditorPreview) && !this._accessibilityService.isScreenReaderOptimized(),
 				canSupportResource: (resource: URI) => resource.scheme === Schemas.untitled || resource.scheme === Schemas.vscodeNotebookCell || this._fileService.canHandleResource(resource)
 			};
-			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }, group) => {
+			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
 				const data = CellUri.parse(resource);
 				let notebookUri: URI = resource;
 				let cellOptions: IResourceEditorInput | undefined;
@@ -169,7 +169,16 @@ export class NotebookProviderInfoStore extends Disposable {
 				const notebookOptions: INotebookEditorOptions = { ...options, cellOptions };
 				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
 			};
-			const notebookEditorDiffFactory: DiffEditorInputFactoryFunction = diffEditorInput => {
+			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = ({ resource, options }) => {
+				if (!resource) {
+					resource = URI.from({
+						scheme: Schemas.untitled,
+						path: `Untitled-${this._untitledCounter++}`
+					});
+				}
+				return { editor: NotebookEditorInput.create(this._instantiationService, resource.with({ scheme: Schemas.untitled }), notebookProviderInfo.id), options };
+			};
+			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = diffEditorInput => {
 				const modifiedInput = diffEditorInput.modifiedInput;
 				const originalInput = diffEditorInput.originalInput;
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modifiedInput.resource!, undefined, undefined, originalInput.resource!, notebookProviderInfo.id) };
@@ -180,16 +189,8 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorInfo,
 				notebookEditorOptions,
 				notebookEditorInputFactory,
-				({ resource, options }, group) => {
-					if (!resource) {
-						resource = URI.from({
-							scheme: Schemas.untitled,
-							authority: `Untitled-${this._untitledCounter++}`
-						});
-					}
-					return notebookEditorInputFactory({ resource, options }, group);
-				},
-				notebookEditorDiffFactory
+				notebookUntitledEditorFactory,
+				notebookDiffEditorInputFactory
 			));
 			// Then register the schema handler as exclusive for that notebook
 			disposables.add(this._editorOverrideService.registerEditor(
@@ -198,7 +199,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				notebookEditorOptions,
 				notebookEditorInputFactory,
 				undefined,
-				notebookEditorDiffFactory
+				notebookDiffEditorInputFactory
 			));
 		}
 

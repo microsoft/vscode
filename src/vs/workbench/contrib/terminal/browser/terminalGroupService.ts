@@ -11,10 +11,9 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -28,7 +27,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	get instances(): ITerminalInstance[] {
 		return this.groups.reduce((p, c) => p.concat(c.terminalInstances), [] as ITerminalInstance[]);
 	}
-	activeInstanceIndex: number = -1;
 
 	private _terminalGroupCountContextKey: IContextKey<number>;
 	private _terminalCountContextKey: IContextKey<number>;
@@ -36,8 +34,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private _container: HTMLElement | undefined;
 
 	private _findState: FindReplaceState;
-
-	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
@@ -77,8 +73,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
 
 		this._findState = new FindReplaceState();
-
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	hidePanel(): void {
@@ -105,10 +99,11 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 	set activeGroup(value: ITerminalGroup | undefined) {
 		if (value === undefined) {
-			this.activeGroupIndex = -1;
+			// Setting to undefined is not possible, this can only be done when removing the last group
 			return;
 		}
-		this.activeGroupIndex = this.groups.findIndex(e => e === value);
+		const index = this.groups.findIndex(e => e === value);
+		this.setActiveGroupByIndex(index);
 	}
 
 	get activeInstance(): ITerminalInstance | undefined {
@@ -164,11 +159,9 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	}
 
 	async showPanel(focus?: boolean): Promise<void> {
-		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor) {
-			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
-				?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
-			pane?.setExpanded(true);
-		}
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
+			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+		pane?.setExpanded(true);
 
 		if (focus) {
 			// Do the focus call asynchronously as going through the
@@ -225,7 +218,7 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		// Adjust focus if the group was active
 		if (wasActiveGroup && this.groups.length > 0) {
 			const newIndex = index < this.groups.length ? index : this.groups.length - 1;
-			this.setActiveGroupByIndex(newIndex);
+			this.setActiveGroupByIndex(newIndex, true);
 			this.activeInstance?.focus(true);
 		} else if (this.activeGroupIndex >= this.groups.length) {
 			const newIndex = this.groups.length - 1;
@@ -233,23 +226,24 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		}
 
 		this._onDidChangeInstances.fire();
-		if (this.groups.length === 0) {
-			this._onDidChangeActiveInstance.fire(undefined);
-		}
-
 		this._onDidChangeGroups.fire();
 		if (wasActiveGroup) {
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
+			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
 	}
 
-	setActiveGroupByIndex(index: number) {
-		if (index >= this.groups.length) {
+	/**
+	 * @param force Whether to force the group change, this should be used when the previous active
+	 * group has been removed.
+	 */
+	setActiveGroupByIndex(index: number, force?: boolean) {
+		if (index < 0 || index >= this.groups.length) {
 			return;
 		}
 		const oldActiveGroup = this.activeGroup;
 		this.activeGroupIndex = index;
-		if (oldActiveGroup !== this.activeGroup) {
+		if (force || oldActiveGroup !== this.activeGroup) {
 			this.groups.forEach((g, i) => g.setVisible(i === this.activeGroupIndex));
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
 			this._onDidChangeActiveInstance.fire(this.activeInstance);
@@ -283,15 +277,15 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 			return;
 		}
 
-		this.activeInstanceIndex = instanceLocation.instanceIndex;
-		this.activeGroupIndex = instanceLocation.groupIndex;
+		const activeInstanceIndex = instanceLocation.instanceIndex;
 
 		if (this.activeGroupIndex !== instanceLocation.groupIndex) {
+			this.activeGroupIndex = instanceLocation.groupIndex;
 			this._onDidChangeActiveGroup.fire(this.activeGroup);
+			instanceLocation.group.setActiveInstanceByIndex(activeInstanceIndex, true);
 		}
 		this.groups.forEach((g, i) => g.setVisible(i === instanceLocation.groupIndex));
 
-		instanceLocation.group.setActiveInstanceByIndex(this.activeInstanceIndex);
 	}
 
 	setActiveGroupToNext() {

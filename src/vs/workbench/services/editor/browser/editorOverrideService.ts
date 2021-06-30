@@ -138,8 +138,8 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		// If it's the currently active editor we shouldn't do anything
 		const activeEditor = group.activeEditor;
 		const isActive = activeEditor ? activeEditor.editorId === selectedEditor.editorInfo.id && isEqual(activeEditor.resource, resource) : false;
-		if (isActive) {
-			return OverrideStatus.NONE;
+		if (activeEditor && isActive) {
+			return { editor: activeEditor, options };
 		}
 		const input = await this.doOverrideEditorInput(editor, group, selectedEditor);
 		if (conflictingDefault && input) {
@@ -255,11 +255,6 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 
 	public getEditorIds(resource: URI): string[] {
 		const editors = this.findMatchingEditors(resource);
-		// This function is used to populate the reopen with.. context key and we do
-		// not want to show the reopen with if there's an exclusive provider so we return no id's in that case
-		if (editors.find(e => e.editorInfo.priority === RegisteredEditorPriority.exclusive)) {
-			return [];
-		}
 		return editors.map(editor => editor.editorInfo.id);
 	}
 
@@ -295,7 +290,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 		const possibleEditors = editors.filter(editor => priorityToRank(editor.editorInfo.priority) >= priorityToRank(minPriority) && editor.editorInfo.id !== DEFAULT_EDITOR_ASSOCIATION.id);
 		if (possibleEditors.length === 0) {
 			return {
-				editor: undefined,
+				editor: associationsFromSetting[0] ? findMatchingEditor(editors, associationsFromSetting[0].viewType) : undefined,
 				conflictingDefault: false
 			};
 		}
@@ -329,7 +324,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				return;
 			}
 			const inputWithOptions = selectedEditor.createDiffEditorInput(editor, group);
-			return inputWithOptions;
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
 		if (isUntitledResourceEditorInput(editor)) {
@@ -337,7 +332,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				return;
 			}
 			const inputWithOptions = selectedEditor.createUntitledEditorInput(editor, group);
-			return inputWithOptions;
+			return { editor: inputWithOptions.editor, options: inputWithOptions.options ?? options };
 		}
 
 		// Should no longer have an undefined resource so lets throw an error if that's somehow the case
@@ -507,7 +502,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			};
 			quickPickEntries.push(quickPickEntry);
 		});
-		if (!showDefaultPicker) {
+		if (!showDefaultPicker && extname(resource) !== '') {
 			const separator: IQuickPickSeparator = { type: 'separator' };
 			quickPickEntries.push(separator);
 			const configureDefaultEntry = {
@@ -527,10 +522,10 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 			readonly openInBackground: boolean;
 		};
 
-		const resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
+		let resource = EditorResourceAccessor.getOriginalUri(editor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		if (!resource) {
-			return;
+		if (resource === undefined) {
+			resource = URI.from({ scheme: Schemas.untitled });
 		}
 
 		// Text editor has the lowest priority because we
@@ -563,7 +558,7 @@ export class EditorOverrideService extends Disposable implements IEditorOverride
 				}
 
 				// If asked to always update the setting then update it even if the gear isn't clicked
-				if (showDefaultPicker && result?.item.id) {
+				if (resource && showDefaultPicker && result?.item.id) {
 					this.updateUserAssociations(`*${extname(resource)}`, result.item.id,);
 				}
 

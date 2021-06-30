@@ -15,7 +15,7 @@ const DEBUG_FUNCTION_BREAKPOINTS_KEY = 'debug.functionbreakpoint';
 const DEBUG_DATA_BREAKPOINTS_KEY = 'debug.databreakpoint';
 const DEBUG_EXCEPTION_BREAKPOINTS_KEY = 'debug.exceptionbreakpoint';
 const DEBUG_WATCH_EXPRESSIONS_KEY = 'debug.watchexpressions';
-const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironments';
+const DEBUG_CHOSEN_ENVIRONMENTS_KEY = 'debug.chosenenvironment';
 const DEBUG_UX_STATE_KEY = 'debug.uxstate';
 
 export class DebugStorage {
@@ -89,7 +89,7 @@ export class DebugStorage {
 	}
 
 	loadChosenEnvironments(): { [key: string]: string } {
-		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '[]'));
+		return JSON.parse(this.storageService.get(DEBUG_CHOSEN_ENVIRONMENTS_KEY, StorageScope.WORKSPACE, '{}'));
 	}
 
 	storeChosenEnvironments(environments: { [key: string]: string }): void {

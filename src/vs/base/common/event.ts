@@ -123,7 +123,13 @@ export namespace Event {
 	 * @deprecated DO NOT use, this leaks memory
 	 */
 	export function debounce<T>(event: Event<T>, merge: (last: T | undefined, event: T) => T, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<T>;
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay?: number, leading?: boolean, leakWarningThreshold?: number): Event<O>;
+	/**
+	 * @deprecated DO NOT use, this leaks memory
+	 */
 	export function debounce<I, O>(event: Event<I>, merge: (last: O | undefined, event: I) => O, delay: number = 100, leading = false, leakWarningThreshold?: number): Event<O> {
 
 		let subscription: IDisposable;

@@ -116,7 +116,7 @@ abstract class AbstractCellRenderer {
 					if (notebookOptions.getLayoutConfiguration().insertToolbarAlignment === 'center') {
 						return new CodiconActionViewItem(action, this.keybindingService, this.notificationService);
 					} else {
-						return new MenuEntryActionViewItem(action, this.keybindingService, this.notificationService);
+						return new MenuEntryActionViewItem(action, undefined, this.keybindingService, this.notificationService);
 					}
 				}
 
@@ -911,7 +911,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const internalMetadata = element.internalMetadata;
 		this.updateExecutionOrder(internalMetadata, templateData);
 
-		if (internalMetadata.runState === NotebookCellExecutionState.Executing) {
+		if (internalMetadata.runState === NotebookCellExecutionState.Executing && !internalMetadata.isPaused) {
 			templateData.progressBar.infinite().show(500);
 		} else {
 			templateData.progressBar.hide();

@@ -34,7 +34,8 @@ export enum SettingValueType {
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
-	Object = 'object'
+	Object = 'object',
+	BooleanObject = 'boolean-object'
 }
 
 export interface ISettingsGroup {
@@ -82,6 +83,7 @@ export interface ISetting {
 	extensionInfo?: IConfigurationExtensionInfo;
 	validator?: (value: any) => string | null;
 	enumItemLabels?: string[];
+	allKeysAreBoolean?: boolean;
 }
 
 export interface IExtensionSetting extends ISetting {

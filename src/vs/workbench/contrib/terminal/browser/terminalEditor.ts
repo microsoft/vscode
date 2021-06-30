@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -30,6 +30,11 @@ import { ITerminalProfileResolverService, KEYBINDING_CONTEXT_TERMINAL_FIND_VISIB
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isLinux, isMacintosh } from 'vs/base/common/platform';
+import { BrowserFeatures } from 'vs/base/browser/canIUse';
+import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const xtermSelector = '.terminal.xterm';
 const findWidgetSelector = '.simple-find-part-wrapper';
@@ -42,13 +47,17 @@ export class TerminalEditor extends EditorPane {
 
 	private _editorInput?: TerminalEditorInput = undefined;
 
-	private _lastDimension?: Dimension;
+	private _lastDimension?: dom.Dimension;
 
 	private readonly _dropdownMenu: IMenu;
 
 	private _findWidget: TerminalFindWidget;
 	private _findWidgetVisible: IContextKey<boolean>;
 	private _findState: FindReplaceState;
+
+	private readonly _instanceMenu: IMenu;
+
+	private _cancelContextMenu: boolean = false;
 
 	get findState(): FindReplaceState { return this._findState; }
 
@@ -65,12 +74,14 @@ export class TerminalEditor extends EditorPane {
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(TerminalEditor.ID, telemetryService, themeService, storageService);
 		this._findState = new FindReplaceState();
 		this._findWidget = instantiationService.createInstance(TerminalFindWidget, this._findState);
 		this._findWidgetVisible = KEYBINDING_CONTEXT_TERMINAL_FIND_VISIBLE.bindTo(contextKeyService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -104,9 +115,96 @@ export class TerminalEditor extends EditorPane {
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._parentElement = parent;
+		this._registerListeners();
 	}
 
-	layout(dimension: Dimension): void {
+	private _registerListeners(): void {
+		if (!this._parentElement) {
+			return;
+		}
+		this._register(dom.addDisposableListener(this._parentElement, 'mousedown', async (event: MouseEvent) => {
+			if (this._terminalEditorService.instances.length === 0) {
+				return;
+			}
+
+			if (event.which === 2 && isLinux) {
+				// Drop selection and focus terminal on Linux to enable middle button paste when click
+				// occurs on the selection itself.
+				const terminal = this._terminalEditorService.activeInstance;
+				if (terminal) {
+					terminal.focus();
+				}
+			} else if (event.which === 3) {
+				const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+				if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
+					const terminal = this._terminalEditorService.activeInstance;
+					if (!terminal) {
+						return;
+					}
+
+					// copyPaste: Shift+right click should open context menu
+					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
+						this._openContextMenu(event);
+						return;
+					}
+
+					if (rightClickBehavior === 'copyPaste' && terminal.hasSelection()) {
+						await terminal.copySelection();
+						terminal.clearSelection();
+					} else {
+						if (BrowserFeatures.clipboard.readText) {
+							terminal.paste();
+						} else {
+							this._notificationService.info(`This browser doesn't support the clipboard.readText API needed to trigger a paste, try ${isMacintosh ? '⌘' : 'Ctrl'}+V instead.`);
+						}
+					}
+					// Clear selection after all click event bubbling is finished on Mac to prevent
+					// right-click selecting a word which is seemed cannot be disabled. There is a
+					// flicker when pasting but this appears to give the best experience if the
+					// setting is enabled.
+					if (isMacintosh) {
+						setTimeout(() => {
+							terminal.clearSelection();
+						}, 0);
+					}
+					this._cancelContextMenu = true;
+				}
+			}
+		}));
+		this._register(dom.addDisposableListener(this._parentElement, dom.EventType.CONTEXT_MENU, e => {
+			const rightClickBehavior = this._terminalService.configHelper.config.rightClickBehavior;
+			if (e.button === 2 && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
+				this._openContextMenu(e);
+				e.preventDefault();
+			}
+		}));
+		this._register(dom.addDisposableListener(this._parentElement, 'contextmenu', (event: MouseEvent) => {
+			if (!this._cancelContextMenu) {
+				this._openContextMenu(event);
+			}
+			event.preventDefault();
+			event.stopImmediatePropagation();
+			this._cancelContextMenu = false;
+		}));
+	}
+
+	private _openContextMenu(event: MouseEvent): void {
+		const standardEvent = new StandardMouseEvent(event);
+
+		const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+		const actions: IAction[] = [];
+
+		const actionsDisposable = createAndFillInContextMenuActions(this._instanceMenu, undefined, actions);
+
+		this._contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => actions,
+			getActionsContext: () => this._parentElement,
+			onHide: () => actionsDisposable.dispose()
+		});
+	}
+
+	layout(dimension: dom.Dimension): void {
 		this._editorInput?.terminalInstance?.layout(dimension);
 		this._lastDimension = dimension;
 	}

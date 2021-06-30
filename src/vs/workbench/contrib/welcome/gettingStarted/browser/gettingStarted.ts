@@ -390,6 +390,23 @@ export class GettingStartedPage extends EditorPane {
 		}
 	}
 
+	private svgCache = new ResourceMap<Promise<string>>();
+	private readAndCacheSVGFile(path: URI): Promise<string> {
+		if (!this.svgCache.has(path)) {
+			this.svgCache.set(path, (async () => {
+				try {
+					const bytes = await this.fileService.readFile(path);
+					return bytes.value.toString();
+				} catch (e) {
+					this.notificationService.error('Error reading svg document at `' + path + '`: ' + e);
+					return '';
+				}
+			})());
+		}
+		return assertIsDefined(this.svgCache.get(path));
+
+	}
+
 	private mdCache = new ResourceMap<Promise<string>>();
 	private async readAndCacheStepMarkdown(path: URI): Promise<string> {
 		if (!this.mdCache.has(path)) {
@@ -481,7 +498,40 @@ export class GettingStartedPage extends EditorPane {
 
 			this.stepDisposables.add(this.themeService.onDidColorThemeChange(() => this.updateMediaSourceForColorMode(mediaElement, media.path)));
 
-		} else if (stepToExpand.media.type === 'markdown') {
+		}
+		else if (stepToExpand.media.type === 'svg') {
+			this.stepMediaComponent.classList.add('image');
+			this.stepMediaComponent.classList.remove('markdown');
+
+			const media = stepToExpand.media;
+			const webview = this.stepDisposables.add(this.webviewService.createWebviewElement(this.webviewID, {}, {}, undefined));
+			webview.mountTo(this.stepMediaComponent);
+
+			webview.html = await this.renderSVG(media.path);
+
+			let isDisposed = false;
+			this.stepDisposables.add(toDisposable(() => { isDisposed = true; }));
+
+			this.stepDisposables.add(this.themeService.onDidColorThemeChange(async () => {
+				// Render again since color vars change
+				const body = await this.renderSVG(media.path);
+				if (!isDisposed) { // Make sure we weren't disposed of in the meantime
+					webview.html = body;
+				}
+			}));
+
+			this.stepDisposables.add(addDisposableListener(this.stepMediaComponent, 'click', () => {
+				const hrefs = flatten(stepToExpand.description.map(lt => lt.nodes.filter((node): node is ILink => typeof node !== 'string').map(node => node.href)));
+				if (hrefs.length === 1) {
+					const href = hrefs[0];
+					if (href.startsWith('http')) {
+						this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href });
+						this.openerService.open(href);
+					}
+				}
+			}));
+		}
+		else if (stepToExpand.media.type === 'markdown') {
 
 			this.stepMediaComponent.classList.remove('image');
 			this.stepMediaComponent.classList.add('markdown');
@@ -599,6 +649,28 @@ export class GettingStartedPage extends EditorPane {
 		const themeType = this.themeService.getColorTheme().type;
 		const src = sources[themeType].toString(true).replace(/ /g, '%20');
 		element.srcset = src.toLowerCase().endsWith('.svg') ? src : (src + ' 1.5x');
+	}
+
+	private async renderSVG(path: URI): Promise<string> {
+		const content = await this.readAndCacheSVGFile(path);
+		const nonce = generateUuid();
+		const colorMap = TokenizationRegistry.getColorMap();
+
+		const css = colorMap ? generateTokensCSSForColorMap(colorMap) : '';
+		return `<!DOCTYPE html>
+		<html>
+			<head>
+				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src https: data:; media-src https:; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}';">
+				<style nonce="${nonce}">
+					${DEFAULT_MARKDOWN_STYLES}
+					${css}
+				</style>
+			</head>
+			<body>
+				${content}
+			</body>
+		</html>`;
 	}
 
 	private async renderMarkdown(path: URI, base: URI): Promise<string> {

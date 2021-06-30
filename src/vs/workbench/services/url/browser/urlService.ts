@@ -46,6 +46,10 @@ class BrowserURLOpener implements IOpener {
 	) { }
 
 	async open(resource: string | URI, options?: OpenInternalOptions | OpenExternalOptions): Promise<boolean> {
+		if ((options as OpenExternalOptions | undefined)?.openExternal) {
+			return false;
+		}
+
 		if (!matchesScheme(resource, this.productService.urlProtocol)) {
 			return false;
 		}

@@ -5,7 +5,7 @@
 
 import { ILocalExtension, IGalleryExtension, IExtensionIdentifier, IReportedExtension, IExtensionIdentifierWithVersion } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, IExtension } from 'vs/platform/extensions/common/extensions';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -127,4 +127,23 @@ export function getMaliciousExtensionsSet(report: IReportedExtension[]): Set<str
 	}
 
 	return result;
+}
+
+export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
+	const dependencies: IExtension[] = [];
+	const extensions = extension.manifest.extensionDependencies?.slice(0) ?? [];
+
+	while (extensions.length) {
+		const id = extensions.shift();
+
+		if (id && dependencies.every(e => !areSameExtensions(e.identifier, { id }))) {
+			const ext = installedExtensions.filter(e => areSameExtensions(e.identifier, { id }));
+			if (ext.length === 1) {
+				dependencies.push(ext[0]);
+				extensions.push(...ext[0].manifest.extensionDependencies?.slice(0) ?? []);
+			}
+		}
+	}
+
+	return dependencies;
 }

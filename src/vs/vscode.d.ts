@@ -6215,6 +6215,11 @@ declare module 'vscode' {
 	export interface Memento {
 
 		/**
+		 * The stored keys.
+		 */
+		readonly keys: readonly string[];
+
+		/**
 		 * Return a value.
 		 *
 		 * @param key A string.
@@ -8256,8 +8261,7 @@ declare module 'vscode' {
 		export function openExternal(target: Uri): Thenable<boolean>;
 
 		/**
-		 * Resolves a uri to form that is accessible externally. Currently only supports `https:`, `http:` and
-		 * `vscode.env.uriScheme` uris.
+		 * Resolves a uri to a form that is accessible externally.
 		 *
 		 * #### `http:` or `https:` scheme
 		 *
@@ -8277,7 +8281,7 @@ declare module 'vscode' {
 		 * Creates a uri that - if opened in a browser (e.g. via `openExternal`) - will result in a registered {@link UriHandler}
 		 * to trigger.
 		 *
-		 * Extensions should not make any assumptions about the resulting uri and should not alter it in anyway.
+		 * Extensions should not make any assumptions about the resulting uri and should not alter it in any way.
 		 * Rather, extensions can e.g. use this uri in an authentication flow, by adding the uri as callback query
 		 * argument to the server to authenticate to.
 		 *
@@ -8294,13 +8298,18 @@ declare module 'vscode' {
 		 *   }
 		 * });
 		 *
-		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse('${vscode.env.uriScheme}://my.extension/did-authenticate'));
+		 * const callableUri = await vscode.env.asExternalUri(vscode.Uri.parse(`${vscode.env.uriScheme}://my.extension/did-authenticate`));
 		 * await vscode.env.openExternal(callableUri);
 		 * ```
 		 *
 		 * *Note* that extensions should not cache the result of `asExternalUri` as the resolved uri may become invalid due to
 		 * a system or user action — for example, in remote cases, a user may close a port forwarding tunnel that was opened by
 		 * `asExternalUri`.
+		 *
+		 * #### Any other scheme
+		 *
+		 * Any other scheme will be handled as if the provided URI is a workspace URI. In that case, the method will return
+		 * a URI which, when handled, will make the editor open the workspace.
 		 *
 		 * @return A uri that can be used on the client machine.
 		 */
