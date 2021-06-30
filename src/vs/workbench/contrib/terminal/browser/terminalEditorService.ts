@@ -64,11 +64,6 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 			}
 		}));
 		this._register(this.onDidDisposeInstance(instance => this.detachInstance(instance)));
-		this._register(this._editorService.onDidCloseEditor(e => {
-			if (e.editor instanceof TerminalEditorInput && e.editor.terminalInstance) {
-				this.detachInstance(e.editor.terminalInstance);
-			}
-		}));
 	}
 
 	private _getActiveTerminalEditors(): IEditorInput[] {
