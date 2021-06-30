@@ -6215,9 +6215,11 @@ declare module 'vscode' {
 	export interface Memento {
 
 		/**
-		 * The stored keys.
+		 * Returns the stored keys.
+		 *
+		 * @return The stored keys.
 		 */
-		readonly keys: readonly string[];
+		keys(): readonly string[];
 
 		/**
 		 * Return a value.
