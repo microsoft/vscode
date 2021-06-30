@@ -5,7 +5,6 @@
 
 import { Schemas } from 'vs/base/common/network';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -38,6 +37,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 
 	private _webviewFindWidget: WebviewFindWidget | undefined;
 	private _findStarted: boolean = false;
+	private _cachedHtmlContent: string | undefined;
 
 	private readonly _webviewMainService: IWebviewManagerService;
 	private readonly _iframeDelayer = this._register(new Delayer<void>(200));
@@ -62,7 +62,7 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		@IMainProcessService mainProcessService: IMainProcessService,
 		@INotificationService notificationService: INotificationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(id, options, contentOptions, extension, webviewThemeDataProvider,
 			contextMenuService,
@@ -83,13 +83,10 @@ export class ElectronIframeWebview extends IFrameWebview implements WebviewFindD
 		if (options.enableFindWidget) {
 			this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
-			this._register(addDisposableListener(this.element!, 'found-in-page', e => {
-				this._hasFindResult.fire(e.result.matches > 0);
-			}));
-
-			this._register(this.on(WebviewMessageChannels.doUpdateState, () => {
-				if (this._findStarted) {
+			this._register(this.onDidHtmlChange((newContent) => {
+				if (this._findStarted && this._cachedHtmlContent !== newContent) {
 					this.stopFind(false);
+					this._cachedHtmlContent = newContent;
 				}
 			}));
 
