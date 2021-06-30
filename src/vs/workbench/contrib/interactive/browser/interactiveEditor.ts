@@ -34,6 +34,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
+import { ComplexNotebookEditorModel } from 'vs/workbench/contrib/notebook/common/notebookEditorModel';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -154,6 +155,10 @@ export class InteractiveEditor extends EditorPane {
 		this.#notebookWidget.value!.setOptions({
 			isReadOnly: true
 		});
+
+		this.#widgetDisposableStore.add(model.notebook.onDidChangeContent(() => {
+			(model as ComplexNotebookEditorModel).setDirty(false);
+		}));
 
 		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
