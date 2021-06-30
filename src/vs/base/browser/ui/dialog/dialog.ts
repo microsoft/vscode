@@ -93,6 +93,7 @@ export class Dialog extends Disposable {
 		this.shadowElement = this.modalElement.appendChild($('.dialog-shadow'));
 		this.element = this.shadowElement.appendChild($('.monaco-dialog-box'));
 		this.element.setAttribute('role', 'dialog');
+		this.element.tabIndex = -1;
 		hide(this.element);
 
 		this.buttons = Array.isArray(buttons) && buttons.length ? buttons : [nls.localize('ok', "OK")]; // If no button is provided, default to OK
@@ -390,7 +391,9 @@ export class Dialog extends Disposable {
 
 			this.applyStyles();
 
-			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
+			this.element.setAttribute('aria-modal', 'true');
+			this.element.setAttribute('aria-labelledby', 'monaco-dialog-icon monaco-dialog-message-text');
+			this.element.setAttribute('aria-describedby', 'monaco-dialog-icon monaco-dialog-message-text monaco-dialog-message-detail monaco-dialog-message-body');
 			show(this.element);
 
 			// Focus first element (input or button)
