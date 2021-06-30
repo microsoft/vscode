@@ -172,33 +172,35 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 		}
 
 		editorOverrideService.registerEditor(
-			`*`,
+			`${Schemas.vscodeInteractiveInput}:/**`,
 			{
 				id: InteractiveEditor.ID,
 				label: 'Interactive Editor',
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
-				// handle both input and notebook
-				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput || uri.scheme === Schemas.vscodeInteractive,
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput,
 				singlePerResource: true
 			},
 			({ resource }) => {
-				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => {
-					if (!(editor.editor instanceof InteractiveEditorInput)) {
-						return false;
-					}
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.inputResource.toString() === resource.toString());
+				return editorInput!;
+			}
+		);
 
-					if (resource.scheme === Schemas.vscodeInteractive) {
-						return editor.editor.resource?.toString() === resource.toString();
-					}
-
-					if (resource.scheme === Schemas.vscodeInteractiveInput) {
-						return editor.editor.inputResource.toString() === resource.toString();
-					}
-
-					return false;
-				});
+		editorOverrideService.registerEditor(
+			`*.interactive`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractive,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => editor.editor instanceof InteractiveEditorInput && editor.editor.resource?.toString() === resource.toString());
 				return editorInput!;
 			}
 		);
@@ -312,7 +314,7 @@ registerAction2(class extends Action2 {
 		let counter = 1;
 		do {
 			notebookUri = URI.from({ scheme: Schemas.vscodeInteractive, path: `Interactive-${counter}.interactive` });
-			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `InteractiveInput-${counter}` });
+			inputUri = URI.from({ scheme: Schemas.vscodeInteractiveInput, path: `/InteractiveInput-${counter}` });
 
 			counter++;
 		} while (existingNotebookDocument.has(notebookUri.toString()));
