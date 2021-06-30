@@ -456,6 +456,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
 				}
 			}
+			qp.hide();
 		}));
 
 		disposables.add(qp.onDidHide(() => {
