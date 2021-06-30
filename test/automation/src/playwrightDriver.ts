@@ -91,6 +91,7 @@ function timeout(ms: number): Promise<void> {
 	return new Promise<void>(r => setTimeout(r, ms));
 }
 
+let port = 9000;
 let server: ChildProcess | undefined;
 let endpoint: string | undefined;
 let workspacePath: string | undefined;
@@ -109,7 +110,7 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 	const root = join(__dirname, '..', '..', '..');
 	const logsPath = join(root, '.build', 'logs', 'smoke-tests-browser');
 
-	const args = ['--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
+	const args = ['--port', `${port++}`, '--browser', 'none', '--driver', 'web', '--extensions-dir', extPath];
 
 	let serverLocation: string | undefined;
 	if (codeServerPath) {
