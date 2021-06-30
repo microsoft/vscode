@@ -1330,6 +1330,12 @@ suite('EditorService', () => {
 		assert(input instanceof UntitledTextEditorInput);
 		assert.ok(!(input as UntitledTextEditorInput).model.hasAssociatedFilePath);
 
+		// Untyped input (untitled with custom resource, but forceUntitled)
+		untypedInput = { resource: URI.file('/fake'), forceUntitled: true };
+		assert.ok(isUntitledResourceEditorInput(untypedInput));
+		input = service.createEditorInput(untypedInput);
+		assert(input instanceof UntitledTextEditorInput);
+
 		// Untyped Input (untitled with custom resource)
 		const provider = instantiationService.createInstance(FileServiceProvider, 'untitled-custom');
 
