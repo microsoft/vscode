@@ -197,8 +197,10 @@ export class TerminalService implements ITerminalService {
 		this._forwardInstanceHostEvents(this._terminalGroupService);
 		this._forwardInstanceHostEvents(this._terminalEditorService);
 		this._terminalGroupService.onDidChangeActiveGroup(this._onActiveGroupChanged.fire, this._onActiveGroupChanged);
-		terminalInstanceService.onDidCreateInstance(this._onDidCreateInstance.fire, this._onDidCreateInstance);
-
+		terminalInstanceService.onDidCreateInstance(instance => {
+			this._initInstanceListeners(instance);
+			this._onDidCreateInstance.fire(instance);
+		});
 		// the below avoids having to poll routinely.
 		// we update detected profiles when an instance is created so that,
 		// for example, we detect if you've installed a pwsh
