@@ -133,6 +133,7 @@ class WorkspaceTrustedUrisTable extends Disposable {
 				horizontalScrolling: false,
 				alwaysConsumeMouseWheel: false,
 				openOnSingleClick: false,
+				multipleSelectionSupport: false,
 			}
 		) as WorkbenchTable<ITrustedUriItem>;
 
