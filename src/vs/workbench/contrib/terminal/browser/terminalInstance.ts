@@ -680,8 +680,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		const xterm = await this._xtermReadyPromise;
 
 		// Attach the xterm object to the DOM, exposing it to the smoke tests
-		this._wrapperElement.xterm = this._xterm;
+		this._wrapperElement.xterm = xterm;
 
+		this._updateTheme(xterm);
 		xterm.open(this._xtermElement);
 
 		if (!xterm.element || !xterm.textarea) {
