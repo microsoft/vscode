@@ -51,7 +51,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'completionEvents': ['$5'],
-								'media': { 'path': '$6', 'type': '$7' }
+								'media': {},
 							}
 						}],
 						properties: {
@@ -73,7 +73,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							media: {
 								type: 'object',
 								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
-								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
 										required: ['image', 'altText'],
