@@ -116,14 +116,18 @@ export async function launch(userDataDir: string, _workspacePath: string, codeSe
 		serverLocation = join(codeServerPath, `server.${process.platform === 'win32' ? 'cmd' : 'sh'}`);
 		args.push(`--logsPath=${logsPath}`);
 
-		console.log(`Starting built server from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting built server from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	} else {
 		serverLocation = join(root, `resources/server/web.${process.platform === 'win32' ? 'bat' : 'sh'}`);
 		args.push('--logsPath', logsPath);
 
-		console.log(`Starting server out of sources from '${serverLocation}'`);
-		console.log(`Storing log files into '${logsPath}'`);
+		if (verbose) {
+			console.log(`Starting server out of sources from '${serverLocation}'`);
+			console.log(`Storing log files into '${logsPath}'`);
+		}
 	}
 
 	server = spawn(
