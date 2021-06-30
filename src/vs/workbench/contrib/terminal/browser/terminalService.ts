@@ -169,6 +169,7 @@ export class TerminalService implements ITerminalService {
 				priority: RegisteredEditorPriority.exclusive
 			},
 			{
+				canHandleDiff: false,
 				canSupportResource: uri => uri.scheme === Schemas.vscodeTerminal,
 				singlePerResource: true
 			},

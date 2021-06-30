@@ -85,6 +85,7 @@ class SearchEditorContribution implements IWorkbenchContribution {
 			},
 			{
 				singlePerResource: true,
+				canHandleDiff: false,
 				canSupportResource: resource => (extname(resource) === SEARCH_EDITOR_EXT)
 			},
 			({ resource }) => {

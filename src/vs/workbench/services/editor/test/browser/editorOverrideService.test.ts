@@ -39,7 +39,7 @@ suite('EditorOverrideService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{},
+			{ canHandleDiff: false },
 			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 		);
 
@@ -63,7 +63,7 @@ suite('EditorOverrideService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{},
+			{ canHandleDiff: false },
 			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 			({ resource, options }, group) => ({ editor: new TestFileEditorInput((resource ? resource : URI.from({ scheme: Schemas.untitled })), UNTITLED_TEST_EDITOR_INPUT_ID) }),
 		);
