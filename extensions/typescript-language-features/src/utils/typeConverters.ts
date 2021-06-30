@@ -128,8 +128,13 @@ export namespace SymbolKind {
 }
 
 export namespace CompletionTriggerKind {
-	// @ts-expect-error
+	// @ts-expect-error until 4.4
+	// TODO: once 4.4 protocol is available, replace number literals in return statements.
 	export function toProtocolCompletionTriggerKind(kind: vscode.CompletionTriggerKind): Proto.CompletionTriggerKind {
-		return kind + 1;
+		switch (kind) {
+			case vscode.CompletionTriggerKind.Invoke: return 1;
+			case vscode.CompletionTriggerKind.TriggerCharacter: return 2;
+			case vscode.CompletionTriggerKind.TriggerForIncompleteCompletions: return 3;
+		}
 	}
 }

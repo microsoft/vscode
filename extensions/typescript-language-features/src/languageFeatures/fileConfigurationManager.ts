@@ -186,7 +186,7 @@ export default class FileConfigurationManager extends Disposable {
 			includeCompletionsForImportStatements: config.get<boolean>('suggest.includeCompletionsForImportStatements', true),
 			includeCompletionsWithSnippetText: config.get<boolean>('suggest.includeCompletionsWithSnippetText', true),
 			// @ts-expect-error until 4.4
-			allowIncompleteCompletions: config.get<boolean>('suggest.allowIncompleteCompletions', true),
+			allowIncompleteCompletions: true,
 			displayPartsForJSDoc: true,
 		};
 
