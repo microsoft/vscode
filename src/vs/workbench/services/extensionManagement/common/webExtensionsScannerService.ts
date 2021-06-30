@@ -10,7 +10,7 @@ import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, IFileService } from 'vs/platform/files/common/files';
 import { Queue } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { asText, isSuccess, IRequestService } from 'vs/platform/request/common/request';
@@ -286,7 +286,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	async scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
-		const context = await this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None);
+		const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageJSONUri) }, CancellationToken.None);
 		if (isSuccess(context)) {
 			const content = await asText(context);
 			if (content) {
@@ -375,8 +375,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
 
 		const [packageJSONResult, packageNLSResult] = await Promise.allSettled([
-			this.requestService.request({ type: 'GET', url: packageJSONUri.toString() }, CancellationToken.None),
-			this.requestService.request({ type: 'GET', url: packageNLSUri.toString() }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageJSONUri) }, CancellationToken.None),
+			this.requestService.request({ type: 'GET', url: this.toRequestUrl(packageNLSUri) }, CancellationToken.None),
 		]);
 
 		if (packageJSONResult.status === 'rejected' || !isSuccess(packageJSONResult.value)) {
@@ -405,7 +405,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IScannedExtension> {
-		const context = await this.requestService.request({ type: 'GET', url: joinPath(webExtension.location, 'package.json').toString() }, CancellationToken.None);
+		const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(joinPath(webExtension.location, 'package.json')) }, CancellationToken.None);
 		if (!isSuccess(context)) {
 			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned ${context.res.statusCode}`);
 		}
@@ -433,7 +433,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async translateManifest(manifest: IExtensionManifest, nlsURL: URI): Promise<IExtensionManifest> {
 		try {
-			const context = await this.requestService.request({ type: 'GET', url: nlsURL.toString() }, CancellationToken.None);
+			const context = await this.requestService.request({ type: 'GET', url: this.toRequestUrl(nlsURL) }, CancellationToken.None);
 			if (isSuccess(context)) {
 				const content = await asText(context);
 				if (content) {
@@ -487,7 +487,9 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				return webExtensions;
 			} catch (error) {
 				/* Ignore */
-				this.logService.error(error);
+				if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND) {
+					this.logService.error(error);
+				}
 			}
 			return [];
 		});
@@ -519,6 +521,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			this.resourcesAccessQueueMap.set(file, resourceQueue);
 		}
 		return resourceQueue;
+	}
+
+	private toRequestUrl(uri: URI): string {
+		return uri.toString(true /* skip encoding the uri */);
 	}
 
 }
