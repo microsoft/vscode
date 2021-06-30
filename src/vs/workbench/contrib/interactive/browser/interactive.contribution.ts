@@ -22,7 +22,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorDescriptor, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorExtensions, EditorsOrder, IEditorInputFactoryRegistry, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorsOrder, IEditorInputSerializer, viewColumnToEditorGroup } from 'vs/workbench/common/editor';
 import { InteractiveEditor } from 'vs/workbench/contrib/interactive/browser/interactiveEditor';
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { NOTEBOOK_EDITOR_WIDGET_ACTION_WEIGHT } from 'vs/workbench/contrib/notebook/browser/contrib/coreActions';
@@ -210,7 +210,7 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
 workbenchContributionsRegistry.registerWorkbenchContribution(InteractiveDocumentContribution, LifecyclePhase.Starting);
 
-class InteractiveEditorSerializer implements IEditorInputSerializer {
+export class InteractiveEditorSerializer implements IEditorInputSerializer {
 	canSerialize(): boolean {
 		return true;
 	}
@@ -239,10 +239,10 @@ class InteractiveEditorSerializer implements IEditorInputSerializer {
 	}
 }
 
-Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
-	InteractiveEditorInput.ID,
-	InteractiveEditorSerializer
-);
+// Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputSerializer(
+// 	InteractiveEditorInput.ID,
+// 	InteractiveEditorSerializer
+// );
 
 registerSingleton(IInteractiveHistoryService, InteractiveHistoryService);
 registerSingleton(IInteractiveDocumentService, InteractiveDocumentService);
