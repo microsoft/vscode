@@ -1443,6 +1443,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 			let rawContentChanges: ModelRawChange[] = [];
 
+			this._increaseVersionId();
+
 			let lineCount = oldLineCount;
 			for (let i = 0, len = contentChanges.length; i < len; i++) {
 				const change = contentChanges[i];
@@ -1468,7 +1470,7 @@ export class TextModel extends Disposable implements model.ITextModel {
 					this.getOffsetAt(new Position(firstEditLineNumber, 1)),
 					this.getOffsetAt(new Position(lastInsertedLineNumber, this.getLineMaxColumn(lastInsertedLineNumber))),
 					0,
-					0
+					this._versionId
 				));
 				const injectedTextInEditedRange = LineInjectedText.fromDecorations(decorationsWithInjectedTextInEditedRange);
 
@@ -1515,8 +1517,6 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 				lineCount += changeLineCountDelta;
 			}
-
-			this._increaseVersionId();
 
 			this._emitContentChangedEvent(
 				new ModelRawContentChangedEvent(

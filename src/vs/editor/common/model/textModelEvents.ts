@@ -188,6 +188,10 @@ export class LineInjectedText {
 		public readonly order: number,
 		public readonly text: string
 	) { }
+
+	public withText(text: string): LineInjectedText {
+		return new LineInjectedText(this.ownerId, this.lineNumber, this.column, this.order, text);
+	}
 }
 
 /**
