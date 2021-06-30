@@ -1,4 +1,4 @@
-<svg width="100%" height="auto" viewBox="0 0 569 522" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 569 522" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g filter="url(#filter0_d)">
 <rect x="12" y="10" width="545" height="498" rx="4" fill="var(--vscode-editorWidget-background, #1e1e1e)"/>
 <rect width="504" height="26" transform="translate(33 30)" fill="var(--vscode-input-background, #3c3c3c)"/>
