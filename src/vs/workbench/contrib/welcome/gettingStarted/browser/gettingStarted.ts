@@ -15,7 +15,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { hiddenEntriesConfigurationKey, IGettingStartedCategory, IGettingStartedCategoryWithProgress, IGettingStartedService } from 'vs/workbench/contrib/welcome/gettingStarted/browser/gettingStartedService';
 import { IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { welcomePageBackground, welcomePageProgressBackground, welcomePageProgressForeground, welcomePageTileBackground, welcomePageTileHoverBackground, welcomePageTileShadow } from 'vs/workbench/contrib/welcome/page/browser/welcomePageColors';
-import { activeContrastBorder, badgeBackground, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, contrastBorder, descriptionForeground, focusBorder, foreground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { firstSessionDateStorageKey, ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -61,7 +61,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { coalesce, flatten } from 'vs/base/common/arrays';
 import { ThemeSettings } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -1576,7 +1576,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured .featured-icon { color: ${newBadgeForeground}; }`);
 	}
 
-	const newBadgeBackground = theme.getColor(badgeBackground);
+	const newBadgeBackground = theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND);
 	if (newBadgeBackground) {
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge { background-color: ${newBadgeBackground}; }`);
 		collector.addRule(`.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured { border-top-color: ${newBadgeBackground}; }`);
