@@ -24,6 +24,7 @@ import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { memoize } from 'vs/base/common/decorators';
 import { dispose, IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDebugService, DEBUG_SCHEME, CONTEXT_IN_DEBUG_REPL, IDebugSession, State, IReplElement, IDebugConfiguration, REPL_VIEW_ID, CONTEXT_MULTI_SESSION_REPL, CONTEXT_DEBUG_STATE, getStateLabel } from 'vs/workbench/contrib/debug/common/debug';
 import { HistoryNavigator } from 'vs/base/common/history';
@@ -738,6 +739,7 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+		SuggestController.get(editor).cancelSuggestWidget();
 		const repl = getReplView(accessor.get(IViewsService));
 		repl?.acceptReplInput();
 	}
