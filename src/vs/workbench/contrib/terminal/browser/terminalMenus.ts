@@ -449,7 +449,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditor,
+						id: TerminalCommandId.MoveToEditorInstance,
 						title: terminalStrings.moveToEditor.short
 					},
 					group: ContextMenuGroup.Create,
