@@ -152,7 +152,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			return [];
 		}
 
-		const cachedStaticWebExtensions = await this.readCustomBuiltinExtensionsCache();
+		let cachedStaticWebExtensions = await this.readCustomBuiltinExtensionsCache();
+
+		// Incase there are duplicates always take the latest version
+		const byExtension: IWebExtension[][] = groupByExtension(cachedStaticWebExtensions, e => e.identifier);
+		cachedStaticWebExtensions = byExtension.map(p => p.sort((a, b) => semver.rcompare(a.version, b.version))[0]);
+
 		const webExtensions: IWebExtension[] = [];
 		extensionIds = extensionIds.map(id => id.toLowerCase());
 
@@ -227,21 +232,27 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 	}
 
 	async scanUserExtensions(): Promise<IExtension[]> {
-		const extensions = [];
-
-		// Static extensions defined through `staticExtensions` API
-		const staticExtensions = await this.staticExtensionsPromise;
-		extensions.push(...staticExtensions);
-
-		// Custom builtin extensions defined through `additionalBuiltinExtensions` API
-		const customBuiltinExtensions = await this.customBuiltinExtensionsPromise;
-		extensions.push(...customBuiltinExtensions);
+		const extensions = new Map<string, IExtension>();
 
 		// User Installed extensions
 		const installedExtensions = await this.scanInstalledExtensions();
-		extensions.push(...installedExtensions);
+		for (const extension of installedExtensions) {
+			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		}
 
-		return extensions;
+		// Static extensions defined through `staticExtensions` API
+		const staticExtensions = await this.staticExtensionsPromise;
+		for (const extension of staticExtensions) {
+			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		}
+
+		// Custom builtin extensions defined through `additionalBuiltinExtensions` API
+		const customBuiltinExtensions = await this.customBuiltinExtensionsPromise;
+		for (const extension of customBuiltinExtensions) {
+			extensions.set(extension.identifier.id.toLowerCase(), extension);
+		}
+
+		return [...extensions.values()];
 	}
 
 	async scanExtensionsUnderDevelopment(): Promise<IExtension[]> {
@@ -318,19 +329,32 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		// Update custom builtin extensions to custom builtin extensions cache
 		if (isBuiltin) {
 			let customBuiltinExtensions = await this.readCustomBuiltinExtensionsCache();
+			// Remove the existing extension to avoid duplicates
 			customBuiltinExtensions = customBuiltinExtensions.filter(extension => !areSameExtensions(extension.identifier, webExtension.identifier));
 			customBuiltinExtensions.push(webExtension);
 			await this.writeCustomBuiltinExtensionsCache(customBuiltinExtensions);
+
+			const installedExtensions = await this.readInstalledExtensions();
+			// Also add to installed extensions if it is installed to update its version
+			if (installedExtensions.some(e => areSameExtensions(e.identifier, webExtension.identifier))) {
+				await this.addToInstalledExtensions(webExtension);
+			}
 		}
 
-		// User installed extensions
+		// Add to installed extensions
 		else {
-			const installedExtensions = await this.readInstalledExtensions();
-			installedExtensions.push(webExtension);
-			await this.writeInstalledExtensions(installedExtensions);
+			await this.addToInstalledExtensions(webExtension);
 		}
 
 		return extension;
+	}
+
+	private async addToInstalledExtensions(webExtension: IWebExtension): Promise<void> {
+		let installedExtensions = await this.readInstalledExtensions();
+		// Remove the existing extension to avoid duplicates
+		installedExtensions = installedExtensions.filter(e => !areSameExtensions(e.identifier, webExtension.identifier));
+		installedExtensions.push(webExtension);
+		await this.writeInstalledExtensions(installedExtensions);
 	}
 
 	private async scanInstalledExtensions(): Promise<IExtension[]> {
