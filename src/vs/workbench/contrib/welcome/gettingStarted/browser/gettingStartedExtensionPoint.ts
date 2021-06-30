@@ -219,7 +219,7 @@ export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				category: {
 					type: 'string',
 					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['file', 'folder', 'notebook'],
+					enum: ['file', 'folder', 'notebook', 'other'],
 				},
 				description: {
 					type: 'string',
