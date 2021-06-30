@@ -165,7 +165,6 @@
 	font-size: 14px;
 	font-weight: 500;
 	text-align: left;
-	flex-grow: 1;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideCategories .category-progress {
@@ -269,7 +268,9 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	justify-self: flex-end;
 	border-radius: 4px;
-	padding: 0 2px;
+	padding: 2px 4px;
+	margin: 0 4px;
+	font-size: 11px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .featured-badge {
@@ -299,6 +300,7 @@
 	align-self: start;
 	left: 8px;
 	font-size: 16px;
+	margin-left: auto;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category.featured .icon-widget {
