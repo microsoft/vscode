@@ -177,7 +177,13 @@ async function readLockfileContents(logService: ILogService, filename: string): 
 		return null;
 	}
 
-	return JSON.parse(String(contents));
+	try {
+		return JSON.parse(String(contents));
+	} catch (err) {
+		// cannot parse the file
+		logService.error(err);
+		return null;
+	}
 }
 
 /**
