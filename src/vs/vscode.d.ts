@@ -3988,7 +3988,7 @@ declare module 'vscode' {
 		label: string;
 
 		/**
-		 * An optional string which is rendered less prominent and directly after {@link CompletionItemLabel.label name},
+		 * An optional string which is rendered less prominent and directly after {@link CompletionItemLabel.label label},
 		 * without any spacing. Should be used for function signatures or type annotations.
 		 */
 		detail?: string;
