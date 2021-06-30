@@ -193,7 +193,8 @@ export class TerminalViewPane extends ViewPane {
 					run: () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							return this._terminalService.splitInstance(instance);
+							const newInstance = this._terminalService.splitInstance(instance);
+							return newInstance?.focusWhenReady();
 						}
 						return;
 					}

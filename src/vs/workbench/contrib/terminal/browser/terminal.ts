@@ -251,7 +251,7 @@ export interface ITerminalGroupService extends ITerminalInstanceHost, ITerminalF
 
 	setContainer(container: HTMLElement): void;
 
-	showPanel(focus?: boolean, force?: boolean): Promise<void>;
+	showPanel(focus?: boolean): Promise<void>;
 	hidePanel(): void;
 	focusTabs(): void;
 	showTabs(): void;
