@@ -5,7 +5,7 @@
 
 import { IBuiltinExtensionsScannerService, ExtensionType, IExtensionIdentifier, IExtension, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IScannedExtension, IWebExtensionsScannerService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { isWeb } from 'vs/base/common/platform';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { joinPath } from 'vs/base/common/resources';
@@ -29,6 +29,7 @@ import { ResourceMap } from 'vs/base/common/map';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { format2 } from 'vs/base/common/strings';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 interface IStoredWebExtension {
 	readonly identifier: IExtensionIdentifier;
@@ -37,6 +38,7 @@ interface IStoredWebExtension {
 	readonly readmeUri?: UriComponents;
 	readonly changelogUri?: UriComponents;
 	readonly packageNLSUri?: UriComponents;
+	readonly metadata?: IStringDictionary<any>;
 }
 
 interface IWebExtension {
@@ -46,6 +48,7 @@ interface IWebExtension {
 	readmeUri?: URI;
 	changelogUri?: URI;
 	packageNLSUri?: URI;
+	metadata?: IStringDictionary<any>;
 }
 
 export class WebExtensionsScannerService extends Disposable implements IWebExtensionsScannerService {
@@ -123,7 +126,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					await Promise.allSettled(extensionLocations.map(async location => {
 						try {
 							const webExtension = await this.toWebExtensionFromLocation(location);
-							result.push(await this.toExtension(webExtension, true));
+							result.push(await this.toScannedExtension(webExtension, true));
 						} catch (error) {
 							this.logService.info(`Error while fetching the additional builtin extension ${location.toString()}.`, getErrorMessage(error));
 						}
@@ -190,7 +193,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		if (webExtensions.length) {
 			await Promise.all(webExtensions.map(async webExtension => {
 				try {
-					result.push(await this.toExtension(webExtension, true));
+					result.push(await this.toScannedExtension(webExtension, true));
 				} catch (error) {
 					this.logService.info(`Ignoring additional builtin extension ${webExtension.identifier.id} because there is an error while converting it into scanned extension`, getErrorMessage(error));
 				}
@@ -227,8 +230,8 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.builtinExtensionsPromise;
 	}
 
-	async scanUserExtensions(): Promise<IExtension[]> {
-		const extensions = new Map<string, IExtension>();
+	async scanUserExtensions(): Promise<IScannedExtension[]> {
+		const extensions = new Map<string, IScannedExtension>();
 
 		// User Installed extensions
 		const installedExtensions = await this.scanInstalledExtensions();
@@ -260,7 +263,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 					const location = URI.revive(devExtension);
 					if (URI.isUri(location)) {
 						const webExtension = await this.toWebExtensionFromLocation(location);
-						result.push(await this.toExtension(webExtension, false));
+						result.push(await this.toScannedExtension(webExtension, false));
 					} else {
 						this.logService.info(`Skipping the extension under development ${devExtension} as it is not URI type.`);
 					}
@@ -293,13 +296,13 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return null;
 	}
 
-	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
-		const webExtension = await this.toWebExtensionFromGallery(galleryExtension);
+	async addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension> {
+		const webExtension = await this.toWebExtensionFromGallery(galleryExtension, metadata);
 		return this.addWebExtension(webExtension);
 	}
 
-	async addExtension(location: URI): Promise<IExtension> {
-		const webExtension = await this.toWebExtensionFromLocation(location);
+	async addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension> {
+		const webExtension = await this.toWebExtensionFromLocation(location, undefined, undefined, metadata);
 		return this.addWebExtension(webExtension);
 	}
 
@@ -311,7 +314,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 	private async addWebExtension(webExtension: IWebExtension) {
 		const isBuiltin = this.cutomBuiltinExtensions.some(id => isString(id) && areSameExtensions(webExtension.identifier, { id }));
-		const extension = await this.toExtension(webExtension, isBuiltin);
+		const extension = await this.toScannedExtension(webExtension, isBuiltin);
 
 		// Update custom builtin extensions to custom builtin extensions cache
 		if (isBuiltin) {
@@ -351,7 +354,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		const extensions: IExtension[] = [];
 		await Promise.all(installedExtensions.map(async installedExtension => {
 			try {
-				extensions.push(await this.toExtension(installedExtension, false));
+				extensions.push(await this.toScannedExtension(installedExtension, false));
 			} catch (error) {
 				this.logService.error(error, 'Error while scanning user extension', installedExtension.identifier.id);
 			}
@@ -359,15 +362,15 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return extensions;
 	}
 
-	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IWebExtension> {
+	private async toWebExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IWebExtension> {
 		const extensionLocation = this.productService.extensionsGallery?.resourceUrlTemplate
 			? URI.parse(format2(this.productService.extensionsGallery.resourceUrlTemplate, { publisher: galleryExtension.publisher, name: galleryExtension.name, version: galleryExtension.version, path: 'extension' }))
 			: joinPath(galleryExtension.assetUri, 'Microsoft.VisualStudio.Code.WebResources', 'extension');
 
-		return this.toWebExtensionFromLocation(extensionLocation, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined);
+		return this.toWebExtensionFromLocation(extensionLocation, galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined, galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined, metadata);
 	}
 
-	private async toWebExtensionFromLocation(extensionLocation: URI, readmeUri?: URI, changelogUri?: URI): Promise<IWebExtension> {
+	private async toWebExtensionFromLocation(extensionLocation: URI, readmeUri?: URI, changelogUri?: URI, metadata?: IStringDictionary<any>): Promise<IWebExtension> {
 		const packageJSONUri = joinPath(extensionLocation, 'package.json');
 		const packageNLSUri: URI = joinPath(extensionLocation, 'package.nls.json');
 
@@ -396,11 +399,12 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			location: extensionLocation,
 			readmeUri,
 			changelogUri,
-			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined
+			packageNLSUri: packageNLSResult.status === 'fulfilled' && isSuccess(packageNLSResult.value) ? packageNLSUri : undefined,
+			metadata,
 		};
 	}
 
-	private async toExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IExtension> {
+	private async toScannedExtension(webExtension: IWebExtension, isBuiltin: boolean): Promise<IScannedExtension> {
 		const context = await this.requestService.request({ type: 'GET', url: joinPath(webExtension.location, 'package.json').toString() }, CancellationToken.None);
 		if (!isSuccess(context)) {
 			throw new Error(`Error while fetching package.json for extension '${webExtension.identifier.id}'. Server returned ${context.res.statusCode}`);
@@ -423,6 +427,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			isBuiltin,
 			readmeUrl: webExtension.readmeUri,
 			changelogUrl: webExtension.changelogUri,
+			metadata: webExtension.metadata
 		};
 	}
 
@@ -462,16 +467,28 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return this.getResourceAccessQueue(file).queue(async () => {
 			try {
 				const content = await this.fileService.readFile(file);
-				const storedWebExtensions: IStoredWebExtension[] = this.parseExtensions(content.value.toString());
-				return storedWebExtensions.map(e => ({
-					identifier: e.identifier,
-					version: e.version,
-					location: URI.revive(e.location),
-					readmeUri: URI.revive(e.readmeUri),
-					changelogUri: URI.revive(e.changelogUri),
-					packageNLSUri: URI.revive(e.packageNLSUri),
-				}));
-			} catch (error) { /* Ignore */ }
+				const webExtensions: IWebExtension[] = [];
+				const storedWebExtensions: IStoredWebExtension[] = JSON.parse(content.value.toString());
+				for (const e of storedWebExtensions) {
+					if (!e.location || !e.identifier || !e.version) {
+						this.logService.info('Ignoring invalid extension while scanning', storedWebExtensions);
+						continue;
+					}
+					webExtensions.push({
+						identifier: e.identifier,
+						version: e.version,
+						location: URI.revive(e.location),
+						readmeUri: URI.revive(e.readmeUri),
+						changelogUri: URI.revive(e.changelogUri),
+						packageNLSUri: URI.revive(e.packageNLSUri),
+						metadata: e.metadata,
+					});
+				}
+				return webExtensions;
+			} catch (error) {
+				/* Ignore */
+				this.logService.error(error);
+			}
 			return [];
 		});
 	}
@@ -488,17 +505,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 				readmeUri: e.readmeUri?.toJSON(),
 				changelogUri: e.changelogUri?.toJSON(),
 				packageNLSUri: e.packageNLSUri?.toJSON(),
+				metadata: e.metadata
 			}));
 			await this.fileService.writeFile(file, VSBuffer.fromString(JSON.stringify(storedWebExtensions)));
 			return webExtensions;
-		});
-	}
-
-	private parseExtensions(content: string): IStoredWebExtension[] {
-		const storedWebExtensions: (IStoredWebExtension & { uri?: UriComponents })[] = JSON.parse(content.toString());
-		return storedWebExtensions.map(e => {
-			const location = e.uri ? joinPath(URI.revive(e.uri), 'Microsoft.VisualStudio.Code.WebResources', 'extension') : e.location;
-			return { ...e, location };
 		});
 	}
 
