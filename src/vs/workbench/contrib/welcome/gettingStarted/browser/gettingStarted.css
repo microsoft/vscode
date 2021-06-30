@@ -262,6 +262,10 @@
 	margin-left: 28px;
 }
 
+.monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .description-content:not(:empty){
+	margin-bottom: 8px;
+}
+
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlide .getting-started-category .new-badge {
 	justify-self: flex-end;
 	border-radius: 4px;

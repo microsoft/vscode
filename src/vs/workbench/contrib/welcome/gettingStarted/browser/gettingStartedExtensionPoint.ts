@@ -51,7 +51,7 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							body: {
 								'id': '$1', 'title': '$2', 'description': '$3',
 								'completionEvents': ['$5'],
-								'media': { 'path': '$6', 'type': '$7' }
+								'media': {},
 							}
 						}],
 						properties: {
@@ -73,7 +73,6 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 							media: {
 								type: 'object',
 								description: localize('walkthroughs.steps.media', "Media to show alongside this step, either an image or markdown content."),
-								defaultSnippets: [{ 'body': { 'type': '$1', 'path': '$2' } }],
 								oneOf: [
 									{
 										required: ['image', 'altText'],
@@ -200,11 +199,11 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		description: localize('startEntries', "Contribute commands to the `Welcome: New...` picker."),
+		description: localize('startEntries', "Contribute commands to the \"Welcome: Start...\" pickers and \"File => New X...\" menu entries."),
 		type: 'array',
 		items: {
 			type: 'object',
-			required: ['title', 'command'],
+			required: ['title', 'command', 'category'],
 			additionalProperties: false,
 			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
 			properties: {
@@ -219,7 +218,7 @@ export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPo
 				category: {
 					type: 'string',
 					description: localize('startEntries.category', "Category of the new entry."),
-					enum: ['file', 'folder', 'notebook'],
+					enum: ['file', 'folder', 'notebook', 'other'],
 				},
 				description: {
 					type: 'string',

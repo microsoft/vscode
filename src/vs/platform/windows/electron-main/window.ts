@@ -775,7 +775,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		// Event
-		this._onWillLoad.fire({ workspace: configuration.workspace });
+		this._onWillLoad.fire({ workspace: configuration.workspace, isReload: options.isReload ?? false });
 	}
 
 	private updateConfiguration(configuration: INativeWindowConfiguration, options: ILoadOptions): void {

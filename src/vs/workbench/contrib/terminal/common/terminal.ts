@@ -627,6 +627,12 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor = {
 				items: {
 					type: 'object',
 					required: ['id', 'title'],
+					defaultSnippets: [{
+						body: {
+							id: '$1',
+							title: '$2'
+						}
+					}],
 					properties: {
 						id: {
 							description: nls.localize('vscode.extension.contributes.terminal.profiles.id', "The ID of the terminal profile provider."),

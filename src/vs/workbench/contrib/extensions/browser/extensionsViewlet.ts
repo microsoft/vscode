@@ -59,7 +59,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { isWeb } from 'vs/base/common/platform';
 import { installLocalInRemoteIcon } from 'vs/workbench/contrib/extensions/browser/extensionsIcons';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { WorkspaceTrustContext } from 'vs/workbench/services/workspaces/common/workspaceTrust';
 
 const SearchMarketplaceExtensionsContext = new RawContextKey<boolean>('searchMarketplaceExtensions', false);
 const SearchIntalledExtensionsContext = new RawContextKey<boolean>('searchInstalledExtensions', false);
@@ -411,14 +410,14 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			id: 'workbench.views.extensions.untrustedUnsupportedExtensions',
 			name: localize('untrustedUnsupportedExtensions', "Disabled in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspaceUnsupportedExtensionsView, [{}]),
-			when: ContextKeyExpr.and(WorkspaceTrustContext.IsTrusted.negate(), SearchUnsupportedWorkspaceExtensionsContext),
+			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({
 			id: 'workbench.views.extensions.untrustedPartiallySupportedExtensions',
 			name: localize('untrustedPartiallySupportedExtensions', "Limited in Restricted Mode"),
 			ctorDescriptor: new SyncDescriptor(UntrustedWorkspacePartiallySupportedExtensionsView, [{}]),
-			when: ContextKeyExpr.and(WorkspaceTrustContext.IsTrusted.negate(), SearchUnsupportedWorkspaceExtensionsContext),
+			when: ContextKeyExpr.and(SearchUnsupportedWorkspaceExtensionsContext),
 		});
 
 		viewDescriptors.push({

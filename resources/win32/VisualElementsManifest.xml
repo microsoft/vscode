@@ -5,5 +5,5 @@
 				Square150x150Logo="resources\app\resources\win32\code_150x150.png"
 				Square70x70Logo="resources\app\resources\win32\code_70x70.png"
 				ForegroundText="light" 
-				ShortDisplayName="VS Code OSS" />
+				ShortDisplayName="Code - OSS" />
 </Application>

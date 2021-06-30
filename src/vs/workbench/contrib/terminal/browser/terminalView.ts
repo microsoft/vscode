@@ -193,7 +193,8 @@ export class TerminalViewPane extends ViewPane {
 					run: () => {
 						const instance = this._terminalGroupService.activeInstance;
 						if (instance) {
-							return this._terminalService.splitInstance(instance);
+							const newInstance = this._terminalService.splitInstance(instance);
+							return newInstance?.focusWhenReady();
 						}
 						return;
 					}
@@ -433,7 +434,7 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Register listeners to update the tab
 		this._register(this._terminalService.onInstancePrimaryStatusChanged(e => this.updateLabel(e)));
-		this._register(_terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
+		this._register(this._terminalGroupService.onDidChangeActiveInstance(() => this.updateLabel()));
 		this._register(this._terminalService.onInstanceIconChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceColorChanged(e => this.updateLabel(e)));
 		this._register(this._terminalService.onInstanceTitleChanged(e => {

@@ -16,7 +16,7 @@ import { registerNotebookContribution } from 'vs/workbench/contrib/notebook/brow
 import { cellStatusIconError, cellStatusIconSuccess } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { getCodeCellExecutionContextKeyService } from 'vs/workbench/contrib/notebook/browser/view/renderers/cellRenderer';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModel';
-import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, CellStatusbarAlignment, INotebookCellStatusBarItem, NotebookCellExecutionState, NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
 export class NotebookStatusBarController extends Disposable {
 	private readonly _visibleCells = new Map<number, IDisposable>();
@@ -104,11 +104,11 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 	 *	Returns undefined if there should be no change, and an empty array if all items should be removed.
 	 */
 	private _getItemsForCell(cell: ICellViewModel): INotebookCellStatusBarItem[] | undefined {
-		if (this._currentExecutingStateTimer) {
+		if (this._currentExecutingStateTimer && !cell.internalMetadata.isPaused) {
 			return;
 		}
 
-		const item = this._getItemForState(cell.internalMetadata.runState, cell.internalMetadata.lastRunSuccess);
+		const item = this._getItemForState(cell.internalMetadata);
 
 		// Show the execution spinner for a minimum time
 		if (cell.internalMetadata.runState === NotebookCellExecutionState.Executing) {
@@ -123,7 +123,8 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 		return item ? [item] : [];
 	}
 
-	private _getItemForState(runState: NotebookCellExecutionState | undefined, lastRunSuccess: boolean | undefined): INotebookCellStatusBarItem | undefined {
+	private _getItemForState(internalMetadata: NotebookCellInternalMetadata): INotebookCellStatusBarItem | undefined {
+		const { runState, lastRunSuccess, isPaused } = internalMetadata;
 		if (!runState && lastRunSuccess) {
 			return <INotebookCellStatusBarItem>{
 				text: '$(notebook-state-success)',
@@ -149,7 +150,7 @@ class ExecutionStateCellStatusBarItem extends Disposable {
 			};
 		} else if (runState === NotebookCellExecutionState.Executing) {
 			return <INotebookCellStatusBarItem>{
-				text: '$(notebook-state-executing~spin)',
+				text: `$(notebook-state-executing${isPaused ? '' : '~spin'})`,
 				tooltip: localize('notebook.cell.status.executing', "Executing"),
 				alignment: CellStatusbarAlignment.Left,
 				priority: Number.MAX_SAFE_INTEGER
@@ -196,7 +197,9 @@ class TimerCellStatusBarItem extends Disposable {
 	private async _update() {
 		let item: INotebookCellStatusBarItem | undefined;
 		const state = this._cell.internalMetadata.runState;
-		if (state === NotebookCellExecutionState.Executing) {
+		if (this._cell.internalMetadata.isPaused) {
+			item = undefined;
+		} else if (state === NotebookCellExecutionState.Executing) {
 			const startTime = this._cell.internalMetadata.runStartTime;
 			const adjustment = this._cell.internalMetadata.runStartTimeAdjustment;
 			if (typeof startTime === 'number') {

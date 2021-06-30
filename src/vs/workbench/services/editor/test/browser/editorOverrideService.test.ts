@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { EditorOverrideService } from 'vs/workbench/services/editor/browser/editorOverrideService';
@@ -38,8 +39,8 @@ suite('EditorOverrideService', () => {
 				detail: 'Test Editor Details',
 				priority: RegisteredEditorPriority.default
 			},
-			{},
-			resource => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			{ canHandleDiff: false },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
 		);
 
 		const resultingOverride = await service.resolveEditorInput({ resource: URI.file('my://resource-basics.test') }, part.activeGroup);
@@ -47,7 +48,51 @@ suite('EditorOverrideService', () => {
 		assert.notStrictEqual(typeof resultingOverride, 'number');
 		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {
 			assert.strictEqual(resultingOverride.editor.typeId, TEST_EDITOR_INPUT_ID);
+			resultingOverride.editor.dispose();
 		}
+		registeredEditor.dispose();
+	});
+
+	test('Untitled Override', async () => {
+		const UNTITLED_TEST_EDITOR_INPUT_ID = 'UNTITLED_TEST_INPUT';
+		const [part, service] = await createEditorOverrideService();
+		const registeredEditor = service.registerEditor('*.test',
+			{
+				id: 'TEST_EDITOR',
+				label: 'Test Editor Label',
+				detail: 'Test Editor Details',
+				priority: RegisteredEditorPriority.default
+			},
+			{ canHandleDiff: false },
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput(URI.parse(resource.toString()), TEST_EDITOR_INPUT_ID) }),
+			({ resource, options }, group) => ({ editor: new TestFileEditorInput((resource ? resource : URI.from({ scheme: Schemas.untitled })), UNTITLED_TEST_EDITOR_INPUT_ID) }),
+		);
+
+		// Untyped untitled - no resource
+		let resultingOverride = await service.resolveEditorInput({ resource: undefined }, part.activeGroup);
+		assert.ok(resultingOverride);
+		// We don't expect untitled to match the *.test glob
+		assert.strictEqual(typeof resultingOverride, 'number');
+
+		// Untyped untitled - with untitled resource
+		resultingOverride = await service.resolveEditorInput({ resource: URI.from({ scheme: Schemas.untitled, path: 'foo.test' }) }, part.activeGroup);
+		assert.ok(resultingOverride);
+		assert.notStrictEqual(typeof resultingOverride, 'number');
+		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {
+			assert.strictEqual(resultingOverride.editor.typeId, UNTITLED_TEST_EDITOR_INPUT_ID);
+			resultingOverride.editor.dispose();
+		}
+
+		// Untyped untitled - file resource with forceUntitled
+		resultingOverride = await service.resolveEditorInput({ resource: URI.file('/fake.test'), forceUntitled: true }, part.activeGroup);
+		assert.ok(resultingOverride);
+		assert.notStrictEqual(typeof resultingOverride, 'number');
+		if (resultingOverride !== OverrideStatus.ABORT && resultingOverride !== OverrideStatus.NONE) {
+			assert.strictEqual(resultingOverride.editor.typeId, UNTITLED_TEST_EDITOR_INPUT_ID);
+			resultingOverride.editor.dispose();
+		}
+
+
 		registeredEditor.dispose();
 	});
 });

@@ -1312,7 +1312,7 @@ export class SettingBoolObjectRenderer extends AbstractSettingRenderer implement
 
 			this._onDidChangeSetting.fire({
 				key: template.context.setting.key,
-				value: newValue,
+				value: Object.keys(newValue).length === 0 ? undefined : newValue,
 				type: template.context.valueType
 			});
 

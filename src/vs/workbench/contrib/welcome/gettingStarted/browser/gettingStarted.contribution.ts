@@ -219,16 +219,16 @@ registerAction2(class extends Action2 {
 			id: 'welcome.showNewFolderEntries',
 			title: localize('welcome.newFolder', "New Folder..."),
 			category,
-			f1: true,
+			// f1: true,
 			keybinding: {
 				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KEY_F,
 				weight: KeybindingWeight.WorkbenchContrib,
 			},
-			menu: {
-				id: MenuId.MenubarFileMenu,
-				group: '1_new',
-				order: 5
-			}
+			// menu: {
+			// 	id: MenuId.MenubarFileMenu,
+			// 	group: '1_new',
+			// 	order: 5
+			// }
 		});
 	}
 

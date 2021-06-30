@@ -20,6 +20,7 @@ const AUTH_RELAY_SERVER = 'vscode-auth.github.com';
 
 class UriEventHandler extends vscode.EventEmitter<vscode.Uri> implements vscode.UriHandler {
 	public handleUri(uri: vscode.Uri) {
+		Logger.trace('Handling Uri...');
 		this.fire(uri);
 	}
 }
@@ -54,7 +55,7 @@ export class GitHubServer {
 	}
 
 	public async login(scopes: string): Promise<string> {
-		Logger.info('Logging in...');
+		Logger.info(`Logging in for the following scopes: ${scopes}`);
 		this.updateStatusBarItem(true);
 
 		const state = uuid();
@@ -119,17 +120,22 @@ export class GitHubServer {
 
 	private exchangeCodeForToken: (scopes: string) => PromiseAdapter<vscode.Uri, string> =
 		(scopes) => async (uri, resolve, reject) => {
-			Logger.info('Exchanging code for token...');
 			const query = parseQuery(uri);
 			const code = query.code;
 
 			const acceptedStates = this._pendingStates.get(scopes) || [];
 			if (!acceptedStates.includes(query.state)) {
-				reject('Received mismatched state');
+				// A common scenario of this happening is if you:
+				// 1. Trigger a sign in with one set of scopes
+				// 2. Before finishing 1, you trigger a sign in with a different set of scopes
+				// In this scenario we should just return and wait for the next UriHandler event
+				// to run as we are probably still waiting on the user to hit 'Continue'
+				Logger.info('State not found in accepted state. Skipping this execution...');
 				return;
 			}
 
 			const url = `https://${AUTH_RELAY_SERVER}/token?code=${code}&state=${query.state}`;
+			Logger.info('Exchanging code for token...');
 
 			// TODO@joao: remove
 			if (query.nocors) {

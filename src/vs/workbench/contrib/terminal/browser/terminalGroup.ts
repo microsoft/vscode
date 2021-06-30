@@ -421,16 +421,18 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		return terminalIndex;
 	}
 
-	setActiveInstanceByIndex(index: number): void {
+	setActiveInstanceByIndex(index: number, force?: boolean): void {
 		// Check for invalid value
 		if (index < 0 || index >= this._terminalInstances.length) {
 			return;
 		}
 
-		const oldActiveGroup = this.activeInstance;
+		const oldActiveInstance = this.activeInstance;
 		this._activeInstanceIndex = index;
-		if (oldActiveGroup !== this.activeInstance) {
-			this._onInstancesChanged.fire();
+		if (force) {
+			if (oldActiveInstance !== this.activeInstance) {
+				this._onInstancesChanged.fire();
+			}
 			this._onDidChangeActiveInstance.fire(this.activeInstance);
 		}
 	}

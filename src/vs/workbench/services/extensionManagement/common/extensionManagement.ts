@@ -8,6 +8,7 @@ import { createDecorator, refineServiceDecorator } from 'vs/platform/instantiati
 import { IExtension, ExtensionType, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { IExtensionManagementService, IGalleryExtension, IExtensionIdentifier, ILocalExtension, InstallOptions, InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { URI } from 'vs/base/common/uri';
+import { IStringDictionary } from 'vs/base/common/collections';
 
 export interface IExtensionManagementServer {
 	id: string;
@@ -118,18 +119,21 @@ export interface IWorkbenchExtensionEnablementService {
 	updateEnablementByWorkspaceTrustRequirement(): Promise<void>;
 }
 
+export interface IScannedExtension extends IExtension {
+	readonly metadata?: IStringDictionary<any>;
+}
+
 export const IWebExtensionsScannerService = createDecorator<IWebExtensionsScannerService>('IWebExtensionsScannerService');
 export interface IWebExtensionsScannerService {
 	readonly _serviceBrand: undefined;
 
 	scanSystemExtensions(): Promise<IExtension[]>;
-	scanUserExtensions(): Promise<IExtension[]>;
+	scanUserExtensions(): Promise<IScannedExtension[]>;
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
 
-	canAddExtension(galleryExtension: IGalleryExtension): boolean;
-	addExtension(location: URI): Promise<IExtension>;
-	addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension>;
+	addExtension(location: URI, metadata?: IStringDictionary<any>): Promise<IExtension>;
+	addExtensionFromGallery(galleryExtension: IGalleryExtension, metadata?: IStringDictionary<any>): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
 
 	scanExtensionManifest(extensionLocation: URI): Promise<IExtensionManifest | null>;

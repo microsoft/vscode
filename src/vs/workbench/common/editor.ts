@@ -316,7 +316,7 @@ export function isResourceDiffEditorInput(editor: IUntypedEditorInput): editor i
 export function isUntitledResourceEditorInput(editor: IUntypedEditorInput): editor is IUntitledTextResourceEditorInput {
 	const candidate = editor as IUntitledTextResourceEditorInput;
 
-	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled;
+	return candidate.resource === undefined || candidate.resource.scheme === Schemas.untitled || candidate.forceUntitled === true;
 }
 
 export const enum Verbosity {

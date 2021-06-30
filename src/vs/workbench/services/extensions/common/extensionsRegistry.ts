@@ -326,7 +326,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onTerminalProfile',
-						body: 'onTerminalProfile:${1:terminalType}',
+						body: 'onTerminalProfile:${1:terminalId}',
 						description: nls.localize('vscode.extension.activationEvents.onTerminalProfile', 'An activation event emitted when a specific terminal profile is launched.'),
 					},
 					{

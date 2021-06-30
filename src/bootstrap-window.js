@@ -52,10 +52,12 @@
 		});
 
 		// Await window configuration from preload
+		const timeout = setTimeout(() => { console.error(`[resolve window config] Could not resolve window configuration within 10 seconds, but will continue to wait...`); }, 10000);
 		performance.mark('code/willWaitForWindowConfig');
 		/** @type {ISandboxConfiguration} */
 		const configuration = await preloadGlobals.context.resolveConfiguration();
 		performance.mark('code/didWaitForWindowConfig');
+		clearTimeout(timeout);
 
 		// Signal DOM modifications are now OK
 		if (typeof options?.canModifyDOM === 'function') {

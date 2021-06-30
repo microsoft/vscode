@@ -42,6 +42,7 @@ export class HoverWidget extends Widget {
 
 	private readonly _hover: BaseHoverWidget;
 	private readonly _hoverPointer: HTMLElement | undefined;
+	private readonly _hoverContainer: HTMLElement;
 	private readonly _target: IHoverTarget;
 	private readonly _linkHandler: (url: string) => any;
 
@@ -146,6 +147,12 @@ export class HoverWidget extends Widget {
 			this._hover.containerDomNode.appendChild(statusBarElement);
 		}
 
+		this._hoverContainer = $('div.workbench-hover-container');
+		if (this._hoverPointer) {
+			this._hoverContainer.appendChild(this._hoverPointer);
+		}
+		this._hoverContainer.appendChild(this._hover.containerDomNode);
+
 		const mouseTrackerTargets = [...this._target.targetElements];
 		let hideOnHover: boolean;
 		if (options.actions && options.actions.length > 0) {
@@ -161,20 +168,15 @@ export class HoverWidget extends Widget {
 			}
 		}
 		if (!hideOnHover) {
-			mouseTrackerTargets.push(this._hover.containerDomNode);
+			mouseTrackerTargets.push(this._hoverContainer);
 		}
 		this._mouseTracker = new CompositeMouseTracker(mouseTrackerTargets);
 		this._register(this._mouseTracker.onMouseOut(() => this.dispose()));
 		this._register(this._mouseTracker);
 	}
 
-	public render(container?: HTMLElement): void {
-		if (this._hoverPointer) {
-			container?.appendChild(this._hoverPointer);
-		}
-		if (this._hover.containerDomNode.parentElement !== container) {
-			container?.appendChild(this._hover.containerDomNode);
-		}
+	public render(container: HTMLElement): void {
+		container.appendChild(this._hoverContainer);
 
 		this.layout();
 	}
@@ -203,27 +205,33 @@ export class HoverWidget extends Widget {
 		this.adjustVerticalHoverPosition(targetRect);
 
 		// Offset the hover position if there is a pointer so it aligns with the target element
-		this._hover.containerDomNode.style.paddingLeft = '';
-		this._hover.containerDomNode.style.paddingRight = '';
-		this._hover.containerDomNode.style.paddingTop = '';
-		this._hover.containerDomNode.style.paddingBottom = '';
-		this._hover.containerDomNode.style.left = '';
-		this._hover.containerDomNode.style.right = '';
+		this._hoverContainer.style.padding = '';
+		this._hoverContainer.style.margin = '';
 		if (this._hoverPointer) {
 			switch (this._hoverPosition) {
 				case HoverPosition.RIGHT:
-					this._hover.containerDomNode.style.paddingLeft = `${Constants.PointerSize}px`;
-					this._hover.containerDomNode.style.left = `-${Constants.PointerSize * 2}px`;
+					targetRect.left += Constants.PointerSize;
+					targetRect.right += Constants.PointerSize;
+					this._hoverContainer.style.paddingLeft = `${Constants.PointerSize}px`;
+					this._hoverContainer.style.marginLeft = `${-Constants.PointerSize}px`;
 					break;
 				case HoverPosition.LEFT:
-					this._hover.containerDomNode.style.paddingRight = `${Constants.PointerSize}px`;
-					this._hover.containerDomNode.style.right = `-${Constants.PointerSize * 2}px`;
+					targetRect.left -= Constants.PointerSize;
+					targetRect.right -= Constants.PointerSize;
+					this._hoverContainer.style.paddingRight = `${Constants.PointerSize}px`;
+					this._hoverContainer.style.marginRight = `${-Constants.PointerSize}px`;
 					break;
 				case HoverPosition.BELOW:
-					this._hover.containerDomNode.style.paddingTop = `${Constants.PointerSize}px`;
+					targetRect.top += Constants.PointerSize;
+					targetRect.bottom += Constants.PointerSize;
+					this._hoverContainer.style.paddingTop = `${Constants.PointerSize}px`;
+					this._hoverContainer.style.marginTop = `${-Constants.PointerSize}px`;
 					break;
 				case HoverPosition.ABOVE:
-					this._hover.containerDomNode.style.paddingBottom = `${Constants.PointerSize}px`;
+					targetRect.top -= Constants.PointerSize;
+					targetRect.bottom -= Constants.PointerSize;
+					this._hoverContainer.style.paddingBottom = `${Constants.PointerSize}px`;
+					this._hoverContainer.style.marginBottom = `${-Constants.PointerSize}px`;
 					break;
 			}
 
@@ -272,7 +280,7 @@ export class HoverWidget extends Widget {
 			// Hover is going beyond window towards right end
 			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin;
+				this._x = Math.max(document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, document.documentElement.clientLeft);
 			}
 		}
 
@@ -408,10 +416,7 @@ export class HoverWidget extends Widget {
 	public override dispose(): void {
 		if (!this._isDisposed) {
 			this._onDispose.fire();
-			if (this._hoverPointer) {
-				this._hoverPointer.parentElement?.removeChild(this._hoverPointer);
-			}
-			this._hover.containerDomNode.parentElement?.removeChild(this._hover.containerDomNode);
+			this._hoverContainer.remove();
 			this._messageListeners.dispose();
 			this._target.dispose();
 			super.dispose();

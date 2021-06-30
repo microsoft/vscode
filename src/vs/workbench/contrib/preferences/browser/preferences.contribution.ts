@@ -280,7 +280,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
-						when: ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()),
+						when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(that.environmentService.settingsResource.toString()), ContextKeyExpr.not('isInDiffEditor')),
 						group: 'navigation',
 						order: 1
 					}]
@@ -1158,7 +1158,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 					title: OPEN_SETTINGS2_ACTION_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace')),
+				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
 				group: 'navigation',
 				order: 1
 			});
@@ -1183,7 +1183,7 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						title: OPEN_SETTINGS2_ACTION_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString())),
+					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
 					group: 'navigation',
 					order: 1
 				});

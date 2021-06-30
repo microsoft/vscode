@@ -95,8 +95,8 @@ export class DebugSession implements IDebugSession {
 		const toDispose: IDisposable[] = [];
 		toDispose.push(this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire()));
 		if (lifecycleService) {
-			toDispose.push(lifecycleService.onWillShutdown((e) => {
-				e.join(this.shutdown(), 'debugSessionShutdown');
+			toDispose.push(lifecycleService.onWillShutdown(() => {
+				this.shutdown();
 				dispose(toDispose);
 			}));
 		}
@@ -1077,10 +1077,11 @@ export class DebugSession implements IDebugSession {
 	}
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
-	private async shutdown(): Promise<void> {
+	private shutdown(): void {
 		dispose(this.rawListeners);
 		if (this.raw) {
-			await this.raw.disconnect({});
+			// Send out disconnect and immediatly dispose (do not wait for response) #127418
+			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
 		}

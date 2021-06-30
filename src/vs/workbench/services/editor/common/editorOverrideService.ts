@@ -82,6 +82,10 @@ export type RegisteredEditorOptions = {
 	 * If your editor cannot be opened in multiple groups for the same resource
 	 */
 	singlePerResource?: boolean | (() => boolean);
+	/**
+	 * If your editor supports diffs
+	 */
+	canHandleDiff?: boolean | (() => boolean);
 
 	/**
 	 * Whether or not you can support opening the given resource.
@@ -183,7 +187,8 @@ export function globMatchesResource(globPattern: string | glob.IRelativePattern,
 		Schemas.extension,
 		Schemas.webviewPanel,
 		Schemas.vscodeWorkspaceTrust,
-		Schemas.walkThrough
+		Schemas.walkThrough,
+		Schemas.vscodeSettings
 	]);
 	// We want to say that the above schemes match no glob patterns
 	if (excludedSchemes.has(resource.scheme)) {

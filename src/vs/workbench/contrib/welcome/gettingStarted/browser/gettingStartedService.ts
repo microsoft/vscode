@@ -456,6 +456,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 					await this.instantiationService.invokeFunction<unknown>(selected.action.invokeFunction);
 				}
 			}
+			qp.hide();
 		}));
 
 		disposables.add(qp.onDidHide(() => {
@@ -669,9 +670,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
-		let insertIndex = (this.newMenuItems.findIndex(entry => categoryDescriptor.category < entry.category));
-		if (insertIndex === -1) { insertIndex = this.newMenuItems.length; }
-		this.newMenuItems.splice(insertIndex, 0, categoryDescriptor);
+		this.newMenuItems.push(categoryDescriptor);
+		this.newMenuItems.sort((a, b) => b.category - a.category);
 		this._onDidAddNewEntry.fire();
 	}
 
