@@ -1914,7 +1914,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		let css = '';
 		const items: (IQuickPickItem | IQuickPickSeparator)[] = [];
 		for (const colorKey of standardColors) {
-			const colorClass = getColorClass(colorKey);
+			const colorClass = getColorClass(colorKey) || '';
 			items.push({
 				label: `$(${Codicon.circleFilled.id}) ${colorKey.replace('terminal.ansi', '')}`, id: colorKey, description: colorKey, iconClasses: [colorClass]
 			});

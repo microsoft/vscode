@@ -6,19 +6,18 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { hash } from 'vs/base/common/hash';
 import { URI } from 'vs/base/common/uri';
+import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalProfileContribution } from 'vs/workbench/contrib/terminal/common/terminal';
 
-
-export function getColorClass(colorKey: string): string;
-export function getColorClass(terminal: ITerminalInstance): string | undefined;
-export function getColorClass(terminalOrColorKey: ITerminalInstance | string): string | undefined {
+export function getColorClass(terminalOrColorKey: string | ITerminalInstance | ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string })): string | undefined {
 	let color = undefined;
 	if (typeof terminalOrColorKey === 'string') {
 		color = terminalOrColorKey;
-	} else if (terminalOrColorKey.color) {
-		color = terminalOrColorKey.color.replace(/\./g, '_');
+	} else if ('color' in terminalOrColorKey) {
+		color = terminalOrColorKey.color?.replace(/\./g, '_');
 	} else if (ThemeIcon.isThemeIcon(terminalOrColorKey.icon) && terminalOrColorKey.icon.color) {
 		color = terminalOrColorKey.icon.color.id.replace(/\./g, '_');
 	}
@@ -28,7 +27,7 @@ export function getColorClass(terminalOrColorKey: ITerminalInstance | string): s
 	return undefined;
 }
 
-export function getUriClasses(terminal: ITerminalInstance, colorScheme: ColorScheme): string[] | undefined {
+export function getUriClasses(terminal: ITerminalInstance | ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string }), colorScheme: ColorScheme): string[] | undefined {
 	const icon = terminal.icon;
 	if (!icon) {
 		return undefined;

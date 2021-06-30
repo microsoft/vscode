@@ -151,6 +151,7 @@ export class TerminalService implements ITerminalService {
 		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@IThemeService private readonly _themeService: IThemeService,
 		@optional(ILocalTerminalService) localTerminalService: ILocalTerminalService
 	) {
 		this._localTerminalService = localTerminalService;
@@ -869,11 +870,7 @@ export class TerminalService implements ITerminalService {
 		// Add contributed profiles
 		if (type === 'createInstance') {
 			for (const contributed of this._terminalContributionService.terminalProfiles) {
-				const icon = contributed.icon ? (iconRegistry.get(contributed.icon) || Codicon.terminal) : Codicon.terminal;
-				quickPickItems.push({
-					label: `$(${icon.id}) ${contributed.title}`,
-					profile: contributed
-				});
+				quickPickItems.push(this._createProfileQuickPickItem(contributed));
 			}
 		}
 
@@ -970,18 +967,32 @@ export class TerminalService implements ITerminalService {
 		}
 	}
 
-	private _createProfileQuickPickItem(profile: ITerminalProfile): IProfileQuickPickItem {
+	private _getIconClasses(profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string })): string[] {
+		const uriClasses = getUriClasses(profile, this._themeService.getColorTheme().type);
+		const colorClasses = getColorClass(profile);
+		const iconClasses = [];
+		if (uriClasses) {
+			iconClasses.push(...uriClasses);
+		}
+		if (colorClasses) {
+			iconClasses.push(...colorClasses);
+		}
+		return iconClasses;
+	}
+
+	private _createProfileQuickPickItem(profile: ITerminalProfile | (ITerminalProfileContribution & { extensionIdentifier: string })): IProfileQuickPickItem {
 		const buttons: IQuickInputButton[] = [{
 			iconClass: ThemeIcon.asClassName(configureTerminalProfileIcon),
 			tooltip: nls.localize('createQuickLaunchProfile', "Configure Terminal Profile")
 		}];
 		const icon = (profile.icon && ThemeIcon.isThemeIcon(profile.icon)) ? profile.icon : Codicon.terminal;
-		const label = `$(${icon.id}) ${profile.profileName}`;
-		if (profile.args) {
+		const name = 'profileName' in profile ? profile.profileName : 'title' in profile ? profile.title : '';
+		const label = `$(${icon.id}) ${name}`;
+		if ('args' in profile) {
 			if (typeof profile.args === 'string') {
 				return { label, description: `${profile.path} ${profile.args}`, profile, buttons };
 			}
-			const argsString = profile.args.map(e => {
+			const argsString = profile.args?.map(e => {
 				if (e.includes(' ')) {
 					return `"${e.replace('/"/g', '\\"')}"`;
 				}
@@ -989,7 +1000,10 @@ export class TerminalService implements ITerminalService {
 			}).join(' ');
 			return { label, description: `${profile.path} ${argsString}`, profile, buttons };
 		}
-		return { label, description: profile.path, profile, buttons };
+		const description = 'path' in profile ? profile.path : profile.extensionIdentifier ? profile.extensionIdentifier : '';
+		const item: IProfileQuickPickItem = { label, description, profile, buttons };
+		item.iconClasses = this._getIconClasses(profile);
+		return item;
 	}
 
 	createInstance(shellLaunchConfig: IShellLaunchConfig): ITerminalInstance {
