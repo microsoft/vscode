@@ -67,7 +67,7 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 
 	async getSessions(scopes?: string[]): Promise<vscode.AuthenticationSession[]> {
 		return scopes
-			? this._sessions.filter(session => arrayEquals(session.scopes, scopes))
+			? this._sessions.filter(session => arrayEquals([...session.scopes].sort(), scopes.sort()))
 			: this._sessions;
 	}
 
