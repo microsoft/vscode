@@ -10,7 +10,6 @@ import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { ITextModel } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
@@ -611,6 +610,8 @@ export class Repl extends ViewPane implements IHistoryNavigationWidget {
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		const options = getSimpleEditorOptions();
 		options.readOnly = true;
+		options.suggest = { showStatusBar: true };
+		options.acceptSuggestionOnEnter = 'off';
 		options.ariaLabel = localize('debugConsole', "Debug Console");
 
 		this.replInput = this.scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, options, getSimpleCodeEditorWidgetOptions());
@@ -737,7 +738,6 @@ class AcceptReplInputAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		const repl = getReplView(accessor.get(IViewsService));
 		repl?.acceptReplInput();
 	}
@@ -760,7 +760,6 @@ class FilterReplAction extends EditorAction {
 	}
 
 	run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
-		SuggestController.get(editor).acceptSelectedSuggestion(false, true);
 		const repl = getReplView(accessor.get(IViewsService));
 		repl?.focusFilter();
 	}
