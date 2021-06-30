@@ -11,7 +11,6 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
-import { IModelService } from 'vs/editor/common/services/modelService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -35,7 +34,6 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { IInteractiveHistoryService } from 'vs/workbench/contrib/interactive/browser/interactiveHistoryService';
-import { IInteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 
 const DECORATION_KEY = 'interactiveInputDecoration';
 
@@ -51,13 +49,11 @@ export class InteractiveEditor extends EditorPane {
 	// #inputLineCount = 1;
 	#notebookWidgetService: INotebookEditorService;
 	#instantiationService: IInstantiationService;
-	#modelService: IModelService;
 	#modeService: IModeService;
 	#contextKeyService: IContextKeyService;
 	#notebookKernelService: INotebookKernelService;
 	#keybindingService: IKeybindingService;
 	#historyService: IInteractiveHistoryService;
-	#interactiveDocumentService: IInteractiveDocumentService;
 	#widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	#dimension?: DOM.Dimension;
 
@@ -67,14 +63,12 @@ export class InteractiveEditor extends EditorPane {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookEditorService notebookWidgetService: INotebookEditorService,
-		@IModelService modelService: IModelService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@INotebookKernelService notebookKernelService: INotebookKernelService,
 		@IModeService modeService: IModeService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInteractiveHistoryService historyService: IInteractiveHistoryService,
-		@IInteractiveDocumentService interactiveDocumentService: IInteractiveDocumentService
 	) {
 		super(
 			InteractiveEditor.ID,
@@ -84,13 +78,11 @@ export class InteractiveEditor extends EditorPane {
 		);
 		this.#instantiationService = instantiationService;
 		this.#notebookWidgetService = notebookWidgetService;
-		this.#modelService = modelService;
 		this.#contextKeyService = contextKeyService;
 		this.#notebookKernelService = notebookKernelService;
 		this.#modeService = modeService;
 		this.#keybindingService = keybindingService;
 		this.#historyService = historyService;
-		this.#interactiveDocumentService = interactiveDocumentService;
 
 		codeEditorService.registerDecorationType('interactive-decoration', DECORATION_KEY, {});
 	}
@@ -163,21 +155,7 @@ export class InteractiveEditor extends EditorPane {
 			isReadOnly: true
 		});
 
-		let editorModel = this.#modelService.getModel(input.inputResource);
-
-		if (!editorModel) {
-			this.#interactiveDocumentService.willCreateInteractiveDocument(input.resource!, input.inputResource, this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
-			editorModel = this.#modelService.createModel('', null, input.inputResource, false);
-
-			// willCreateInteractiveDocument refs the input model, then we should de-ref it on close.
-			this.#widgetDisposableStore.add({
-				dispose: () => {
-					this.#interactiveDocumentService.willRemoveInteractiveDocument(input.resource!, input.inputResource);
-					editorModel?.dispose();
-				}
-			});
-		}
-
+		const editorModel = input.resolveInput(this.#notebookWidget.value?.activeKernel?.supportedLanguages[0] ?? 'plaintext');
 		this.#codeEditorWidget.setModel(editorModel);
 		this.#widgetDisposableStore.add(this.#codeEditorWidget.onDidContentSizeChange(e => {
 			if (!e.contentHeightChanged) {
