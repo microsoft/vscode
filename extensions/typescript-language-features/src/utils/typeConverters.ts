@@ -126,3 +126,10 @@ export namespace SymbolKind {
 		}
 	}
 }
+
+export namespace CompletionTriggerKind {
+	// @ts-expect-error
+	export function toProtocolCompletionTriggerKind(kind: vscode.CompletionTriggerKind): Proto.CompletionTriggerKind {
+		return kind + 1;
+	}
+}
