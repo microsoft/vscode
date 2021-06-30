@@ -200,11 +200,11 @@ export const walkthroughsExtensionPoint = ExtensionsRegistry.registerExtensionPo
 export const startEntriesExtensionPoint = ExtensionsRegistry.registerExtensionPoint<IStartEntry[]>({
 	extensionPoint: 'startEntries',
 	jsonSchema: {
-		description: localize('startEntries', "Contribute commands to the `Welcome: New...` picker."),
+		description: localize('startEntries', "Contribute commands to the \"Welcome: Start...\" pickers and \"File => New X...\" menu entries."),
 		type: 'array',
 		items: {
 			type: 'object',
-			required: ['title', 'command'],
+			required: ['title', 'command', 'category'],
 			additionalProperties: false,
 			defaultSnippets: [{ body: { 'title': '$1', 'command': '$3' } }],
 			properties: {
