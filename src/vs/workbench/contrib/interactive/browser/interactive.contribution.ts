@@ -40,6 +40,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { INTERACTIVE_INPUT_CURSOR_BOUNDARY } from 'vs/workbench/contrib/interactive/browser/interactiveCommon';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
+import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -54,7 +55,11 @@ Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
 );
 
 export class InteractiveDocumentContribution extends Disposable implements IWorkbenchContribution {
-	constructor(@INotebookService notebookService: INotebookService) {
+	constructor(
+		@INotebookService notebookService: INotebookService,
+		@IEditorOverrideService editorOverrideService: IEditorOverrideService,
+		@IEditorService editorService: IEditorService,
+	) {
 		super();
 
 		const contentOptions = {
@@ -165,6 +170,38 @@ export class InteractiveDocumentContribution extends Disposable implements IWork
 				exclusive: true
 			}));
 		}
+
+		editorOverrideService.registerEditor(
+			`*`,
+			{
+				id: InteractiveEditor.ID,
+				label: 'Interactive Editor',
+				priority: RegisteredEditorPriority.exclusive
+			},
+			{
+				// handle both input and notebook
+				canSupportResource: uri => uri.scheme === Schemas.vscodeInteractiveInput || uri.scheme === Schemas.vscodeInteractive,
+				singlePerResource: true
+			},
+			({ resource }) => {
+				const editorInput = editorService.getEditors(EditorsOrder.SEQUENTIAL).find(editor => {
+					if (!(editor.editor instanceof InteractiveEditorInput)) {
+						return false;
+					}
+
+					if (resource.scheme === Schemas.vscodeInteractive) {
+						return editor.editor.resource?.toString() === resource.toString();
+					}
+
+					if (resource.scheme === Schemas.vscodeInteractiveInput) {
+						return editor.editor.inputResource.toString() === resource.toString();
+					}
+
+					return false;
+				});
+				return editorInput!;
+			}
+		);
 	}
 }
 
