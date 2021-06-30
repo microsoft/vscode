@@ -126,9 +126,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		} else {
 			this._activeInstanceIndex = this.instances.findIndex(e => e === instance);
 		}
-		const newActiveInstance = this.activeInstance;
-		newActiveInstance?.focus();
-		this._onDidChangeActiveInstance.fire(newActiveInstance);
+		this._onDidChangeActiveInstance.fire(this.activeInstance);
 	}
 
 	async openEditor(instance: ITerminalInstance): Promise<void> {

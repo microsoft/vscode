@@ -11,10 +11,9 @@ import { FindReplaceState } from 'vs/editor/contrib/find/findState';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IShellLaunchConfig, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { ITerminalFindHost, ITerminalGroup, ITerminalGroupService, ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalGroup } from 'vs/workbench/contrib/terminal/browser/terminalGroup';
 import { TerminalViewPane } from 'vs/workbench/contrib/terminal/browser/terminalView';
 import { KEYBINDING_CONTEXT_GROUP_TERMINAL_COUNT, KEYBINDING_CONTEXT_TERMINAL_GROUP_COUNT, KEYBINDING_CONTEXT_TERMINAL_TABS_MOUSE, TERMINAL_VIEW_ID } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -35,8 +34,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 	private _container: HTMLElement | undefined;
 
 	private _findState: FindReplaceState;
-
-	private _configHelper: TerminalConfigHelper;
 
 	private readonly _onDidChangeActiveGroup = new Emitter<ITerminalGroup | undefined>();
 	readonly onDidChangeActiveGroup = this._onDidChangeActiveGroup.event;
@@ -76,8 +73,6 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		this.onDidChangeInstances(() => this._terminalCountContextKey.set(this.instances.length));
 
 		this._findState = new FindReplaceState();
-
-		this._configHelper = _instantiationService.createInstance(TerminalConfigHelper);
 	}
 
 	hidePanel(): void {
@@ -163,20 +158,18 @@ export class TerminalGroupService extends Disposable implements ITerminalGroupSe
 		return group;
 	}
 
-	async showPanel(focus?: boolean, force?: boolean): Promise<void> {
-		if (this._configHelper.config.defaultLocation !== TerminalLocation.Editor || force) {
-			const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
-				?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
-			pane?.setExpanded(true);
+	async showPanel(focus?: boolean): Promise<void> {
+		const pane = this._viewsService.getActiveViewWithId(TERMINAL_VIEW_ID)
+			?? await this._viewsService.openView(TERMINAL_VIEW_ID, focus);
+		pane?.setExpanded(true);
 
-			if (focus) {
-				// Do the focus call asynchronously as going through the
-				// command palette will force editor focus
-				await timeout(0);
-				const instance = this.activeInstance;
-				if (instance) {
-					await instance.focusWhenReady(true);
-				}
+		if (focus) {
+			// Do the focus call asynchronously as going through the
+			// command palette will force editor focus
+			await timeout(0);
+			const instance = this.activeInstance;
+			if (instance) {
+				await instance.focusWhenReady(true);
 			}
 		}
 	}

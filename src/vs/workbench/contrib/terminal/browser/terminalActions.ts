@@ -193,9 +193,14 @@ export function registerTerminalActions() {
 
 				if (instance) {
 					terminalService.setActiveInstance(instance);
+					if (instance.target === TerminalLocation.Editor) {
+						await instance.focusWhenReady(true);
+					} else {
+						await terminalGroupService.showPanel(true);
+					}
 				}
+
 			}
-			await terminalGroupService.showPanel(true);
 		}
 	});
 
@@ -211,10 +216,9 @@ export function registerTerminalActions() {
 		}
 		async run(accessor: ServicesAccessor) {
 			const terminalService = accessor.get(ITerminalService);
-			// TODO: Await openEditor
-			terminalService.createTerminal({
+			await terminalService.createTerminal({
 				target: TerminalLocation.Editor
-			});
+			}).focusWhenReady();
 		}
 	});
 
@@ -987,7 +991,11 @@ export function registerTerminalActions() {
 					config: { attachPersistentProcess: selected.term }
 				});
 				terminalService.setActiveInstance(instance);
-				terminalGroupService.showPanel(true);
+				if (instance.target === TerminalLocation.Editor) {
+					await instance.focusWhenReady(true);
+				} else {
+					terminalGroupService.showPanel(true);
+				}
 			}
 		}
 	});
@@ -1205,8 +1213,12 @@ export function registerTerminalActions() {
 					return;
 				}
 				terminalService.setActiveInstance(instance);
+				if (instance.target === TerminalLocation.Editor) {
+					await instance.focusWhenReady(true);
+				} else {
+					return accessor.get(ITerminalGroupService).showPanel(true);
+				}
 			}
-			return accessor.get(ITerminalGroupService).showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1462,8 +1474,12 @@ export function registerTerminalActions() {
 				return undefined;
 			}
 			const instance = terminalService.splitInstance(activeInstance, options?.config, cwd);
-			if (instance?.target !== TerminalLocation.Editor) {
-				return terminalGroupService.showPanel(true);
+			if (instance) {
+				if (instance.target === TerminalLocation.Editor) {
+					instance.focusWhenReady();
+				} else {
+					return terminalGroupService.showPanel(true);
+				}
 			}
 		}
 	});
@@ -1663,8 +1679,12 @@ export function registerTerminalActions() {
 					instance = terminalService.createTerminal(eventOrOptions);
 				}
 				terminalService.setActiveInstance(instance);
+				if (instance.target === TerminalLocation.Editor) {
+					await instance.focusWhenReady(true);
+				} else {
+					await terminalGroupService.showPanel(true);
+				}
 			}
-			await terminalGroupService.showPanel(true);
 		}
 	});
 	registerAction2(class extends Action2 {
@@ -1922,10 +1942,9 @@ export function registerTerminalActions() {
 			if (quickSelectProfiles) {
 				const profile = quickSelectProfiles.find(profile => profile.profileName === profileSelection);
 				if (profile) {
-					const instance = terminalService.createTerminal(
-						{
-							config: profile
-						});
+					const instance = terminalService.createTerminal({
+						config: profile
+					});
 					terminalService.setActiveInstance(instance);
 				} else {
 					console.warn(`No profile with name "${profileSelection}"`);
