@@ -1752,6 +1752,7 @@ export enum TaskPanelKind {
 @es5ClassCompat
 export class TaskGroup implements vscode.TaskGroup2 {
 
+	isDefault?: boolean;
 	private _id: string;
 
 	public static Clean: TaskGroup = new TaskGroup('clean', 'Clean');
@@ -1761,8 +1762,6 @@ export class TaskGroup implements vscode.TaskGroup2 {
 	public static Rebuild: TaskGroup = new TaskGroup('rebuild', 'Rebuild');
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
-
-	isDefault?: boolean;
 
 	public static from(value: string) {
 		switch (value) {
