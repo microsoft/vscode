@@ -510,25 +510,26 @@ export class SearchView extends ViewPane {
 	}
 
 	refreshTree(event?: IChangeEvent): void {
+		const setChildrenOpts = { diffIdentityProvider: { getId(element: RenderableMatch) { return element.id; } } };
 		const collapseResults = this.searchConfig.collapseResults;
 		if (!event || event.added || event.removed) {
 			// Refresh whole tree
 			if (this.searchConfig.sortOrder === SearchSortOrder.Modified) {
 				// Ensure all matches have retrieved their file stat
 				this.retrieveFileStats()
-					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults)));
+					.then(() => this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts));
 			} else {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts);
 			}
 		} else {
 			// If updated counts affect our search order, re-sort the view.
 			if (this.searchConfig.sortOrder === SearchSortOrder.CountAscending ||
 				this.searchConfig.sortOrder === SearchSortOrder.CountDescending) {
-				this.tree.setChildren(null, this.createResultIterator(collapseResults));
+				this.tree.setChildren(null, this.createResultIterator(collapseResults), setChildrenOpts);
 			} else {
 				// FileMatch modified, refresh those elements
 				event.elements.forEach(element => {
-					this.tree.setChildren(element, this.createIterator(element, collapseResults));
+					this.tree.setChildren(element, this.createIterator(element, collapseResults), setChildrenOpts);
 					this.tree.rerender(element);
 				});
 			}
