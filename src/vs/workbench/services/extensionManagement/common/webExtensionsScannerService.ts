@@ -178,11 +178,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 
 			await Promise.all(galleryExtensions.map(async gallery => {
 				try {
-					if (this.canAddExtension(gallery)) {
-						webExtensions.push(await this.toWebExtensionFromGallery(gallery));
-					} else {
-						this.logService.info(`Ignoring additional builtin gallery extension ${gallery.identifier.id} because it is not a web extension`);
-					}
+					webExtensions.push(await this.toWebExtensionFromGallery(gallery));
 				} catch (error) {
 					this.logService.info(`Ignoring additional builtin extension ${gallery.identifier.id} because there is an error while converting it into web extension`, getErrorMessage(error));
 				}
@@ -297,16 +293,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 		return null;
 	}
 
-	// TODO @sandy081: Remove this when resourceUrlTemplate exists always
-	canAddExtension(galleryExtension: IGalleryExtension): boolean {
-		return !!this.productService.extensionsGallery?.resourceUrlTemplate || !!galleryExtension.webResource;
-	}
-
 	async addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension> {
-		if (!this.canAddExtension(galleryExtension)) {
-			throw new Error(localize('cannot be added', "Cannot add gallery extension '{0}'.", galleryExtension.displayName || galleryExtension.name));
-		}
-
 		const webExtension = await this.toWebExtensionFromGallery(galleryExtension);
 		return this.addWebExtension(webExtension);
 	}

@@ -67,7 +67,7 @@ export class WebExtensionManagementService extends Disposable implements IExtens
 		if (!this.extensionManifestPropertiesService.canExecuteOnWeb(manifest)) {
 			return false;
 		}
-		return this.webExtensionsScannerService.canAddExtension(gallery);
+		return true;
 	}
 
 	async install(location: URI): Promise<ILocalExtension> {

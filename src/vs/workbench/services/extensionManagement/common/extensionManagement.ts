@@ -127,7 +127,6 @@ export interface IWebExtensionsScannerService {
 	scanExtensionsUnderDevelopment(): Promise<IExtension[]>;
 	scanExistingExtension(extensionLocation: URI, extensionType: ExtensionType): Promise<IExtension | null>;
 
-	canAddExtension(galleryExtension: IGalleryExtension): boolean;
 	addExtension(location: URI): Promise<IExtension>;
 	addExtensionFromGallery(galleryExtension: IGalleryExtension): Promise<IExtension>;
 	removeExtension(identifier: IExtensionIdentifier, version?: string): Promise<void>;
