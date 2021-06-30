@@ -252,7 +252,7 @@ class BrowserMain extends Disposable {
 		(async () => {
 			let indexedDBLogProvider: IFileSystemProvider | null = null;
 			try {
-				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE);
+				indexedDBLogProvider = await indexedDB.createFileSystemProvider(logsPath.scheme, INDEXEDDB_LOGS_OBJECT_STORE, false);
 			} catch (error) {
 				onUnexpectedError(error);
 			}
@@ -282,7 +282,7 @@ class BrowserMain extends Disposable {
 		// User data
 		let indexedDBUserDataProvider: IIndexedDBFileSystemProvider | null = null;
 		try {
-			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE);
+			indexedDBUserDataProvider = await indexedDB.createFileSystemProvider(Schemas.userData, INDEXEDDB_USERDATA_OBJECT_STORE, true);
 		} catch (error) {
 			onUnexpectedError(error);
 		}

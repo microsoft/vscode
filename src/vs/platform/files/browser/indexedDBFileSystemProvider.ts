@@ -33,12 +33,12 @@ export class IndexedDB {
 		this.indexedDBPromise = this.openIndexedDB(INDEXEDDB_VSCODE_DB, 2, [INDEXEDDB_USERDATA_OBJECT_STORE, INDEXEDDB_LOGS_OBJECT_STORE]);
 	}
 
-	async createFileSystemProvider(scheme: string, store: string): Promise<IIndexedDBFileSystemProvider | null> {
+	async createFileSystemProvider(scheme: string, store: string, watchCrossWindowChanges: boolean): Promise<IIndexedDBFileSystemProvider | null> {
 		let fsp: IIndexedDBFileSystemProvider | null = null;
 		const indexedDB = await this.indexedDBPromise;
 		if (indexedDB) {
 			if (indexedDB.objectStoreNames.contains(store)) {
-				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store);
+				fsp = new IndexedDBFileSystemProvider(scheme, indexedDB, store, watchCrossWindowChanges);
 			} else {
 				console.error(`Error while creating indexedDB filesystem provider. Could not find ${store} object store`);
 			}
@@ -226,14 +226,16 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 	private cachedFiletree: Promise<IndexedDBFileSystemNode> | undefined;
 	private writeManyThrottler: Throttler;
 
-	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string) {
+	constructor(scheme: string, private readonly database: IDBDatabase, private readonly store: string, private readonly watchCrossWindowChanges: boolean) {
 		super();
 		this.writeManyThrottler = new Throttler();
 
 		this.changesKey = `vscode.indexedDB.${scheme}.changes`;
-		const storageListener = (event: StorageEvent) => this.onDidStorageChange(event);
-		window.addEventListener('storage', storageListener);
-		this._register(toDisposable(() => window.removeEventListener('storage', storageListener)));
+		if (watchCrossWindowChanges) {
+			const storageListener = (event: StorageEvent) => this.onDidStorageChange(event);
+			window.addEventListener('storage', storageListener);
+			this._register(toDisposable(() => window.removeEventListener('storage', storageListener)));
+		}
 	}
 
 	private onDidStorageChange(event: StorageEvent): void {
@@ -394,9 +396,11 @@ class IndexedDBFileSystemProvider extends Disposable implements IIndexedDBFileSy
 		if (changes.length) {
 			this._onDidChangeFile.fire(changes);
 
-			// remove previous changes so that event is triggered even if new changes are same as old changes
-			window.localStorage.removeItem(this.changesKey);
-			window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
+			if (this.watchCrossWindowChanges) {
+				// remove previous changes so that event is triggered even if new changes are same as old changes
+				window.localStorage.removeItem(this.changesKey);
+				window.localStorage.setItem(this.changesKey, JSON.stringify(changes));
+			}
 		}
 	}
 
