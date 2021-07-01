@@ -57,7 +57,7 @@ export abstract class AbstractWorkspaceEditingService implements IWorkspaceEditi
 			title: localize('saveWorkspace', "Save Workspace"),
 			filters: WORKSPACE_FILTER,
 			defaultUri: await this.fileDialogService.defaultWorkspacePath(undefined, UNTITLED_WORKSPACE_FILENAME),
-			availableFileSystems: [Schemas.file, Schemas.vscodeRemote]
+			availableFileSystems: [Schemas.vscodeRemote, Schemas.file]
 		});
 
 		if (!workspacePath) {
