@@ -507,10 +507,15 @@ export class WorkspaceTrustManagementService extends Disposable implements IWork
 			return true;
 		}
 
-		// Trusted workspace
-		// Can only be trusted explicitly in the single folder scenario
+		// Trusted workspaces
+		// Can only untrusted in the single folder scenario
 		const workspaceIdentifier = toWorkspaceIdentifier(this._canonicalWorkspace);
-		if (!(isSingleFolderWorkspaceIdentifier(workspaceIdentifier) && workspaceIdentifier.uri.scheme === Schemas.file)) {
+		if (!isSingleFolderWorkspaceIdentifier(workspaceIdentifier)) {
+			return false;
+		}
+
+		// Can only be untrusted in certain schemes
+		if (workspaceIdentifier.uri.scheme !== Schemas.file && workspaceIdentifier.uri.scheme !== 'vscode-vfs') {
 			return false;
 		}
 
