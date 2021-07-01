@@ -516,6 +516,7 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private async registerExtensionNewContributions(extension: IExtensionDescription) {
 		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
 			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
+			return;
 		}
 		extension.contributes?.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
