@@ -112,6 +112,10 @@
 	line-height: 20px;
 }
 
+.extension-editor > .header > .details > .subtitle .hide {
+	display: none;
+}
+
 .extension-editor > .header > .details > .subtitle .publisher {
 	font-size: 18px;
 }
