@@ -34,6 +34,7 @@ import { isLinux, isMacintosh, isWindows, OperatingSystem as OS } from 'vs/base/
 import { localize } from 'vs/nls';
 import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import product from 'vs/platform/product/common/product';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
 export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
@@ -513,6 +514,9 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	}
 
 	private async registerExtensionNewContributions(extension: IExtensionDescription) {
+		if (product.quality === 'stable' && !this.configurationService.getValue('workbench.welcome.experimental.startEntries')) {
+			console.warn('Warning: ignoring startEntries contributed by', extension.identifier, 'becuase this is a stable build and welcome.experimental.startEntries has not been set');
+		}
 		extension.contributes?.startEntries?.forEach(entry => {
 			this.registerNewMenuItem({
 				sourceExtensionId: extension.identifier.value,

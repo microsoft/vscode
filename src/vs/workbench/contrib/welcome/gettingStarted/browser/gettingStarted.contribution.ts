@@ -314,6 +314,12 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			description: localize('workbench.welcomePage.walkthroughs.openOnInstall', "When enabled, an extension's walkthrough will open upon install the extension. Walkthroughs are the items contributed the the 'Getting Started' section of the welcome page")
+		},
+		'workbench.welcome.experimental.startEntries': {
+			scope: ConfigurationScope.APPLICATION,
+			type: 'boolean',
+			default: false,
+			description: localize('workbench.welcome.experimental.startEntries', "Experimental. When enabled, extensions can use proposed API to contribute items to the New=>File... menu and welcome page item.")
 		}
 	}
 });
