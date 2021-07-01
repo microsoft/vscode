@@ -36,6 +36,7 @@ import { IQuickInputService, IQuickPickItem, IQuickPickSeparator } from 'vs/plat
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export const WorkspacePlatform = new RawContextKey<'mac' | 'linux' | 'windows' | undefined>('workspacePlatform', undefined, localize('workspacePlatform', "The platform of the current workspace, which in remote contexts may be different from the platform of the UI"));
+export const HasMultipleNewFileEntries = new RawContextKey<boolean>('hasMultipleNewFileEntries', false);
 
 export const IGettingStartedService = createDecorator<IGettingStartedService>('gettingStartedService');
 
@@ -308,6 +309,8 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			e.affectedKeys.forEach(key => { this.progressByEvent('onSettingChanged:' + key); });
 		}));
+
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(false);
 
 		this.remoteAgentService.getEnvironment().then(env => {
 			const remoteOS = env?.os;
@@ -672,6 +675,10 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 	private registerNewMenuItem(categoryDescriptor: IGettingStartedNewMenuEntryDescriptor) {
 		this.newMenuItems.push(categoryDescriptor);
 		this.newMenuItems.sort((a, b) => b.category - a.category);
+		if (categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.file || categoryDescriptor.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook) {
+			HasMultipleNewFileEntries.bindTo(this.contextService).set(true);
+		}
+
 		this._onDidAddNewEntry.fire();
 	}
 
@@ -697,6 +704,11 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		}
 
 		this.newMenuItems = this.newMenuItems.filter(entry => entry.sourceExtensionId !== extension.identifier.value);
+		HasMultipleNewFileEntries.bindTo(this.contextService).set(
+			this.newMenuItems.filter(entry =>
+				entry.category === IGettingStartedNewMenuEntryDescriptorCategory.file
+				|| entry.category === IGettingStartedNewMenuEntryDescriptorCategory.notebook).length > 1
+		);
 	}
 
 	private registerDoneListeners(step: IGettingStartedStep) {
