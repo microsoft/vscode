@@ -18,8 +18,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { basename, joinPath } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection, isEditorReplacement, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { SIDE_GROUP, IUntypedEditorReplacement, IEditorService, SIDE_GROUP_TYPE, ACTIVE_GROUP_TYPE, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, isEditorReplacement } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IUntypedEditorReplacement, IEditorService, ISaveEditorsOptions, ISaveAllEditorsOptions, IRevertAllEditorsOptions, IBaseSaveRevertAllEditorOptions, IOpenEditorsOptions } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, DisposableStore } from 'vs/base/common/lifecycle';
 import { coalesce, distinct } from 'vs/base/common/arrays';
@@ -38,15 +38,9 @@ import { RegisteredEditorPriority, IEditorOverrideService, OverrideStatus, Retur
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/platform/workspace/common/workspaceTrust';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { findGroup, isPreferredGroup, PreferredGroup } from 'vs/workbench/services/editor/browser/editorGroupFinder';
 
 type CachedEditorInput = TextResourceEditorInput | IFileEditorInput | UntitledTextEditorInput;
-type OpenInEditorGroup = IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE;
-
-function isOpenInEditorGroup(obj: unknown): obj is OpenInEditorGroup {
-	const candidate = obj as OpenInEditorGroup | undefined;
-
-	return typeof obj === 'number' || isEditorGroup(candidate);
-}
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -514,17 +508,17 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: IResourceEditorInput, group?: OpenInEditorGroup): Promise<IEditorPane | undefined>;
-	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: OpenInEditorGroup): Promise<ITextEditorPane | undefined>;
-	openEditor(editor: IResourceDiffEditorInput, group?: OpenInEditorGroup): Promise<ITextDiffEditorPane | undefined>;
-	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | OpenInEditorGroup, preferredGroup?: OpenInEditorGroup): Promise<IEditorPane | undefined> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: IResourceEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
+	openEditor(editor: ITextResourceEditorInput | IUntitledTextResourceEditorInput, group?: PreferredGroup): Promise<ITextEditorPane | undefined>;
+	openEditor(editor: IResourceDiffEditorInput, group?: PreferredGroup): Promise<ITextDiffEditorPane | undefined>;
+	async openEditor(editor: IEditorInput | IUntypedEditorInput, optionsOrPreferredGroup?: IEditorOptions | PreferredGroup, preferredGroup?: PreferredGroup): Promise<IEditorPane | undefined> {
 		let typedEditor: IEditorInput | undefined = undefined;
 		let options = isEditorInput(editor) ? optionsOrPreferredGroup as IEditorOptions : editor.options;
 		let group: IEditorGroup | undefined = undefined;
 		let activation: EditorActivation | undefined = undefined;
 
-		if (isOpenInEditorGroup(optionsOrPreferredGroup)) {
+		if (isPreferredGroup(optionsOrPreferredGroup)) {
 			preferredGroup = optionsOrPreferredGroup;
 		}
 
@@ -553,7 +547,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 		// If group still isn't defined because of a disabled override we resolve it
 		if (!group) {
-			([group, activation] = this.findTargetGroup({ editor: typedEditor, options }, preferredGroup));
+			const typedEditorWithOptions: IEditorInputWithOptions = { editor: typedEditor, options };
+			([group, activation] = this.instantiationService.invokeFunction(findGroup, typedEditorWithOptions, preferredGroup));
 		}
 
 		// Mixin editor group activation if any
@@ -564,7 +559,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return group.openEditor(typedEditor, options);
 	}
 
-	private async doResolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): Promise<[ReturnedOverride, IEditorGroup | undefined, EditorActivation | undefined]> {
+	private async doResolveEditor(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: PreferredGroup | undefined): Promise<[ReturnedOverride, IEditorGroup | undefined, EditorActivation | undefined]> {
 		let untypedEditor: IUntypedEditorInput | undefined = undefined;
 
 		// Typed: convert to untyped to be able to resolve the override
@@ -587,7 +582,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		// Typed editors that cannot convert to untyped will be taken
 		// as is without override. We still want to resolve a group though.
 		if (!untypedEditor) {
-			const [group, activation] = this.findTargetGroup(editor, preferredGroup);
+			const [group, activation] = this.instantiationService.invokeFunction(findGroup, editor, preferredGroup);
 
 			return [OverrideStatus.NONE, group, activation];
 		}
@@ -605,127 +600,18 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Find the target group for the editor
-		const [group, activation] = this.findTargetGroup(untypedEditor, preferredGroup);
+		const [group, activation] = this.instantiationService.invokeFunction(findGroup, untypedEditor, preferredGroup);
 
 		return [await this.editorOverrideService.resolveEditorInput(untypedEditor, group, hasConflictingDefaults), group, activation];
-	}
-
-	private findTargetGroup(editor: IEditorInputWithOptions, preferredGroup: OpenInEditorGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-	private findTargetGroup(editor: IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): [IEditorGroup, EditorActivation | undefined];
-	private findTargetGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): [IEditorGroup, EditorActivation | undefined] {
-		const group = this.doFindTargetGroup(editor, preferredGroup);
-
-		// Resolve editor activation strategy
-		let activation: EditorActivation | undefined = undefined;
-		if (
-			this.editorGroupService.activeGroup !== group && 	// only if target group is not already active
-			editor.options && !editor.options.inactive &&		// never for inactive editors
-			editor.options.preserveFocus &&						// only if preserveFocus
-			typeof editor.options.activation !== 'number' &&	// only if activation is not already defined (either true or false)
-			preferredGroup !== SIDE_GROUP						// never for the SIDE_GROUP
-		) {
-			// If the resolved group is not the active one, we typically
-			// want the group to become active. There are a few cases
-			// where we stay away from encorcing this, e.g. if the caller
-			// is already providing `activation`.
-			//
-			// Specifically for historic reasons we do not activate a
-			// group is it is opened as `SIDE_GROUP` with `preserveFocus:true`.
-			// repeated Alt-clicking of files in the explorer always open
-			// into the same side group and not cause a group to be created each time.
-			activation = EditorActivation.ACTIVATE;
-		}
-
-		return [group, activation];
-	}
-
-	private doFindTargetGroup(editor: IEditorInputWithOptions | IUntypedEditorInput, preferredGroup: OpenInEditorGroup | undefined): IEditorGroup {
-		let group: IEditorGroup | undefined;
-
-		// Group: Instance of Group
-		if (preferredGroup && typeof preferredGroup !== 'number') {
-			group = preferredGroup;
-		}
-
-		// Group: Side by Side
-		else if (preferredGroup === SIDE_GROUP) {
-			group = this.findSideBySideGroup();
-		}
-
-		// Group: Specific Group
-		else if (typeof preferredGroup === 'number' && preferredGroup >= 0) {
-			group = this.editorGroupService.getGroup(preferredGroup);
-		}
-
-		// Group: Unspecified without a specific index to open
-		else if (!editor.options || typeof editor.options.index !== 'number') {
-			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-
-			// Respect option to reveal an editor if it is already visible in any group
-			if (editor.options?.revealIfVisible) {
-				for (const lastActiveGroup of groupsByLastActive) {
-					if (lastActiveGroup.isActive(editor)) {
-						group = lastActiveGroup;
-						break;
-					}
-				}
-			}
-
-			// Respect option to reveal an editor if it is open (not necessarily visible)
-			// Still prefer to reveal an editor in a group where the editor is active though.
-			if (!group) {
-				if (editor.options?.revealIfOpened || this.configurationService.getValue<boolean>('workbench.editor.revealIfOpen')) {
-					let groupWithInputActive: IEditorGroup | undefined = undefined;
-					let groupWithInputOpened: IEditorGroup | undefined = undefined;
-
-					for (const group of groupsByLastActive) {
-						if (group.contains(editor)) {
-							if (!groupWithInputOpened) {
-								groupWithInputOpened = group;
-							}
-
-							if (!groupWithInputActive && group.isActive(editor)) {
-								groupWithInputActive = group;
-							}
-						}
-
-						if (groupWithInputOpened && groupWithInputActive) {
-							break; // we found all groups we wanted
-						}
-					}
-
-					// Prefer a target group where the input is visible
-					group = groupWithInputActive || groupWithInputOpened;
-				}
-			}
-		}
-
-		// Fallback to active group if target not valid
-		if (!group) {
-			group = this.editorGroupService.activeGroup;
-		}
-
-		return group;
-	}
-
-	private findSideBySideGroup(): IEditorGroup {
-		const direction = preferredSideBySideGroupDirection(this.configurationService);
-
-		let neighbourGroup = this.editorGroupService.findGroup({ direction });
-		if (!neighbourGroup) {
-			neighbourGroup = this.editorGroupService.addGroup(this.editorGroupService.activeGroup, direction);
-		}
-
-		return neighbourGroup;
 	}
 
 	//#endregion
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	openEditors(editors: IUntypedEditorInput[], group?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
-	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: OpenInEditorGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	openEditors(editors: IUntypedEditorInput[], group?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]>;
+	async openEditors(editors: Array<IEditorInputWithOptions | IUntypedEditorInput>, preferredGroup?: PreferredGroup, options?: IOpenEditorsOptions): Promise<IEditorPane[]> {
 
 		// Pass all editors to trust service to determine if
 		// we should proceed with opening the editors if we
@@ -766,7 +652,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 
 			// If group still isn't defined because of a disabled override we resolve it
 			if (!group) {
-				group = this.doFindTargetGroup(typedEditor, preferredGroup);
+				[group] = this.instantiationService.invokeFunction(findGroup, typedEditor, preferredGroup);
 			}
 
 			// Update map of groups to editors
