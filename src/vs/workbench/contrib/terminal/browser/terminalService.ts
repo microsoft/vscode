@@ -890,7 +890,10 @@ export class TerminalService implements ITerminalService {
 			let instance;
 
 			if ('id' in value.profile) {
-				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, { isSplitTerminal: !!(keyMods?.alt && activeInstance) });
+				await this.createContributedTerminalProfile(value.profile.extensionIdentifier, value.profile.id, {
+					isSplitTerminal: !!(keyMods?.alt && activeInstance),
+					icon: value.profile.icon
+				});
 				return;
 			} else {
 				if (keyMods?.alt && activeInstance) {
