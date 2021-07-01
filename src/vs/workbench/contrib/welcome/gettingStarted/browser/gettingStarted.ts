@@ -307,6 +307,7 @@ export class GettingStartedPage extends EditorPane {
 					this.commandService.executeCommand(selectedCategory.content.command);
 				} else {
 					this.gettingStartedService.markWalkthroughOpened(argument);
+					this.gettingStartedList?.setEntries(this.gettingStartedService.getCategories());
 					this.scrollToCategory(argument);
 				}
 				break;
