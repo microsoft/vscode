@@ -601,6 +601,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				return [OverrideStatus.ABORT, undefined, undefined]; // we could not resolve the editor id
 			}
 
+			untypedEditor.options = untypedEditor.options?.override ? untypedEditor.options : { ...untypedEditor.options, override: DEFAULT_EDITOR_ASSOCIATION.id };
+
 			hasConflictingDefaults = populatedInfo.conflictingDefault;
 		}
 
