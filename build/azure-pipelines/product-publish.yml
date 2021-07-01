@@ -52,6 +52,7 @@ steps:
   - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
     artifact: artifacts_processed_$(System.StageAttempt)
     displayName: Publish what artifacts were published for this stage attempt
+    condition: always()
 
   - pwsh: |
       $ErrorActionPreference = 'Stop'
