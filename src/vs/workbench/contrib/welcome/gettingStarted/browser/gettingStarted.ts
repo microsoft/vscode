@@ -1045,7 +1045,7 @@ export class GettingStartedPage extends EditorPane {
 			5,
 			undefined,
 			undefined,
-			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('seeMore', "Show All")),
+			$('button.button-link.see-all-walkthroughs', { 'tabindex': '0', 'x-dispatch': 'seeAllWalkthroughs' }, localize('showAll', "Show All...")),
 			renderGetttingStaredWalkthrough);
 
 		gettingStartedList.onDidChange(() => {
