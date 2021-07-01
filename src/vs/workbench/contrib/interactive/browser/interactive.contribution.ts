@@ -42,6 +42,7 @@ import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/not
 import { IInteractiveDocumentService, InteractiveDocumentService } from 'vs/workbench/contrib/interactive/browser/interactiveDocumentService';
 import { IEditorOverrideService, RegisteredEditorPriority } from 'vs/workbench/services/editor/common/editorOverrideService';
 import { Context as SuggestContext } from 'vs/editor/contrib/suggest/suggest';
+import { EditorActivation } from 'vs/platform/editor/common/editor';
 
 
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -295,7 +296,7 @@ registerAction2(class extends Action2 {
 			if (editors.length) {
 				const editorInput = editors[0].editor as InteractiveEditorInput;
 				const currentGroup = editors[0].groupId;
-				await editorService.openEditor(editorInput, { preserveFocus: true }, currentGroup);
+				await editorService.openEditor(editorInput, { activation: EditorActivation.PRESERVE, preserveFocus: true }, currentGroup);
 				return {
 					notebookUri: editorInput.resource!,
 					inputUri: editorInput.inputResource
