@@ -85,6 +85,7 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
+		this._editorInput?.terminalInstance?.detachFromElement();
 		this._editorInput = newInput;
 		await super.setInput(newInput, options, context, token);
 		this._editorInput.terminalInstance?.attachToElement(this._parentElement!);
