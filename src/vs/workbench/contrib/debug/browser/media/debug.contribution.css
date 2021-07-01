@@ -42,7 +42,7 @@
 /* Do not push text with inline decoration when decoration on start of line */
 .monaco-editor .debug-top-stack-frame-column.start-of-line::before {
 	position: absolute;
-	top: 3px;
+	top: 2px;
 	transform: translateX(-17px);
 }
 
