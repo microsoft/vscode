@@ -226,6 +226,8 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			return enablementState;
 		}
 
+		enablementState = this._getUserEnablementState(extension.identifier);
+
 		if (this.extensionBisectService.isDisabledByBisect(extension)) {
 			enablementState = EnablementState.DisabledByEnvironment;
 		}
@@ -238,21 +240,16 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			enablementState = EnablementState.DisabledByVirtualWorkspace;
 		}
 
+		else if (this._isEnabledEnablementState(enablementState) && this._isDisabledByWorkspaceTrust(extension, extensions)) {
+			enablementState = EnablementState.DisabledByTrustRequirement;
+		}
+
 		else if (this._isDisabledByExtensionKind(extension)) {
 			enablementState = EnablementState.DisabledByExtensionKind;
 		}
 
-		else {
-			enablementState = this._getUserEnablementState(extension.identifier);
-			if (this._isEnabledEnablementState(enablementState)) {
-				if (this._isDisabledByWorkspaceTrust(extension, extensions)) {
-					enablementState = EnablementState.DisabledByTrustRequirement;
-				}
-
-				else if (this._isDisabledByExtensionDependency(extension, extensions, computedEnablementStates)) {
-					enablementState = EnablementState.DisabledByExtensionDependency;
-				}
-			}
+		else if (this._isEnabledEnablementState(enablementState) && this._isDisabledByExtensionDependency(extension, extensions, computedEnablementStates)) {
+			enablementState = EnablementState.DisabledByExtensionDependency;
 		}
 
 		computedEnablementStates.set(extension, enablementState);
