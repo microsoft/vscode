@@ -998,6 +998,7 @@ export class GettingStartedPage extends EditorPane {
 				return undefined;
 			}
 
+			const renderNewBadge = category.content.accolades === 'newCategory' || category.content.accolades === 'newContent';
 			const newBadge = $('.new-badge', {});
 			if (category.content.accolades === 'newCategory') {
 				reset(newBadge, $('.new-category', {}, localize('new', "New")));
@@ -1023,7 +1024,7 @@ export class GettingStartedPage extends EditorPane {
 				$('.main-content', {},
 					this.iconWidgetFor(category),
 					$('h3.category-title.max-lines-3', { 'x-category-title-for': category.id }, category.title,),
-					newBadge,
+					renderNewBadge ? newBadge : $('.no-badge'),
 					$('a.codicon.codicon-close.hide-category-button', {
 						'x-dispatch': 'hideCategory:' + category.id,
 						'title': localize('close', "Hide"),
