@@ -830,7 +830,12 @@ export class GettingStartedService extends Disposable implements IGettingStarted
 		const isNew = firstSeenDate && firstSeenDate > (+new Date() - NEW_WALKTHROUGH_TIME);
 
 		const lastStepIDs = this.metadata.get(category.id)?.stepIDs;
-		const hasNewSteps = lastStepIDs && (category.content.steps.length !== lastStepIDs.length || category.content.steps.some(({ id }, index) => id !== lastStepIDs[index]));
+		const rawCategory = this.gettingStartedContributions.get(category.id);
+		let currentStepIds: string[] = [];
+		if (rawCategory?.content.type === 'steps') {
+			currentStepIds = rawCategory.content.steps.map(s => s.id);
+		}
+		const hasNewSteps = lastStepIDs && (currentStepIds.length !== lastStepIDs.length || currentStepIds.some((id, index) => id !== lastStepIDs[index]));
 
 		let priority = 0;
 
